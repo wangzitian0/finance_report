@@ -27,7 +27,7 @@ EMPTY_FALLBACK_FIELDS = frozenset(
 
 _GROUPS = {
     "db": "Database",
-    "s3": "S3 / MinIO Storage",
+    "s3": "S3 Storage",
     "sec": "Security",
     "ai": "AI Provider",
     "app": "App Settings",
@@ -42,10 +42,10 @@ for _line in """
 database_url|db|i,na|Async SQLAlchemy database URL. Use postgresql+asyncpg:// for async FastAPI compatibility.
 db_pool_size|db||DB connection pool size (optional tuning for production).
 db_pool_max_overflow|db||DB connection pool max overflow (optional tuning for production).
-s3_endpoint|s3|i,na|S3 / MinIO endpoint used for storing uploaded statement files.
-s3_access_key|s3|i|S3 / MinIO access key.
-s3_secret_key|s3|i|S3 / MinIO secret key.
-s3_bucket|s3|i,na|S3 / MinIO bucket name for uploaded statements.
+s3_endpoint|s3|i,na|S3 endpoint used for storing uploaded statement files.
+s3_access_key|s3|i|S3 access key.
+s3_secret_key|s3|i|S3 secret key.
+s3_bucket|s3|i,na|S3 bucket name for uploaded statements.
 s3_public_endpoint|s3|i|Publicly reachable S3 endpoint for AI services. REQUIRED in production if S3_ENDPOINT is internal (e.g. http://minio:9000). Some AI providers need publicly accessible URLs to download statement PDFs for parsing. If not set, the system sends file_content (Base64) when available and only falls back to the S3 file_url when no content is provided.
 s3_public_access_key|s3|i|Public S3 access key (falls back to internal S3 settings when unset).
 s3_public_secret_key|s3|i|Public S3 secret key (falls back to internal S3 settings when unset).
@@ -54,7 +54,7 @@ secret_key|sec|i|Application secret key. CRITICAL: must be set to a secure rando
 jwt_algorithm|sec||JWT signing algorithm.
 access_token_expire_minutes|sec||Access token lifetime in minutes.
 trust_proxy|sec||Trust X-Forwarded-For headers from reverse proxies.
-ai_provider|ai|i,ac:LLM_PROVIDER+AI_PROVIDER|AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults).
+ai_provider|ai|i,ac:LLM_PROVIDER|AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults).
 ai_api_key|ai|i,al:LLM_API_KEY|AI provider API key (empty key = AI features disabled).
 environment|app|i,ac:ENVIRONMENT+ENV|Logical environment name (used to differentiate environments).
 debug|app|na|Enable debug mode.
@@ -66,7 +66,7 @@ redis_url|app||Optional Redis URL for staging/production background coordination
 next_public_app_url|app|i|Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL and is used by backend components when they link back to the frontend app.
 cors_origins_str|sec|i,al:CORS_ORIGINS|Comma-separated CORS origins, e.g. http://localhost:3000,http://localhost:3001.
 cors_origin_regex|sec|na|CORS origin regex for dynamic subdomains (PR deployments and staging).
-ai_base_url|ai|ac:LLM_BASE_URL+AI_BASE_URL|AI provider base URL (provider-neutral; default targets Z.AI/GLM).
+ai_base_url|ai|ac:LLM_BASE_URL|AI provider base URL (provider-neutral; default targets Z.AI/GLM).
 ai_chat_completions_path|ai||Chat completions path appended to the AI base URL.
 large_model|ai||Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production.
 small_model|ai||Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production.
@@ -110,9 +110,9 @@ register_rate_limit_window|rl||Per-IP registration rate-limit window in seconds.
 
 
 _SDK_LLM_KEY_ALIASES: dict[str, tuple[str, ...]] = {
-    "ai_provider": ("LLM_PROVIDER", "AI_PROVIDER"),
+    "ai_provider": ("LLM_PROVIDER",),
     "ai_api_key": ("LLM_API_KEY",),
-    "ai_base_url": ("LLM_BASE_URL", "AI_BASE_URL"),
+    "ai_base_url": ("LLM_BASE_URL",),
 }
 
 
@@ -244,7 +244,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = _f("access_token_expire_minutes", 1440)
     trust_proxy: bool = _f("trust_proxy", False)
     ai_provider: str = _f("ai_provider", "zai")
-    ai_api_key: str = _f("ai_api_key", "", store_key="ZAI_API_KEY")
+    ai_api_key: str = _f("ai_api_key", "", store_key="LLM_API_KEY")
     environment: str = _f("environment", "development", extra_keys=["ENV"])
     debug: bool = _f("debug", False, ex="true")
     base_currency: str = _f("base_currency", "SGD")
@@ -393,7 +393,7 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
         "provided_by": "finance_report/redis:PASSWORD",
         "composed_from": "redis://:{PASSWORD}@finance_report-redis{env:ENV_SUFFIX}:6379/0",
     },
-    "ai_api_key": {"source": "human", "sensitive": True, "empty_ok": True, "store_key": "ZAI_API_KEY"},
+    "ai_api_key": {"source": "human", "sensitive": True, "empty_ok": True, "store_key": "LLM_API_KEY"},
     "git_commit_sha": {"source": "release"},
     **{k: {"source": "runtime", "sensitive": True} for k in ("s3_access_key", "s3_secret_key", "secret_key")},
     **{

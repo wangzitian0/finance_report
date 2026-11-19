@@ -31,7 +31,7 @@ def test_parse_helpers_and_to_llm_settings() -> None:
 def test_env_aliases_and_closed_modes(monkeypatch) -> None:
     monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("ENV", "staging")
-    monkeypatch.delenv("AI_BASE_URL", raising=False)
+    monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
     s = Settings(_env_file=None)
     assert (s.environment, s.ai_base_url, s.cors_origin_regex) == ("staging", "https://api.z.ai/api/coding/paas/v4", "^$")

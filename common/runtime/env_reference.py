@@ -50,7 +50,7 @@ GROUP_ORDER = [
     "Database",
     "App Settings",
     "AI Provider",
-    "S3 / MinIO Storage",
+    "S3 Storage",
     "Observability",
     "Security",
     "Feature Flags",
