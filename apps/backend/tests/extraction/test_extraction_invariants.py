@@ -5,7 +5,7 @@ from decimal import Decimal
 from uuid import UUID
 
 from src.extraction import TransactionDirection
-from src.extraction.base.validation import BALANCE_TOLERANCE, validate_balance
+from src.extraction.base.validation import BALANCE_TOLERANCE, evaluate_statement_balance
 from src.extraction.extension.deduplication import DeduplicationService
 
 _BALANCED_CASES = [
@@ -24,24 +24,49 @@ def _make_statement(opening: Decimal, ins: list[Decimal], outs: list[Decimal]) -
     return {"opening_balance": str(opening), "closing_balance": str(opening + net), "transactions": txns}
 
 
+def _eval_bal(d: dict) -> dict:
+    return evaluate_statement_balance(
+        opening=Decimal(str(d["opening_balance"])),
+        closing=Decimal(str(d["closing_balance"])),
+        currency=None,
+        currency_balances=None,
+        transactions=d["transactions"],
+    )
+
+
 def test_balance_chain_invariant_holds_and_rejects_broken_chains():
     for opening, ins, outs in _BALANCED_CASES:
         extracted = _make_statement(opening, ins, outs)
         expected_closing = opening + sum(ins, Decimal("0")) - sum(outs, Decimal("0"))
-        assert validate_balance(extracted)["balance_valid"] is True and Decimal(str(extracted["closing_balance"])) == expected_closing
+        assert (
+            _eval_bal(extracted)["balance_valid"] is True
+            and Decimal(str(extracted["closing_balance"])) == expected_closing
+        )
         extracted["closing_balance"] = str(expected_closing + BALANCE_TOLERANCE + Decimal("1.00"))
-        assert validate_balance(extracted)["balance_valid"] is False
+        assert _eval_bal(extracted)["balance_valid"] is False
 
     base = _make_statement(Decimal("1000.00"), [Decimal("100.00")], [])
     computed = Decimal(str(base["closing_balance"]))
-    assert all(validate_balance({**base, "closing_balance": str(computed + delta)})["balance_valid"] is True for delta in (BALANCE_TOLERANCE, -BALANCE_TOLERANCE))
+    assert all(
+        _eval_bal({**base, "closing_balance": str(computed + delta)})["balance_valid"] is True
+        for delta in (BALANCE_TOLERANCE, -BALANCE_TOLERANCE)
+    )
 
 
 def test_distinct_same_amount_rows_never_collapse():
     uid = UUID("00000000-0000-0000-0000-000000000001")
 
     def _hash(occ: int, bal: Decimal | None) -> str:
-        return DeduplicationService.calculate_transaction_hash(user_id=uid, txn_date=date(2025, 1, 15), amount=Decimal("100.00"), direction=TransactionDirection.IN, description="SALARY", reference=None, balance_after=bal, occurrence_index=occ)
+        return DeduplicationService.calculate_transaction_hash(
+            user_id=uid,
+            txn_date=date(2025, 1, 15),
+            amount=Decimal("100.00"),
+            direction=TransactionDirection.IN,
+            description="SALARY",
+            reference=None,
+            balance_after=bal,
+            occurrence_index=occ,
+        )
 
     assert all(len({_hash(i, bal) for i in range(n)}) == n for n in range(1, 13) for bal in (None, Decimal("100.00")))
     assert all(_hash(0, bal) == _hash(0, bal) and _hash(3, bal) == _hash(3, bal) for bal in (None, Decimal("100.00")))

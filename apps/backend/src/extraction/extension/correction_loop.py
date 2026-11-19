@@ -27,6 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.orm.correction import CorrectionLog
 from src.extraction.orm.statement_summary import StatementSummary
+from src.observability import record_confidence_tier, record_low_confidence_proportion
 
 _QUANT = Decimal("0.00001")
 
@@ -190,6 +191,10 @@ class CorrectionLoopService:
             )
         )
         high, medium, low, low_prop = summarize_statement_confidence_tiers(stmt_result.all())
+        record_confidence_tier(tier="high", stage="replay", count=high)
+        record_confidence_tier(tier="medium", stage="replay", count=medium)
+        record_confidence_tier(tier="low", stage="replay", count=low)
+        record_low_confidence_proportion(proportion=float(low_prop), source="replay")
         return ReplayResult(
             holdout_size=replay.holdout_size,
             grounded=replay.grounded,

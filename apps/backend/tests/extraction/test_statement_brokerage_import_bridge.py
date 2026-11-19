@@ -481,14 +481,10 @@ async def test_parse_statement_background_brokerage_review_and_import(client, db
             await session.flush()
             summary.uploaded_document_id = doc.id
         await session.flush()
-        return res
+        return [res]
 
     monkeypatch.setattr(
-        "src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document
-    )
-    monkeypatch.setattr(
-        "src.extraction.extension.statement_parsing.StorageService.generate_presigned_url",
-        lambda *_a, **_kw: "https://example.com/moomoo.pdf",
+        "src.extraction.extension.statement_parsing.ExtractionService.parse_documents", fake_parse_document
     )
     await parse_statement_background(
         job=ParseJob(

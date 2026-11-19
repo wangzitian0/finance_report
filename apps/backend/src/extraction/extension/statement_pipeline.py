@@ -7,7 +7,6 @@ from collections.abc import Callable
 from contextlib import suppress
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import src.config
@@ -15,8 +14,7 @@ from src.extraction.base.types import ParseJob
 from src.extraction.extension.statement_classification_run import execute_classify_run
 from src.extraction.extension.statement_parsing import StatementIngestionUseCase
 from src.extraction.extension.statement_posting import StatementPostingDependencies
-from src.extraction.orm.layer1 import UploadedDocument
-from src.extraction.orm.statement_summary import StatementSummary
+from src.extraction.extension.uploaded_document_reads import resolve_uploaded_document  # noqa: F401
 from src.observability import get_logger, run_with_async_parse_tracking
 
 logger = get_logger(__name__)
@@ -36,23 +34,6 @@ async def wait_for_parse_tasks() -> None:
     """Wait for all pending background statement parse or classify tasks."""
     if PENDING_PARSE_TASKS:
         await asyncio.gather(*PENDING_PARSE_TASKS, return_exceptions=True)
-
-
-async def resolve_uploaded_document(
-    db: AsyncSession, statement: StatementSummary, user_id: UUID
-) -> UploadedDocument | None:
-    """Resolve the user-owned uploaded document backing a statement."""
-    if statement.uploaded_document_id is not None:
-        doc = await db.get(UploadedDocument, statement.uploaded_document_id)
-        if doc is not None and doc.user_id == user_id:
-            return doc
-    return (
-        await db.execute(
-            select(UploadedDocument).where(
-                UploadedDocument.user_id == user_id, UploadedDocument.file_hash == statement.file_hash
-            )
-        )
-    ).scalar_one_or_none()
 
 
 def _consume_background_task_exception(task: asyncio.Task) -> None:
@@ -100,14 +81,18 @@ async def submit_parse_pipeline(
 
     if settings.prefect_api_url:
         try:
+            import time
+
             from prefect.deployments import run_deployment
 
+            dispatch_started = time.perf_counter()
             await run_deployment(name=PARSE_DEPLOYMENT, parameters={"job": job.to_prefect_params()}, timeout=0)
             logger.info(
                 "statement.parse.submitted_to_prefect",
                 statement_id=str(job.statement_id),
                 deployment=PARSE_DEPLOYMENT,
                 request_id=job.request_id,
+                prefect_submit_ms=round((time.perf_counter() - dispatch_started) * 1000, 2),
             )
             return None
         except Exception as exc:  # noqa: BLE001

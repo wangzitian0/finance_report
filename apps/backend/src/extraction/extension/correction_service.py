@@ -79,18 +79,6 @@ async def _resolve_statement_for_transaction(
         if statement is not None:
             return statement
 
-        stmt_direct = await db.execute(
-            select(StatementSummary)
-            .where(
-                StatementSummary.user_id == user_id,
-                StatementSummary.id.in_(doc_ids),
-            )
-            .limit(1)
-        )
-        statement = stmt_direct.scalar_one_or_none()
-        if statement is not None:
-            return statement
-
         from src.extraction.orm.layer1 import UploadedDocument
 
         doc_result = await db.execute(select(UploadedDocument.file_hash).where(UploadedDocument.id.in_(doc_ids)))

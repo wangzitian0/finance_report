@@ -63,6 +63,7 @@ from src.extraction.extension.review_queue import (
     resolve_secondary_currency_custody_account,
 )
 from src.extraction.extension.reviewed_statement_envelope import get_current_statement_extraction_result
+from src.extraction.extension.uploaded_document_reads import resolve_uploaded_document
 from src.extraction.extension.statement_validation import (
     BalanceChainValidationError,
     approve_statement_with_transactions,
@@ -136,7 +137,7 @@ class StatementPostingDependencies:
 
 
 def is_high_confidence_auto_approve_candidate(statement: StatementSummary) -> bool:
-    """True for the candidate mark of the parse: `route_by_threshold` sets APPROVED before any entry exists."""
+    """True when parse marked the statement as an auto-approve candidate before any entry exists."""
     return (
         statement.status == BankStatementStatus.APPROVED
         and statement.balance_validated is True
@@ -320,8 +321,19 @@ async def auto_create_posted_entries_for_statement(
         )
         planned.append((txn, proposal, decision, counter_account, transaction))
 
-    result_payload = (statement.extraction_metadata or {}).get("statement_extraction_result")
-    result_id = result_payload.get("result_id") if isinstance(result_payload, dict) else None
+    current_result = (
+        await get_current_statement_extraction_result(
+            db, user_id=user_id, statement_id=statement.id, statement=statement
+        )
+        if statement.current_extraction_result_id is not None
+        else None
+    )
+    if current_result is not None:
+        result_id: str | None = str(current_result.result_id)
+    else:
+        result_payload = (statement.extraction_metadata or {}).get("statement_extraction_result")
+        raw_id = result_payload.get("result_id") if isinstance(result_payload, dict) else None
+        result_id = str(raw_id) if raw_id is not None else None
     occurred_at = statement.created_at or datetime.now(UTC)
     if occurred_at.tzinfo is None:
         occurred_at = occurred_at.replace(tzinfo=UTC)
@@ -556,7 +568,9 @@ def _classification_proposal_origin(rule_type: RuleType) -> IntentProposalOrigin
 async def resolve_statement_posting_account(db: AsyncSession, statement: StatementSummary, user_id: UUID) -> Account:
     currency = normalize_currency_code(statement.currency or "")
     if not currency:
-        raise ValidationFailedError("Statement currency required before posting. Confirm the source currency before posting.")
+        raise ValidationFailedError(
+            "Statement currency required before posting. Confirm the source currency before posting."
+        )
 
     source = await get_current_statement_extraction_result(
         db, user_id=user_id, statement_id=statement.id, statement=statement
@@ -583,7 +597,9 @@ async def resolve_statement_posting_account(db: AsyncSession, statement: Stateme
             await db.execute(select(Account).where(Account.id == statement.account_id, Account.user_id == user_id))
         ).scalar_one_or_none()
         if account is None:
-            raise ValidationFailedError("Statement account mapping is invalid. Confirm the target account before posting.")
+            raise ValidationFailedError(
+                "Statement account mapping is invalid. Confirm the target account before posting."
+            )
         if account.type not in (AccountType.ASSET, AccountType.LIABILITY) or not account.is_active:
             raise ValidationFailedError(
                 "Statement account mapping must reference an active asset or liability account. "
@@ -604,27 +620,11 @@ async def resolve_statement_posting_account(db: AsyncSession, statement: Stateme
     raise ValidationFailedError("Account mapping required before posting. Confirm the statement custody identity.")
 
 
-async def _resolve_statement_uploaded_document(
-    db: AsyncSession, statement: StatementSummary, user_id: UUID
-) -> UploadedDocument | None:
-    if statement.uploaded_document_id is not None:
-        doc = await db.get(UploadedDocument, statement.uploaded_document_id)
-        if doc is not None and doc.user_id == user_id:
-            return doc
-    return (
-        await db.execute(
-            select(UploadedDocument).where(
-                UploadedDocument.user_id == user_id, UploadedDocument.file_hash == statement.file_hash
-            )
-        )
-    ).scalar_one_or_none()
-
-
 async def create_statement_account_from_confirmation(
     db: AsyncSession, statement: StatementSummary, user_id: UUID
 ) -> Account:
     """Resolve or auto-create the statement custody/asset account upon user confirmation."""
-    document = await _resolve_statement_uploaded_document(db, statement, user_id)
+    document = await resolve_uploaded_document(db, statement, user_id)
     source_filename = document.original_filename if document else statement.file_hash
     custody_account_type = custody_account_type_for_statement(
         institution=statement.institution,
@@ -655,9 +655,7 @@ async def create_statement_account_from_confirmation(
         ).scalar_one_or_none()
         if account:
             return account
-        raise ValidationFailedError(
-            "Statement account mapping is invalid. Confirm the target account before posting."
-        )
+        raise ValidationFailedError("Statement account mapping is invalid. Confirm the target account before posting.")
 
     currency = (statement.currency or "").strip().upper()
     if not currency:
@@ -706,13 +704,17 @@ async def validate_statement_period_unique(
     db: AsyncSession, statement: StatementSummary, user_id: UUID, account_id: UUID
 ) -> None:
     if statement.period_start is None or statement.period_end is None:
-        raise ValidationFailedError("Statement period required before posting. Confirm the source date range before posting.")
+        raise ValidationFailedError(
+            "Statement period required before posting. Confirm the source date range before posting."
+        )
     if statement.period_start > statement.period_end:
         raise ValidationFailedError("Statement period is invalid. Confirm the source date range before posting.")
 
     currency = normalize_currency_code(statement.currency or "")
     if not currency:
-        raise ValidationFailedError("Statement currency required before posting. Confirm the source currency before posting.")
+        raise ValidationFailedError(
+            "Statement currency required before posting. Confirm the source currency before posting."
+        )
 
     overlapping = (
         await db.execute(
@@ -1079,7 +1081,9 @@ async def reconcile_account_statement_chain(
             elif earliest.manual_opening_balance is not None:
                 allow_supersede = True
             else:
-                raise ValidationFailedError("Opening balance conflicts with existing opening position for the same date")
+                raise ValidationFailedError(
+                    "Opening balance conflicts with existing opening position for the same date"
+                )
 
     if need_opening_post:
         remaining_plugs: list[tuple[JournalEntry, JournalLine]] = []
@@ -1354,9 +1358,7 @@ async def try_auto_approve_high_confidence_statement(
         if locked_statement is not None
         else (
             await db.execute(
-                select(StatementSummary).where(
-                    StatementSummary.id == statement_id, StatementSummary.user_id == user_id
-                )
+                select(StatementSummary).where(StatementSummary.id == statement_id, StatementSummary.user_id == user_id)
             )
         ).scalar_one_or_none()
     )

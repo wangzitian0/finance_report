@@ -14,7 +14,6 @@ from src.extraction.base.disposition import (
     EconomicIntent,
     IntentProposal,
     IntentProposalOrigin,
-    StatementDispositionPolicySnapshot,
     StatementTransaction,
 )
 from src.extraction.base.result import (
@@ -57,7 +56,6 @@ from src.extraction.base.types import (
     RetryableStatementIngestionError,
     RunHints,
     StatementIngestionConfigurationError,
-    StatementIngestionError,
     StatementIngestionOutcome,
     StatementIngestionStatus,
     StatementPostingOutcome,
@@ -65,9 +63,7 @@ from src.extraction.base.types import (
     extraction_artifact_dependency_digest,
 )
 from src.extraction.base.validation import (
-    compute_confidence_score,
     detect_balance_chain_break,
-    validate_balance,
 )
 from src.extraction.base.ai_settings import (
     evaluate_auto_accept_preference as auto_accept_preference,
@@ -191,7 +187,6 @@ from src.extraction.extension.statement_runs import (
     fail_run,
     finish_run,
     get_active_run,
-    get_latest_run,
     heartbeat_run,
     list_runs,
     lock_statement_for_run,
@@ -319,13 +314,11 @@ __all__ = [
     "Stage1Status",
     "StaleRun",
     "StatementIngestionConfigurationError",
-    "StatementIngestionError",
     "StatementIngestionOutcome",
     "StatementIngestionStatus",
     "StartedRun",
     "StatementRunRecord",
     "StatementStatusChanged",
-    "StatementDispositionPolicySnapshot",
     "StatementIngestionUseCase",
     "StatementBalanceFact",
     "StatementCoverageRow",
@@ -373,7 +366,6 @@ __all__ = [
     "build_csv_mapping_prompt",
     "build_disposition_trace_records",
     "build_statement_ingestion_use_case",
-    "compute_confidence_score",
     "confirm_reviewed_statement_envelope",
     "create_entry_from_txn",
     "create_run",
@@ -389,12 +381,9 @@ __all__ = [
     "fail_run",
     "find_statement_review_conflicts",
     "finish_run",
-    "find_in_flight_parse_id",
     "get_account_statement_coverage",
-    "get_correction_stats",
     "get_active_run",
     "get_known_storage_paths",
-    "get_latest_run",
     "get_parsing_prompt",
     "get_current_statement_extraction_result",
     "get_statement_event_sources",
@@ -424,7 +413,6 @@ __all__ = [
     "register_statement_source",
     "resolve_ingest_currency",
     "resolve_statement_conflicts",
-    "resolve_bank_custody_account",
     "is_bank_custody_source",
     "coverage_bank_custody_account_ids",
     "resolve_statement_posting_account",
@@ -439,7 +427,6 @@ __all__ = [
     "track_parse_task",
     "wait_for_parse_tasks",
     "supports_reviewed_statement_envelope",
-    "validate_balance",
     "validate_balance_chain",
     "validation",
 ]
@@ -447,6 +434,5 @@ __all__ = [
 from src.extraction.extension.custody_binding import (
     coverage_bank_custody_account_ids,
     is_bank_custody_source,
-    resolve_bank_custody_account,
 )
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding as _BankCustodyBinding  # noqa: F401

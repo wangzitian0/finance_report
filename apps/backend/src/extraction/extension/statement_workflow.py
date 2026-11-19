@@ -118,6 +118,7 @@ async def approve_statement_workflow(
     dependencies: StatementPostingDependencies,
     preloaded_bank_account: Account | None = None,
     base_currency: str | None = None,
+    expected_source_result_digest: str | None = None,
 ) -> StatementPostingOutcome:
     """Approve a PARSED statement and post its journal entries as one committed unit.
 
@@ -129,7 +130,12 @@ async def approve_statement_workflow(
     economic plan returns ``POSTED``; an incomplete plan is committed back to
     pending review and returns ``REVIEW_REQUIRED``.
     """
-    statement, transactions = await approve_statement_with_transactions(db, statement_id, user_id)
+    statement, transactions = await approve_statement_with_transactions(
+        db,
+        statement_id,
+        user_id,
+        expected_source_result_digest=expected_source_result_digest,
+    )
     resolved_base_currency = await resolve_statement_base_currency(
         db, user_id, base_currency=base_currency, dependencies=dependencies
     )

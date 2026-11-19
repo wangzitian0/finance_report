@@ -11,7 +11,6 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
-from fastapi.concurrency import run_in_threadpool
 from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -44,7 +43,10 @@ from src.extraction.extension.reviewed_statement_envelope import persist_stateme
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing_supervisor import parsing_heartbeat
 from src.extraction.extension.statement_classification_run import AUTO_APPROVE_CANDIDATE, execute_classify_run
-from src.extraction.extension.statement_posting import StatementPostingDependencies, is_high_confidence_auto_approve_candidate
+from src.extraction.extension.statement_posting import (
+    StatementPostingDependencies,
+    is_high_confidence_auto_approve_candidate,
+)
 from src.extraction.extension.statement_runs import (
     StaleRun,
     claim_run,
@@ -58,7 +60,6 @@ from src.extraction.orm.layer1 import UploadedDocument
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import User
 from src.observability import get_logger, record_statement_parse_outcome, safe_error_message
-from src.runtime import StorageError, StorageService
 
 logger = get_logger(__name__)
 
@@ -113,11 +114,17 @@ class StatementIngestionUseCase:
                     raise
                 await self.sleep(PARSE_RETRY_DELAY_SECONDS)
                 job, attempt = next_job, attempt + 1
-        if outcome.status is StatementIngestionStatus.COMPLETED and outcome.classify_run_id is not None:
+        if outcome.status is StatementIngestionStatus.COMPLETED and (
+            outcome.classify_run_id is not None or outcome.sibling_classify_run_ids
+        ):
             del content
-            posted = await execute_classify_run(
-                self.session_maker, run_id=outcome.classify_run_id, posting_dependencies=self.posting_dependencies
-            )
+            posted = 0
+            for classify_id in ([outcome.classify_run_id] if outcome.classify_run_id is not None else []) + list(
+                outcome.sibling_classify_run_ids
+            ):
+                posted += await execute_classify_run(
+                    self.session_maker, run_id=classify_id, posting_dependencies=self.posting_dependencies
+                )
             outcome = replace(outcome, auto_posted_count=posted)
         return outcome
 
@@ -251,7 +258,11 @@ async def route_brokerage_for_review_if_present(
 
     request_id = request_id or str(uuid4())
     broker = (
-        (payload.get("institution") or (payload.get("statement") or {}).get("institution") if isinstance(payload, dict) else None)
+        (
+            payload.get("institution") or (payload.get("statement") or {}).get("institution")
+            if isinstance(payload, dict)
+            else None
+        )
         or institution
         or summary.institution
     )
@@ -450,7 +461,9 @@ async def handle_parse_failure(
         # Lock the statement before the run. The reaper and the finalize take the locks in this order too.
         refreshed = await db.get(StatementSummary, statement_id, with_for_update={"key_share": True})
         if refreshed is None:
-            logger.error("Statement not found after rollback", statement_id=str(statement_id), reason=_redacted(message))
+            logger.error(
+                "Statement not found after rollback", statement_id=str(statement_id), reason=_redacted(message)
+            )
             return
         if job is not None:
             try:
@@ -522,7 +535,9 @@ async def _execute_statement_ingestion(
     request_id = job.request_id or str(uuid4())
     if job.request_id is None:
         job = replace(job, request_id=request_id)
-    structlog.contextvars.bind_contextvars(request_id=request_id, statement_id=str(statement_id), task="parse_statement")
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id, statement_id=str(statement_id), task="parse_statement"
+    )
 
     file_type = job.filename.rsplit(".", 1)[-1].lower() if "." in job.filename else "pdf"
     logger.info(
@@ -538,8 +553,14 @@ async def _execute_statement_ingestion(
     async with session_maker() as session:
         statement = await session.get(StatementSummary, statement_id)
         if not statement:
-            logger.error("Statement not found in DB for background parsing", statement_id=str(statement_id), request_id=request_id)
-            return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.STATEMENT_NOT_FOUND)
+            logger.error(
+                "Statement not found in DB for background parsing",
+                statement_id=str(statement_id),
+                request_id=request_id,
+            )
+            return StatementIngestionOutcome(
+                statement_id=statement_id, status=StatementIngestionStatus.STATEMENT_NOT_FOUND
+            )
 
         try:
             claimed = await claim_run(session, job.run_id)
@@ -548,7 +569,10 @@ async def _execute_statement_ingestion(
         except StaleRun:
             await session.rollback()
             logger.warning(
-                "statement.run.claim_stale", run_id=str(job.run_id), statement_id=str(statement_id), request_id=request_id
+                "statement.run.claim_stale",
+                run_id=str(job.run_id),
+                statement_id=str(statement_id),
+                request_id=request_id,
             )
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
 
@@ -594,35 +618,31 @@ async def _execute_statement_ingestion(
             )
 
         checkpoint("parse_started")
-        file_url = None
-        try:
-            file_url = await run_in_threadpool(StorageService().generate_presigned_url, key=job.storage_key, public=True)
-        except StorageError as exc:
-            logger.warning("Could not generate public presigned URL", error=str(exc), statement_id=str(statement_id))
-
-        checkpoint("storage_url_resolved")
-        if file_type == "pdf" and not file_url:
-            logger.info("No public URL available for PDF; will use base64-encoded content", statement_id=str(statement_id))
 
         try:
             checkpoint("extraction_started")
             async with parsing_heartbeat(job.run_id, session_maker):
-                extraction_result = await extraction_service_factory().parse_document(
-                    DocumentSource.resolve(
-                        path=Path(job.storage_key),
-                        content=content,
-                        url=file_url,
-                        content_hash=job.file_hash,
-                        filename=job.filename,
-                    ),
-                    institution=job.institution,
-                    user_id=job.user_id,
-                    file_type=file_type,
-                    account_id=job.account_id,
-                    force_model=job.model,
-                    db=session,
-                    hints=hints,
+                service_instance = extraction_service_factory()
+                source_doc = DocumentSource.resolve(
+                    path=Path(job.storage_key),
+                    content=content,
+                    url=None,
+                    content_hash=job.file_hash,
+                    filename=job.filename,
                 )
+                extraction_results = list(
+                    await service_instance.parse_documents(
+                        source_doc,
+                        institution=job.institution,
+                        user_id=job.user_id,
+                        file_type=file_type,
+                        account_id=job.account_id,
+                        force_model=job.model,
+                        db=session,
+                        hints=hints,
+                    )
+                )
+                extraction_result = extraction_results[0]
             logger.info(
                 "statement.parse.extraction_completed",
                 audit_event="statement.parse.extraction_completed",
@@ -670,13 +690,6 @@ async def _execute_statement_ingestion(
             await session.flush()
             await session.refresh(statement)
 
-            result_payload = (statement.extraction_metadata or {}).get("statement_extraction_result")
-            if not isinstance(result_payload, dict):
-                raise RuntimeError("statement extraction result was not persisted")
-            persisted_result = StatementExtractionResult.from_payload(result_payload)
-            if persisted_result != extraction_result:
-                raise RuntimeError("persisted statement extraction result changed source facts")
-
             occurred_at = statement.created_at or datetime.now(UTC)
             if occurred_at.tzinfo is None:
                 occurred_at = occurred_at.replace(tzinfo=UTC)
@@ -688,14 +701,13 @@ async def _execute_statement_ingestion(
             )
             await trace_emitter_factory(session).emit_many(trace_records)
             await persist_statement_extraction_result(
-                session, statement=statement, result=persisted_result, source_trace_record_id=trace_records[0].record_id
+                session,
+                statement=statement,
+                result=extraction_result,
+                source_trace_record_id=trace_records[0].record_id,
             )
-            prompt_fp = (
-                parsing_template_fingerprint()
-                if file_type in PROMPT_FILE_TYPES
-                else f"non-prompt:{file_type}"
-            )
-            resolved_model_id = job.model or persisted_result.provenance.model or settings.multimodal_model
+            prompt_fp = parsing_template_fingerprint() if file_type in PROMPT_FILE_TYPES else f"non-prompt:{file_type}"
+            resolved_model_id = job.model or extraction_result.provenance.model or settings.multimodal_model
             artifact_digest = extraction_artifact_dependency_digest(
                 source_hash=job.file_hash,
                 preprocess_version="pdf-text-vision@1" if file_type in PROMPT_FILE_TYPES else f"{file_type}@1",
@@ -715,7 +727,7 @@ async def _execute_statement_ingestion(
 
             candidate = is_high_confidence_auto_approve_candidate(statement)
             if candidate:
-                # `route_by_threshold` marked it APPROVED. It stays PARSED until the classify run ends (statement_posting).
+                # ExtractionService marked high-confidence statements APPROVED. Hold as PARSED until the classify run ends.
                 statement.status = BankStatementStatus.PARSED
                 statement.stage1_status = Stage1Status.PENDING_REVIEW
             await finish_run(
@@ -731,7 +743,9 @@ async def _execute_statement_ingestion(
                 user_id=job.user_id,
                 filename=job.filename,
                 institution=job.institution,
-                payload=_extract_brokerage_payload_from_metadata(statement.extraction_metadata),
+                payload=_extract_brokerage_payload_from_metadata(
+                    {"statement_extraction_result": extraction_result.to_payload()}
+                ),
                 request_id=request_id,
                 model_to_use=job.model,
             )
@@ -749,6 +763,109 @@ async def _execute_statement_ingestion(
                     parent_run_id=job.run_id,
                 )
                 classify_run_id = classify_run.id
+
+            sibling_classify_ids: list[UUID] = []
+            if len(extraction_results) > 1:
+                all_summaries = list(
+                    (
+                        await session.scalars(
+                            select(StatementSummary).where(
+                                StatementSummary.user_id == job.user_id,
+                                StatementSummary.file_hash == job.file_hash,
+                            )
+                        )
+                    ).all()
+                )
+                sibling_summaries = [s for s in all_summaries if s.id != statement.id]
+                results_by_id = {str(res.result_id): res for res in extraction_results[1:]}
+                for sib_idx, sibling in enumerate(sibling_summaries):
+                    sib_meta = (sibling.extraction_metadata or {}).get("statement_extraction_result")
+                    sib_result_id = (
+                        str(sib_meta.get("result_id"))
+                        if isinstance(sib_meta, dict) and sib_meta.get("result_id")
+                        else None
+                    )
+                    sib_result = results_by_id.get(sib_result_id) if sib_result_id else None
+                    if sib_result is None:
+                        if sib_idx < len(extraction_results) - 1:
+                            sib_result = extraction_results[1 + sib_idx]
+                        elif isinstance(sib_meta, dict):
+                            sib_result = StatementExtractionResult.from_payload(sib_meta)
+                        else:
+                            continue
+                    sib_occurred_at = sibling.created_at or occurred_at
+                    if sib_occurred_at.tzinfo is None:
+                        sib_occurred_at = sib_occurred_at.replace(tzinfo=UTC)
+                    sib_traces = build_extraction_trace_records(
+                        sib_result,
+                        user_id=job.user_id,
+                        execution_id=f"statement:{sibling.id}:result:{sib_result.result_id}",
+                        occurred_at=sib_occurred_at,
+                    )
+                    await trace_emitter_factory(session).emit_many(sib_traces)
+                    await persist_statement_extraction_result(
+                        session,
+                        statement=sibling,
+                        result=sib_result,
+                        source_trace_record_id=sib_traces[0].record_id,
+                    )
+                    sib_resolved_model_id = job.model or sib_result.provenance.model or settings.multimodal_model
+                    sibling.extraction_metadata = {
+                        **(sibling.extraction_metadata or {}),
+                        "artifact_provenance": {
+                            "resolved_model_id": sib_resolved_model_id,
+                            "artifact_dependency_digest": artifact_digest,
+                            "prompt_template_version": PARSING_PROMPT_TEMPLATE_VERSION,
+                        },
+                    }
+                    sib_candidate = is_high_confidence_auto_approve_candidate(sibling)
+                    if sib_candidate:
+                        sibling.status = BankStatementStatus.PARSED
+                        sibling.stage1_status = Stage1Status.PENDING_REVIEW
+                    sib_extract_run = await create_run(
+                        session,
+                        statement_id=sibling.id,
+                        user_id=job.user_id,
+                        kind=RunKind.EXTRACT,
+                        actor_kind=RunActorKind.SYSTEM,
+                        trigger=RunTrigger.UPLOAD,
+                        hints=hints,
+                        model=job.model,
+                        parent_run_id=job.run_id,
+                    )
+                    await claim_run(session, sib_extract_run.id)
+                    await finish_run(
+                        session,
+                        sib_extract_run.id,
+                        extraction_result_id=sibling.current_extraction_result_id,
+                        result_summary={AUTO_APPROVE_CANDIDATE: sib_candidate},
+                    )
+                    await brokerage_router(
+                        summary=sibling,
+                        db=session,
+                        user_id=job.user_id,
+                        filename=job.filename,
+                        institution=job.institution,
+                        payload=_extract_brokerage_payload_from_metadata(
+                            {"statement_extraction_result": sib_result.to_payload()}
+                        ),
+                        request_id=request_id,
+                        model_to_use=job.model,
+                    )
+                    if sibling.status is BankStatementStatus.PARSED:
+                        sib_classify = await create_run(
+                            session,
+                            statement_id=sibling.id,
+                            user_id=job.user_id,
+                            kind=RunKind.CLASSIFY,
+                            actor_kind=RunActorKind.SYSTEM,
+                            trigger=RunTrigger.AUTO_CLASSIFY,
+                            hints=RunHints(),
+                            parent_run_id=sib_extract_run.id,
+                        )
+                        sibling_classify_ids.append(sib_classify.id)
+
+            total_txns = sum(len(res.transactions) for res in extraction_results)
             await session.commit()
             logger.info(
                 "statement.parse.completed",
@@ -757,8 +874,9 @@ async def _execute_statement_ingestion(
                 statement_id=str(statement_id),
                 phase="parse_completed",
                 duration_ms=round((clock() - start_time) * 1000, 2),
-                transactions_count=len(extraction_result.transactions),
+                transactions_count=total_txns,
                 classify_run_id=str(classify_run_id) if classify_run_id is not None else None,
+                split_statement_count=len(extraction_results),
             )
             record_statement_parse_outcome(
                 outcome="rejected" if statement.status is BankStatementStatus.REJECTED else "success"
@@ -766,13 +884,17 @@ async def _execute_statement_ingestion(
             return StatementIngestionOutcome(
                 statement_id=statement_id,
                 status=StatementIngestionStatus.COMPLETED,
-                transactions_count=len(extraction_result.transactions),
+                transactions_count=total_txns,
                 classify_run_id=classify_run_id,
+                sibling_classify_run_ids=tuple(sibling_classify_ids),
             )
         except StaleRun:
             await session.rollback()
             logger.warning(
-                "statement.run.finish_stale", run_id=str(job.run_id), statement_id=str(statement_id), request_id=request_id
+                "statement.run.finish_stale",
+                run_id=str(job.run_id),
+                statement_id=str(statement_id),
+                request_id=request_id,
             )
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
         except Exception as exc:

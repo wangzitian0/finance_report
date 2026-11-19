@@ -17,7 +17,7 @@ from src.advisor.base.prompt import DISCLAIMER_EN, get_ai_advisor_prompt
 from src.audit import JournalEntrySourceType
 from src.extraction import BankStatementStatus, TransactionDirection
 from src.extraction.base.source_vocabulary import Stage1Status
-from src.extraction.base.validation import validate_balance
+from src.extraction.base.validation import evaluate_statement_balance
 from src.extraction.data.account_coverage import StatementCoverageRow, _coverage_issues
 from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.extension.statement_posting import (
@@ -813,12 +813,12 @@ async def test_flow_4_6_7_8_9_10_18_24_25_27_29_30_triage_and_audit(db: AsyncSes
         ).all()
     )
 
-    assert not validate_balance(
-        {
-            "opening_balance": "5000.00",
-            "closing_balance": "4600.00",
-            "transactions": [{"amount": "200.00", "direction": "OUT"}],
-        }
+    assert not evaluate_statement_balance(
+        opening=Decimal("5000.00"),
+        closing=Decimal("4600.00"),
+        currency=None,
+        currency_balances=None,
+        transactions=[{"amount": "200.00", "direction": "OUT"}],
     )["balance_valid"]
     stmt = StatementSummary(
         user_id=test_user_id,

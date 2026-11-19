@@ -40,13 +40,32 @@ STALE = DEFAULT_STALE_AFTER + timedelta(minutes=1)
 
 
 async def _row(db, user, *, status=BankStatementStatus.PARSING, claim=True, heartbeat_age=STALE):
-    statement = StatementSummaryFactory.build(id=uuid4(), user_id=user.id, account_id=None, file_hash=f"heartbeat-{uuid4()}", institution="DBS", status=status, confidence_score=None, balance_validated=None)
+    statement = StatementSummaryFactory.build(
+        id=uuid4(),
+        user_id=user.id,
+        account_id=None,
+        file_hash=f"heartbeat-{uuid4()}",
+        institution="DBS",
+        status=status,
+        confidence_score=None,
+        balance_validated=None,
+    )
     db.add(statement)
     await db.flush()
-    run = await create_run(db, statement_id=statement.id, user_id=user.id, kind=RunKind.EXTRACT, actor_kind=RunActorKind.SYSTEM, trigger=RunTrigger.UPLOAD, hints=RunHints())
+    run = await create_run(
+        db,
+        statement_id=statement.id,
+        user_id=user.id,
+        kind=RunKind.EXTRACT,
+        actor_kind=RunActorKind.SYSTEM,
+        trigger=RunTrigger.UPLOAD,
+        hints=RunHints(),
+    )
     if claim:
         await claim_run(db, run.id)
-        await db.execute(update(StatementRun).where(StatementRun.id == run.id).values(heartbeat_at=datetime.now(UTC) - heartbeat_age))
+        await db.execute(
+            update(StatementRun).where(StatementRun.id == run.id).values(heartbeat_at=datetime.now(UTC) - heartbeat_age)
+        )
     await db.commit()
     return statement, run.id
 
@@ -76,7 +95,12 @@ async def test_AC_extraction_2960_5_7_8_heartbeat_interval_protects_live_and_sto
     after_block = (await _run_row(maker, run_id)).heartbeat_at
     await asyncio.sleep(0.4)
     await db.refresh(statement)
-    assert (count, statement.status, statement.updated_at, (await _run_row(maker, run_id)).heartbeat_at) == (0, BankStatementStatus.PARSING, statement_updated_at, after_block)
+    assert (count, statement.status, statement.updated_at, (await _run_row(maker, run_id)).heartbeat_at) == (
+        0,
+        BankStatementStatus.PARSING,
+        statement_updated_at,
+        after_block,
+    )
 
 
 async def test_AC_extraction_2960_6_the_heartbeat_does_not_touch_a_row_that_left_parsing(db, test_user):
@@ -85,7 +109,10 @@ async def test_AC_extraction_2960_6_the_heartbeat_does_not_touch_a_row_that_left
     await db.commit()
     _, live_run_id = await _row(db, test_user)
     maker = create_session_maker_from_db(db)
-    failed_before, live_before = (await _run_row(maker, failed_run_id)).heartbeat_at, (await _run_row(maker, live_run_id)).heartbeat_at
+    failed_before, live_before = (
+        (await _run_row(maker, failed_run_id)).heartbeat_at,
+        (await _run_row(maker, live_run_id)).heartbeat_at,
+    )
     async with parsing_heartbeat(live_run_id, maker, interval_seconds=0.05):
         await _wait_for_beat(maker, live_run_id, live_before)
     with pytest.raises(StaleRun):
@@ -106,19 +133,35 @@ async def test_AC_extraction_2960_9_the_use_case_beats_while_parse_document_runs
         raise ExtractionError("stop after the heartbeat was observed")
 
     service = ExtractionService()
-    service.parse_document = slow_parse
+    service.parse_documents = slow_parse
     monkeypatch.setattr(supervisor, "PARSING_HEARTBEAT_INTERVAL_SECONDS", 0.05)
 
     async def no_router(**_kwargs) -> None:
         return None
 
     use_case = StatementIngestionUseCase(
-        session_maker=maker, content_loader=lambda _k: asyncio.sleep(0, result=b"content"), extraction_service_factory=lambda: service,
-        posting_dependencies=compose_statement_posting_dependencies(), brokerage_router=no_router, trace_emitter_factory=lambda _db: None,
-        clock=lambda: 0.0, sleep=lambda _d: asyncio.sleep(0),
+        session_maker=maker,
+        content_loader=lambda _k: asyncio.sleep(0, result=b"content"),
+        extraction_service_factory=lambda: service,
+        posting_dependencies=compose_statement_posting_dependencies(),
+        brokerage_router=no_router,
+        trace_emitter_factory=lambda _db: None,
+        clock=lambda: 0.0,
+        sleep=lambda _d: asyncio.sleep(0),
     )
     await use_case.execute(
-        ParseJob(statement_id=statement.id, run_id=run_id, filename="statement.pdf", institution="DBS", user_id=test_user.id, account_id=None, file_hash=statement.file_hash, storage_key="uploads/statement.pdf", model=None, request_id="req-2960"),
+        ParseJob(
+            statement_id=statement.id,
+            run_id=run_id,
+            filename="statement.pdf",
+            institution="DBS",
+            user_id=test_user.id,
+            account_id=None,
+            file_hash=statement.file_hash,
+            storage_key="uploads/statement.pdf",
+            model=None,
+            request_id="req-2960",
+        ),
         content=b"content",
     )
     assert seen["during"] > seen["started"]

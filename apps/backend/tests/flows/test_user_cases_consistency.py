@@ -17,7 +17,7 @@ from src.extraction.base.validation import (
     bank_currency_balances,
     count_within_document_dedup_collapse,
     detect_balance_chain_break,
-    validate_balance,
+    evaluate_statement_balance,
     validate_balance_explicit,
     validate_balance_per_currency,
 )
@@ -169,7 +169,13 @@ def test_ssot_registry_completeness() -> None:
             {"amount": "100.00", "direction": "OUT"},
         ],
     }
-    res = validate_balance(extracted)
+    res = evaluate_statement_balance(
+        opening=Decimal(extracted["opening_balance"]),
+        closing=Decimal(extracted["closing_balance"]),
+        currency=None,
+        currency_balances=None,
+        transactions=extracted["transactions"],
+    )
     assert res["balance_valid"] is True
     assert res["expected_closing"] == "1100.25"
     assert res["difference"] == "0.00"
@@ -219,13 +225,12 @@ def test_ssot_registry_completeness() -> None:
     assert h1 == h2
     assert count_within_document_dedup_collapse([h1, h2, "h3"]) == 1
 
-    mismatch_res = validate_balance(
-        {
-            "currency": "SGD",
-            "opening_balance": "5000.00",
-            "closing_balance": "4800.00",
-            "transactions": [{"amount": "100.00", "direction": "OUT"}],
-        }
+    mismatch_res = evaluate_statement_balance(
+        opening=Decimal("5000.00"),
+        closing=Decimal("4800.00"),
+        currency="SGD",
+        currency_balances=None,
+        transactions=[{"amount": "100.00", "direction": "OUT"}],
     )
     assert mismatch_res["balance_valid"] is False
     assert mismatch_res["expected_closing"] == "4900.00"

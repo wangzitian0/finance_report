@@ -50,6 +50,7 @@ from src.extraction import (
     extraction_trace_policy_registry,
     general_account_name,
     get_active_run,
+    get_current_statement_extraction_result,
     get_or_create_account,
     lock_statement_for_run,
     record_brokerage_import_failure,
@@ -724,8 +725,17 @@ async def import_statement_brokerage_positions(
         ).scalar_one_or_none()
 
     source_filename = uploaded_document.original_filename if uploaded_document else statement.file_hash
+    current_result = (
+        await get_current_statement_extraction_result(
+            db, user_id=user_id, statement_id=statement.id, statement=statement
+        )
+        if statement.current_extraction_result_id is not None
+        else None
+    )
     payload = _brokerage_payload_from_persisted_extraction(
-        statement=statement, uploaded_document=uploaded_document
+        statement=statement,
+        uploaded_document=uploaded_document,
+        extraction_result=current_result,
     ) or _brokerage_payload_from_statement(statement, transactions)
     request_id = ensure_request_id()
     source_document_id = str(statement.uploaded_document_id or statement.id)

@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from uuid import UUID
 
@@ -34,6 +34,7 @@ from src.extraction.extension.statement_posting import (
 from src.extraction.extension.statement_runs import StaleRun, claim_run, fail_run, finish_run, heartbeat_run
 from src.extraction.extension.statement_validation import resolve_statement_transactions
 from src.extraction.extension import transaction_classification
+from src.extraction.extension.correction_service import get_few_shot_examples
 from src.extraction.extension.transaction_classification import (
     CLASSIFICATION_PHASE_DEADLINE_SECONDS,
     ClassificationOutcome,
@@ -50,7 +51,11 @@ from src.extraction.extension.transaction_classification import (
 )
 from src.extraction.orm.statement_run import StatementRun
 from src.extraction.orm.statement_summary import StatementSummary
-from src.observability import get_logger, record_statement_classification_outcome
+from src.observability import (
+    get_logger,
+    record_confidence_tier,
+    record_statement_classification_outcome,
+)
 
 logger = get_logger(__name__)
 
@@ -183,23 +188,26 @@ async def _beat(session: AsyncSession, run_id: UUID, progress: dict | None = Non
 
 async def _plan(
     session: AsyncSession, statement_id: UUID, user_id: UUID, ask: RunAsk
-) -> tuple[ClassifyOutcome | None, list[ClassificationPlan]]:
+) -> tuple[ClassifyOutcome | None, list[ClassificationPlan], tuple[Mapping[str, object], ...]]:
     """Phase a, reads only: the plan of each policy bucket. The outcome is set when there is nothing to plan."""
     statement = await session.get(StatementSummary, statement_id)
     if statement is None or statement.user_id != user_id or statement.status is not BankStatementStatus.PARSED:
-        return ClassifyOutcome.SKIPPED_STATE, []
+        return ClassifyOutcome.SKIPPED_STATE, [], ()
     try:
         transactions = await resolve_statement_transactions(session, statement)
     except ValueError:  # the approval raises the same error, and the user sees it there
-        return ClassifyOutcome.SKIPPED_STATE, []
+        return ClassifyOutcome.SKIPPED_STATE, [], ()
     covered = await ask.covered_by(session, [txn.id for txn in transactions])
     # A row with an unresolved currency waits: the account of an answer follows the currency.
     rows = [txn for txn in transactions if txn.id not in covered and not txn.currency_unresolved]
     if not rows:
-        return ClassifyOutcome.NOTHING_TO_CLASSIFY, []
+        return ClassifyOutcome.NOTHING_TO_CLASSIFY, [], ()
     buckets = await policy_buckets(session, user_id, rows)
     plans = [await plan_classification(session, user_id, rows_, policy, run=ask) for policy, rows_ in buckets]
-    return None, plans
+    examples: tuple[Mapping[str, object], ...] = ()
+    if any(plan.policy is not None and plan.to_propose for plan in plans):
+        examples = tuple(await get_few_shot_examples(session, user_id=user_id, limit=10))
+    return None, plans, examples
 
 
 async def _classify_in_phases(
@@ -213,7 +221,7 @@ async def _classify_in_phases(
     """Run the phases. Return the outcome and the summary, which holds counts only. The run itself is still running."""
     started = time.perf_counter()
     async with session_maker() as session:
-        skipped, plans = await _plan(session, statement_id, user_id, ask)
+        skipped, plans, few_shot_examples = await _plan(session, statement_id, user_id, ask)
     batches = [(plan, batch) for plan in plans for batch in model_batches(plan.to_propose)]
     _log(
         "plan",
@@ -239,7 +247,13 @@ async def _classify_in_phases(
     async def ask_batch(index: int, plan: ClassificationPlan, batch):
         async with slots:
             began = time.perf_counter()
-            return index, plan, batch, await ask_model(user_id, batch, plan.policy, hints=hints), _ms(began)
+            return (
+                index,
+                plan,
+                batch,
+                await ask_model(user_id, batch, plan.policy, hints=hints, few_shot_examples=few_shot_examples),
+                _ms(began),
+            )
 
     tasks = [asyncio.ensure_future(ask_batch(index, plan, batch)) for index, (plan, batch) in enumerate(batches)]
     try:
@@ -273,7 +287,16 @@ async def _classify_in_phases(
         outcome = ClassifyOutcome.NOTHING_TO_CLASSIFY
     else:
         outcome = ClassifyOutcome.PARTIAL if any(not o.wrote_row for o in asked) else ClassifyOutcome.CLASSIFIED
-    return outcome, {"outcome": outcome.value, **summarize_outcomes(outcomes), **progress}
+    summary_stats = summarize_outcomes(outcomes)
+    by_disp = summary_stats.get("by_disposition", {})
+    record_confidence_tier(
+        tier="high", stage="classification", count=by_disp.get("applied", 0) + by_disp.get("rule", 0)
+    )
+    record_confidence_tier(tier="medium", stage="classification", count=by_disp.get("review", 0))
+    record_confidence_tier(
+        tier="low", stage="classification", count=by_disp.get("tail", 0) + by_disp.get("fallback", 0)
+    )
+    return outcome, {"outcome": outcome.value, **summary_stats, **progress}
 
 
 async def _write_batch(

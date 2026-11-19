@@ -46,4 +46,3 @@ class RunTrigger(StrEnum):
 
 
 ACTIVE_RUN_STATES: frozenset[RunState] = frozenset({RunState.REQUESTED, RunState.RUNNING})
-TERMINAL_RUN_STATES: frozenset[RunState] = frozenset({RunState.SUCCEEDED, RunState.FAILED, RunState.CANCELLED})

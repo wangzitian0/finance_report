@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from src.config import settings
 from src.extraction import BankStatementStatus, DocumentSource
-from src.extraction.base.validation import validate_balance
+from src.extraction.base.validation import _safe_parse_decimal, evaluate_statement_balance
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.llm import accumulate_stream, stream_ai_json
@@ -36,31 +36,81 @@ def _stub_env_provider(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_AC23_6_extraction_text_happy_path_via_replay() -> None:
-    for stmt, expected_open, expected_close, dup_count in [(_TEXT_STATEMENT, Decimal("100.00"), Decimal("130.00"), 0), (_DUP_STATEMENT, Decimal("1000.00"), Decimal("1490.00"), 2)]:
-        data = _loads_tolerant(await accumulate_stream(stream_ai_json(messages=[{"role": "user", "content": _TEXT_PROMPT + "\n\n" + stmt}], model="glm-5.2", max_tokens=512, temperature=0.0, thinking={"type": "disabled"})))
+    for stmt, expected_open, expected_close, dup_count in [
+        (_TEXT_STATEMENT, Decimal("100.00"), Decimal("130.00"), 0),
+        (_DUP_STATEMENT, Decimal("1000.00"), Decimal("1490.00"), 2),
+    ]:
+        data = _loads_tolerant(
+            await accumulate_stream(
+                stream_ai_json(
+                    messages=[{"role": "user", "content": _TEXT_PROMPT + "\n\n" + stmt}],
+                    model="glm-5.2",
+                    max_tokens=512,
+                    temperature=0.0,
+                    thinking={"type": "disabled"},
+                )
+            )
+        )
         opening, closing = Decimal(str(data["opening_balance"])), Decimal(str(data["closing_balance"]))
         amounts = [Decimal(str(t["amount"])) for t in data["transactions"]]
-        assert len(amounts) == 3 and abs(opening - expected_open) <= Decimal("0.01") and abs(closing - expected_close) <= Decimal("0.01") and abs(opening + sum(amounts, Decimal("0")) - closing) <= Decimal("0.01")
+        assert (
+            len(amounts) == 3
+            and abs(opening - expected_open) <= Decimal("0.01")
+            and abs(closing - expected_close) <= Decimal("0.01")
+            and abs(opening + sum(amounts, Decimal("0")) - closing) <= Decimal("0.01")
+        )
         if dup_count:
             assert sum(1 for a in amounts if a == Decimal("250.00")) == dup_count
 
     service = ExtractionService()
     service.api_key = service.api_key or "replay"
-    res = await service.extract_financial_data(file_content=(_VISION_DIR / "simple_statement.pdf").read_bytes(), institution="ACME", file_type="pdf", filename="simple_statement.pdf")
-    assert len(res["transactions"]) == 3 and validate_balance(res)["balance_valid"] is True
+    res = await service.extract_financial_data(
+        file_content=(_VISION_DIR / "simple_statement.pdf").read_bytes(),
+        institution="ACME",
+        file_type="pdf",
+        filename="simple_statement.pdf",
+    )
+    bal = evaluate_statement_balance(
+        opening=_safe_parse_decimal(res.get("opening_balance")),
+        closing=_safe_parse_decimal(res.get("closing_balance")),
+        currency=res.get("currency"),
+        currency_balances=None,
+        transactions=res["transactions"],
+    )
+    assert len(res["transactions"]) == 3 and bal["balance_valid"] is True
 
 
 async def test_AC_llm_14_1_missing_period_remains_review_only_via_stub(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = {
-        "institution": "ACME", "account_last4": "5678", "currency": "SGD", "period_start": None, "period_end": None, "opening_balance": "1000.00", "closing_balance": "1720.00",
-        "transactions": [{"date": "2026-03-02", "description": "Salary credit", "amount": "2000.00", "direction": "IN"}, {"date": "2026-03-05", "description": "Rent payment", "amount": "1200.00", "direction": "OUT"}, {"date": "2026-03-20", "description": "Groceries", "amount": "80.00", "direction": "OUT"}],
+        "institution": "ACME",
+        "account_last4": "5678",
+        "currency": "SGD",
+        "period_start": None,
+        "period_end": None,
+        "opening_balance": "1000.00",
+        "closing_balance": "1720.00",
+        "transactions": [
+            {"date": "2026-03-02", "description": "Salary credit", "amount": "2000.00", "direction": "IN"},
+            {"date": "2026-03-05", "description": "Rent payment", "amount": "1200.00", "direction": "OUT"},
+            {"date": "2026-03-20", "description": "Groceries", "amount": "80.00", "direction": "OUT"},
+        ],
     }
     service = ExtractionService()
     monkeypatch.setattr(service, "extract_financial_data", AsyncMock(return_value=payload))
-    result = await service.parse_document(DocumentSource.resolve(path=Path("statement.pdf"), content=b"stub"), institution="ACME", user_id=uuid4(), file_type="pdf")
-    assert (result.balance_validated, result.period_start, result.period_end, result.missing_required_facts, result.review_reasons, len(result.transactions)) == (
-        True, None, None, ("period",), ("Source is missing required facts: statement period",), 3
+    result = await service.parse_document(
+        DocumentSource.resolve(path=Path("statement.pdf"), content=b"stub"),
+        institution="ACME",
+        user_id=uuid4(),
+        file_type="pdf",
     )
+    assert (
+        result.balance_validated,
+        result.period_start,
+        result.period_end,
+        result.missing_required_facts,
+        result.review_reasons,
+        len(result.transactions),
+    ) == (True, None, None, ("period",), ("Source is missing required facts: statement period",), 3)
 
 
 async def test_AC_llm_14_2_3_replay_failure_paths(db, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -69,9 +119,23 @@ async def test_AC_llm_14_2_3_replay_failure_paths(db, test_user, monkeypatch: py
     service.api_key = service.api_key or "replay"
     no_dates_pdf = _VISION_DIR / "unhappy_no_dates_at_all.pdf"
     with pytest.raises(ExtractionError, match="Transaction missing required fields: date or amount"):
-        await service.parse_document(DocumentSource.resolve(path=no_dates_pdf, content=no_dates_pdf.read_bytes()), institution="ACME", user_id=uuid4(), file_type="pdf")
+        await service.parse_document(
+            DocumentSource.resolve(path=no_dates_pdf, content=no_dates_pdf.read_bytes()),
+            institution="ACME",
+            user_id=uuid4(),
+            file_type="pdf",
+        )
 
     unrec_pdf = _VISION_DIR / "unhappy_balance_unreconciled.pdf"
-    result, summary, _ = await parse_and_load_statement_projection(service, db=db, source=DocumentSource.resolve(path=unrec_pdf, content=unrec_pdf.read_bytes()), institution="ACME", user_id=test_user.id, file_type="pdf")
-    persisted = (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))).scalars().all()
+    result, summary, _ = await parse_and_load_statement_projection(
+        service,
+        db=db,
+        source=DocumentSource.resolve(path=unrec_pdf, content=unrec_pdf.read_bytes()),
+        institution="ACME",
+        user_id=test_user.id,
+        file_type="pdf",
+    )
+    persisted = (
+        (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))).scalars().all()
+    )
     assert (summary.status, result.balance_validated, persisted) == (BankStatementStatus.REJECTED, False, [])

@@ -121,6 +121,25 @@ def _interest_service(last4: str, month: str) -> ExtractionService:
     return svc
 
 
+def _interest_pdf(tag: str) -> bytes:
+    import fitz
+
+    doc = fitz.open()
+    page = doc.new_page()
+    for idx, line in enumerate(
+        (
+            tag,
+            "Opening Balance 100.00",
+            "Interest 10.00",
+            "Closing Balance 110.00",
+        )
+    ):
+        page.insert_text((72, 72 + 16 * idx), line)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+    return pdf_bytes
+
+
 def test_statement_disposition_mode_and_composition_guards(monkeypatch):
     monkeypatch.setattr(settings, "statement_disposition_mode", "observe")
     assert compose_statement_posting_dependencies().disposition_mode is DispositionMode.OBSERVE
@@ -169,7 +188,7 @@ async def test_AC_extraction_1913_6_application_error_does_not_reject_source(db,
     db.add(statement)
     await db.commit()
     service = ExtractionService()
-    service.parse_document = AsyncMock(side_effect=RuntimeError("composition unavailable"))
+    service.parse_documents = AsyncMock(side_effect=RuntimeError("composition unavailable"))
     with pytest.raises(RetryableStatementIngestionError, match="composition unavailable"):
         await _make_use_case(db, service).execute(
             _job(statement_id=statement.id, user_id=test_user.id, run_id=await run_for(db, statement.id)),
@@ -192,7 +211,7 @@ def test_AC_extraction_1913_7_fresh_worker_composes_without_main():
 
 
 async def test_AC_extraction_1913_8_retry_does_not_duplicate_financial_effects(db, test_user, monkeypatch):
-    content = b"%PDF-1.7"
+    content = _interest_pdf("retry-idempotent")
     await _interest_service("1913", "2026-06").parse_document(
         DocumentSource.resolve(
             path=Path("retry-idempotent.pdf"),
@@ -242,7 +261,8 @@ async def test_AC_extraction_1913_8_retry_does_not_duplicate_financial_effects(d
 
 
 async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db, test_user):
-    content = b"atomic-trace-statement"
+    content = _interest_pdf("atomic-trace-statement")
+    fail_content = _interest_pdf("trace-failure")
     file_hash = hashlib.sha256(content).hexdigest()
     statement = StatementSummaryFactory.build(
         id=uuid4(), user_id=test_user.id, status=BankStatementStatus.PARSING, file_hash=file_hash, institution="DBS"
@@ -251,7 +271,7 @@ async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db
         id=uuid4(),
         user_id=test_user.id,
         status=BankStatementStatus.PARSING,
-        file_hash=hashlib.sha256(b"trace-failure").hexdigest(),
+        file_hash=hashlib.sha256(fail_content).hexdigest(),
         institution="DBS",
     )
     db.add_all([statement, second_statement])
@@ -293,7 +313,7 @@ async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db
                 file_hash=second_statement.file_hash,
                 run_id=await run_for(db, second_statement.id),
             ),
-            content=b"trace-failure",
+            content=fail_content,
         )
     await db.refresh(second_statement)
     assert (second_statement.status, len((await db.execute(tenant_rows_q)).scalars().all())) == (

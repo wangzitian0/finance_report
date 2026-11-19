@@ -17,6 +17,24 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer1 import UploadedDocument
+from src.extraction.orm.statement_summary import StatementSummary
+
+
+async def resolve_uploaded_document(
+    db: AsyncSession, statement: StatementSummary, user_id: UUID
+) -> UploadedDocument | None:
+    """Resolve the user-owned uploaded document backing a statement."""
+    if statement.uploaded_document_id is not None:
+        doc = await db.get(UploadedDocument, statement.uploaded_document_id)
+        if doc is not None and doc.user_id == user_id:
+            return doc
+    return (
+        await db.execute(
+            select(UploadedDocument).where(
+                UploadedDocument.user_id == user_id, UploadedDocument.file_hash == statement.file_hash
+            )
+        )
+    ).scalar_one_or_none()
 
 
 async def get_uploaded_document_filenames(db: AsyncSession, document_ids: Iterable[UUID]) -> dict[UUID, str]:

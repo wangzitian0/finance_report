@@ -6,7 +6,7 @@ import json
 import math
 import re
 from collections import Counter
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date
@@ -34,7 +34,7 @@ from src.extraction.extension.prompts import classification as templates
 from src.extraction.extension.prompts.hints import hints_block
 from src.extraction.orm.ai_feedback import AiFeedback
 from src.extraction.orm.correction import CorrectionLog
-from src.platform import ValidationFailedError
+from src.platform import ConflictError, ValidationFailedError
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_run import StatementRun
@@ -311,12 +311,22 @@ def model_batches(rows: Sequence[AtomicTransaction]) -> list[Sequence[AtomicTran
 
 
 async def propose_categories(
-    transactions: Sequence[AtomicTransaction], policy: ClassificationPolicy, *, hints: RunHints | None = None
+    transactions: Sequence[AtomicTransaction],
+    policy: ClassificationPolicy,
+    *,
+    hints: RunHints | None = None,
+    few_shot_examples: Sequence[Mapping[str, object]] = (),
 ) -> list[CategoryProposal | None]:
     """Prompt-constrained JSON proposals for one batch of rows (never sends amounts). The run splits the batches."""
     if not transactions:
         return []
-    return await _propose_batch(transactions, policy, _CLASSIFICATION_USER.get(), hints=hints)
+    return await _propose_batch(
+        transactions,
+        policy,
+        _CLASSIFICATION_USER.get(),
+        hints=hints,
+        few_shot_examples=few_shot_examples,
+    )
 
 
 def build_classification_prompt(
@@ -324,6 +334,7 @@ def build_classification_prompt(
     policy: ClassificationPolicy,
     *,
     hints: RunHints | None = None,
+    few_shot_examples: Sequence[Mapping[str, object]] = (),
 ) -> str:
     """Return the prompt of one batch. The reviewer guidance of the run, if any, is the last block (never amounts)."""
     guidance = " ".join(NON_PNL_GUIDANCE[c] for c in policy.catalog if c in NON_PNL_GUIDANCE)
@@ -335,7 +346,7 @@ def build_classification_prompt(
     )
     catalog = ", ".join(c.value for c in policy.catalog)
     prompt = templates.INDEXED_PROMPT.format(catalog=catalog, guidance=guidance, lines=lines)
-    return prompt + hints_block(hints, templates.HINTS_PURPOSE)
+    return prompt + templates.few_shot_examples_block(few_shot_examples) + hints_block(hints, templates.HINTS_PURPOSE)
 
 
 def classification_template_fingerprint() -> str:
@@ -345,8 +356,14 @@ def classification_template_fingerprint() -> str:
     """
     rows = [AtomicTransaction(direction=TransactionDirection.OUT, description='FIXED "ROW"')]
     hints = RunHints(keywords=["keyword"], note="note")
+    examples = (
+        {"description": "FIXED COFFEE 1234", "original_category": "OTHER_EXPENSE", "corrected_category": "DINING"},
+    )
     return canonical_json_digest(
-        {f"v{policy.version}": build_classification_prompt(rows, policy, hints=hints) for policy in POLICY_VERSIONS}
+        {
+            f"v{policy.version}": build_classification_prompt(rows, policy, hints=hints, few_shot_examples=examples)
+            for policy in POLICY_VERSIONS
+        }
     )
 
 
@@ -356,6 +373,7 @@ async def ask_model(
     policy: ClassificationPolicy | None,
     *,
     hints: RunHints | None = None,
+    few_shot_examples: Sequence[Mapping[str, object]] = (),
 ) -> list[CategoryProposal | None]:
     """Ask the model for one group of rows. The caller passes no session (#3028).
 
@@ -365,7 +383,11 @@ async def ask_model(
     assert policy is not None, "the model is off: no plan asks it"
     token = _CLASSIFICATION_USER.set(user_id)
     try:
-        extra = {} if hints is None or hints.is_empty else {"hints": hints}
+        extra: dict[str, Any] = {}
+        if hints is not None and not hints.is_empty:
+            extra["hints"] = hints
+        if few_shot_examples:
+            extra["few_shot_examples"] = few_shot_examples
         return await propose_categories(rows, policy, **extra)
     finally:
         _CLASSIFICATION_USER.reset(token)
@@ -377,10 +399,11 @@ async def _propose_batch(
     owner: UUID | None,
     *,
     hints: RunHints | None = None,
+    few_shot_examples: Sequence[Mapping[str, object]] = (),
 ) -> list[CategoryProposal | None]:
     from src.llm import AIStreamError, accumulate_stream, stream_ai_json
 
-    prompt = build_classification_prompt(transactions, policy, hints=hints)
+    prompt = build_classification_prompt(transactions, policy, hints=hints, few_shot_examples=few_shot_examples)
 
     try:
         stream = stream_ai_json(
@@ -482,7 +505,9 @@ async def _resolve_category_account(db: AsyncSession, user_id: UUID, category: T
 
 async def _general_account(db: AsyncSession, user_id: UUID, txn: AtomicTransaction) -> Account:
     account_type = AccountType.EXPENSE if txn.direction is TransactionDirection.OUT else AccountType.INCOME
-    return await _get_default_account(db, user_id, general_account_name(account_type, txn.currency), account_type, txn.currency)
+    return await _get_default_account(
+        db, user_id, general_account_name(account_type, txn.currency), account_type, txn.currency
+    )
 
 
 async def _balance_sheet_account(
@@ -552,7 +577,9 @@ def summarize_outcomes(outcomes: Sequence[ClassificationOutcome]) -> dict:
         "total": len(outcomes),
         "by_disposition": dict(Counter(o.disposition for o in outcomes)),
         # Keys come from the closed catalog. An answer outside it can echo a row description: it counts as "other".
-        "by_category": dict(Counter(o.category if o.category in _CATALOG_KEYS else "other" for o in outcomes if o.category)),
+        "by_category": dict(
+            Counter(o.category if o.category in _CATALOG_KEYS else "other" for o in outcomes if o.category)
+        ),
         "confidence_buckets": dict(Counter(f"{(c // 10) * 10}-{(c // 10) * 10 + 9}" for c in confidences)),
     }
 
@@ -822,7 +849,9 @@ async def write_answers(
     new_rows: list[TransactionClassification] = []
     outcomes: list[ClassificationOutcome] = []
 
-    async def add(txn: AtomicTransaction, account_id: UUID | None, tags: dict, score: int, status: ClassificationStatus):
+    async def add(
+        txn: AtomicTransaction, account_id: UUID | None, tags: dict, score: int, status: ClassificationStatus
+    ):
         nonlocal policy_rule
         if plan.run_id is not None:
             tags = {**tags, "run_id": str(plan.run_id)}
@@ -882,7 +911,11 @@ async def write_answers(
             writes_draft = auto_accept or proposal.confidence >= policy.review_threshold
             suspense = auto_accept and category in BALANCE_SHEET_ACCOUNTS
             if writes_draft:
-                tags = {"category": category.value, "reason": proposal.reason, **({SUSPENSE_TAG: True} if suspense else {})}
+                tags = {
+                    "category": category.value,
+                    "reason": proposal.reason,
+                    **({SUSPENSE_TAG: True} if suspense else {}),
+                }
                 await add(txn, None, tags, proposal.confidence, ClassificationStatus.DRAFT)
             outcomes.append(outcome(txn, "non_pnl", proposal))
             continue
@@ -913,7 +946,9 @@ async def write_answers(
             if acc_key not in category_account_cache:
                 category_account_cache[acc_key] = await _resolve_category_account(db, user_id, category, txn.currency)
             tags = {"category": category.value, "reason": proposal.reason}
-            if auto_accept and (proposal.confidence < policy.auto_apply_threshold or category in REVIEW_ONLY_CATEGORIES):
+            if auto_accept and (
+                proposal.confidence < policy.auto_apply_threshold or category in REVIEW_ONLY_CATEGORIES
+            ):
                 tags["auto_accepted"] = True
             status = ClassificationStatus.APPLIED if disposition == "applied" else ClassificationStatus.DRAFT
             await add(txn, category_account_cache[acc_key].id, tags, proposal.confidence, status)
@@ -1057,6 +1092,39 @@ async def _retire_model_rows(db: AsyncSession, user_id: UUID, txn_id: UUID, *, k
     )
 
 
+async def _raise_if_superseded_by_rerun(db: AsyncSession, user_id: UUID, suggestion_id: UUID) -> None:
+    """Raise ConflictError with live_suggestion_id when a draft was superseded by a newer suggestion."""
+    row = (
+        await db.execute(
+            select(TransactionClassification)
+            .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
+            .where(TransactionClassification.id == suggestion_id)
+            .where(AtomicTransaction.user_id == user_id)
+        )
+    ).scalar_one_or_none()
+    if row is None or row.status is not ClassificationStatus.SUPERSEDED or row.superseded_by_id is None:
+        return
+    direct_successor = row.superseded_by_id
+    current_id: UUID = direct_successor
+    seen: set[UUID] = {row.id}
+    for _ in range(25):
+        if current_id in seen:
+            break
+        seen.add(current_id)
+        nxt = await db.get(TransactionClassification, current_id)
+        if nxt is None or nxt.status is not ClassificationStatus.SUPERSEDED or nxt.superseded_by_id is None:
+            break
+        current_id = nxt.superseded_by_id
+    raise ConflictError(
+        "Classification suggestion was superseded by a newer suggestion.",
+        detail_payload={
+            "message": "Classification suggestion was superseded by a newer suggestion.",
+            "superseded_by_id": str(direct_successor),
+            "live_suggestion_id": str(current_id),
+        },
+    )
+
+
 async def apply_suggestion_feedback(
     db: AsyncSession,
     user_id: UUID,
@@ -1073,11 +1141,13 @@ async def apply_suggestion_feedback(
     )
     row = (await db.execute(pending)).first()
     if row is None:
+        await _raise_if_superseded_by_rerun(db, user_id, suggestion_id)
         return "recorded"
     # The lock order of a correction and of a re-ask: the policy-rule lock, then the row (#2994).
     await _lock_policy_rule(db, user_id, policy_for(row[1].txn_date))
     row = (await db.execute(pending.with_for_update(of=TransactionClassification))).first()
     if row is None:
+        await _raise_if_superseded_by_rerun(db, user_id, suggestion_id)
         return "recorded"
     classification, txn = row
     previous = classification.tags if isinstance(classification.tags, dict) else {}
@@ -1088,6 +1158,8 @@ async def apply_suggestion_feedback(
         await db.flush()
         return "rejected"
     if action != "edit_accept":
+        classification.tags = {**previous, "accepted_by_user": True}
+        await db.flush()
         return "accepted"
 
     category = _validate_corrected_category(corrected_value, txn)

@@ -23,7 +23,6 @@ from src.composition import (
     submit_classify_run,
     submit_parse_pipeline,
 )
-from src.config import settings
 from src.deps import Ctx, ReadCtx
 from src.extraction import (
     DEFAULT_MAX_DEPTH,
@@ -32,8 +31,7 @@ from src.extraction import (
     BankStatementStatus,
     ClassificationStatus,
     CorrectionLoopService,
-    EvidenceGraphMaterializationService,
-    EvidenceLineageService,
+    EvidenceLineageQueryError,
     EvidenceNode,
     EvidenceTraversalStep,
     ParseJob,
@@ -61,6 +59,7 @@ from src.extraction import (
     get_account_statement_coverage,
     get_current_statement_extraction_result,
     list_runs,
+    load_evidence_lineage,
     pending_stage1_review_filter,
     record_classification_feedback,
     record_correction,
@@ -134,6 +133,7 @@ from src.schemas.extraction import (
 router = APIRouter(prefix="/statements", tags=["statements"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+_UPLOAD_CHUNK_BYTES = 64 * 1024
 _ALLOWED_EXTENSIONS = {"pdf", "csv", "png", "jpg", "jpeg"}
 # A user can run the extraction again from these statuses.
 _RERUN_STATUSES = frozenset({BankStatementStatus.PARSED, BankStatementStatus.REJECTED, BankStatementStatus.PARSING})
@@ -142,34 +142,6 @@ _REJECT_STATUSES = _RERUN_STATUSES | {BankStatementStatus.APPROVED}
 logger = get_logger(__name__)
 
 _CORRECTION_LOOP = CorrectionLoopService()
-
-_LAZY_MATERIALIZATION_ENTITY_NODE_KINDS = {
-    "journal_line": {"ledger_line"},
-    "journal_entry": {"ledger_entry"},
-    "uploaded_document": {"source_document"},
-    "atomic_transaction": {"atomic_fact"},
-    "opening_position": {"atomic_fact"},
-}
-_GENUINE_FAILURE_BLOCKER_CODES = {
-    "materialization_write_cap_reached": 503,
-    "cross_user_lineage_blocked": 409,
-    "unsupported_provenance": 422,
-    "opening_authority_unproven": 409,
-}
-
-
-def _materialization_failure_status(blockers: list[EvidenceLineageBlocker]) -> int | None:
-    statuses = [_GENUINE_FAILURE_BLOCKER_CODES[b.code] for b in blockers if b.code in _GENUINE_FAILURE_BLOCKER_CODES]
-    return max(statuses) if statuses else None
-
-
-def _should_attempt_lazy_materialization(
-    *, entity_type: str, node_kind: str | None, anchor: EvidenceNode | None
-) -> bool:
-    if anchor is not None and entity_type not in {"opening_position", "journal_entry", "journal_line"}:
-        return False
-    expected = _LAZY_MATERIALIZATION_ENTITY_NODE_KINDS.get(entity_type)
-    return expected is not None and (node_kind is None or node_kind in expected)
 
 
 def _node_dto(node: EvidenceNode) -> EvidenceLineageNode:
@@ -434,6 +406,22 @@ def build_statement_storage_key(*, statement_id: UUID, file_hash: str, extension
     return f"statements/{statement_id}/{file_hash[:16]}.{safe_extension}"
 
 
+async def _read_bounded_upload(file: UploadFile, *, max_bytes: int = MAX_UPLOAD_BYTES) -> bytes:
+    """Read an upload in bounded chunks and fail with 413 as soon as max_bytes is exceeded (#2956)."""
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        remaining = max_bytes + 1 - total
+        chunk = await file.read(min(_UPLOAD_CHUNK_BYTES, remaining))
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > max_bytes:
+            raise ContentTooLargeError("File exceeds 10MB limit")
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 @router.post("", response_model=BankStatementResponse, status_code=status.HTTP_202_ACCEPTED)
 async def upload_statement(
     file: UploadFile = File(...),
@@ -457,16 +445,14 @@ async def upload_statement(
     if account_id is not None:
         await ensure_owned_account(db, user_id, account_id)
 
-    content = await file.read()
-    if len(content) > MAX_UPLOAD_BYTES:
-        raise ContentTooLargeError("File exceeds 10MB limit")
+    content = await _read_bounded_upload(file, max_bytes=MAX_UPLOAD_BYTES)
 
     file_hash = hashlib.sha256(content).hexdigest()
     if (
         await db.execute(
-            select(StatementSummary.id).where(
-                StatementSummary.user_id == user_id, StatementSummary.file_hash == file_hash
-            )
+            select(StatementSummary.id)
+            .where(StatementSummary.user_id == user_id, StatementSummary.file_hash == file_hash)
+            .limit(1)
         )
     ).scalar_one_or_none():
         raise ConflictError("Duplicate statement upload")
@@ -687,77 +673,41 @@ async def get_evidence_lineage(
     max_depth: int = Query(default=DEFAULT_MAX_DEPTH, ge=0, le=DEFAULT_MAX_DEPTH),
 ) -> EvidenceLineageResponse:
     """Return bounded user-owned Evidence Graph lineage around one entity anchor."""
-    db, user_id = ctx.db, ctx.user_id
-    lineage = EvidenceLineageService()
-    anchor = await lineage.get_node_for_entity(
-        db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
-    )
-    mat_blockers: list[EvidenceLineageBlocker] = []
-    if _should_attempt_lazy_materialization(entity_type=entity_type, node_kind=node_kind, anchor=anchor):
-        mat = await EvidenceGraphMaterializationService().materialize_for_entity(
-            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
+    try:
+        bundle = await load_evidence_lineage(
+            ctx.db,
+            user_id=ctx.user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            node_kind=node_kind,
+            direction=direction,
+            max_depth=max_depth,
         )
-        mat_blockers = [
-            EvidenceLineageBlocker(code=b.code, message=b.message)
-            for b in mat.blockers
-            if anchor is None or b.code != "entity_missing"
-        ]
-        failure_status = _materialization_failure_status(mat_blockers)
-        if failure_status is not None:
-            err = EvidenceLineageError(
-                message="Evidence Graph materialization could not complete for this entity.",
-                blockers=mat_blockers,
-            )
-            raise DomainError(err.message, status_code=failure_status, detail_payload=err.model_dump())
-        anchor = await lineage.get_node_for_entity(
-            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind
-        )
+    except EvidenceLineageQueryError as exc:
+        mat_blockers = [EvidenceLineageBlocker(code=b.code, message=b.message) for b in exc.blockers]
+        err = EvidenceLineageError(message=exc.message, blockers=mat_blockers)
+        if exc.status_code == 409:
+            raise ConflictError(err.message, detail_payload=err.model_dump()) from exc
+        raise DomainError(err.message, status_code=exc.status_code, detail_payload=err.model_dump()) from exc
 
-    if anchor is None:
-        missing = EvidenceLineageBlocker(
-            code="graph_node_missing",
-            message="No owned Evidence Graph node exists for this entity identity.",
-        )
+    blockers = [EvidenceLineageBlocker(code=b.code, message=b.message) for b in bundle.blockers]
+    if bundle.anchor is None:
         return EvidenceLineageResponse(
             anchor=None,
             nodes=[],
             edges=[],
-            blockers=[missing, *(b for b in mat_blockers if b.code != "entity_missing")],
+            blockers=blockers,
             max_depth=max_depth,
         )
 
-    up_steps = (
-        await lineage.get_upstream(
-            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind, max_depth=max_depth
-        )
-        if direction in {"upstream", "both"}
-        else []
-    )
-    down_steps = (
-        await lineage.get_downstream(
-            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind, max_depth=max_depth
-        )
-        if direction in {"downstream", "both"}
-        else []
-    )
-    nodes = list({n.id: n for n in (anchor, *(s.node for s in up_steps), *(s.node for s in down_steps))}.values())
-    opening_blockers = await EvidenceGraphMaterializationService().validate_opening_nodes(
-        db, user_id=user_id, nodes=nodes
-    )
-    if opening_blockers:
-        err = EvidenceLineageError(
-            message="Opening lineage no longer has current source authority.",
-            blockers=[EvidenceLineageBlocker(code=b.code, message=b.message) for b in opening_blockers],
-        )
-        raise ConflictError(err.message, detail_payload=err.model_dump())
     return EvidenceLineageResponse(
-        anchor=_node_dto(anchor),
-        nodes=[_node_dto(n) for n in nodes],
+        anchor=_node_dto(bundle.anchor),
+        nodes=[_node_dto(n) for n in bundle.nodes],
         edges=[
-            *(_edge_dto(s, direction="upstream") for s in up_steps),
-            *(_edge_dto(s, direction="downstream") for s in down_steps),
+            *(_edge_dto(s, direction="upstream") for s in bundle.up_steps),
+            *(_edge_dto(s, direction="downstream") for s in bundle.down_steps),
         ],
-        blockers=mat_blockers,
+        blockers=blockers,
         max_depth=max_depth,
     )
 
@@ -937,21 +887,7 @@ async def get_statement_for_review(statement_id: UUID, ctx: ReadCtx) -> Statemen
     uploaded_document = await _resolve_uploaded_document(db, statement, user_id)
     transactions = await resolve_statement_transactions(db, statement)
 
-    pdf_url = None
-    if uploaded_document is not None:
-        try:
-            pdf_url = await asyncio.to_thread(
-                StorageService().generate_presigned_url,
-                key=uploaded_document.file_path,
-                expires_in=settings.statement_review_presign_expiry_seconds,
-                public=True,
-            )
-        except StorageError as exc:
-            logger.warning(
-                "Could not generate presigned URL for review", error=str(exc), statement_id=str(statement_id)
-            )
-
-    validation_result = await validate_balance_chain(db, statement_id)
+    validation_result = await validate_balance_chain(db, statement_id, statement=statement, transactions=transactions)
     reviewed_envelope = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)
     source_result = await get_current_statement_extraction_result(db, user_id=user_id, statement_id=statement.id)
     source_result_digest = source_result.content_digest if source_result is not None else None
@@ -972,7 +908,6 @@ async def get_statement_for_review(statement_id: UUID, ctx: ReadCtx) -> Statemen
         reviewed_envelope=_envelope_response(reviewed_envelope, source_result_digest or "")
         if reviewed_envelope is not None
         else None,
-        pdf_url=pdf_url,
         balance_validation_result=BalanceValidationResult.model_validate(validation_result),
     )
 
@@ -1026,6 +961,7 @@ async def approve_statement_stage1(
         dependencies=compose_statement_posting_dependencies(),
         preloaded_bank_account=preloaded_account,
         base_currency=await ctx.get_base_currency(),
+        expected_source_result_digest=request.expected_source_result_digest if request else None,
     )
 
     created_count = _posting_count_or_conflict(outcome) + auto_filled

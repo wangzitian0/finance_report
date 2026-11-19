@@ -5,6 +5,7 @@ import json
 import time
 from collections.abc import Sequence
 from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any
 from uuid import UUID
 
@@ -18,27 +19,35 @@ from src.audit.money.currency import normalize_currency_code
 from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.base.paged_extraction import (
     MultipleAccountsError,
+    build_meta_prompt,
     build_paged_meta_prompt,
     build_paged_prompt,
+    build_rows_prompt,
     merge_paged_extractions,
+    split_paged_extractions_by_account,
 )
 from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, StatementExtractionResult
-from src.extraction.base.source_balance_check import SourceBalanceVerdict, check_closing_balance_against_text
+from src.extraction.base.source_balance_check import (
+    SourceBalanceVerdict,
+    check_closing_balance_against_text,
+    text_prints_money,
+)
+from src.extraction.base.source_capability import SOURCE_CAPABILITIES
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow, RunHints
 from src.extraction.base.validation import (
+    AccountExtractionSlice,
     DuplicateCurrencyError,
+    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     balance_gap_suspect_rows,
     balance_is_evaluable,
     bank_currency_balances,
-    compute_confidence_score,
+    compute_confidence_breakdown,
     count_within_document_dedup_collapse,
     detect_balance_chain_break,
+    evaluate_statement_balance,
     normalize_amount_direction,
-    normalize_statement_balance_payload,
-    route_by_threshold,
-    validate_balance,
-    validate_balance_explicit,
+    split_multi_account_extraction,
     validate_balance_per_currency,
 )
 from src.extraction.extension._base import (
@@ -122,7 +131,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         force_model: str | None,
         user_id: UUID,
         hints: RunHints | None = None,
-    ) -> dict[str, Any]:
+    ) -> tuple[list[AccountExtractionSlice], bool | None]:
         return await self._extract_with_balance_retry(
             file_content=source.content,
             institution=institution,
@@ -146,13 +155,34 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         db: AsyncSession | None = None,
         hints: RunHints | None = None,
     ) -> StatementExtractionResult:
-        """Parse document via AI vision or CSV parser into an immutable StatementExtractionResult.
+        """Parse document via AI vision or CSV parser into the primary immutable StatementExtractionResult."""
+        results = await self.parse_documents(
+            source,
+            institution=institution,
+            user_id=user_id,
+            file_type=file_type,
+            account_id=account_id,
+            force_model=force_model,
+            db=db,
+            hints=hints,
+        )
+        return results[0]
 
-        ``hints`` are the reviewer guidance of the run. They reach the prompt of a PDF or image parse. A CSV
-        parse sends no prompt and ignores them.
-        """
+    async def parse_documents(
+        self,
+        source: DocumentSource,
+        institution: str | None = None,
+        *,
+        user_id: UUID,
+        file_type: str = "pdf",
+        account_id: UUID | None = None,
+        force_model: str | None = None,
+        db: AsyncSession | None = None,
+        hints: RunHints | None = None,
+    ) -> list[StatementExtractionResult]:
+        """Parse a document into 1..N immutable StatementExtractionResult values (splitting multi-account PDFs)."""
         if not isinstance(source, DocumentSource):
-            raise TypeError("parse_document requires a DocumentSource")
+            raise TypeError("parse_documents requires a DocumentSource")
 
         file_path = source.path
         original_filename = source.filename
@@ -169,8 +199,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         try:
             if file_type == "csv":
                 extracted = await self._extract_csv_source(source, institution=institution)
+                slices = split_multi_account_extraction(extracted)
+                split_meta_agreed: bool | None = None
             elif file_type in PROMPT_FILE_TYPES:
-                extracted = await self._extract_vision_source(
+                slices, split_meta_agreed = await self._extract_vision_source(
                     source,
                     institution=institution,
                     file_type=file_type,
@@ -181,7 +213,48 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             else:
                 raise ExtractionError(f"Unsupported file type: {file_type}")
 
-            extracted = normalize_statement_balance_payload(extracted)
+            results: list[StatementExtractionResult] = []
+            for idx, slice_obj in enumerate(slices):
+                results.append(
+                    await self._parse_single_statement_payload(
+                        slice_obj=slice_obj,
+                        split_meta_agreed=split_meta_agreed,
+                        source=source,
+                        institution=institution,
+                        user_id=user_id,
+                        file_type=file_type,
+                        account_id=account_id if idx == 0 else None,
+                        model=model,
+                        file_path=file_path,
+                        display_filename=display_filename,
+                        db=db,
+                    )
+                )
+            return results
+        except Exception as e:
+            if not isinstance(e, ExtractionError):
+                logger.exception("Failed to parse document")
+                raise ExtractionError(f"Failed to parse document: {e}") from e
+            raise
+
+    async def _parse_single_statement_payload(
+        self,
+        *,
+        slice_obj: AccountExtractionSlice,
+        split_meta_agreed: bool | None,
+        source: DocumentSource,
+        institution: str | None,
+        user_id: UUID,
+        file_type: str,
+        account_id: UUID | None,
+        model: str,
+        file_path: Path | None,
+        display_filename: str | None,
+        db: AsyncSession | None,
+    ) -> StatementExtractionResult:
+        try:
+            extracted = slice_obj.payload
+            sub_account_key = slice_obj.sub_account_key
             final_institution = institution or extracted.get("institution")
             if not final_institution:
                 raise ExtractionError("Institution is required; extraction cannot invent source identity")
@@ -236,6 +309,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 user_id=user_id,
                 account_id=account_id,
                 file_hash=resolved_file_hash,
+                sub_account_key=sub_account_key,
                 institution=final_institution,
                 account_last4=sanitized_account_last4,
                 currency=statement_currency,
@@ -286,16 +360,25 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     is_brokerage=is_brokerage_payload,
                     statement_file=display_filename or "unknown",
                 )
-                record_financial_invariant_violation(kind="dedup_within_doc_collapse", institution_class=institution_class)
-                metadata = statement.extraction_metadata if isinstance(statement.extraction_metadata, dict) else {}
-                statement.extraction_metadata = {**metadata, "within_document_dedup_collapse": within_doc_collapse}
+                record_financial_invariant_violation(
+                    kind="dedup_within_doc_collapse", institution_class=institution_class
+                )
 
-            balance_result = validate_balance_explicit(
-                opening=statement.opening_balance or Decimal("0.00"),
-                closing=statement.closing_balance or Decimal("0.00"),
-                net_transactions=net_transactions,
+            capability_id = (
+                "csv_export"
+                if file_type == "csv"
+                else ("brokerage_statement" if is_brokerage_payload else "bank_statement")
             )
-            is_valid = balance_result["balance_valid"]
+            source_capability = next((c for c in SOURCE_CAPABILITIES if c.capability_id == capability_id), None)
+
+            balance_result = evaluate_statement_balance(
+                opening=statement.opening_balance,
+                closing=statement.closing_balance,
+                currency=statement_currency,
+                currency_balances=None,
+                transactions=extracted.get("transactions", []) or [],
+            )
+            is_valid = bool(balance_result["balance_valid"])
             effective_balance_result = balance_result
             if per_currency_invalid_note is not None:
                 is_valid = False
@@ -304,12 +387,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 effective_balance_result = {
                     **balance_result,
                     "balance_valid": True,
+                    "balance_proof_available": True,
                     "difference": "0.00",
                     "notes": None,
                 }
             csv_balance_missing = extracted.get("balance_source") == "missing_from_csv_export"
             csv_balance_declared = extracted.get("balance_source") == "declared_in_csv_export"
-            scalar_balance_evaluable = balance_is_evaluable(statement.opening_balance, statement.closing_balance, None)
             balance_evaluable = balance_is_evaluable(
                 statement.opening_balance, statement.closing_balance, bank_balances
             )
@@ -321,7 +404,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 period_end=resolved_period_end,
                 has_statement_currency=statement_currency is not None or bool(statement.currency_balances),
                 has_balances=bool(statement.currency_balances)
-                or (statement.currency is not None and scalar_balance_evaluable),
+                or (statement.currency is not None and balance_evaluable),
                 has_positions=bool(brokerage_positions),
                 has_unresolved_transaction_currency=any(t.currency_unresolved for t in transactions),
             )
@@ -330,54 +413,89 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 if source_fact_gaps
                 else None
             )
-            if file_type == "pdf" and not is_position_snapshot and bank_balances is None:
-                closing_source_verdict = check_closing_balance_against_text(
-                    await asyncio.to_thread(
-                        read_pdf_text_layer, source.content, max_pages=self.PDF_VISION_MAX_TOTAL_PAGES
-                    ),
-                    opening=statement.opening_balance,
-                    closing=statement.closing_balance,
-                    amounts=[transaction.amount for transaction in transactions],
+
+            source_verified: bool | None = None
+            closing_not_in_source = False
+            if file_type == "csv":
+                source_verified = csv_balance_declared and not csv_balance_missing
+            elif file_type == "pdf" and not is_position_snapshot:
+                pdf_text = await asyncio.to_thread(
+                    read_pdf_text_layer, source.content, max_pages=self.PDF_VISION_MAX_TOTAL_PAGES
                 )
-                if closing_source_verdict is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT:
-                    record_financial_invariant_violation(
-                        kind="closing_balance_not_in_source", institution_class=institution_class
+                if bank_balances is None:
+                    closing_source_verdict = check_closing_balance_against_text(
+                        pdf_text,
+                        opening=statement.opening_balance,
+                        closing=statement.closing_balance,
+                        amounts=[transaction.amount for transaction in transactions],
                     )
-                    if source_review_reason is None:
-                        source_review_reason = (
-                            f"Closing balance {statement.closing_balance} is not in the document text"
+                    if closing_source_verdict is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT:
+                        closing_not_in_source = True
+                        source_verified = False
+                        record_financial_invariant_violation(
+                            kind="closing_balance_not_in_source", institution_class=institution_class
                         )
+                        if source_review_reason is None:
+                            source_review_reason = (
+                                f"Closing balance {statement.closing_balance} is not in the document text"
+                            )
+                    elif closing_source_verdict is SourceBalanceVerdict.TEXT_UNUSABLE:
+                        source_verified = False
+                        if source_review_reason is None:
+                            source_review_reason = (
+                                source_capability.review_semantics
+                                if source_capability and "text" in source_capability.review_semantics.lower()
+                                else "PDF text layer is unusable; source review required before approval"
+                            )
+                    else:
+                        source_verified = True
+                else:
+                    source_verified = bool(pdf_text and text_prints_money(pdf_text))
+                    if not source_verified and source_review_reason is None:
+                        source_review_reason = "PDF text layer is unusable; source review required before approval"
+            elif file_type in {"png", "jpg", "jpeg"} and not is_position_snapshot:
+                source_verified = False
+                if source_review_reason is None:
+                    source_review_reason = (
+                        "Image upload has no verifiable text layer; source review required before approval"
+                    )
 
-            if csv_balance_missing or source_review_reason is not None:
-                confidence = min(
-                    compute_confidence_score(
-                        extracted,
-                        {
-                            **balance_result,
-                            "balance_valid": is_valid if balance_evaluable else False,
-                            "balance_proof_available": balance_evaluable,
-                            "notes": source_review_reason or "Source CSV does not declare opening and closing balances",
-                        },
-                        is_brokerage=is_brokerage_payload,
-                        effective_txn_count=len(transactions),
-                    ),
-                    59,
-                )
-                status = BankStatementStatus.PARSED
-            else:
-                confidence = compute_confidence_score(
-                    extracted,
-                    effective_balance_result,
-                    is_brokerage=is_brokerage_payload,
-                    effective_txn_count=len(transactions),
-                )
-                status = (
-                    BankStatementStatus.PARSED if is_position_snapshot else route_by_threshold(confidence, is_valid)
-                )
-                if status == BankStatementStatus.APPROVED and account_id is None:
-                    status = BankStatementStatus.PARSED
+            breakdown = compute_confidence_breakdown(
+                extracted,
+                {
+                    **effective_balance_result,
+                    "balance_valid": is_valid if balance_evaluable else False,
+                    "balance_proof_available": balance_evaluable,
+                    "notes": source_review_reason or effective_balance_result.get("notes"),
+                },
+                is_brokerage=is_brokerage_payload,
+                effective_txn_count=len(transactions),
+                source_verified=source_verified,
+                split_meta_agreed=split_meta_agreed,
+                has_source_fact_gaps=bool(source_fact_gaps) or csv_balance_missing,
+                closing_not_in_source=closing_not_in_source,
+                has_source_review_reason=source_review_reason is not None,
+            )
 
-            statement.balance_validated = None if (not balance_evaluable and per_currency_invalid_note is None) else is_valid
+            confidence = breakdown.score
+            status = (
+                BankStatementStatus.APPROVED
+                if (
+                    not is_position_snapshot
+                    and is_valid
+                    and not csv_balance_missing
+                    and not source_fact_gaps
+                    and not closing_not_in_source
+                    and source_review_reason is None
+                    and confidence >= HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
+                    and account_id is not None
+                )
+                else BankStatementStatus.PARSED
+            )
+
+            statement.balance_validated = (
+                None if (not balance_evaluable and per_currency_invalid_note is None) else is_valid
+            )
 
             if not transactions and not brokerage_positions:
                 statement.validation_error = (
@@ -464,7 +582,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 )
             except (TypeError, ValueError) as exc:
                 raise ExtractionError(f"Incomplete statement extraction result: {exc}") from exc
-            result_metadata = {"statement_extraction_result": extraction_result.to_payload()}
+            result_metadata: dict[str, Any] = {"statement_extraction_result": extraction_result.to_payload()}
             statement.extraction_metadata = result_metadata
 
             logger.info(
@@ -700,20 +818,24 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         filename: str | None,
         user_id: UUID | None = None,
         hints: RunHints | None = None,
-    ) -> dict[str, Any]:
+    ) -> tuple[list[AccountExtractionSlice], bool | None]:
         max_attempts = max(1, settings.ai_extract_max_attempts)
         base_seed = settings.ai_json_seed
-        best: dict[str, Any] | None = None
+        best: tuple[list[AccountExtractionSlice], bool | None] | None = None
         best_diff: Decimal | None = None
-        last_parse: dict[str, Any] | None = None
+        last_parse: tuple[list[AccountExtractionSlice], bool | None] | None = None
         last_error: Exception | None = None
+        extract_overridden = (
+            type(self).extract_financial_data is not _ORIGINAL_EXTRACT_FINANCIAL_DATA
+            or "extract_financial_data" in self.__dict__
+        )
 
         for attempt in range(max_attempts):
             seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
             structlog.contextvars.bind_contextvars(extract_attempt=attempt + 1)
             try:
-                extracted = normalize_statement_balance_payload(
-                    await self.extract_financial_data(
+                if extract_overridden:
+                    raw_extracted = await self.extract_financial_data(
                         file_content=file_content,
                         institution=institution,
                         file_type=file_type,
@@ -725,8 +847,25 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         read_text_layer=attempt == 0,
                         hints=hints,
                     )
-                )
-                per_currency = bank_currency_balances(extracted)
+                    split_meta_agreed: bool | None = None
+                else:
+                    raw_extracted, split_meta_agreed = await self._extract_financial_data_with_meta(
+                        file_content=file_content,
+                        institution=institution,
+                        file_type=file_type,
+                        file_url=file_url,
+                        force_model=force_model,
+                        seed_override=seed_override,
+                        filename=filename,
+                        user_id=user_id,
+                        read_text_layer=attempt == 0,
+                        split_single_batch=attempt == 0,
+                        hints=hints,
+                    )
+                slices = split_multi_account_extraction(raw_extracted)
+                for s in slices:
+                    bank_currency_balances(s.payload)
+                per_currency = bank_currency_balances(slices[0].payload) if len(slices) == 1 else None
             except DuplicateCurrencyError as exc:
                 raise ExtractionError(
                     f"This statement lists several balances in {exc.currency}, usually several accounts in one PDF. "
@@ -744,38 +883,72 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 continue
             finally:
                 structlog.contextvars.unbind_contextvars("extract_attempt")
-            last_parse = extracted
+            current_parse = (slices, split_meta_agreed)
+            last_parse = current_parse
 
+            primary = slices[0].payload
             if looks_like_brokerage_payload(
-                extracted, filename=filename, institution=institution or extracted.get("institution")
+                primary, filename=filename, institution=institution or primary.get("institution")
             ):
-                return extracted
+                return current_parse
 
-            if not balance_is_evaluable(
-                extracted.get("opening_balance"), extracted.get("closing_balance"), per_currency
-            ):
+            if len(slices) > 1:
+                sub_results: list[dict[str, Any]] = []
+                any_evaluable = False
+                for s in slices:
+                    sub = s.payload
+                    sub_per_currency = bank_currency_balances(sub)
+                    if balance_is_evaluable(sub.get("opening_balance"), sub.get("closing_balance"), sub_per_currency):
+                        any_evaluable = True
+                        sub_results.append(
+                            evaluate_statement_balance(
+                                opening=self._safe_decimal(sub.get("opening_balance")),
+                                closing=self._safe_decimal(sub.get("closing_balance")),
+                                currency=sub.get("currency"),
+                                currency_balances=sub_per_currency,
+                                transactions=sub.get("transactions") or [],
+                            )
+                        )
+                if not any_evaluable:
+                    if best is not None:
+                        continue
+                    return current_parse
+                if all(r.get("balance_valid") for r in sub_results):
+                    return current_parse
+                total_diff = sum(
+                    (
+                        abs(Decimal(str(r.get("difference", "0") or "0")))
+                        for r in sub_results
+                        if r.get("balance_computable", True)
+                    ),
+                    start=Decimal("0"),
+                )
+                if best is None or best_diff is None or total_diff < best_diff:
+                    best, best_diff = current_parse, total_diff
+                continue
+
+            if not balance_is_evaluable(primary.get("opening_balance"), primary.get("closing_balance"), per_currency):
                 # The statement prints no balance: no later pass can reconcile it.
                 if best is not None:
                     continue
-                return extracted
+                return current_parse
 
-            result = validate_balance(extracted)
-            if per_currency is not None:
-                currency_result = validate_balance_per_currency(extracted)
-                result = {
-                    **result,
-                    "balance_valid": currency_result["balance_valid"],
-                    "balance_computable": currency_result["balance_computable"],
-                }
+            result = evaluate_statement_balance(
+                opening=self._safe_decimal(primary.get("opening_balance")),
+                closing=self._safe_decimal(primary.get("closing_balance")),
+                currency=primary.get("currency"),
+                currency_balances=per_currency,
+                transactions=primary.get("transactions") or [],
+            )
             if result.get("balance_valid"):
                 if attempt > 0:
                     logger.info(
                         "Balance reconciled on re-extract",
                         attempt=attempt + 1,
                         max_attempts=max_attempts,
-                        institution=institution or extracted.get("institution"),
+                        institution=institution or primary.get("institution"),
                     )
-                return extracted
+                return current_parse
 
             if result.get("balance_computable", True):
                 try:
@@ -783,7 +956,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 except (ValueError, TypeError, InvalidOperation):
                     diff = None
                 if diff is not None and (best is None or best_diff is None or diff < best_diff):
-                    best, best_diff = extracted, diff
+                    best, best_diff = current_parse, diff
 
         if best is not None:
             if max_attempts > 1:
@@ -927,6 +1100,36 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         ``read_text_layer=False`` skips the text layer, so a second pass reads the pages another way.
         """
+        extracted, _ = await self._extract_financial_data_with_meta(
+            file_content=file_content,
+            institution=institution,
+            file_type=file_type,
+            file_url=file_url,
+            force_model=force_model,
+            seed_override=seed_override,
+            filename=filename,
+            user_id=user_id,
+            read_text_layer=read_text_layer,
+            split_single_batch=True,
+            hints=hints,
+        )
+        return extracted
+
+    async def _extract_financial_data_with_meta(
+        self,
+        *,
+        file_content: bytes | None,
+        institution: str | None,
+        file_type: str,
+        file_url: str | None = None,
+        force_model: str | None = None,
+        seed_override: int | None = None,
+        filename: str | None = None,
+        user_id: UUID | None = None,
+        read_text_layer: bool = True,
+        split_single_batch: bool = True,
+        hints: RunHints | None = None,
+    ) -> tuple[dict[str, Any], bool | None]:
         if file_content is None and not file_url:
             raise ExtractionError("File content is required")
         if not self.api_key:
@@ -975,7 +1178,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             else None
         )
         if text_batches is not None:
-            from_text = await self._extract_json_from_media_batches(
+            from_text, text_split_agreed = await self._extract_json_from_media_batches(
                 media_batches=text_batches,
                 model=model,
                 prompt=prompt,
@@ -983,10 +1186,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 seed_override=seed_override,
                 user_id=user_id,
                 allow_multiple_accounts=allow_multiple_accounts,
+                split_single_batch=False,
             )
             if from_text.get("transactions") or (document_kind == "brokerage" and from_text.get("positions")):
-                return from_text
-            logger.warning("PDF text layer gave no transactions; reading the page images", page_batches=len(text_batches))
+                return from_text, text_split_agreed
+            logger.warning(
+                "PDF text layer gave no transactions or positions; reading the page images",
+                page_batches=len(text_batches),
+            )
         media_batches = await asyncio.to_thread(
             self._build_vision_media_payload_batches, file_content, file_url, file_type, mime_type
         )
@@ -999,6 +1206,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             seed_override=seed_override,
             user_id=user_id,
             allow_multiple_accounts=allow_multiple_accounts,
+            split_single_batch=split_single_batch,
         )
 
     async def _extract_json_from_media_batches(
@@ -1011,7 +1219,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         user_id: UUID | None,
         hints_block: str = "",
         allow_multiple_accounts: bool = False,
-    ) -> dict[str, Any]:
+        split_single_batch: bool = False,
+    ) -> tuple[dict[str, Any], bool | None]:
         """Call the model once per page batch. ``hints_block`` is the last part of every prompt."""
 
         def _messages(part_prompt: str, media: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1042,10 +1251,33 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         if part_count == 1:
             single_batch = await _load_batch(0)
-            messages = _messages(f"{prompt}{hints_block}", single_batch)
             pages = len(single_batch)
+            if split_single_batch:
+                meta_messages = _messages(build_meta_prompt(prompt, hints_block=hints_block), single_batch)
+                rows_messages = _messages(build_rows_prompt(prompt, hints_block=hints_block), single_batch)
+                del single_batch
+                meta_part, rows_part = await asyncio.gather(
+                    _call(meta_messages, batch_index=0, pages=pages),
+                    _call(rows_messages, batch_index=1, pages=pages),
+                )
+                clean_meta = {k: v for k, v in meta_part.items() if k not in ("transactions", "positions")}
+                rows_only = {
+                    k: v for k, v in rows_part.items() if k not in ("opening_balance", "closing_balance", "balances")
+                }
+                merged = merge_paged_extractions([clean_meta, rows_only])
+                meta_open = self._safe_decimal(meta_part.get("opening_balance"))
+                meta_close = self._safe_decimal(meta_part.get("closing_balance"))
+                rows_open = self._safe_decimal(rows_part.get("opening_balance"))
+                rows_close = self._safe_decimal(rows_part.get("closing_balance"))
+                agreed = bool((meta_open is not None and meta_close is not None) or meta_part.get("balances"))
+                if agreed and rows_open is not None and meta_open is not None and rows_open != meta_open:
+                    agreed = False
+                if agreed and rows_close is not None and meta_close is not None and rows_close != meta_close:
+                    agreed = False
+                return merged, agreed
+            messages = _messages(f"{prompt}{hints_block}", single_batch)
             del single_batch
-            return await _call(messages, batch_index=1, pages=pages)
+            return await _call(messages, batch_index=1, pages=pages), None
 
         pages_per_call = self.PDF_VISION_MAX_PAGES
         total_pages = getattr(media_batches, "total_pages", None) or sum(len(media) for media in media_batches)
@@ -1099,15 +1331,31 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             del messages
             parts.append(part)
 
+        meta_agreed: bool | None = (
+            True
+            if (meta_part.get("opening_balance") is not None and meta_part.get("closing_balance") is not None)
+            or bool(meta_part.get("balances"))
+            else None
+        )
         try:
             merged = merge_paged_extractions(parts, allow_multiple_accounts=allow_multiple_accounts)
         except MultipleAccountsError as exc:
-            logger.warning("Multiple accounts in paged extraction", parts_by_account=exc.parts_by_account)
-            raise
+            logger.info("Multiple accounts in paged extraction", parts_by_account=exc.parts_by_account)
+            account_parts = split_paged_extractions_by_account(parts)
+            return (
+                {
+                    "institution": next((p.get("institution") for p in account_parts if p.get("institution")), None),
+                    "accounts": account_parts,
+                },
+                meta_agreed,
+            )
         logger.info(
             "Merged paged vision extraction",
             part_count=part_count,
             transactions=len(merged.get("transactions") or []),
             positions=len(merged.get("positions") or []),
         )
-        return merged
+        return merged, meta_agreed
+
+
+_ORIGINAL_EXTRACT_FINANCIAL_DATA = ExtractionService.extract_financial_data

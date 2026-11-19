@@ -163,7 +163,7 @@ STRING_PSEUDONYM_COLUMNS: dict[str, str] = {
                 "manual_valuation_snapshots": "notes source",
                 "reviewed_statement_envelopes": "rationale",
                 "statement_runs": "error_message",
-                "statement_summaries": "institution validation_error",
+                "statement_summaries": "institution sub_account_key validation_error",
                 "uploaded_documents": "file_path",
                 "users": "name",
                 "workflow_events": "summary title",
@@ -339,7 +339,9 @@ def _transform(
         if by_action[Action.SCALE]:
             conn.execute(table.update().values({c.name: c * scale_factor for c in by_action[Action.SCALE]}))
         for col in by_action[Action.REDACT_JSON]:
-            report.json_redacted += conn.execute(table.update().where(col.isnot(None)).values({col.name: REDACTED_JSON})).rowcount or 0
+            report.json_redacted += (
+                conn.execute(table.update().where(col.isnot(None)).values({col.name: REDACTED_JSON})).rowcount or 0
+            )
         for col in by_action[Action.REDACT_SECRET]:
             conn.execute(table.update().where(col.isnot(None)).values({col.name: REDACTED_SECRET}))
         pseudo_cols = by_action[Action.PSEUDONYM]
@@ -376,10 +378,16 @@ def _short_digit_regex(needles: list[str]) -> str:
     return f"(?<![0-9a-zA-Z])(?:{'|'.join(sorted(needles))})(?![0-9a-zA-Z])"
 
 
-def _column_has_match(conn: Connection, table: sa.Table, target: sa.ColumnElement[str], needles: list[str], *, regex: bool) -> bool:
+def _column_has_match(
+    conn: Connection, table: sa.Table, target: sa.ColumnElement[str], needles: list[str], *, regex: bool
+) -> bool:
     for start in range(0, len(needles), 200):
         chunk = needles[start : start + 200]
-        cond = target.op("~")(_short_digit_regex(chunk)) if regex else sa.or_(*(target.contains(n, autoescape=True) for n in chunk))
+        cond = (
+            target.op("~")(_short_digit_regex(chunk))
+            if regex
+            else sa.or_(*(target.contains(n, autoescape=True) for n in chunk))
+        )
         if conn.execute(sa.select(sa.literal(1)).select_from(table).where(cond).limit(1)).scalar():
             return True
     return False

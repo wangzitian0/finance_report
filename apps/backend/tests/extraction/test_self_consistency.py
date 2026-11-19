@@ -44,8 +44,20 @@ def _brokerage():
 async def _run(attempts_returns, *, max_attempts=3, seed=42):
     service = ExtractionService()
     mock = AsyncMock(side_effect=attempts_returns)
-    with patch.object(settings, "ai_extract_max_attempts", max_attempts), patch.object(settings, "ai_json_seed", seed), patch.object(service, "extract_financial_data", mock):
-        return await service._extract_with_balance_retry(file_content=b"x", institution="DBS", file_type="pdf", file_url=None, force_model=None, filename="statement.pdf"), mock
+    with (
+        patch.object(settings, "ai_extract_max_attempts", max_attempts),
+        patch.object(settings, "ai_json_seed", seed),
+        patch.object(service, "extract_financial_data", mock),
+    ):
+        slices, _ = await service._extract_with_balance_retry(
+            file_content=b"x",
+            institution="DBS",
+            file_type="pdf",
+            file_url=None,
+            force_model=None,
+            filename="statement.pdf",
+        )
+        return slices[0].payload, mock
 
 
 @pytest.mark.parametrize(
@@ -53,18 +65,41 @@ async def _run(attempts_returns, *, max_attempts=3, seed=42):
     [
         (lambda: [_bank("0")], 3, 1, lambda r: r["closing_balance"] == "100.00"),
         (lambda: [_bank("12.50"), _bank("0")], 3, 2, lambda r: r["transactions"][0]["amount"] == "100.00"),
-        (lambda: [_bank("40.00"), _bank("3.00"), _bank("20.00")], 3, 3, lambda r: r["transactions"][0]["amount"] == "97.00"),
+        (
+            lambda: [_bank("40.00"), _bank("3.00"), _bank("20.00")],
+            3,
+            3,
+            lambda r: r["transactions"][0]["amount"] == "97.00",
+        ),
         (lambda: [_brokerage(), _bank("0")], 3, 1, lambda r: "positions" in r),
         (lambda: [_bank("9.00")], 1, 1, lambda r: r["closing_balance"] == "100.00"),
         (lambda: [_invalid(), _bank("3.00")], 2, 2, lambda r: r["transactions"][0]["amount"] == "97.00"),
         (lambda: [_invalid(), _invalid()], 2, 2, lambda r: r["transactions"][0]["amount"] == "not-a-number"),
-        (lambda: [_bank("5.00"), ExtractionError("429 rate limited")], 2, 2, lambda r: r["transactions"][0]["amount"] == "95.00"),
+        (
+            lambda: [_bank("5.00"), ExtractionError("429 rate limited")],
+            2,
+            2,
+            lambda r: r["transactions"][0]["amount"] == "95.00",
+        ),
         (lambda: [ExtractionError("timeout"), _bank("0")], 2, 2, lambda r: r["transactions"][0]["amount"] == "100.00"),
-        (lambda: [_bank("8.00"), ExtractionError("429"), _bank("0")], 3, 3, lambda r: r["transactions"][0]["amount"] == "100.00"),
+        (
+            lambda: [_bank("8.00"), ExtractionError("429"), _bank("0")],
+            3,
+            3,
+            lambda r: r["transactions"][0]["amount"] == "100.00",
+        ),
     ],
     ids=[
-        "first-reconciles", "retry-reconciles", "keeps-best", "brokerage-single", "max-1",
-        "invalid-skipped", "all-invalid-last", "transient-keeps-usable", "first-err-recovers", "mid-err-continues",
+        "first-reconciles",
+        "retry-reconciles",
+        "keeps-best",
+        "brokerage-single",
+        "max-1",
+        "invalid-skipped",
+        "all-invalid-last",
+        "transient-keeps-usable",
+        "first-err-recovers",
+        "mid-err-continues",
     ],
 )
 async def test_retry_selection_matrix(returns_fn, max_attempts, expected_calls, check_fn):

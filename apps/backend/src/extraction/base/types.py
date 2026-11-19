@@ -78,6 +78,7 @@ class StatementIngestionOutcome:
     transactions_count: int = 0
     auto_posted_count: int = 0
     classify_run_id: UUID | None = None
+    sibling_classify_run_ids: tuple[UUID, ...] = ()
 
 
 class StatementPostingStatus(StrEnum):

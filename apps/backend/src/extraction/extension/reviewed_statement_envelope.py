@@ -191,6 +191,12 @@ async def persist_statement_extraction_result(
         cur_env := await current_reviewed_statement_envelope(db, user_id=statement.user_id, statement_id=statement.id)
     ) is not None:
         _apply_envelope_to_statement(statement, cur_env)
+    if (
+        isinstance(statement.extraction_metadata, dict)
+        and "statement_extraction_result" in statement.extraction_metadata
+    ):
+        remaining = {k: v for k, v in statement.extraction_metadata.items() if k != "statement_extraction_result"}
+        statement.extraction_metadata = remaining or None
     await db.flush()
     return source_record
 

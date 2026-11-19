@@ -314,6 +314,7 @@ export default function StatementDetailPage() {
           ...(envelopeDraft.accountId && !review?.account_id ? { account_id: envelopeDraft.accountId } : {}),
           create_account_if_missing: !review?.account_id && !envelopeDraft.accountId,
           auto_fill_default_categories: Boolean(variables?.autoFill),
+          ...(review?.source_result_digest ? { expected_source_result_digest: review.source_result_digest } : {}),
         },
       },
     ),

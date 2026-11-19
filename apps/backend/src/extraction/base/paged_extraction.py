@@ -34,6 +34,30 @@ def _is_empty(value: Any) -> bool:
     return value is None or value == "" or value == []
 
 
+def build_meta_prompt(base_prompt: str, *, hints_block: str = "") -> str:
+    """Build Request A prompt for single-batch Vision: header & printed balances only (no rows)."""
+    return (
+        f"{base_prompt}\n\n"
+        "IMPORTANT — HEADER & BALANCES CHECK ONLY:\n"
+        "- Extract ONLY document-level metadata: institution, account_last4, currency, "
+        "period_start, period_end, opening_balance, closing_balance, balances, and snapshot_date (when present).\n"
+        "- Return an empty array [] for transactions and positions.\n"
+        "- Report opening_balance and closing_balance ONLY when explicitly printed on the document; otherwise null."
+        f"{hints_block}"
+    )
+
+
+def build_rows_prompt(base_prompt: str, *, hints_block: str = "") -> str:
+    """Build Request B prompt for single-batch Vision: transaction/position rows without balance fabrication."""
+    return (
+        f"{base_prompt}\n\n"
+        "IMPORTANT — TRANSACTION ROWS EXTRACTION:\n"
+        "- Focus on extracting EVERY visible transaction (or position) row accurately with its printed amount, direction, and balance_after.\n"
+        "- NEVER derive, invent, or adjust opening_balance or closing_balance to force rows to balance; return null if not explicitly printed."
+        f"{hints_block}"
+    )
+
+
 def build_paged_meta_prompt(
     base_prompt: str,
     *,
@@ -210,3 +234,44 @@ def merge_paged_extractions(
     if balances:
         merged["balances"] = list(balances.values())
     return merged
+
+
+def split_paged_extractions_by_account(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group multi-account batch parts into one merged payload per distinct account (#2983)."""
+    dict_parts = [part for part in parts if isinstance(part, dict)]
+    if not dict_parts:
+        raise ValueError("split_paged_extractions_by_account needs at least one dict payload")
+
+    grouped: dict[str, list[dict[str, Any]]] = {}
+    unassigned: list[dict[str, Any]] = []
+    shared_institution: object = None
+    last_suffix: str | None = None
+    for part in dict_parts:
+        if shared_institution is None and not _is_empty(part.get("institution")):
+            shared_institution = part.get("institution")
+        suffix = sanitize_account_last4(str(part["account_last4"])) if part.get("account_last4") else None
+        if suffix:
+            grouped.setdefault(suffix, []).append(part)
+            last_suffix = suffix
+        elif last_suffix is not None:
+            grouped[last_suffix].append(part)
+        else:
+            unassigned.append(part)
+
+    if len(grouped) <= 1:
+        return [merge_paged_extractions(dict_parts)]
+
+    merged_accounts: list[dict[str, Any]] = []
+    for index, (suffix, account_parts) in enumerate(grouped.items()):
+        parts_to_merge = list(account_parts)
+        if index == 0 and unassigned:
+            parts_to_merge = [
+                {k: v for k, v in p.items() if k in ("institution", "period_start", "period_end") and not _is_empty(v)}
+                for p in unassigned
+            ] + parts_to_merge
+        merged = merge_paged_extractions([p for p in parts_to_merge if p])
+        if _is_empty(merged.get("institution")) and shared_institution is not None:
+            merged["institution"] = shared_institution
+        merged["account_last4"] = suffix
+        merged_accounts.append(merged)
+    return merged_accounts

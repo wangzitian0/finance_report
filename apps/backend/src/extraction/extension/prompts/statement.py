@@ -1,7 +1,12 @@
 """Prompt templates for statement parsing."""
 
 from src.audit import canonical_json_digest
-from src.extraction.base.paged_extraction import build_paged_meta_prompt, build_paged_prompt
+from src.extraction.base.paged_extraction import (
+    build_meta_prompt,
+    build_paged_meta_prompt,
+    build_paged_prompt,
+    build_rows_prompt,
+)
 from src.extraction.base.types import RunHints
 from src.extraction.extension.prompts.hints import hints_block
 
@@ -146,26 +151,6 @@ Important Rules:
 11. Auto-detect the broker name from the document header/logo into the "institution" field
 """
 
-
-VALIDATION_PROMPT = """Verify the extracted data:
-
-1. Balance check: opening_balance + sum(IN) - sum(OUT) ≈ closing_balance (tolerance: 0.10), computed per currency - never sum amounts across different currencies. Only perform a per-currency balance check when the document actually provides that currency's opening and closing balance.
-2. Date check: All transaction dates should be within period_start and period_end
-3. Completeness: No missing required fields
-
-Return JSON only, no markdown or extra text:
-{
-  "balance_valid": true/false,
-  "expected_closing": "12500.00",
-  "actual_closing": "12500.00",
-  "difference": "0.00",
-  "date_issues": [],
-  "missing_fields": [],
-  "confidence_score": 85,
-  "notes": "Optional explanation"
-}
-"""
-
 # Institution-specific hints
 INSTITUTION_HINTS = {
     "DBS": """
@@ -249,8 +234,8 @@ MariBank Singapore statement:
 
 
 # Raise this version in the same change that edits SYSTEM_PROMPT, BROKERAGE_POSITIONS_PROMPT, an entry of
-# INSTITUTION_HINTS or the shared hints block (prompts/hints.py). A run stores it, so an audit can tell which prompt text a run used.
-PARSING_PROMPT_TEMPLATE_VERSION = "1"
+# INSTITUTION_HINTS, single-batch meta/rows templates, or the shared hints block (prompts/hints.py). A run stores it, so an audit can tell which prompt text a run used.
+PARSING_PROMPT_TEMPLATE_VERSION = "2"
 
 _HINTS_PURPOSE = """It never changes the output schema, the field names, the signs or the amounts.
 Use it only to find rows and fields that the document shows. Never invent data.
@@ -285,6 +270,8 @@ def parsing_template_fingerprint() -> str:
             "brokerage_prompt": BROKERAGE_POSITIONS_PROMPT,
             "institution_hints": INSTITUTION_HINTS,
             "hints_block": block,
+            "single_meta": build_meta_prompt("BASE", hints_block=block),
+            "single_rows": build_rows_prompt("BASE", hints_block=block),
             "paged_meta": build_paged_meta_prompt("BASE", page_numbers=[1, 2, 6], total_pages=6, hints_block=block),
             "paged_first_part": build_paged_prompt(
                 "BASE", part_index=1, part_count=2, page_start=1, page_end=5, total_pages=6, hints_block=block
@@ -327,7 +314,6 @@ def get_parsing_prompt(
     prompt = base_prompt
     if institution:
         inst_upper = institution.upper()
-        # Try exact match first, then partial match
         for key, hint in INSTITUTION_HINTS.items():
             if key.upper() == inst_upper:
                 prompt += f"\n\nInstitution-specific guidance for {institution}:\n"
