@@ -194,7 +194,8 @@ class CorrectionLoopService:
         record_confidence_tier(tier="high", stage="replay", count=high)
         record_confidence_tier(tier="medium", stage="replay", count=medium)
         record_confidence_tier(tier="low", stage="replay", count=low)
-        record_low_confidence_proportion(proportion=float(low_prop), source="replay")
+        if high + medium + low > 0:
+            record_low_confidence_proportion(proportion=float(low_prop), source="replay")
         return ReplayResult(
             holdout_size=replay.holdout_size,
             grounded=replay.grounded,

@@ -9,7 +9,6 @@ for financial mutations and security warnings. Identity's request-context bindin
 
 from __future__ import annotations
 
-import re
 from collections.abc import Mapping
 from typing import Any
 from uuid import UUID, uuid4
@@ -18,8 +17,6 @@ import structlog
 from infra2_sdk.runtime.otel import current_request_id as _sdk_request_id
 
 from src.observability.pii_redaction import detect_pii
-
-_UUID_SPAN_RE = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 
 RISKY_LOG_FIELD_NAMES = frozenset(
     {
@@ -44,15 +41,6 @@ MAX_SAFE_ERROR_CHARS = 300
 
 def _redact_detected_pii(text: str) -> str:
     matches = detect_pii(text)
-    if not matches:
-        return text
-    uuid_spans = [(m.start(), m.end()) for m in _UUID_SPAN_RE.finditer(text)]
-    if uuid_spans:
-        matches = [
-            match
-            for match in matches
-            if not any(span_start <= match.start and match.end <= span_end for span_start, span_end in uuid_spans)
-        ]
     if not matches:
         return text
 
