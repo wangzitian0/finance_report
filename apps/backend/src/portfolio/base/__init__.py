@@ -14,7 +14,6 @@ from __future__ import annotations
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InsufficientDataError,
-    InvalidDateRangeError,
     InvestmentAccountingError,
     InvestmentAccountingValidationError,
     PerformanceError,
@@ -28,7 +27,6 @@ __all__ = [
     "AssetNotFoundError",
     "DividendEvent",
     "InsufficientDataError",
-    "InvalidDateRangeError",
     "InvestmentAccountingError",
     "InvestmentAccountingValidationError",
     "PerformanceError",

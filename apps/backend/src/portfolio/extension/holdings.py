@@ -79,14 +79,14 @@ async def _convert_pnl(
     cost: Money,
     cost_rate_date: date,
     target_currency: str,
-    quantize: bool,
 ) -> tuple[Money, Money, Money, Ratio]:
     """Convert a holding's value and cost to target_currency and derive P&L + ratio."""
-    converted_value = await convert_money(db, value, target_currency, rate_date=value_rate_date, lazy_load=True)
-    converted_cost = await convert_money(db, cost, target_currency, rate_date=cost_rate_date, lazy_load=True)
-    if quantize:
-        converted_value = converted_value.quantize()
-        converted_cost = converted_cost.quantize()
+    converted_value = (
+        await convert_money(db, value, target_currency, rate_date=value_rate_date, lazy_load=True)
+    ).quantize()
+    converted_cost = (
+        await convert_money(db, cost, target_currency, rate_date=cost_rate_date, lazy_load=True)
+    ).quantize()
     pnl = converted_value - converted_cost
     return converted_value, converted_cost, pnl, Ratio.fraction_or_zero(pnl.amount, converted_cost.amount)
 
@@ -101,8 +101,6 @@ class PortfolioService:
         eval_date: date,
         user_id: UUID,
         target_currency: str,
-        *,
-        quantize: bool,
     ) -> tuple[Decimal, Money, Money, Money, Ratio]:
         latest_price = await self._get_latest_price(db, position, eval_date, user_id)
         position_quantity = position.quantity_qty.quantize()
@@ -114,7 +112,6 @@ class PortfolioService:
             cost=position.cost_basis_money,
             cost_rate_date=position.acquisition_date,
             target_currency=target_currency,
-            quantize=quantize,
         )
         return latest_price, converted_value, converted_cost, pnl, pnl_ratio
 
@@ -158,7 +155,7 @@ class PortfolioService:
 
         for position in positions:
             _, converted_value, converted_cost, unrealized_pnl, unrealized_pnl_ratio = await self._value_managed_position(
-                db, position, eval_date, user_id, resolved_base, quantize=True
+                db, position, eval_date, user_id, resolved_base
             )
             latest_atomic = await self._get_latest_atomic(db, position.asset_identifier, user_id)
             holdings.append(
@@ -280,7 +277,6 @@ class PortfolioService:
                 cost=cost_money,
                 cost_rate_date=cost_rate_date,
                 target_currency=resolved_base,
-                quantize=True,
             )
             holdings.append(
                 _portfolio_schemas().HoldingResponse(

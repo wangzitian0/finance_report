@@ -305,7 +305,7 @@ def _parse_moomoo_subscription_positions(
                 continue
             description = str(event.get("description") or "")
             if "Money Market Fund" not in description or any(
-                token in description.lower() for token in _FUTU_NON_POSITION_EVENT_TOKENS
+                token in description.lower() for token in _MOOMOO_NON_POSITION_EVENT_TOKENS
             ):
                 continue
             amount = _clean_decimal(event.get("amount"), field="market_value", row=description)
@@ -419,7 +419,7 @@ def _parse_moomoo_margin_history_positions(
     ]
 
 
-_FUTU_NON_POSITION_EVENT_TOKENS: tuple[str, ...] = (
+_MOOMOO_NON_POSITION_EVENT_TOKENS: tuple[str, ...] = (
     "cash",
     "現金",
     "现金",

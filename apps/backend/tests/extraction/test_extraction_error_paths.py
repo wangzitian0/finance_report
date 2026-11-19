@@ -218,3 +218,43 @@ def test_extraction_service_low_level_helpers():
 @pytest.mark.parametrize(("raw", "expected"), [("553-3", "5533"), ("XXX-553-3", "5533"), (None, None), ("", None), ("12", "12"), ("---", None), ("1234", "1234"), ("12 34", "1234"), ("AB-12", "AB12"), ("ABCDEF1234", "1234"), ("12号34", "1234"), ("A", "A")])
 def test_sanitize_account_last4(raw, expected):
     assert sanitize_account_last4(raw) == expected
+
+
+async def test_parse_document_multicurrency_bank_balance_self_check_failure(test_user):
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(
+        return_value={
+            "institution": "DBS",
+            "account_last4": "0355",
+            "currency": "SGD",
+            "period_start": "2025-06-01",
+            "period_end": "2025-06-30",
+            # Scalar totals sum SGD+USD flows (1000 + 500 + 300 == 1800), so only per-currency validation catches USD mismatch.
+            "opening_balance": "1000.00",
+            "closing_balance": "1800.00",
+            "balances": [
+                {"currency": "SGD", "opening": "1000.00", "closing": "1500.00"},
+                {"currency": "USD", "opening": "200.00", "closing": "400.00"},
+            ],
+            "transactions": [
+                {"date": "2025-06-10", "description": "Salary", "amount": "500.00", "direction": "IN", "currency": "SGD"},
+                {"date": "2025-06-12", "description": "USD inflow", "amount": "300.00", "direction": "IN", "currency": "USD"},
+            ],
+        }
+    )
+    res = await service.parse_document(
+        DocumentSource.resolve(
+            path=Path("dbs-statement-2506.pdf"),
+            content=b"%PDF-1.7",
+            content_hash="dbs-multicurrency-fail-hash",
+            filename="dbs-statement-2506.pdf",
+        ),
+        institution="DBS",
+        user_id=test_user.id,
+    )
+    assert (
+        {b.currency for b in res.balances},
+        res.balance_validated,
+        res.transactions,
+        any("llm_led_balance_chain_unreconciled" in reason for reason in res.review_reasons),
+    ) == ({"SGD", "USD"}, False, (), True)

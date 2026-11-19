@@ -181,7 +181,13 @@ async def test_get_portfolio_summary_cases(db, test_user, svc, account):
         _atom(test_user.id, "GIFT", "B", qty=Decimal("5"), mv=Decimal("250.00"), dedup_hash="gift_unrealized"),
     )
     zero_summary = await svc.get_portfolio_summary(db, test_user.id, base_currency="SGD")
-    assert zero_summary.net_pnl_percent == Decimal("0.00")
+    assert (
+        zero_summary.total_market_value,
+        zero_summary.total_cost_basis,
+        zero_summary.total_unrealized_pnl,
+        zero_summary.net_pnl,
+        zero_summary.net_pnl_percent,
+    ) == (Decimal("250.00"), Decimal("0.00"), Decimal("250.00"), Decimal("250.00"), Decimal("0.00"))
     await _flush(
         db,
         _pos(test_user.id, account.id, "NVDA", qty=Decimal("10"), cost=Decimal("2000.00"), currency="USD", acq_days=45),
@@ -192,7 +198,18 @@ async def test_get_portfolio_summary_cases(db, test_user, svc, account):
         _atom(test_user.id, "MSFT", "Test Broker", qty=Decimal("50"), mv=Decimal("5500.00"), sector="Technology", geography="US", asset_type="stock", dedup_hash="msft_disposed_summary"),
     )
     summary = await svc.get_portfolio_summary(db, test_user.id, base_currency="SGD")
-    assert (summary.active_positions_count, summary.disposed_positions_count, summary.holdings_count, summary.currency) == (2, 1, 3, "SGD")
+    assert (
+        summary.active_positions_count,
+        summary.disposed_positions_count,
+        summary.holdings_count,
+        summary.currency,
+        summary.total_market_value,
+        summary.total_cost_basis,
+        summary.total_unrealized_pnl,
+        summary.total_realized_pnl,
+        summary.net_pnl,
+        summary.net_pnl_percent,
+    ) == (2, 1, 3, "SGD", Decimal("9125.00"), Decimal("7600.00"), Decimal("1525.00"), Decimal("0"), Decimal("1525.00"), Decimal("20.07"))
 
 
 async def test_get_latest_price_and_atomic_helpers(db, test_user, svc, active_position, account):

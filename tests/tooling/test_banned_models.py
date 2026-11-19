@@ -10,6 +10,6 @@ def _hits() -> dict[str, list[int]]:
     return found
 def test_AC_llm_banned_models_1_no_tracked_file_names_glm_4_6v():
     hits = {p: n for p, n in _hits().items() if not p.startswith(RECORDED_DATA)}; assert not hits, f'glm-4.6v is banned; remove it from: {hits}'; _m1_exempt = {_m1_p for _m1_p in _hits() if _m1_p.startswith(RECORDED_DATA)}; assert all((_m1_p.endswith('.truth.json') for _m1_p in _m1_exempt)), sorted(_m1_exempt); _m2_files = _tracked_text_files(); assert len(_m2_files) > 500, len(_m2_files)
-    for _m2_expected in ('apps/backend/src/config.py', '.github/workflows/ci.yml'): assert _m2_expected in _m2_files, _m2_expected
+    for _m2_expected in ('common/llm/readme.md', 'apps/backend/src/config.py', '.github/workflows/ci.yml'): assert _m2_expected in _m2_files, _m2_expected
     for _m3_spelling in ('glm-4.6v', 'GLM-4.6V', 'glm-4.6V', 'glm4.6v', 'zai/glm-4.6v', 'openai/GLM-4.6V'): assert BANNED.search(_m3_spelling), _m3_spelling
     for _m3_other in ('glm-4.5v', 'glm-5.3-flash', 'glm-5.2', 'glm-4.6', 'test-vision-model', 'gpt-4o'): assert not BANNED.search(_m3_other), _m3_other
