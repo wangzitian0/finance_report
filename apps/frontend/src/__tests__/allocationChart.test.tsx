@@ -1,2 +1,48 @@
-import "@testing-library/jest-dom/vitest"; import { render, screen, waitFor } from "@testing-library/react"; import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; import type { ReactNode } from "react"; import { beforeEach, describe, expect, it, vi } from "vitest"; import { AllocationChart } from "@/components/portfolio/PortfolioSummary"; import { apiOperation } from "@/lib/api"; import type { AllocationBreakdown } from "@/lib/types"; vi.mock("@/lib/api", () => ({ apiOperation: vi.fn(), })); function createWrapper() { const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false }, }, }); const TestWrapper = ({ children }: { children: ReactNode }) => ( <QueryClientProvider client={client}>{children}</QueryClientProvider> )
-TestWrapper.displayName = "AllocationTestWrapper"; return TestWrapper }; const mockAllocation: AllocationBreakdown[] = [ { category: "Technology", value: "5000.00", percentage: "50.0", count: 3 }, { category: "Healthcare", value: "3000.00", percentage: "30.0", count: 2 }, { category: "Finance", value: "2000.00", percentage: "20.0", count: 1 }, ]; describe("AllocationChart", () => { const mockedApiOperation = vi.mocked(apiOperation); beforeEach(() => { mockedApiOperation.mockReset() }); it("renders loading spinner while fetching", () => { mockedApiOperation.mockReturnValue(new Promise(() => {})); render(<AllocationChart type="sector" title="Sector Allocation" />, { wrapper: createWrapper(), }); expect(screen.getByText("Sector Allocation")).toBeInTheDocument(); const spinner = document.querySelector(".animate-spin"); expect(spinner).toBeTruthy() }); it("renders error state when fetch fails", async () => { mockedApiOperation.mockRejectedValue(new Error("network error")); render(<AllocationChart type="sector" title="Sector Allocation" />, { wrapper: createWrapper(), }); await waitFor(() => expect(screen.getByText("Unable to load allocation data")).toBeInTheDocument(), ) }); it("renders empty state when data is empty array", async () => { mockedApiOperation.mockResolvedValue([]); render(<AllocationChart type="geography" title="Geography Allocation" />, { wrapper: createWrapper(), }); await waitFor(() => expect(screen.getByText("No allocation data available")).toBeInTheDocument(), ) }); it("renders PieChart with center label matching type", async () => { mockedApiOperation.mockResolvedValue(mockAllocation); render(<AllocationChart type="sector" title="Sector Allocation" />, { wrapper: createWrapper(), }); await waitFor(() => expect(screen.getAllByText("Technology").length).toBeGreaterThanOrEqual(1)); const svg = screen.getByRole("img", { name: "Pie chart" }); expect(svg).toBeInTheDocument(); expect(screen.getByText("Sector")).toBeInTheDocument() }); it("renders legend items with category, count, and percentage", async () => { mockedApiOperation.mockResolvedValue(mockAllocation); render(<AllocationChart type="sector" title="Sector Allocation" />, { wrapper: createWrapper(), }); await waitFor(() => expect(screen.getAllByText("Technology").length).toBeGreaterThanOrEqual(1)); expect(screen.getAllByText("Healthcare").length).toBeGreaterThanOrEqual(1); expect(screen.getAllByText("Finance").length).toBeGreaterThanOrEqual(1); expect(screen.getByText("(3)")).toBeInTheDocument(); expect(screen.getByText("(2)")).toBeInTheDocument(); expect(screen.getByText("(1)")).toBeInTheDocument(); expect(screen.getByText("50.0%")).toBeInTheDocument(); expect(screen.getByText("30.0%")).toBeInTheDocument(); expect(screen.getByText("20.0%")).toBeInTheDocument() }); it("uses correct API endpoint based on type prop", async () => { mockedApiOperation.mockResolvedValue(mockAllocation); render(<AllocationChart type="asset-class" title="Asset Class" />, { wrapper: createWrapper(), }); await waitFor(() => expect(screen.getAllByText("Technology").length).toBeGreaterThanOrEqual(1)); expect(mockedApiOperation).toHaveBeenCalledWith("get_asset_class_allocation_portfolio_allocation_asset_class_get") }); it("renders center label as 'Asset Class' for asset-class type", async () => { mockedApiOperation.mockResolvedValue(mockAllocation); render(<AllocationChart type="asset-class" title="Asset Class Allocation" />, { wrapper: createWrapper(), }); await waitFor(() => expect(screen.getByText("Asset Class")).toBeInTheDocument()) }); it("renders center label as 'Geography' for geography type", async () => { mockedApiOperation.mockResolvedValue(mockAllocation); render(<AllocationChart type="geography" title="Geography Allocation" />, { wrapper: createWrapper(), }); await waitFor(() => expect(screen.getByText("Geography")).toBeInTheDocument()) }) })
+import "@testing-library/jest-dom/vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { AllocationChart } from "@/components/portfolio/PortfolioSummary";
+import { apiOperation } from "@/lib/api";
+
+vi.mock("@/lib/api", () => ({ apiOperation: vi.fn() }));
+const mockAllocation = [
+  { category: "Technology", value: "5000.00", percentage: "50.0", count: 3 },
+  { category: "Healthcare", value: "3000.00", percentage: "30.0", count: 2 },
+  { category: "Finance", value: "2000.00", percentage: "20.0", count: 1 },
+];
+
+describe("AllocationChart", () => {
+  const api = vi.mocked(apiOperation);
+  beforeEach(() => { api.mockReset(); });
+
+  it("renders loading, error, and empty states", async () => {
+    api.mockReturnValueOnce(new Promise(() => {}));
+    render(<AllocationChart type="sector" title="Sector Allocation" />);
+    expect(screen.getByText("Sector Allocation")).toBeInTheDocument();
+    expect(document.querySelector(".animate-spin")).toBeTruthy();
+
+    api.mockRejectedValueOnce(new Error("network error"));
+    render(<AllocationChart type="sector" title="S2" />);
+    await waitFor(() => expect(screen.getByText("Unable to load allocation data")).toBeInTheDocument());
+
+    api.mockResolvedValueOnce([]);
+    render(<AllocationChart type="geography" title="Geography Allocation" />);
+    await waitFor(() => expect(screen.getByText("No allocation data available")).toBeInTheDocument());
+  });
+
+  it.each([
+    ["sector", "Sector Allocation", "Sector", "get_sector_allocation_portfolio_allocation_sector_get"],
+    ["asset-class", "Asset Class Allocation", "Asset Class", "get_asset_class_allocation_portfolio_allocation_asset_class_get"],
+    ["geography", "Geography Allocation", "Geography", "get_geography_allocation_portfolio_allocation_geography_get"],
+  ] as const)("renders %s pie chart, legend, and endpoint", async (type, title, center, op) => {
+    api.mockResolvedValue(mockAllocation);
+    render(<AllocationChart type={type} title={title} />);
+    await waitFor(() => expect(screen.getAllByText("Technology").length).toBeGreaterThanOrEqual(1));
+    expect(screen.getByRole("img", { name: "Pie chart" })).toBeInTheDocument();
+    expect(screen.getByText(center)).toBeInTheDocument();
+    expect(api).toHaveBeenCalledWith(op);
+    for (const t of ["Healthcare", "Finance", "(3)", "(2)", "(1)", "50.0%", "30.0%", "20.0%"]) {
+      expect(screen.getAllByText(t).length).toBeGreaterThanOrEqual(1);
+    }
+  });
+});

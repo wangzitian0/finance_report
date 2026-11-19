@@ -1,7 +1,52 @@
-'AC-ledger.account-registry.1 AC-extraction.statement-summary.1 AC8.8.2 AC8.10.2 AC8.4.2 AC-testing.seeded-journey.1 AC-testing.seeded-journey.2 AC-testing.seeded-journey.3 AC8.13.9'; from __future__ import annotations; import os; import pytest; from playwright.async_api import Page, expect; from tests.e2e.bench_ui_bridge import BenchUiBridge; from tests.e2e.conftest import TestConfig; from tests.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner; from tests.benchmarks.statement_generators import generate_standard_operations_csv; APP_URL: str = os.getenv('APP_URL', TestConfig.APP_URL)
+from __future__ import annotations
+
+import pytest
+from playwright.async_api import Page, expect
+from tests.benchmarks.statement_generators import generate_standard_operations_csv
+
+from tests.e2e._journey_helpers import get_url, setup_runner_page
+
+
 @pytest.mark.e2e
-async def test_accounts_surface_and_balance_display(page: Page):
-    'AC-ledger.account-registry.1 AC8.13.9 EPIC-001 EPIC-008'; runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0); client, _user_email, _ = runner.create_ephemeral_client('accounts_journey'); runner.create_account(client, name='Main Operating Cash', type='ASSET', currency='SGD'); runner.create_account(client, name='Founding Equity', type='EQUITY', currency='SGD'); runner.create_account(client, name='Software Subscription', type='EXPENSE', currency='SGD'); assert runner.last_auth_context is not None; await BenchUiBridge.inject_runner_session_to_browser(page, runner.last_auth_context, APP_URL); await page.goto(f'{APP_URL}/settings?tab=accounts', wait_until='domcontentloaded'); assert '/login' not in page.url; await expect(page.get_by_role('heading', name='Accounts', exact=True)).to_be_visible(timeout=15000); await expect(page.get_by_role('button', name='Add Account')).to_be_visible(timeout=10000); await expect(page.get_by_text('Main Operating Cash')).to_be_visible(timeout=10000); await expect(page.get_by_text('Founding Equity')).to_be_visible(timeout=10000); await expect(page.get_by_text('Software Subscription')).to_be_visible(timeout=10000); asset_tab = page.get_by_role('button', name='ASSET', exact=True)
-    if await asset_tab.count() > 0: await asset_tab.click(); await expect(page.get_by_text('Main Operating Cash')).to_be_visible()
+async def test_accounts_surface_and_balance_display(page: Page) -> None:
+    await setup_runner_page(
+        page,
+        "accounts_journey",
+        (
+            ("Main Operating Cash", "ASSET"),
+            ("Founding Equity", "EQUITY"),
+            ("Software Subscription", "EXPENSE"),
+        ),
+    )
+    await page.goto(get_url("/settings?tab=accounts"), wait_until="domcontentloaded")
+    assert "/login" not in page.url
+    await expect(
+        page.get_by_role("heading", name="Accounts", exact=True)
+    ).to_be_visible(timeout=15000)
+    await expect(page.get_by_role("button", name="Add Account")).to_be_visible(
+        timeout=10000
+    )
+    for text in ("Main Operating Cash", "Founding Equity", "Software Subscription"):
+        await expect(page.get_by_text(text)).to_be_visible(timeout=10000)
+    asset_tab = page.get_by_role("button", name="ASSET", exact=True)
+    if await asset_tab.count() > 0:
+        await asset_tab.click()
+        await expect(page.get_by_text("Main Operating Cash")).to_be_visible()
+
+
 @pytest.mark.e2e
-async def test_statement_detail_and_review_surface(page: Page): 'AC-extraction.statement-summary.1 AC8.13.9 EPIC-018 EPIC-008'; runner = ScenarioBenchmarkRunner(base_url=APP_URL, timeout=120.0); client, _user_email, _ = runner.create_ephemeral_client('statements_journey'); runner.create_account(client, name='Operating Cash', type='ASSET', currency='SGD'); csv_bytes = generate_standard_operations_csv(); stmt_id = runner.upload_statement(client, csv_bytes, 'operations.csv'); runner.wait_for_statement_parsed(client, stmt_id); assert runner.last_auth_context is not None; await BenchUiBridge.inject_runner_session_to_browser(page, runner.last_auth_context, APP_URL); await page.goto(f'{APP_URL}/statements/{stmt_id}', wait_until='domcontentloaded'); assert '/login' not in page.url; await expect(page.locator('body')).to_be_visible(timeout=15000); await expect(page.get_by_test_id('stage1-desktop-transaction-region').get_by_text('CONSULTING SERVICES REVENUE')).to_be_visible(timeout=15000); await page.goto(f'{APP_URL}/statements/{stmt_id}', wait_until='domcontentloaded'); assert '/login' not in page.url; await expect(page.locator('body')).to_be_visible(timeout=15000)
+async def test_statement_detail_and_review_surface(page: Page) -> None:
+    stmt_id = await setup_runner_page(
+        page,
+        "statements_journey",
+        (("Operating Cash", "ASSET"),),
+        csv_bytes=generate_standard_operations_csv(),
+    )
+    await page.goto(get_url(f"/statements/{stmt_id}"), wait_until="domcontentloaded")
+    assert "/login" not in page.url
+    await expect(page.locator("body")).to_be_visible(timeout=15000)
+    await expect(
+        page.get_by_test_id("stage1-desktop-transaction-region").get_by_text(
+            "CONSULTING SERVICES REVENUE"
+        )
+    ).to_be_visible(timeout=15000)

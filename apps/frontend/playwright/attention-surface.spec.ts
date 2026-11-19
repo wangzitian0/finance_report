@@ -1,1 +1,24 @@
-import { expect, test, type Page } from "@playwright/test"; const COLD_ROUTE_TIMEOUT_MS = 10_000; async function installAttentionMocks(page: Page) { await page.addInitScript(() => { localStorage.setItem("finance_user_id", "attention-smoke-user"); localStorage.setItem("finance_user_email", "attention-smoke@example.com"); }); await page.route("**/api/**", async (route) => { const path = new URL(route.request().url()).pathname; let body: unknown = {}; if (path === "/api/statements") { body = { total: 1, items: [ { id: "stmt-1", user_id: "attention-smoke-user", file_path: "/x", original_filename: "march-statement.pdf", institution: "DBS", status: "parsed", confidence_score: 72, balance_validated: false, created_at: "2026-03-01", updated_at: "2026-03-01", transactions: [], }, ], }; } else if (path === "/api/reconciliation/stats") { body = { total_transactions: 50, matched_transactions: 40, unmatched_transactions: 4, pending_review: 2, auto_accepted: 38, match_rate: 80, score_distribution: {}, }; } else if (path === "/api/reconciliation/transfers/pending") { body = { total: 0, items: [] }; } else if (path === "/api/reconciliation/unmatched") { body = { items: [], total: 0 }; }; await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) }); }); }; async function expectNoDocumentHorizontalScroll(page: Page) { const metrics = await page.evaluate(() => ({ clientWidth: document.documentElement.clientWidth, scrollWidth: document.documentElement.scrollWidth, })); expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth); }; test.describe("AC22.6.4 attention surface smoke", () => { test.beforeEach(async ({ page }) => { await installAttentionMocks(page); }); for (const { label, width, height } of [ { label: "desktop", width: 1440, height: 1000 }, { label: "mobile", width: 390, height: 844 }, ]) { test(`${label} renders the attention queue ranked by confidence without overflow`, async ({ page }) => { await page.setViewportSize({ width, height }); await page.goto("/audit", { waitUntil: "networkidle" }); await expect(page.getByRole("heading", { name: "Needs Confirmation" })).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS, }); await expect(page.getByText(/unmatched transaction/i)).toBeVisible(); await expect(page.getByText("march-statement.pdf")).toBeVisible(); await expect(page.locator('a[href="/statements/stmt-1?from=attention"]')).toBeVisible(); await expect(page.locator('a[href="/reconciliation?tab=unmatched&from=attention"]')).toBeVisible(); await expectNoDocumentHorizontalScroll(page); }); test(`${label} surfaces the Home action banner linking to the audit queue`, async ({ page }) => { await page.setViewportSize({ width, height }); await page.goto("/", { waitUntil: "networkidle" }); const banner = page.getByRole("region", { name: "Needs attention" }); await expect(banner).toBeVisible({ timeout: COLD_ROUTE_TIMEOUT_MS }); await expect(banner.getByRole("heading", { name: /^\d+ items? needs? you$/ })).toBeVisible(); await expect(banner.getByRole("link", { name: "Open Needs you" })).toHaveAttribute("href", "/audit?tab=needs-you"); await expectNoDocumentHorizontalScroll(page); }); } }); // AC-reconciliation.fe-ia-reconciliation.5 AC22.11.3 EPIC-022
+import { expect, test } from "@playwright/test";
+import { VP, att, emptyList, gotoReady, hdg, installApiMocks, lnk, noHScroll, reconStats, reg, stmtFixture, txt, vis } from "./helpers";
+
+const routes = {
+  "/api/statements": { total: 1, items: [stmtFixture("stmt-1", { original_filename: "march-statement.pdf", confidence_score: 72, balance_validated: false })] },
+  "/api/reconciliation/stats": reconStats({ total_transactions: 50, matched_transactions: 40, unmatched_transactions: 4, pending_review: 2, auto_accepted: 38, match_rate: 80 }),
+  "/api/reconciliation/transfers/pending": emptyList(), "/api/reconciliation/unmatched": emptyList(),
+};
+
+test.describe("AC22.6.4 attention surface smoke", () => {
+  test.beforeEach(({ page }) => installApiMocks(page, "attention", routes));
+  for (const { name, width, height } of VP) {
+    test(`${name} renders the attention queue ranked by confidence without overflow`, async ({ page }) => {
+      await gotoReady(page, "/audit", { width, height }); await vis(hdg(page, "Needs Confirmation"));
+      for (const l of [txt(page, /unmatched transaction/i), txt(page, "march-statement.pdf"), page.locator('a[href="/statements/stmt-1?from=attention"]'), page.locator('a[href="/reconciliation?tab=unmatched&from=attention"]')]) await expect(l).toBeVisible();
+      await noHScroll(page, false);
+    });
+    test(`${name} surfaces the Home action banner linking to the audit queue`, async ({ page }) => {
+      await gotoReady(page, "/", { width, height }); const b = reg(page, "Needs attention"); await vis(b);
+      await expect(hdg(b, /^\d+ items? needs? you$/)).toBeVisible(); await att(lnk(b, "Open Needs you"), "href", "/audit?tab=needs-you"); await noHScroll(page, false);
+    });
+  }
+});
+// AC-reconciliation.fe-ia-reconciliation.5 AC22.11.3 EPIC-022

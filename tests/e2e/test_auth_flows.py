@@ -1,36 +1,177 @@
-'AC8.10.8 AC8.10.9 AC16.12.5 AC16.12.6 AC1.7.1'; import os; import re; import uuid; import pytest; from playwright.async_api import Page, expect; APP_URL = os.getenv('APP_URL', 'http://localhost:3000'); AUTH_LANDING_URL_PATTERN = re.compile('/(?:dashboard)?(?:[?#].*)?$'); get_url = lambda path: f"{APP_URL.rstrip('/')}{path}"
-async def test_registration_api_path(page: Page):
-    'AC8.10.8 AC16.12.6 AC1.7.1 AC8.19.2 EPIC-001 EPIC-008 EPIC-016'; await page.goto(get_url('/login')); await expect(page.locator('h1')).to_contain_text('Finance Report'); await page.get_by_test_id('auth-mode-toggle-register').click(); test_email = f'e2e_test_{uuid.uuid4().hex[:8]}@test.local'; await page.get_by_label('Email').fill(test_email); await page.get_by_label('Password', exact=True).fill('TestPassword123!'); api_request_path = None
-    async def capture_request(request):
-        nonlocal api_request_path
-        if 'auth/register' in request.url: api_request_path = request.url
-    page.on('request', capture_request); await page.get_by_role('button', name='Create Account').click(); await page.wait_for_timeout(2000); assert api_request_path is not None, 'Registration API was never called'; assert '/api/api/' not in api_request_path, f'Double /api prefix detected in API path: {api_request_path}\nThis indicates NEXT_PUBLIC_API_URL is misconfigured with /api suffix.'; assert '/api/auth/register' in api_request_path or '/auth/register' in api_request_path, f'Unexpected API path: {api_request_path}'
-async def test_login_api_path(page: Page):
-    'AC8.10.9 AC16.12.5 EPIC-001 EPIC-008 EPIC-016'; await page.goto(get_url('/login')); await page.get_by_label('Email').fill('test@example.com'); await page.get_by_label('Password', exact=True).fill('TestPassword123!'); api_request_path = None
-    async def capture_request(request):
-        nonlocal api_request_path
-        if 'auth/login' in request.url: api_request_path = request.url
-    page.on('request', capture_request); await page.get_by_role('button', name='Login').click(); await page.wait_for_timeout(2000); assert api_request_path is not None, 'Login request was never captured; cannot verify API path'; assert '/api/api/' not in api_request_path, f'Double /api prefix detected: {api_request_path}'; assert '/api/auth/login' in api_request_path or '/auth/login' in api_request_path, f'Unexpected API path: {api_request_path}'
-async def test_full_registration_flow(page: Page):
-    'AC-identity.journeys.5 AC8.10.8 AC16.12.6 AC1.7.1 AC8.19.2 EPIC-001 EPIC-008 EPIC-016'; await page.goto(get_url('/login')); await page.get_by_test_id('auth-mode-toggle-register').click(); test_email = f'e2e_full_{uuid.uuid4().hex[:8]}@test.local'; await page.get_by_label('Email').fill(test_email); await page.get_by_label('Password', exact=True).fill('SecureTestPass123!'); await page.get_by_role('button', name='Create Account').click()
-    try: await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN, timeout=10000); await expect(page.get_by_role('button', name='Logout')).to_be_visible(timeout=10000)
+from __future__ import annotations
+
+import os
+import re
+import uuid
+
+import pytest
+from playwright.async_api import Page, expect
+
+from tests.e2e._journey_helpers import assert_pinned_via_page, get_url
+
+AUTH_LANDING_URL_PATTERN = re.compile("/(?:dashboard)?(?:[?#].*)?$")
+
+
+async def _fill_and_submit_auth(
+    page: Page,
+    *,
+    email: str,
+    password: str,
+    button: str,
+    endpoint: str,
+    expected_status: int,
+) -> None:
+    await page.get_by_label("Email").fill(email)
+    await page.get_by_label("Password", exact=True).fill(password)
+    async with page.expect_response(
+        lambda r: r.url.endswith(endpoint) and r.request.method == "POST"
+    ) as resp:
+        await page.get_by_role("button", name=button, exact=True).click()
+    assert (await resp.value).status == expected_status
+
+
+async def _assert_auth_api_path(
+    page: Page, *, register: bool, email: str, button_name: str, expected_path: str
+) -> None:
+    await page.goto(get_url("/login"))
+    if register:
+        await expect(page.locator("h1")).to_contain_text("Finance Report")
+        await page.get_by_test_id("auth-mode-toggle-register").click()
+    await page.get_by_label("Email").fill(email)
+    await page.get_by_label("Password", exact=True).fill("TestPassword123!")
+    captured: list[str] = []
+    page.on(
+        "request",
+        lambda req: captured.append(req.url) if expected_path in req.url else None,
+    )
+    await page.get_by_role("button", name=button_name).click()
+    await page.wait_for_timeout(2000)
+    assert (
+        captured
+        and "/api/api/" not in captured[-1]
+        and (
+            f"/api/{expected_path}" in captured[-1]
+            or f"/{expected_path}" in captured[-1]
+        )
+    ), f"Unexpected API path: {captured}"
+
+
+async def test_registration_api_path(page: Page) -> None:
+    await _assert_auth_api_path(
+        page,
+        register=True,
+        email=f"e2e_test_{uuid.uuid4().hex[:8]}@test.local",
+        button_name="Create Account",
+        expected_path="auth/register",
+    )
+
+
+async def test_login_api_path(page: Page) -> None:
+    await _assert_auth_api_path(
+        page,
+        register=False,
+        email="test@example.com",
+        button_name="Login",
+        expected_path="auth/login",
+    )
+
+
+async def test_full_registration_flow(page: Page) -> None:
+    await page.goto(get_url("/login"))
+    await page.get_by_test_id("auth-mode-toggle-register").click()
+    await page.get_by_label("Email").fill(f"e2e_full_{uuid.uuid4().hex[:8]}@test.local")
+    await page.get_by_label("Password", exact=True).fill("SecureTestPass123!")
+    await page.get_by_role("button", name="Create Account").click()
+    try:
+        await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN, timeout=10000)
+        await expect(page.get_by_role("button", name="Logout")).to_be_visible(
+            timeout=10000
+        )
     except AssertionError:
-        error_element = page.locator(".text-red-500, [class*='error']").first
-        if await error_element.count() > 0: error_text = await error_element.text_content(); assert 'Not Found' not in error_text, "Got 'Not Found' error - likely double /api prefix issue"; pytest.fail(f'Registration failed with: {error_text}')
-        else: raise
-@pytest.mark.parametrize('viewport', ['desktop', 'mobile'])
-async def test_browser_cookie_logout_lifecycle(page: Page, viewport, record_property):
-    'AC-identity.journeys.6 EPIC-001 EPIC-016'; expected = os.environ.get('EXPECTED_SHA'); assert expected, 'Authentication lifecycle proof requires explicit EXPECTED_SHA'
-    for path in ('/api/health', '/frontend-version.json'): response = await page.request.get(get_url(path)); assert response.status == 200; version = (await response.json())['git_sha']; assert version == expected; record_property(path, version)
-    await page.set_viewport_size({'width': 390, 'height': 844} if viewport == 'mobile' else {'width': 1280, 'height': 900}); email = f'e2e_logout_{uuid.uuid4().hex[:10]}@test.example.com'; password = 'SyntheticBrowserLogout123!'; await page.goto(get_url('/login')); await page.get_by_test_id('auth-mode-toggle-register').click(); await page.get_by_label('Email').fill(email); await page.get_by_label('Password', exact=True).fill(password)
-    async with page.expect_response(lambda response: response.url.endswith('/api/auth/register') and response.request.method == 'POST') as registered: await page.get_by_role('button', name='Create Account', exact=True).click()
-    assert (await registered.value).status == 201; await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN); assert (await page.request.get(get_url('/api/auth/me'))).status == 200; await page.reload(); await expect(page.get_by_role('link', name='Finance Report home')).to_be_attached(); assert (await page.request.get(get_url('/api/auth/me'))).status == 200; await page.get_by_role('link', name='More', exact=True).click() if viewport == 'mobile' else None
-    async with page.expect_response(lambda response: response.url.endswith('/api/auth/logout') and response.request.method == 'POST') as logged_out: await page.get_by_role('button', name='Logout', exact=True).click()
-    assert (await logged_out.value).status == 204; await expect(page).to_have_url(re.compile('/login$')); assert (await page.request.get(get_url('/api/auth/me'))).status == 401; assert all((cookie['name'] != 'finance_access_token' for cookie in await page.context.cookies())); assert await page.evaluate("localStorage.getItem('finance_user_id')") is None; await page.reload(); await expect(page).to_have_url(re.compile('/login$')); assert (await page.request.get(get_url('/api/auth/me'))).status == 401; await page.get_by_label('Email').fill(email); await page.get_by_label('Password', exact=True).fill(password)
-    async with page.expect_response(lambda response: response.url.endswith('/api/auth/login') and response.request.method == 'POST') as logged_in: await page.get_by_role('button', name='Sign In', exact=True).click()
-    assert (await logged_in.value).status == 200; await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN); assert (await page.request.get(get_url('/api/auth/me'))).status == 200; record_property('browser_logout_viewport', viewport)
+        err = page.locator(".text-red-500, [class*='error']").first
+        if await err.count() > 0:
+            err_text = await err.text_content() or ""
+            assert "Not Found" not in err_text
+            pytest.fail(f"Registration failed with: {err_text}")
+        raise
+
+
+@pytest.mark.parametrize("viewport", ["desktop", "mobile"])
+async def test_browser_cookie_logout_lifecycle(
+    page: Page, viewport: str, record_property
+) -> None:
+    expected = os.environ.get("EXPECTED_SHA")
+    assert expected, "Authentication lifecycle proof requires explicit EXPECTED_SHA"
+    await assert_pinned_via_page(page, record_property)
+    await page.set_viewport_size(
+        {"width": 390, "height": 844}
+        if viewport == "mobile"
+        else {"width": 1280, "height": 900}
+    )
+    email, password = (
+        f"e2e_logout_{uuid.uuid4().hex[:10]}@test.example.com",
+        "SyntheticBrowserLogout123!",
+    )
+    await page.goto(get_url("/login"))
+    await page.get_by_test_id("auth-mode-toggle-register").click()
+    await _fill_and_submit_auth(
+        page,
+        email=email,
+        password=password,
+        button="Create Account",
+        endpoint="/api/auth/register",
+        expected_status=201,
+    )
+    await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN)
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 200
+    await page.reload()
+    await expect(page.get_by_role("link", name="Finance Report home")).to_be_attached()
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 200
+    if viewport == "mobile":
+        await page.get_by_role("link", name="More", exact=True).click()
+    async with page.expect_response(
+        lambda r: r.url.endswith("/api/auth/logout") and r.request.method == "POST"
+    ) as out:
+        await page.get_by_role("button", name="Logout", exact=True).click()
+    assert (await out.value).status == 204
+    await expect(page).to_have_url(re.compile("/login$"))
+    assert (
+        (await page.request.get(get_url("/api/auth/me"))).status == 401
+        and all(
+            c["name"] != "finance_access_token" for c in await page.context.cookies()
+        )
+        and await page.evaluate("localStorage.getItem('finance_user_id')") is None
+    )
+    await page.reload()
+    await expect(page).to_have_url(re.compile("/login$"))
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 401
+    await _fill_and_submit_auth(
+        page,
+        email=email,
+        password=password,
+        button="Sign In",
+        endpoint="/api/auth/login",
+        expected_status=200,
+    )
+    await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN)
+    assert (await page.request.get(get_url("/api/auth/me"))).status == 200
+    record_property("browser_logout_viewport", viewport)
+
+
 @pytest.mark.e2e
-async def test_registration_flow(page: Page):
-    'AC8.10.8 AC16.12.6 AC1.7.1 EPIC-001 EPIC-008 EPIC-016'; await page.goto(get_url('/login')); await expect(page.locator('body')).to_be_visible(); await page.get_by_role('button', name='Register').first.click(); unique_email = f'e2e-test-{uuid.uuid4().hex[:8]}@example.com'; test_password = 'TestPassword123!'; await page.get_by_label('Email Address').fill(unique_email); await page.get_by_label('Password', exact=True).fill(test_password)
-    async with page.expect_response('**/api/auth/register') as response_info: await page.get_by_role('button', name='Create Account').click()
-    response = await response_info.value; assert response.status in [200, 201], f'Registration failed with status {response.status}'; response_data = await response.json(); assert 'id' in response_data, 'Response should contain user id'; assert 'access_token' in response_data, 'Response should contain access token'; await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN, timeout=10000); await expect(page.get_by_role('button', name='Logout')).to_be_visible(timeout=10000)
+async def test_registration_flow(page: Page) -> None:
+    await page.goto(get_url("/login"))
+    await expect(page.locator("body")).to_be_visible()
+    await page.get_by_role("button", name="Register").first.click()
+    await page.get_by_label("Email Address").fill(
+        f"e2e-test-{uuid.uuid4().hex[:8]}@example.com"
+    )
+    await page.get_by_label("Password", exact=True).fill("TestPassword123!")
+    async with page.expect_response("**/api/auth/register") as resp_info:
+        await page.get_by_role("button", name="Create Account").click()
+    resp = await resp_info.value
+    assert resp.status in (200, 201) and {"id", "access_token"} <= set(
+        await resp.json()
+    )
+    await expect(page).to_have_url(AUTH_LANDING_URL_PATTERN, timeout=10000)
+    await expect(page.get_by_role("button", name="Logout")).to_be_visible(timeout=10000)

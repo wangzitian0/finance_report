@@ -1,4 +1,47 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"; import { beforeEach, describe, expect, it, vi } from "vitest"; import { GeneralSettingsPanel } from "@/components/settings/SettingsPanels"; import { apiOperation } from "@/lib/api"; vi.mock("@/lib/api", () => ({ apiOperation: vi.fn(), })); const showToast = vi.fn(); vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast }), })); const mockedApiOperation = vi.mocked(apiOperation); beforeEach(() => { showToast.mockReset()
-mockedApiOperation.mockReset()
-mockedApiOperation.mockImplementation(async (op: any) => { if (op === "get_base_currency_users_me_settings_base_currency_get") { return { base_currency: "SGD" } as any }; return {} as any }) }); describe("GeneralSettingsPanel (EPIC-012 AC12.39.3)", () => { it("AC12.39.3 renders the effective base currency and keeps Save disabled until edited", async () => { render(<GeneralSettingsPanel />); await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument()); expect(screen.getByLabelText("Base currency")).toHaveValue("SGD"); expect(screen.getByRole("button", { name: /Save changes/i })).toBeDisabled() }); it("AC12.39.3 submits the edited currency via updateBaseCurrency and shows success", async () => { mockedApiOperation.mockImplementation(async (op: any) => { if (op === "get_base_currency_users_me_settings_base_currency_get") { return { base_currency: "SGD" } as any }; if (op === "update_base_currency_users_me_settings_base_currency_put") { return { base_currency: "EUR" } as any }; return {} as any }); render(<GeneralSettingsPanel />); await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument()); fireEvent.change(screen.getByLabelText("Base currency"), { target: { value: "eur" } }); const save = screen.getByRole("button", { name: /Save changes/i }); expect(save).toBeEnabled(); fireEvent.click(save); await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith("update_base_currency_users_me_settings_base_currency_put", { body: { base_currency: "EUR" }, }) ); await waitFor(() => expect(showToast).toHaveBeenCalledWith("Base currency saved", "success")); await waitFor(() => expect(screen.getByRole("button", { name: /Save changes/i })).toBeDisabled()) }); it("AC12.39.3 surfaces an error and keeps the draft when the update fails", async () => { mockedApiOperation.mockImplementation(async (op: any) => { if (op === "get_base_currency_users_me_settings_base_currency_get") { return { base_currency: "SGD" } as any }; if (op === "update_base_currency_users_me_settings_base_currency_put") { throw new Error("not an ISO-4217 currency code") }; return {} as any }); render(<GeneralSettingsPanel />); await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument()); fireEvent.change(screen.getByLabelText("Base currency"), { target: { value: "XYZ" } }); fireEvent.click(screen.getByRole("button", { name: /Save changes/i })); await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("not an ISO-4217 currency code")); expect(screen.getByLabelText("Base currency")).toHaveValue("XYZ"); expect(showToast).not.toHaveBeenCalled() }); it("AC12.39.3 surfaces a load error when fetching the base currency fails", async () => { mockedApiOperation.mockReset()
-mockedApiOperation.mockRejectedValueOnce(new Error("Network Error")); render(<GeneralSettingsPanel />); await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Network Error")) }); it("AC12.39.3 Reset restores the saved value and clears the dirty state", async () => { render(<GeneralSettingsPanel />); await waitFor(() => expect(screen.getByText("General Settings")).toBeInTheDocument()); fireEvent.change(screen.getByLabelText("Base currency"), { target: { value: "usd" } }); expect(screen.getByLabelText("Base currency")).toHaveValue("USD"); expect(screen.getByText("Unsaved changes")).toBeInTheDocument(); fireEvent.click(screen.getByRole("button", { name: /Reset/i })); expect(screen.getByLabelText("Base currency")).toHaveValue("SGD"); expect(screen.queryByText("Unsaved changes")).not.toBeInTheDocument(); expect(mockedApiOperation).not.toHaveBeenCalledWith("update_base_currency_users_me_settings_base_currency_put", expect.anything()) }) }) // AC-pricing.fe-settings.1
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, expect, it, vi } from "vitest";
+import { GeneralSettingsPanel } from "@/components/settings/SettingsPanels";
+import { apiOperation } from "@/lib/api";
+vi.mock("@/lib/api", () => ({ apiOperation: vi.fn() }));
+const showToast = vi.fn(), api = vi.mocked(apiOperation), S = screen, E = expect;
+vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast }) }));
+const G = "get_base_currency_users_me_settings_base_currency_get", P = "update_base_currency_users_me_settings_base_currency_put";
+const mockOp = (put?: { base_currency: string } | Error) => api.mockImplementation(async (op: any) => op === G ? ({ base_currency: "SGD" } as any) : op === P && put ? (put instanceof Error ? Promise.reject(put) : (put as any)) : ({} as any));
+const inp = () => S.getByLabelText("Base currency"), save = () => S.getByRole("button", { name: /Save changes/i });
+beforeEach(() => { showToast.mockReset(); api.mockReset(); mockOp(); });
+it("AC12.39.3 GeneralSettingsPanel", async () => {
+mockOp({ base_currency: "EUR" });
+const r1 = render(<GeneralSettingsPanel />);
+await waitFor(() => E(S.getByText("General Settings")).toBeInTheDocument());
+E(inp()).toHaveValue("SGD");
+E(save()).toBeDisabled();
+fireEvent.change(inp(), { target: { value: "usd" } });
+E(inp()).toHaveValue("USD");
+E(S.getByText("Unsaved changes")).toBeInTheDocument();
+fireEvent.click(S.getByRole("button", { name: /Reset/i }));
+E(inp()).toHaveValue("SGD");
+E(S.queryByText("Unsaved changes")).toBeNull();
+E(api).not.toHaveBeenCalledWith(P, expect.anything());
+fireEvent.change(inp(), { target: { value: "eur" } });
+E(save()).toBeEnabled();
+fireEvent.click(save());
+await waitFor(() => E(api).toHaveBeenCalledWith(P, { body: { base_currency: "EUR" } }));
+await waitFor(() => E(showToast).toHaveBeenCalledWith("Base currency saved", "success"));
+await waitFor(() => E(save()).toBeDisabled());
+r1.unmount();
+showToast.mockReset();
+mockOp(new Error("not an ISO-4217 currency code"));
+const r2 = render(<GeneralSettingsPanel />);
+await waitFor(() => E(S.getByText("General Settings")).toBeInTheDocument());
+fireEvent.change(inp(), { target: { value: "XYZ" } });
+fireEvent.click(save());
+await waitFor(() => E(S.getByRole("alert")).toHaveTextContent("not an ISO-4217 currency code"));
+E(inp()).toHaveValue("XYZ");
+E(showToast).not.toHaveBeenCalled();
+r2.unmount();
+api.mockReset();
+api.mockRejectedValueOnce(new Error("Network Error"));
+render(<GeneralSettingsPanel />);
+await waitFor(() => E(S.getByRole("alert")).toHaveTextContent("Network Error"));
+});
+// AC-pricing.fe-settings.1

@@ -1,151 +1,45 @@
 import "@testing-library/jest-dom/vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
-import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
 import { NetWorthTimeSeriesChart } from "@/components/reports/StatementPanels";
 import { apiOperation } from "@/lib/api";
 import type { NetWorthTimeSeriesResponse } from "@/lib/types";
 
-let capturedChartOption: {
-  tooltip?: { valueFormatter?: (value: number, dataIndex?: number) => string };
-} | null = null;
+type Opt = { tooltip?: { valueFormatter?: (v: number, i?: number) => string } };
+let opt: Opt | null = null;
+vi.mock("echarts-for-react", () => ({ default: ({ option }: { option: Opt }) => { opt = option; return <div role="img" aria-label="ECharts net worth line chart" />; } }));
+vi.mock("@/lib/api", () => ({ apiOperation: vi.fn() }));
 
-vi.mock("echarts-for-react", () => ({
-  default: (props: {
-    option: { tooltip?: { valueFormatter?: (value: number, dataIndex?: number) => string } };
-  }) => {
-    capturedChartOption = props.option;
-    return <div role="img" aria-label="ECharts net worth line chart" />;
-  },
-}));
-
-vi.mock("@/lib/api", () => ({
-  apiOperation: vi.fn(),
-}));
-
-const RANGE = { from: "2026-01-01", to: "2026-01-02", includeRestricted: true } as const;
-
-function renderWithClient(ui: ReactElement) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
-}
+const api = vi.mocked(apiOperation), S = "SGD", R = /incomplete/i, CH = "ECharts net worth line chart";
+const pt = (date: string, v: string, incomplete = false, missing_fx_currencies: string[] = []) => ({ date, total_assets: v, total_liabilities: "0.00", net_worth: v, currency: S, incomplete, missing_fx_currencies });
+const go = (points: ReturnType<typeof pt>[], fx_warnings?: NetWorthTimeSeriesResponse["fx_warnings"]) => {
+  api.mockResolvedValue({ currency: S, granularity: "daily", points, ...(fx_warnings ? { fx_warnings } : {}) } satisfies NetWorthTimeSeriesResponse);
+  return render(<QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}><NetWorthTimeSeriesChart from="2026-01-01" to="2026-01-02" includeRestricted /></QueryClientProvider>);
+};
 
 describe("NetWorthTimeSeriesChart FX warning display (#2915)", () => {
-  const mockedApiOperation = vi.mocked(apiOperation);
+  beforeEach(() => { api.mockReset(); opt = null; });
 
-  beforeEach(() => {
-    mockedApiOperation.mockReset();
-    capturedChartOption = null;
-  });
-
-  it("shows an amber FX warning banner and incomplete tooltip status when FX rates are missing", async () => {
-    mockedApiOperation.mockResolvedValue({
-      currency: "SGD",
-      granularity: "daily",
-      points: [
-        {
-          date: "2026-01-01",
-          total_assets: "1000.00",
-          total_liabilities: "0.00",
-          net_worth: "1000.00",
-          currency: "SGD",
-          incomplete: true,
-          missing_fx_currencies: ["USD"],
-        },
-        {
-          date: "2026-01-02",
-          total_assets: "1130.00",
-          total_liabilities: "0.00",
-          net_worth: "1130.00",
-          currency: "SGD",
-          incomplete: false,
-          missing_fx_currencies: [],
-        },
-      ],
-      fx_warnings: [
-        {
-          type: "missing_fx_rate_partial_skip",
-          base_currency: "USD",
-          quote_currency: "SGD",
-          rate_date: "2026-01-01",
-        },
-      ],
-    } satisfies NetWorthTimeSeriesResponse);
-
-    renderWithClient(<NetWorthTimeSeriesChart {...RANGE} />);
-
+  it("shows amber FX warning banner and incomplete tooltip when FX missing", async () => {
+    go([pt("2026-01-01", "1000.00", true, ["USD"]), pt("2026-01-02", "1130.00")], [{ type: "missing_fx_rate_partial_skip", base_currency: "USD", quote_currency: S, rate_date: "2026-01-01" }, { message: "Custom FX gap" }, { base_currency: "GBP", quote_currency: S }, { rate_date: "2026-01-02" }]);
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/omitted/i);
-    expect(alert).toHaveTextContent(/USD to SGD/i);
-    expect(alert).toHaveTextContent(/2026-01-01/);
-    expect(capturedChartOption?.tooltip?.valueFormatter?.(1000, 0)).toMatch(/incomplete/i);
-    expect(capturedChartOption?.tooltip?.valueFormatter?.(1130, 1)).not.toMatch(/incomplete/i);
+    for (const rx of [/omitted/i, /USD to SGD/i, /2026-01-01/, /Custom FX gap/, /GBP to SGD/, /Missing FX rate on 2026-01-02/]) expect(alert).toHaveTextContent(rx);
+    await screen.findByRole("img", { name: CH });
+    expect(opt?.tooltip?.valueFormatter?.(1000, 0)).toMatch(R);
+    expect(opt?.tooltip?.valueFormatter?.(1130, 1)).not.toMatch(R);
   });
 
-  it("shows the warning banner when points are marked incomplete even without fx_warnings", async () => {
-    mockedApiOperation.mockResolvedValue({
-      currency: "SGD",
-      granularity: "daily",
-      points: [
-        {
-          date: "2026-01-01",
-          total_assets: "1000.00",
-          total_liabilities: "0.00",
-          net_worth: "1000.00",
-          currency: "SGD",
-          incomplete: true,
-          missing_fx_currencies: ["EUR"],
-        },
-        {
-          date: "2026-01-02",
-          total_assets: "1100.00",
-          total_liabilities: "0.00",
-          net_worth: "1100.00",
-          currency: "SGD",
-          incomplete: false,
-          missing_fx_currencies: [],
-        },
-      ],
-    } satisfies NetWorthTimeSeriesResponse);
-
-    renderWithClient(<NetWorthTimeSeriesChart {...RANGE} />);
-
+  it("shows warning banner for incomplete points even without fx_warnings", async () => {
+    go([pt("2026-01-01", "1000.00", true, ["EUR"]), pt("2026-01-02", "1100.00", true)]);
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/EUR to SGD/i);
-    expect(alert).toHaveTextContent(/2026-01-01/);
+    for (const rx of [/EUR to SGD/i, /2026-01-01/, /Missing FX rate on 2026-01-02/]) expect(alert).toHaveTextContent(rx);
+    await screen.findByRole("img", { name: CH });
+    expect(opt?.tooltip?.valueFormatter?.(1100, 1)).toMatch(/\(incomplete\)$/);
   });
 
-  it("hides the FX warning banner when all points are complete and fx_warnings is empty", async () => {
-    mockedApiOperation.mockResolvedValue({
-      currency: "SGD",
-      granularity: "daily",
-      points: [
-        {
-          date: "2026-01-01",
-          total_assets: "1130.00",
-          total_liabilities: "0.00",
-          net_worth: "1130.00",
-          currency: "SGD",
-          incomplete: false,
-          missing_fx_currencies: [],
-        },
-        {
-          date: "2026-01-02",
-          total_assets: "1140.00",
-          total_liabilities: "0.00",
-          net_worth: "1140.00",
-          currency: "SGD",
-          incomplete: false,
-          missing_fx_currencies: [],
-        },
-      ],
-      fx_warnings: [],
-    } satisfies NetWorthTimeSeriesResponse);
-
-    renderWithClient(<NetWorthTimeSeriesChart {...RANGE} />);
-
+  it("hides FX warning banner when all points complete", async () => {
+    go([pt("2026-01-01", "1130.00"), pt("2026-01-02", "1140.00")], []);
     await waitFor(() => expect(screen.getByTestId("net-worth-echarts")).toBeInTheDocument());
     expect(screen.queryByRole("alert")).toBeNull();
   });

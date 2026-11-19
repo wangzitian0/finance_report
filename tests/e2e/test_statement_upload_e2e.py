@@ -1,29 +1,105 @@
-'AC8.4.2 AC8.4.3'; import os; import shutil; import tempfile; import time; from pathlib import Path; import pytest; from conftest import fail_or_skip_ai_ocr_gate, is_strict_or_ci; from pdf_fixture_paths import generated_pdf_path; from playwright.async_api import Page, expect; _APP_URL: str = os.getenv('APP_URL') or os.getenv('FRONTEND_URL') or ''; _get_url = lambda path: f"{_APP_URL.rstrip('/')}{path}"
+from __future__ import annotations
+
+import os
+
+import pytest
+from playwright.async_api import Page, expect
+
+from tests.e2e._journey_helpers import get_url, unique_pdf_copy, upload_statement_via_ui
+from tests.e2e.conftest import fail_or_skip_ai_ocr_gate, is_strict_or_ci
+from tests.e2e.pdf_fixture_paths import generated_pdf_path
+
+_APP_URL = os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or ""
+
+
 def _skip_if_no_url() -> None:
-    if not _APP_URL: pytest.fail('Fatal: APP_URL or FRONTEND_URL must be explicitly provided in CI / strict gates') if is_strict_or_ci() else None; pytest.skip('APP_URL / FRONTEND_URL not set — skipping Playwright E2E')
-def _unique_pdf_copy(src: Path) -> Path:
-    import uuid; suffix = int(time.time() * 1000) % 1000000; tmp = Path(tempfile.mkdtemp()); dest = tmp / f'{src.stem}_{suffix}{src.suffix}'; shutil.copy2(src, dest)
-    with open(dest, 'ab') as f: f.write(f'\n%% E2E test run {uuid.uuid4()}\n'.encode())
-    return dest
-async def _find_statement_by_institution(page: Page, institution: str) -> dict | None:
-    response = await page.context.request.get(_get_url('/api/statements'))
-    if response.status != 200: return None
-    payload = await response.json(); statements = payload if isinstance(payload, list) else payload.get('items') or payload.get('data') or [] if isinstance(payload, dict) else []
-    for statement in statements:
-        if statement.get('institution') == institution: return statement
-    return None
-_statement_row = lambda page, institution: page.locator('.relative.block').filter(has_text=institution).first
+    if not _APP_URL:
+        if is_strict_or_ci():
+            pytest.fail(
+                "Fatal: APP_URL or FRONTEND_URL must be explicitly provided in CI / strict gates"
+            )
+        pytest.skip("APP_URL / FRONTEND_URL not set — skipping Playwright E2E")
+
+
 @pytest.mark.e2e
 @pytest.mark.llm
 async def test_statement_upload_full_flow(authenticated_page_unique: Page) -> None:
-    'AC-extraction.813.12 AC8.13.8 EPIC-003 EPIC-008 EPIC-013'; _skip_if_no_url(); pdf_path = _unique_pdf_copy(generated_pdf_path('dbs')); page = authenticated_page_unique; await page.goto(_get_url('/upload')); await page.wait_for_load_state('domcontentloaded'); await page.locator('[data-testid="uploader-institution-statement"]').fill('E2E Upload Test Bank'); model_select = page.locator('[data-testid="uploader-model-statement"]'); await expect(model_select).to_be_visible(timeout=15000); await expect(model_select).not_to_have_value('', timeout=15000); await model_select.select_option(index=0); await page.set_input_files('[data-testid="uploader-file-statement"]', str(pdf_path)); await expect(page.locator('p.font-medium', has_text=pdf_path.name)).to_be_visible(timeout=5000)
-    async with page.expect_response(lambda r: r.request.method == 'POST' and r.url.split('?', 1)[0].endswith('/api/statements'), timeout=60000) as resp_info: await page.get_by_role('button', name='Upload & Parse Statement').click()
-    upload_resp = await resp_info.value; assert upload_resp.status in (200, 201, 202), f'Upload endpoint returned unexpected status {upload_resp.status} — expected 2xx. Response body: {await upload_resp.text()}'; upload_body = await upload_resp.json(); statement_id = upload_body.get('id'); assert statement_id, f"Upload response missing 'id' field: {upload_body}"; await expect(_statement_row(page, 'E2E Upload Test Bank')).to_be_visible(timeout=15000); api_resp = await page.request.get(_get_url(f'/api/statements/{statement_id}')); assert api_resp.status == 200, f'GET /api/statements/{statement_id} returned {api_resp.status} — response body: {await api_resp.text()}'; statement = await api_resp.json(); assert statement and statement.get('id') == statement_id; status = statement.get('status'); fail_or_skip_ai_ocr_gate('Statement upload returned status=rejected', statement=statement) if status == 'rejected' else None; assert status in {'uploaded', 'parsing', 'parsed', 'approved'}, f"Unexpected statement status: {statement.get('status')}"
+    _skip_if_no_url()
+    page = authenticated_page_unique
+    statement_id = await upload_statement_via_ui(
+        page,
+        institution="E2E Upload Test Bank",
+        file_path=unique_pdf_copy(generated_pdf_path("dbs")),
+        base_url=_APP_URL,
+    )
+    await expect(
+        page.locator(".relative.block").filter(has_text="E2E Upload Test Bank").first
+    ).to_be_visible(timeout=15000)
+    api_resp = await page.request.get(
+        get_url(f"/api/statements/{statement_id}", _APP_URL)
+    )
+    assert api_resp.status == 200
+    statement = await api_resp.json()
+    status = statement.get("status")
+    if status == "rejected":
+        fail_or_skip_ai_ocr_gate(
+            "Statement upload returned status=rejected", statement=statement
+        )
+    assert statement.get("id") == statement_id and status in {
+        "uploaded",
+        "parsing",
+        "parsed",
+        "approved",
+    }
+
+
 @pytest.mark.e2e
 @pytest.mark.llm
 async def test_model_selection_and_upload(authenticated_page_unique: Page) -> None:
-    'AC8.4.2 EPIC-003 EPIC-006 EPIC-008 EPIC-013'; _skip_if_no_url(); pdf_path = _unique_pdf_copy(generated_pdf_path('dbs')); page = authenticated_page_unique; await page.goto(_get_url('/upload')); await page.wait_for_load_state('domcontentloaded'); model_select = page.locator('[data-testid="uploader-model-statement"]'); await expect(model_select).to_be_visible(timeout=5000); await model_select.select_option(index=0); await page.locator('[data-testid="uploader-institution-statement"]').fill('E2E Model Test Bank'); await page.set_input_files('[data-testid="uploader-file-statement"]', str(pdf_path)); await expect(page.locator('p.font-medium', has_text=pdf_path.name)).to_be_visible(timeout=5000)
-    async with page.expect_response(lambda r: r.request.method == 'POST' and r.url.split('?', 1)[0].endswith('/api/statements'), timeout=60000) as resp_info: await page.get_by_role('button', name='Upload & Parse Statement').click()
-    upload_resp = await resp_info.value; assert upload_resp.status in (200, 201, 202), f'Upload endpoint returned unexpected status {upload_resp.status} — expected 2xx. Response body: {await upload_resp.text()}'; upload_body = await upload_resp.json(); statement_id = upload_body.get('id'); assert statement_id, f"Upload response missing 'id' field: {upload_body}"; await expect(_statement_row(page, 'E2E Model Test Bank')).to_be_visible(timeout=15000); statement = await _find_statement_by_institution(page, 'E2E Model Test Bank'); assert statement and statement.get('id') == statement_id
+    _skip_if_no_url()
+    page = authenticated_page_unique
+    statement_id = await upload_statement_via_ui(
+        page,
+        institution="E2E Model Test Bank",
+        file_path=unique_pdf_copy(generated_pdf_path("dbs")),
+        base_url=_APP_URL,
+    )
+    await expect(
+        page.locator(".relative.block").filter(has_text="E2E Model Test Bank").first
+    ).to_be_visible(timeout=15000)
+    resp = await page.context.request.get(get_url("/api/statements", _APP_URL))
+    assert resp.status == 200
+    payload = await resp.json()
+    items = (
+        payload
+        if isinstance(payload, list)
+        else payload.get("items") or payload.get("data") or []
+    )
+    assert (
+        next(
+            (s for s in items if s.get("institution") == "E2E Model Test Bank"), {}
+        ).get("id")
+        == statement_id
+    )
+
+
 @pytest.mark.e2e
-async def test_stale_model_id_auto_cleanup(authenticated_page_unique: Page) -> None: 'AC8.4.2 EPIC-003 EPIC-006 EPIC-008 EPIC-013'; _skip_if_no_url(); page = authenticated_page_unique; await page.goto(_get_url('/upload'), wait_until='domcontentloaded'); await expect(page.locator('[data-testid="uploader-model-statement"]')).to_be_visible(timeout=15000); stale_id = 'test/nonexistent-model-for-stale-cleanup-test'; await page.evaluate(f'localStorage.setItem("statement_model_v1", "{stale_id}")'); await page.reload(wait_until='domcontentloaded'); await expect(page.locator('[data-testid="uploader-model-statement"]')).to_be_visible(timeout=15000); await page.wait_for_function("(staleId) => localStorage.getItem('statement_model_v1') !== staleId", arg=stale_id, timeout=15000); stored_model: str | None = await page.evaluate('localStorage.getItem("statement_model_v1")'); assert stored_model != stale_id, f"Stale model ID '{stale_id}' was not cleared from localStorage after reload"
+async def test_stale_model_id_auto_cleanup(authenticated_page_unique: Page) -> None:
+    _skip_if_no_url()
+    page = authenticated_page_unique
+    await page.goto(get_url("/upload", _APP_URL), wait_until="domcontentloaded")
+    await expect(
+        page.locator('[data-testid="uploader-model-statement"]')
+    ).to_be_visible(timeout=15000)
+    stale_id = "test/nonexistent-model-for-stale-cleanup-test"
+    await page.evaluate(f'localStorage.setItem("statement_model_v1", "{stale_id}")')
+    await page.reload(wait_until="domcontentloaded")
+    await expect(
+        page.locator('[data-testid="uploader-model-statement"]')
+    ).to_be_visible(timeout=15000)
+    await page.wait_for_function(
+        "(staleId) => localStorage.getItem('statement_model_v1') !== staleId",
+        arg=stale_id,
+        timeout=15000,
+    )
+    assert await page.evaluate('localStorage.getItem("statement_model_v1")') != stale_id

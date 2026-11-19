@@ -1,1 +1,40 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"; import { beforeEach, describe, expect, it, vi } from "vitest"; import { FirstRunModal } from "@/components/llm/FirstRunModal"; import { apiOperation } from "@/lib/api"; import { useLlmConfigStatus } from "@/hooks/useLlmConfigStatus"; vi.mock("@/lib/api", () => ({ apiOperation: vi.fn(), })); vi.mock("@/hooks/useLlmConfigStatus", () => ({ useLlmConfigStatus: vi.fn(), })); const mockedApiOperation = vi.mocked(apiOperation); const mockedHook = vi.mocked(useLlmConfigStatus); const refresh = vi.fn(); function setStatus(configured: boolean | null) { mockedHook.mockReturnValue({ configured, loading: false, refresh }); }; beforeEach(() => { mockedApiOperation.mockReset(); refresh.mockReset(); window.localStorage.clear(); }); describe("FirstRunModal (EPIC-023 PR4)", () => { it("renders nothing while the status is unknown", () => { setStatus(null); const { container } = render(<FirstRunModal />); expect(container).toBeEmptyDOMElement(); }); it("renders nothing when already configured", () => { setStatus(true); const { container } = render(<FirstRunModal />); expect(container).toBeEmptyDOMElement(); }); it("shows the provider form when unconfigured, pre-filling the OpenRouter base", () => { setStatus(false); render(<FirstRunModal />); expect(screen.getByText("Set up your AI provider")).toBeInTheDocument(); expect(screen.getByLabelText("API base URL")).toHaveValue( "https://openrouter.ai/api/v1" ); expect(screen.getByLabelText("Protocol family")).toHaveValue( "openrouter-compatible" ); }); it("creates the provider and refreshes status on submit", async () => { setStatus(false); mockedApiOperation.mockResolvedValue({ id: "p1", label: "My key", protocol: "openrouter-compatible", api_base: "https://openrouter.ai/api/v1", has_api_key: true, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", } as any); render(<FirstRunModal />); fireEvent.change(screen.getByLabelText("Label"), { target: { value: "My key" }, }); fireEvent.change(screen.getByLabelText("API key"), { target: { value: "sk-secret" }, }); fireEvent.click(screen.getByRole("button", { name: /Save provider/i })); await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith("create_provider_llm_providers_post", { body: { label: "My key", protocol: "openrouter-compatible", api_key: "sk-secret", api_base: "https://openrouter.ai/api/v1", }, }) ); await waitFor(() => expect(refresh).toHaveBeenCalledTimes(1)); }); it("can be dismissed via Cancel without configuring", () => { setStatus(false); render(<FirstRunModal />); fireEvent.click(screen.getByRole("button", { name: /Cancel/i })); expect(screen.queryByText("Set up your AI provider")).not.toBeInTheDocument(); expect(mockedApiOperation).not.toHaveBeenCalled(); }); it("surfaces an error when create fails and keeps the form open", async () => { setStatus(false); mockedApiOperation.mockRejectedValue(new Error("Bad key")); render(<FirstRunModal />); fireEvent.change(screen.getByLabelText("Label"), { target: { value: "My key" }, }); fireEvent.change(screen.getByLabelText("API key"), { target: { value: "sk" }, }); fireEvent.click(screen.getByRole("button", { name: /Save provider/i })); await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Bad key") ); expect(refresh).not.toHaveBeenCalled(); }); it("submits api_base as null when cleared", async () => { setStatus(false); mockedApiOperation.mockResolvedValue({ id: "p1", label: "L", protocol: "openai-compatible", api_base: null, has_api_key: true, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z", } as any); render(<FirstRunModal />); fireEvent.change(screen.getByLabelText("API base URL"), { target: { value: "" }, }); fireEvent.change(screen.getByLabelText("Protocol family"), { target: { value: "openai-compatible" }, }); fireEvent.change(screen.getByLabelText("Label"), { target: { value: "L" }, }); fireEvent.change(screen.getByLabelText("API key"), { target: { value: "k" }, }); fireEvent.click(screen.getByRole("button", { name: /Save provider/i })); await waitFor(() => expect(mockedApiOperation).toHaveBeenCalledWith("create_provider_llm_providers_post", { body: { label: "L", protocol: "openai-compatible", api_key: "k", api_base: null, }, }) ); }); });
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, expect, it, vi } from "vitest";
+import { FirstRunModal } from "@/components/llm/FirstRunModal";
+import { apiOperation } from "@/lib/api";
+import { useLlmConfigStatus } from "@/hooks/useLlmConfigStatus";
+vi.mock("@/lib/api", () => ({ apiOperation: vi.fn() }));
+vi.mock("@/hooks/useLlmConfigStatus", () => ({ useLlmConfigStatus: vi.fn() }));
+const api = vi.mocked(apiOperation), hook = vi.mocked(useLlmConfigStatus), refresh = vi.fn(), S = screen, E = expect;
+const setS = (configured: boolean | null) => hook.mockReturnValue({ configured, loading: false, refresh });
+const fill = (l: string, v: string) => fireEvent.change(S.getByLabelText(l), { target: { value: v } });
+beforeEach(() => { api.mockReset(); refresh.mockReset(); window.localStorage.clear(); });
+it.each([null, true])("hidden when %s", (s) => { setS(s); E(render(<FirstRunModal />).container).toBeEmptyDOMElement(); });
+it("prefills, cancels, errors", async () => {
+setS(false);
+const r1 = render(<FirstRunModal />);
+E(S.getByText("Set up your AI provider")).toBeInTheDocument();
+E(S.getByLabelText("API base URL")).toHaveValue("https://openrouter.ai/api/v1");
+E(S.getByLabelText("Protocol family")).toHaveValue("openrouter-compatible");
+fireEvent.click(S.getByRole("button", { name: /Cancel/i }));
+E(S.queryByText("Set up your AI provider")).toBeNull();
+E(api).not.toHaveBeenCalled();
+r1.unmount();
+window.localStorage.clear();
+api.mockRejectedValue(new Error("Bad key"));
+render(<FirstRunModal />);
+fill("Label", "My key"); fill("API key", "sk");
+fireEvent.click(S.getByRole("button", { name: /Save provider/i }));
+await waitFor(() => E(S.getByRole("alert")).toHaveTextContent("Bad key"));
+E(refresh).not.toHaveBeenCalled();
+});
+it.each([["openrouter-compatible", "My key", "sk-secret", "https://openrouter.ai/api/v1"], ["openai-compatible", "L", "k", null]])("creates %s", async (protocol, label, api_key, api_base) => {
+setS(false);
+api.mockResolvedValue({ id: "p1", label, protocol, api_base, has_api_key: true, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" } as any);
+render(<FirstRunModal />);
+if (!api_base) { fill("API base URL", ""); fill("Protocol family", protocol); }
+fill("Label", label); fill("API key", api_key);
+fireEvent.click(S.getByRole("button", { name: /Save provider/i }));
+await waitFor(() => E(api).toHaveBeenCalledWith("create_provider_llm_providers_post", { body: { label, protocol, api_key, api_base } }));
+await waitFor(() => E(refresh).toHaveBeenCalledTimes(1));
+});

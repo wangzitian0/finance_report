@@ -1,58 +1,37 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"; import { render, screen, fireEvent, waitFor } from "@testing-library/react"; import userEvent from "@testing-library/user-event"; import { LowConfidenceReviewModal } from "@/components/statements/StatementReview"; import { PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage"; import type { BankStatementTransaction } from "@/lib/types"; const mockPush = vi.fn(); vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush }), })); const mockApiOperation = vi.fn(); vi.mock("@/lib/api", () => ({ apiOperation: (...args: unknown[]) => mockApiOperation(...args), })); const mockShowToast = vi.fn(); vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast: mockShowToast }), })); vi.mock("@/lib/audit/money", () => ({ formatCurrencyLocale: (amount: unknown, currency: string) => `${currency} ${String(amount)}`, })); const mockTransaction: BankStatementTransaction = { id: "txn-123", statement_id: "stmt-456", txn_date: "2024-03-15", description: "Starbucks Coffee #998", amount: "5.50", direction: "OUT", currency: "SGD", confidence: "low", confidence_tier: "LOW", created_at: "", updated_at: "", status: "pending", }; describe("LowConfidenceReviewModal", () => { beforeEach(() => { vi.clearAllMocks(); sessionStorage.clear(); }); it("renders nothing when isOpen is false or transaction is null", () => { const { rerender } = render( <LowConfidenceReviewModal
-isOpen={false}
-onClose={vi.fn()}
-transaction={mockTransaction}
-/> ); expect(screen.queryByRole("dialog")).toBeNull(); rerender( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={null}
-/> ); expect(screen.queryByRole("dialog")).toBeNull(); }); it("renders transaction details and confidence badge when open", () => { render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={mockTransaction}
-/> ); expect(screen.getByRole("dialog")).toBeInTheDocument(); expect(screen.getByText("Review Low-Confidence Transaction")).toBeInTheDocument(); expect(screen.getByText("Starbucks Coffee #998")).toBeInTheDocument(); expect(screen.getByText("-SGD 5.50")).toBeInTheDocument(); expect(screen.getByText(/2024-03-15/)).toBeInTheDocument(); }); it("renders positive income transaction with raw confidence badge fallback", () => { const incomeTxn: BankStatementTransaction = { ...mockTransaction, direction: "IN", confidence_tier: undefined, confidence: "medium", }; render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={incomeTxn}
-/> ); expect(screen.getByText("+SGD 5.50")).toBeInTheDocument(); expect(screen.getByText("medium")).toBeInTheDocument(); }); it("AC-extraction.fe-stage1-review.27 the review modal labels a row with no tier Not rated, with the table badge", () => { const unrated: BankStatementTransaction = { ...mockTransaction, confidence_tier: null, confidence: undefined }; render(<LowConfidenceReviewModal isOpen onClose={vi.fn()} transaction={unrated} />); const badge = screen.getByText("Not rated"); expect(badge).toHaveClass("badge", "badge-muted"); expect(badge).not.toHaveClass("badge-warning"); expect(screen.queryByText(/^low$/i)).toBeNull(); }); it("selects category via quick category chips and select dropdown", async () => { render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={mockTransaction}
-/> ); const diningChip = screen.getByRole("button", { name: "Dining" }); fireEvent.click(diningChip); const select = screen.getByLabelText(/Classification Category/i) as HTMLSelectElement; expect(select.value).toBe("DINING"); await userEvent.selectOptions(select, "TRANSPORT"); expect(select.value).toBe("TRANSPORT"); }); it("submits correction via apiOperation on save", async () => { mockApiOperation.mockResolvedValueOnce({ id: "corr-1", transaction_id: "txn-123", corrected_category: "DINING", }); const onClose = vi.fn(); const onSuccess = vi.fn(); render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={onClose}
-transaction={mockTransaction}
-onSuccess={onSuccess}
-/> ); const diningChip = screen.getByRole("button", { name: "Dining" }); fireEvent.click(diningChip); const saveButton = screen.getByRole("button", { name: /Save Correction/i }); fireEvent.click(saveButton); await waitFor(() => { expect(mockApiOperation).toHaveBeenCalledWith("create_correction_statements_corrections_post", { body: { transaction_id: "txn-123", corrected_category: "DINING", }, }); expect(mockShowToast).toHaveBeenCalledWith('Category updated to "Dining"', "success"); expect(onSuccess).toHaveBeenCalled(); expect(onClose).toHaveBeenCalled(); }); }); it("handles apiOperation rejection with error display", async () => { mockApiOperation.mockRejectedValueOnce(new Error("Database write error")); render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={mockTransaction}
-/> ); const diningChip = screen.getByRole("button", { name: "Dining" }); fireEvent.click(diningChip); const saveButton = screen.getByRole("button", { name: /Save Correction/i }); fireEvent.click(saveButton); await waitFor(() => { expect(mockShowToast).toHaveBeenCalledWith("Database write error", "error"); expect(screen.getByRole("alert")).toHaveTextContent("Database write error"); }); }); it("shows error if saving with empty category", async () => { render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={mockTransaction}
-/> ); const select = screen.getByLabelText(/Classification Category/i) as HTMLSelectElement; await userEvent.selectOptions(select, ""); const form = select.closest("form")!; fireEvent.submit(form); expect(await screen.findByRole("alert")).toHaveTextContent("Please select or enter a category."); expect(mockApiOperation).not.toHaveBeenCalled(); }); it("ignores duplicate form submission while saving is already in flight", async () => { let resolveSave!: (value: unknown) => void; mockApiOperation.mockImplementationOnce( () => new Promise((resolve) => { resolveSave = resolve; }), ); render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={mockTransaction}
-/> ); fireEvent.click(screen.getByRole("button", { name: "Dining" })); const input = screen.getByLabelText(/Classification Category/i); const form = input.closest("form")!; fireEvent.submit(form); await waitFor(() => { expect(screen.getByRole("button", { name: /Saving/i })).toBeDisabled(); }); fireEvent.submit(form); expect(mockApiOperation).toHaveBeenCalledTimes(1); resolveSave({ id: "corr-1" }); await waitFor(() => { expect(mockShowToast).toHaveBeenCalledWith('Category updated to "Dining"', "success"); }); }); it("stores prompt in sessionStorage and navigates to /chat when clicking Ask AI Assistant", () => { render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={mockTransaction}
-/> ); const askAiButton = screen.getByRole("button", { name: /Ask AI Assistant/i }); fireEvent.click(askAiButton); expect(sessionStorage.getItem(PENDING_CHAT_PROMPT_KEY)).toContain("Starbucks Coffee #998"); expect(mockPush).toHaveBeenCalledWith("/chat"); }); it("closes modal on Escape key and close button click", () => { const onClose = vi.fn(); const { rerender } = render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={onClose}
-transaction={mockTransaction}
-/> ); fireEvent.keyDown(document, { key: "Escape" }); expect(onClose).toHaveBeenCalledTimes(1); const closeButton = screen.getByRole("button", { name: "Close modal" }); fireEvent.click(closeButton); expect(onClose).toHaveBeenCalledTimes(2); rerender( <LowConfidenceReviewModal
-isOpen={false}
-onClose={onClose}
-transaction={mockTransaction}
-/> ); fireEvent.keyDown(document, { key: "Escape" }); expect(onClose).toHaveBeenCalledTimes(2); }); it("ignores Escape and the close button while a save is in flight", async () => { mockApiOperation.mockImplementationOnce(() => new Promise(() => {})); const onClose = vi.fn(); render(<LowConfidenceReviewModal isOpen onClose={onClose} transaction={mockTransaction} />); fireEvent.click(screen.getByRole("button", { name: "Dining" })); fireEvent.click(screen.getByRole("button", { name: /Save Correction/i })); await waitFor(() => expect(screen.getByRole("button", { name: /Saving/i })).toBeDisabled()); fireEvent.keyDown(document, { key: "Escape" }); fireEvent.click(screen.getByRole("button", { name: "Close modal" })); expect(onClose).not.toHaveBeenCalled(); }); it("does not render mutable amount or direction inputs and filters category chips by direction", () => { const { rerender } = render( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={mockTransaction}
-/> ); expect(screen.queryByLabelText(/Transaction Amount/i)).toBeNull(); expect(screen.queryByLabelText(/Transaction Direction/i)).toBeNull(); expect(screen.getByRole("button", { name: "Dining" })).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Transfer" })).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Salary" })).toBeNull(); rerender( <LowConfidenceReviewModal
-isOpen={true}
-onClose={vi.fn()}
-transaction={{ ...mockTransaction, direction: "IN", proposed_category: "SALARY" }}
-/> ); expect(screen.getByRole("button", { name: "Salary" })).toBeInTheDocument(); expect(screen.getByRole("button", { name: "Transfer" })).toBeInTheDocument(); expect(screen.queryByRole("button", { name: "Dining" })).toBeNull(); expect(screen.getByLabelText(/Classification Category/i)).toHaveValue("SALARY"); }); }); // AC-extraction.fe-stage1-review.7
+import { beforeEach, describe, it, vi } from "vitest";
+import { LowConfidenceReviewModal } from "@/components/statements/StatementReview";
+import { PENDING_CHAT_PROMPT_KEY } from "@/lib/chatStorage";
+import * as F from "./helpers/statementTestFixtures";
+
+const push = vi.fn(), api = vi.fn(), toast = vi.fn();
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/lib/api", () => ({ apiOperation: (...a: unknown[]) => api(...a) }));
+vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast: toast }) }));
+vi.mock("@/lib/audit/money", async () => (await import("./helpers/statementTestFixtures")).lowMoneyMock());
+
+const L = F.LOW, { clk, cN, has, hasC, noDlg, ren, selOpt, sub, txt, txtIs, valIs } = F;
+const M = (o: Record<string, unknown> = {}) => <LowConfidenceReviewModal isOpen onClose={vi.fn()} transaction={L.txn} {...o} />;
+const sel = () => F.lbl(L.cat) as HTMLSelectElement;
+
+describe("LowConfidenceReviewModal", () => {
+  beforeEach(() => { vi.clearAllMocks(); sessionStorage.clear(); });
+
+  it("AC27 states & badges", () => {
+    const { rerender } = ren(M({ isOpen: false })); noDlg(); rerender(M({ transaction: null })); noDlg();
+    for (const [p, t] of L.states) { rerender(M(p)); has([...t]); }
+    rerender(M({ transaction: L.unratedTxn }));
+    const b = txt("Not rated"); F.hasCls(b, "badge", "badge-muted"); F.noCls(b, "badge-warning"); F.noTxt(/^low$/i);
+  });
+
+  it("corrections & errors", async () => {
+    api.mockResolvedValueOnce({ id: "c1" }).mockRejectedValueOnce(new Error(L.dbErr));
+    const onClose = vi.fn(), onSuccess = vi.fn(); ren(M({ onClose, onSuccess }));
+    clk("Dining"); valIs(sel(), "DINING"); await selOpt(sel(), "TRANSPORT"); valIs(sel(), "TRANSPORT");
+    clk("Dining"); clk(L.save); await F.wCall(api, F.OP.CORR, L.corrReq);
+    hasC(toast, L.ok, "success"); cN(onSuccess, 1); cN(onClose, 1);
+    clk(L.save); await F.wFor(() => txtIs(F.alrt(), L.dbErr)); hasC(toast, L.dbErr, "error");
+    await selOpt(sel(), ""); sub(sel()); txtIs(await F.fAlrt(), L.emptyErr); cN(api, 2);
+  });
+
+  it("in-flight, Ask AI, Escape, IN chips", () => F.lowModalCloseFlow(api as never, toast, push, M, PENDING_CHAT_PROMPT_KEY));
+});

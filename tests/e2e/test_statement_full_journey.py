@@ -1,39 +1,260 @@
-'AC8.13.1 AC8.13.5'; from __future__ import annotations; import json; import os; import re; import shutil; import tempfile; import time; from decimal import Decimal; from pathlib import Path; import httpx; import pytest; from common.testing import money_amount; from common.testing.ac_proof import ac_proof; from tests.fixtures.provider_review import FixtureDisposition, approve_statement_with_fixture_review; from conftest import fail_or_skip_ai_ocr_gate; from pdf_fixture_paths import committed_fixture_pdf; from playwright.async_api import Page, expect; APP_URL: str = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS: int = int(os.getenv('PARSING_TIMEOUT_MS', '120000')); INSTITUTION_LABEL: str = 'DBS E2E Full Journey'; PARSED_STATUS_BADGE_RE = re.compile('^(Parsed|Ready to review)$', re.I); DBS_EXPECTED_PATH = Path(__file__).resolve().parents[2] / 'tests' / 'fixtures' / 'pdf' / 'generated' / 'dbs_statement_fixture_expected.json'; DBS_EXPECTED_OPENING_BALANCE = Decimal('12000.00'); DBS_EXPECTED_CLOSING_BALANCE = Decimal('15242.05'); DBS_EXPECTED_CURRENCY = 'SGD'; DBS_DISPOSITIONS = {'FAST CREDIT PAYROLL ACME PTE LTD': FixtureDisposition('income', 'INCOME', 'The DBS fixture declares salary income.', 'SALARY'), 'PAYNOW TO UEN 201912345A RENT JAN': FixtureDisposition('expense', 'EXPENSE', 'The DBS fixture declares rent expense.', 'RENT'), 'GIRO SINGTEL MOBILE BILL': FixtureDisposition('expense', 'EXPENSE', 'The DBS fixture declares utility expense.', 'UTILITIES'), 'POS NTUC FAIRPRICE BEDOK': FixtureDisposition('expense', 'EXPENSE', 'The DBS fixture declares grocery expense.', 'GROCERIES'), 'FAST CREDIT FREELANCE PROJECT': FixtureDisposition('income', 'INCOME', 'The DBS fixture declares freelance income.', 'FREELANCE'), 'PAYNOW TO JOHN TAN': FixtureDisposition('expense', 'EXPENSE', 'The DBS fixture declares family-support expense.', 'FAMILY_SUPPORT'), 'GIRO SP SERVICES UTILITIES': FixtureDisposition('expense', 'EXPENSE', 'The DBS fixture declares utility expense.', 'UTILITIES')}; _get_url = lambda path: f"{APP_URL.rstrip('/')}{path}"; _api_url = lambda path: _get_url(f'/api{path}')
-async def _auth_headers(page: Page) -> dict[str, str]: cookies = await page.context.cookies(APP_URL); auth_cookie = next((cookie for cookie in cookies if cookie['name'] == 'finance_access_token'), None); assert auth_cookie, 'authenticated Playwright context is missing auth cookie'; return {'Cookie': f"finance_access_token={auth_cookie['value']}"}
-_statement_row = lambda page, institution: page.locator('.relative.block').filter(has_text=institution).first
-def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label() -> None: 'EPIC-003 EPIC-004 EPIC-008 EPIC-013 EPIC-016 EPIC-018'; assert PARSED_STATUS_BADGE_RE.search('Parsed'); assert PARSED_STATUS_BADGE_RE.search('Ready to review')
-_get_dbs_pdf_path = lambda: committed_fixture_pdf('dbs_statement_fixture.pdf')
-def test_dbs_ground_truth_balances_stay_pinned() -> None: 'AC-extraction.813.11 EPIC-003 EPIC-004 EPIC-008 EPIC-013 EPIC-016 EPIC-018'; expected = json.loads(DBS_EXPECTED_PATH.read_text(encoding='utf-8')); stmt = expected['statement']; assert Decimal(stmt['opening_balance']) == DBS_EXPECTED_OPENING_BALANCE; assert Decimal(stmt['closing_balance']) == DBS_EXPECTED_CLOSING_BALANCE; assert stmt['currency'] == DBS_EXPECTED_CURRENCY; assert stmt['balance_validated'] is True; signed_movement = sum((Decimal(event['amount']) if event['direction'] == 'IN' else -Decimal(event['amount']) for event in expected['events']), Decimal('0.00')); assert DBS_EXPECTED_OPENING_BALANCE + signed_movement == DBS_EXPECTED_CLOSING_BALANCE
-def _unique_pdf_copy(src: Path) -> Path:
-    import uuid; suffix = int(time.time() * 1000) % 1000000; tmp = Path(tempfile.mkdtemp()); dest = tmp / f'{src.stem}_{suffix}{src.suffix}'; shutil.copy2(src, dest)
-    with open(dest, 'ab') as f: f.write(f'\n%% E2E test run {uuid.uuid4()}\n'.encode())
-    return dest
-@ac_proof('dbs-pdf-full-journey', ac_ids=['AC-extraction.813.11', 'AC-audit.global-invariant.2'], scope='behavioral', ci_tier='post_merge_environment', trust_mode='llm_ocr_post_merge', source_classes=['bank_statement'], mirror_proof_id='structured-source-reporting-pr', issue='#443', required_markers=['e2e', 'tier3', 'critical', 'llm'])
+from __future__ import annotations
+
+import json
+import re
+from decimal import Decimal
+from pathlib import Path
+
+import httpx
+import pytest
+from common.testing import money_amount
+from playwright.async_api import Page, expect
+from tests.fixtures.provider_review import (
+    FixtureDisposition,
+    approve_statement_with_fixture_review,
+)
+
+from tests.e2e._journey_helpers import (
+    api_url,
+    auth_headers,
+    create_opening_balances,
+    get_url,
+    poll_statement_via_page,
+    unique_pdf_copy,
+    upload_statement_via_ui,
+)
+from tests.e2e.conftest import fail_or_skip_ai_ocr_gate
+from tests.e2e.pdf_fixture_paths import committed_fixture_pdf
+
+INSTITUTION_LABEL = "DBS E2E Full Journey"
+PARSED_STATUS_BADGE_RE = re.compile("^(Parsed|Ready to review)$", re.I)
+DBS_EXPECTED_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "tests"
+    / "fixtures"
+    / "pdf"
+    / "generated"
+    / "dbs_statement_fixture_expected.json"
+)
+DBS_EXPECTED_OPENING_BALANCE, DBS_EXPECTED_CLOSING_BALANCE, DBS_EXPECTED_CURRENCY = (
+    Decimal("12000.00"),
+    Decimal("15242.05"),
+    "SGD",
+)
+DBS_DISPOSITIONS = {
+    "FAST CREDIT PAYROLL ACME PTE LTD": FixtureDisposition(
+        "income", "INCOME", "The DBS fixture declares salary income.", "SALARY"
+    ),
+    "PAYNOW TO UEN 201912345A RENT JAN": FixtureDisposition(
+        "expense", "EXPENSE", "The DBS fixture declares rent expense.", "RENT"
+    ),
+    "GIRO SINGTEL MOBILE BILL": FixtureDisposition(
+        "expense", "EXPENSE", "The DBS fixture declares utility expense.", "UTILITIES"
+    ),
+    "POS NTUC FAIRPRICE BEDOK": FixtureDisposition(
+        "expense", "EXPENSE", "The DBS fixture declares grocery expense.", "GROCERIES"
+    ),
+    "FAST CREDIT FREELANCE PROJECT": FixtureDisposition(
+        "income", "INCOME", "The DBS fixture declares freelance income.", "FREELANCE"
+    ),
+    "PAYNOW TO JOHN TAN": FixtureDisposition(
+        "expense",
+        "EXPENSE",
+        "The DBS fixture declares family-support expense.",
+        "FAMILY_SUPPORT",
+    ),
+    "GIRO SP SERVICES UTILITIES": FixtureDisposition(
+        "expense", "EXPENSE", "The DBS fixture declares utility expense.", "UTILITIES"
+    ),
+}
+
+
+def test_parsed_status_badge_pattern_accepts_user_facing_ready_to_review_label() -> (
+    None
+):
+    assert PARSED_STATUS_BADGE_RE.search("Parsed") and PARSED_STATUS_BADGE_RE.search(
+        "Ready to review"
+    )
+
+
+def test_dbs_ground_truth_balances_stay_pinned() -> None:
+    expected = json.loads(DBS_EXPECTED_PATH.read_text(encoding="utf-8"))
+    stmt = expected["statement"]
+    signed = sum(
+        (
+            Decimal(e["amount"]) if e["direction"] == "IN" else -Decimal(e["amount"])
+            for e in expected["events"]
+        ),
+        Decimal("0.00"),
+    )
+    assert (
+        Decimal(stmt["opening_balance"]) == DBS_EXPECTED_OPENING_BALANCE
+        and Decimal(stmt["closing_balance"]) == DBS_EXPECTED_CLOSING_BALANCE
+        and stmt["currency"] == DBS_EXPECTED_CURRENCY
+        and stmt["balance_validated"] is True
+        and DBS_EXPECTED_OPENING_BALANCE + signed == DBS_EXPECTED_CLOSING_BALANCE
+    )
+
+
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical
 @pytest.mark.llm
 async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> None:
-    'AC-extraction.813.11 AC-audit.global-invariant.2 AC8.13.1 AC8.13.2 AC8.13.3 AC8.13.4 AC8.13.5 AC8.13.7 EPIC-003 EPIC-004 EPIC-008 EPIC-013 EPIC-016 EPIC-018'; page = authenticated_page_unique; pdf_path = _unique_pdf_copy(_get_dbs_pdf_path()); await page.goto(_get_url('/upload')); await page.wait_for_load_state('domcontentloaded'); pytest.fail(f'Redirected to /login despite authenticated_page fixture. URL: {page.url}') if '/login' in page.url else None; await page.locator('[data-testid="uploader-institution-statement"]').fill(INSTITUTION_LABEL); models_resp = await page.evaluate("async () => { const r = await fetch('/api/llm/catalog?modality=image'); return r.json(); }"); default_model: str = models_resp.get('default_model') or models_resp['models'][0]['id']; model_select = page.locator('[data-testid="uploader-model-statement"]'); await expect(model_select).to_be_visible(timeout=15000); await expect(model_select).not_to_have_value('', timeout=15000); await model_select.select_option(value=default_model); await page.set_input_files('[data-testid="uploader-file-statement"]', str(pdf_path)); await expect(page.locator('p.font-medium', has_text=pdf_path.name)).to_be_visible(timeout=5000)
-    async with page.expect_response(lambda r: r.request.method == 'POST' and r.url.split('?', 1)[0].endswith('/api/statements'), timeout=120000) as resp_info: await page.get_by_role('button', name='Upload & Parse Statement').click()
-    upload_resp = await resp_info.value; assert upload_resp.status in (200, 201, 202), f'Upload endpoint returned unexpected status {upload_resp.status} — expected 2xx. Response body: {await upload_resp.text()}'; upload_body = await upload_resp.json(); statement_id = upload_body.get('id'); assert statement_id, f"Upload response missing 'id' field: {upload_body}"; statement_row = _statement_row(page, INSTITUTION_LABEL); await expect(statement_row).to_be_visible(timeout=15000); parsed_badge = statement_row.locator('span.badge', has_text=PARSED_STATUS_BADGE_RE); approved_badge = statement_row.locator('span.badge', has_text=re.compile('^Approved$', re.I)); rejected_badge = statement_row.locator('span.badge', has_text=re.compile('^Rejected$', re.I)); import asyncio; deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000; last_statement: dict | None = None
-    while asyncio.get_running_loop().time() < deadline:
-        api_resp = await page.request.get(_get_url(f'/api/statements/{statement_id}')); assert api_resp.status == 200, f'GET /api/statements/{statement_id} returned {api_resp.status} — response body: {await api_resp.text()}'; last_statement = await api_resp.json(); fail_or_skip_ai_ocr_gate('Statement parsing failed (status=rejected) — AI service may be unavailable or misconfigured on the test environment.', statement=last_statement, model=default_model) if last_statement.get('status') == 'rejected' or await rejected_badge.is_visible() else None; status = last_statement.get('status')
-        if status == 'parsed': await expect(parsed_badge).to_be_visible(timeout=15000); break
-        if status == 'approved': await expect(approved_badge).to_be_visible(timeout=15000); break
-        await page.wait_for_timeout(3000)
-    else:
-        pytest.fail(f"Statement never reached 'parsed' or 'approved' status within {PARSING_TIMEOUT_MS}ms. Last statement payload: {last_statement}")
-    already_approved = last_statement.get('status') == 'approved'; await page.goto(_get_url(f'/statements/{statement_id}')); await expect(page).to_have_url(re.compile('/statements/[^/]+$'), timeout=15000); await expect(page.get_by_role('heading', name='Transactions', exact=True)).to_be_visible(timeout=10000); await expect(page.locator('table tbody tr').first).to_be_visible(timeout=10000)
-    if already_approved: await expect(page.locator('span.badge', has_text='approved')).to_be_visible(timeout=15000)
-    else:
-        await expect(page).to_have_url(re.compile('/statements/[^/]+$'), timeout=15000); await page.get_by_role('button', name='Approve', exact=True).click(); dialog = page.locator('[role="dialog"]'); await expect(dialog).to_be_visible(timeout=5000); confirm_button = dialog.get_by_role('button', name='Approve', exact=True); await expect(confirm_button).to_be_visible(timeout=3000)
-        async with page.expect_response(lambda response: response.url.endswith(f'/api/statements/{statement_id}/approvals')) as approval_info: await confirm_button.click()
-        approval_response = await approval_info.value
-        if approval_response.status == 409:
-            review_action = page.get_by_role('link', name='Review transaction classifications'); await expect(review_action).to_be_visible(timeout=15000); await expect(review_action).to_have_attribute('href', f'/reconciliation?tab=unmatched&statement_id={statement_id}&return_to=%2Fstatements%2F{statement_id}'); assert last_statement is not None
-            async with httpx.AsyncClient(headers=await _auth_headers(page), verify=False, timeout=120.0) as client: approval = await approve_statement_with_fixture_review(client, api_url=_api_url, statement_id=str(statement_id), transactions=last_statement.get('transactions') or [], dispositions=DBS_DISPOSITIONS)
-            assert approval.get('status') == 'approved'; await page.goto(_get_url(f'/statements/{statement_id}'))
-        else: assert approval_response.status == 200, f'approve endpoint returned {approval_response.status}: {await approval_response.text()}'; await expect(page).to_have_url(re.compile('/statements/[^/?]+(?:\\?.*)?$'), timeout=15000)
-        await expect(page.locator('span.badge', has_text='approved')).to_be_visible(timeout=15000)
-    await page.goto(_get_url('/upload')); await expect(page).to_have_url(re.compile('/upload$'), timeout=15000); approved_row = _statement_row(page, INSTITUTION_LABEL); await expect(approved_row).to_be_visible(timeout=15000); await expect(approved_row.locator('span.badge', has_text=re.compile('^Approved$', re.I))).to_be_visible(timeout=15000); expected = json.loads(DBS_EXPECTED_PATH.read_text(encoding='utf-8')); expected_stmt = expected['statement']; detail_resp = await page.request.get(_get_url(f'/api/statements/{statement_id}')); assert detail_resp.status == 200, f'statement detail failed: {detail_resp.status} {await detail_resp.text()}'; detail = await detail_resp.json(); assert money_amount(detail['opening_balance']) == DBS_EXPECTED_OPENING_BALANCE, f"DBS opening balance drifted from ground truth: {detail['opening_balance']} != {DBS_EXPECTED_OPENING_BALANCE}"; assert money_amount(detail['closing_balance']) == DBS_EXPECTED_CLOSING_BALANCE, f"DBS closing balance drifted from ground truth: {detail['closing_balance']} != {DBS_EXPECTED_CLOSING_BALANCE}"; assert (detail.get('currency') or '').upper() == DBS_EXPECTED_CURRENCY; assert len(detail.get('transactions') or []) >= len(expected['events']), f"extracted {len(detail.get('transactions') or [])} transactions, ground truth has {len(expected['events'])}"; account_id = detail.get('account_id'); assert account_id, f'approved statement has no linked account (auto-create failed): {detail}'; opening_resp = await page.request.post(_get_url('/api/accounts/opening-balances'), data=json.dumps({'entry_date': expected_stmt['period_start'], 'balances': {account_id: str(DBS_EXPECTED_OPENING_BALANCE)}, 'currency': DBS_EXPECTED_CURRENCY, 'memo': 'DBS E2E opening balance'}), headers={'Content-Type': 'application/json'}); assert opening_resp.status == 201, f'opening-balance posting failed: {opening_resp.status} {await opening_resp.text()}'; report_resp = await page.request.get(_get_url(f"/api/reports/balance-sheet?as_of_date={expected_stmt['period_end']}&currency={DBS_EXPECTED_CURRENCY}")); assert report_resp.status == 200, f'balance sheet failed: {report_resp.status} {await report_resp.text()}'; report = await report_resp.json(); assert money_amount(report['total_assets']) == DBS_EXPECTED_CLOSING_BALANCE, f"balance sheet must report the statement's actual closing balance ({DBS_EXPECTED_CLOSING_BALANCE}), got {report['total_assets']} — net-flow-instead-of-balance regression"; assert report.get('opening_balance_warnings') == []; assert money_amount(report['equation_delta']) == Decimal('0.00'); assert report['is_balanced'] is True; await page.goto(_get_url('/reports?tab=balance-sheet')); await page.wait_for_load_state('domcontentloaded'); await expect(page.get_by_text('Balance Sheet', exact=False).first).to_be_visible(timeout=10000); await expect(page.get_by_text('Assets', exact=False).first).to_be_visible(timeout=10000); closing_str = f'{int(DBS_EXPECTED_CLOSING_BALANCE):,}'; await expect(page.locator('body')).to_contain_text(closing_str, timeout=10000); await page.goto(_get_url('/dashboard')); await page.wait_for_load_state('domcontentloaded'); assert '/login' not in page.url; await expect(page.get_by_label('Three-statement cockpit', exact=True)).to_be_visible(timeout=15000); balance_card = page.locator('[data-testid="cockpit-card-balance-sheet"]'); await expect(balance_card).to_contain_text('Total assets', timeout=15000); await expect(balance_card).to_contain_text(closing_str, timeout=15000); await expect(balance_card).to_contain_text('Net worth', timeout=15000); await page.goto(_get_url('/reports?tab=income-statement')); await page.wait_for_load_state('domcontentloaded'); await expect(page.get_by_text('Income Statement', exact=False).first).to_be_visible(timeout=10000); await page.goto(_get_url('/reports?tab=cash-flow')); await page.wait_for_load_state('domcontentloaded'); await expect(page.get_by_text('Cash Flow', exact=False).first).to_be_visible(timeout=10000)
+    page = authenticated_page_unique
+    statement_id = await upload_statement_via_ui(
+        page,
+        institution=INSTITUTION_LABEL,
+        file_path=unique_pdf_copy(committed_fixture_pdf("dbs_statement_fixture.pdf")),
+    )
+    default_model = await page.locator(
+        '[data-testid="uploader-model-statement"]'
+    ).input_value()
+
+    row = page.locator(".relative.block").filter(has_text=INSTITUTION_LABEL).first
+    await expect(row).to_be_visible(timeout=15000)
+    last_statement = await poll_statement_via_page(
+        page, statement_id, timeout_ms=120000, poll_ms=3000
+    )
+    if (
+        last_statement.get("status") == "rejected"
+        or await row.locator(
+            "span.badge", has_text=re.compile("^Rejected$", re.I)
+        ).is_visible()
+    ):
+        fail_or_skip_ai_ocr_gate(
+            "Statement parsing failed (status=rejected) — AI service may be unavailable or misconfigured on the test environment.",
+            statement=last_statement,
+            model=default_model,
+        )
+    await expect(
+        row.locator(
+            "span.badge",
+            has_text=PARSED_STATUS_BADGE_RE
+            if last_statement.get("status") == "parsed"
+            else re.compile("^Approved$", re.I),
+        )
+    ).to_be_visible(timeout=15000)
+
+    await page.goto(get_url(f"/statements/{statement_id}"))
+    await expect(page).to_have_url(re.compile("/statements/[^/]+$"), timeout=15000)
+    await expect(
+        page.get_by_role("heading", name="Transactions", exact=True)
+    ).to_be_visible(timeout=10000)
+    await expect(page.locator("table tbody tr").first).to_be_visible(timeout=10000)
+    if last_statement.get("status") != "approved":
+        await page.get_by_role("button", name="Approve", exact=True).click()
+        dialog = page.locator('[role="dialog"]')
+        await expect(dialog).to_be_visible(timeout=5000)
+        async with page.expect_response(
+            lambda r: r.url.endswith(f"/api/statements/{statement_id}/approvals")
+        ) as approval_info:
+            await dialog.get_by_role("button", name="Approve", exact=True).click()
+        approval_resp = await approval_info.value
+        if approval_resp.status == 409:
+            review_link = page.get_by_role(
+                "link", name="Review transaction classifications"
+            )
+            await expect(review_link).to_be_visible(timeout=15000)
+            await expect(review_link).to_have_attribute(
+                "href",
+                f"/reconciliation?tab=unmatched&statement_id={statement_id}&return_to=%2Fstatements%2F{statement_id}",
+            )
+            async with httpx.AsyncClient(
+                headers=await auth_headers(page), verify=False, timeout=120.0
+            ) as client:
+                approval = await approve_statement_with_fixture_review(
+                    client,
+                    api_url=api_url,
+                    statement_id=str(statement_id),
+                    transactions=last_statement.get("transactions") or [],
+                    dispositions=DBS_DISPOSITIONS,
+                )
+            assert approval.get("status") == "approved"
+            await page.goto(get_url(f"/statements/{statement_id}"))
+        else:
+            assert approval_resp.status == 200, (
+                f"approve failed: {approval_resp.status}"
+            )
+            await expect(page).to_have_url(
+                re.compile("/statements/[^/?]+(?:\\?.*)?$"), timeout=15000
+            )
+    await expect(page.locator("span.badge", has_text="approved")).to_be_visible(
+        timeout=15000
+    )
+
+    await page.goto(get_url("/upload"))
+    await expect(page).to_have_url(re.compile("/upload$"), timeout=15000)
+    approved_row = (
+        page.locator(".relative.block").filter(has_text=INSTITUTION_LABEL).first
+    )
+    await expect(approved_row).to_be_visible(timeout=15000)
+    await expect(
+        approved_row.locator("span.badge", has_text=re.compile("^Approved$", re.I))
+    ).to_be_visible(timeout=15000)
+
+    expected = json.loads(DBS_EXPECTED_PATH.read_text(encoding="utf-8"))
+    detail = await (
+        await page.request.get(get_url(f"/api/statements/{statement_id}"))
+    ).json()
+    account_id = detail.get("account_id")
+    assert (
+        account_id
+        and money_amount(detail["opening_balance"]) == DBS_EXPECTED_OPENING_BALANCE
+        and money_amount(detail["closing_balance"]) == DBS_EXPECTED_CLOSING_BALANCE
+        and (detail.get("currency") or "").upper() == DBS_EXPECTED_CURRENCY
+        and len(detail.get("transactions") or []) >= len(expected["events"])
+    )
+    async with httpx.AsyncClient(
+        headers=await auth_headers(page), verify=False, timeout=120.0
+    ) as client:
+        await create_opening_balances(
+            client,
+            entry_date=expected["statement"]["period_start"],
+            balances={account_id: str(DBS_EXPECTED_OPENING_BALANCE)},
+            currency=DBS_EXPECTED_CURRENCY,
+            memo="DBS E2E opening balance",
+        )
+    report = await (
+        await page.request.get(
+            get_url(
+                f"/api/reports/balance-sheet?as_of_date={expected['statement']['period_end']}&currency={DBS_EXPECTED_CURRENCY}"
+            )
+        )
+    ).json()
+    assert (
+        money_amount(report["total_assets"]) == DBS_EXPECTED_CLOSING_BALANCE
+        and report.get("opening_balance_warnings") == []
+        and money_amount(report["equation_delta"]) == Decimal("0.00")
+        and report["is_balanced"] is True
+    )
+
+    await page.goto(get_url("/reports?tab=balance-sheet"))
+    await page.wait_for_load_state("domcontentloaded")
+    closing_str = f"{int(DBS_EXPECTED_CLOSING_BALANCE):,}"
+    await expect(page.get_by_text("Balance Sheet", exact=False).first).to_be_visible(
+        timeout=10000
+    )
+    await expect(page.get_by_text("Assets", exact=False).first).to_be_visible(
+        timeout=10000
+    )
+    await expect(page.locator("body")).to_contain_text(closing_str, timeout=10000)
+
+    await page.goto(get_url("/dashboard"))
+    await page.wait_for_load_state("domcontentloaded")
+    assert "/login" not in page.url
+    await expect(
+        page.get_by_label("Three-statement cockpit", exact=True)
+    ).to_be_visible(timeout=15000)
+    balance_card = page.locator('[data-testid="cockpit-card-balance-sheet"]')
+    for text in ("Total assets", closing_str, "Net worth"):
+        await expect(balance_card).to_contain_text(text, timeout=15000)
+    for tab, text in (
+        ("income-statement", "Income Statement"),
+        ("cash-flow", "Cash Flow"),
+    ):
+        await page.goto(get_url(f"/reports?tab={tab}"))
+        await page.wait_for_load_state("domcontentloaded")
+        await expect(page.get_by_text(text, exact=False).first).to_be_visible(
+            timeout=10000
+        )

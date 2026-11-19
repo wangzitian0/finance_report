@@ -1,1 +1,30 @@
-import { readdirSync, readFileSync, statSync } from "node:fs"; import { dirname, join, relative, resolve, sep } from "node:path"; import { fileURLToPath } from "node:url"; import { describe, expect, it } from "vitest"; import { MUTATION_INVALIDATION_MATRIX, declaredInvalidations, declaredMutationCountByFile, } from "./fixtures/mutationInvalidationMatrix"; const here = dirname(fileURLToPath(import.meta.url)); const srcRoot = resolve(here, ".."); const CALL_SITE_RE = /\buseMutation\s*[(<]/g; function isExcluded(path: string): boolean { const posix = path.split(sep).join("/"); return ( posix.includes("/__tests__/") || posix.includes("/tests/") || /\.(test|spec)\.tsx?$/.test(posix) ); }; function walkSourceFiles(dir: string, out: string[] = []): string[] { for (const entry of readdirSync(dir)) { const full = join(dir, entry); if (statSync(full).isDirectory()) { walkSourceFiles(full, out); } else if (/\.tsx?$/.test(entry) && !isExcluded(full)) { out.push(full); } }; return out; }; function actualMutationCountByFile(): Map<string, number> { const counts = new Map<string, number>(); for (const file of walkSourceFiles(srcRoot)) { const matches = readFileSync(file, "utf-8").match(CALL_SITE_RE); if (matches && matches.length > 0) { counts.set(relative(srcRoot, file).split(sep).join("/"), matches.length); } }; return counts; }; describe("mutation invalidation matrix lock (#1827 G-no-undeclared-mutations)", () => { it("AC-testing.fe-async.3 every useMutation call site in src/ has a matrix row", () => { const actual = actualMutationCountByFile(); const declared = declaredMutationCountByFile(); for (const [file, count] of actual) { expect( declared.get(file), `${file} has ${count} useMutation call site(s); declare each flow in ` + "MUTATION_INVALIDATION_MATRIX (src/__tests__/fixtures/mutationInvalidationMatrix.ts)", ).toBe(count); }; for (const [file, count] of declared) { expect( actual.get(file), `${file} declares ${count} matrix row(s) but has no matching ` + "useMutation call sites — remove or update the stale declaration", ).toBe(count); } }); it("AC-testing.fe-async.3 declaredInvalidations resolves known flows and rejects unknown ones", () => { expect(declaredInvalidations("accounts.delete")).toEqual([["accounts"]]); expect(() => declaredInvalidations("not-a-flow")).toThrow( /not declared in MUTATION_INVALIDATION_MATRIX/, ); }); it("AC-testing.fe-async.3 flows are unique and empty invalidations carry a reason", () => { const flows = MUTATION_INVALIDATION_MATRIX.map((r) => r.flow); expect(new Set(flows).size).toBe(flows.length); for (const rule of MUTATION_INVALIDATION_MATRIX) { if (rule.invalidates.length === 0) { expect( rule.noInvalidationReason, `flow '${rule.flow}' invalidates nothing — declare why`, ).toBeTruthy(); } else { for (const key of rule.invalidates) { expect(key.length, `flow '${rule.flow}' declares an empty query key`).toBeGreaterThan(0); } } } }); });
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { join, relative, resolve, sep } from "node:path";
+import { expect, it } from "vitest";
+import { MUTATION_INVALIDATION_MATRIX, declaredInvalidations, declaredMutationCountByFile } from "./fixtures/mutationInvalidationMatrix";
+const srcRoot = resolve(__dirname, "..");
+const walk = (d: string, out: string[] = []): string[] => {
+  for (const e of readdirSync(d)) {
+    const f = join(d, e), x = f.split(sep).join("/");
+    if (statSync(f).isDirectory()) walk(f, out);
+    else if (/\.tsx?$/.test(e) && !x.includes("/__tests__/") && !x.includes("/tests/") && !/\.(test|spec)\.tsx?$/.test(x)) out.push(f);
+  }
+  return out;
+};
+it("AC-testing.fe-async.3 mutation invalidation matrix lock (#1827)", () => {
+  const actual = new Map<string, number>();
+  for (const f of walk(srcRoot)) {
+    const m = readFileSync(f, "utf-8").match(/\buseMutation\s*[(<]/g);
+    if (m?.length) actual.set(relative(srcRoot, f).split(sep).join("/"), m.length);
+  }
+  const declared = declaredMutationCountByFile();
+  for (const [f, n] of actual) expect(declared.get(f), f).toBe(n);
+  for (const [f, n] of declared) expect(actual.get(f), f).toBe(n);
+  expect(declaredInvalidations("accounts.delete")).toEqual([["accounts"]]);
+  expect(() => declaredInvalidations("not-a-flow")).toThrow(/not declared in MUTATION_INVALIDATION_MATRIX/);
+  expect(new Set(MUTATION_INVALIDATION_MATRIX.map((r) => r.flow)).size).toBe(MUTATION_INVALIDATION_MATRIX.length);
+  for (const r of MUTATION_INVALIDATION_MATRIX) {
+    if (r.invalidates.length === 0) expect(r.noInvalidationReason, r.flow).toBeTruthy();
+    else for (const k of r.invalidates) expect(k.length, r.flow).toBeGreaterThan(0);
+  }
+});

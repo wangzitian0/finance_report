@@ -1,45 +1,295 @@
-from __future__ import annotations; import asyncio; import os; import shutil; import tempfile; import time; import uuid; from datetime import date, timedelta; from decimal import ROUND_HALF_UP, Decimal; from pathlib import Path; import httpx; import pytest; from common.testing import money_amount; from common.testing.ac_proof import ac_proof; from tests.fixtures.provider_review import FixtureEnvelope, FixtureDisposition, approve_statement_with_fixture_review; from conftest import fail_or_skip_ai_ocr_gate; from pdf_fixture_paths import generated_pdf_path; from playwright.async_api import Page, expect; APP_URL: str = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS: int = int(os.getenv('PARSING_TIMEOUT_MS', '480000')); BANK_INSTITUTION = 'Four Asset E2E Bank'; BANK_CASH = Decimal("2500.00"); PROPERTY_VALUE = Decimal("1200000.00"); MORTGAGE_BALANCE = Decimal("650000.00"); ESOP_VALUE = Decimal("42000.00"); DASHBOARD_NET_WORTH_LABEL = 'Net Worth'; BANK_DISPOSITIONS = {'Four Asset Salary': FixtureDisposition(intent='income', account_type='INCOME', category='SALARY', rationale='The synthetic fixture declares this row as salary income.'), 'Four Asset Rent': FixtureDisposition(intent='expense', account_type='EXPENSE', category='RENT', rationale='The synthetic fixture declares this row as rent expense.')}; _api_url = lambda path: f"{APP_URL.rstrip('/')}/api{path}"; _get_url = lambda path: f"{APP_URL.rstrip('/')}{path}"  # AC-reconciliation.2561.1
-def _dashboard_amount(amount: Decimal) -> str: rounded = amount.quantize(Decimal('1'), rounding=ROUND_HALF_UP); return f'{int(rounded):,}'
-def _report_amount(amount: Decimal) -> str: rounded = amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP); return f'{rounded:,.2f}'
-def test_dashboard_net_worth_label_matches_current_product_copy() -> None: 'EPIC-005 EPIC-008 EPIC-011 EPIC-017'; assert DASHBOARD_NET_WORTH_LABEL == 'Net Worth'
-def _write_bank_fixture(tmp_path: Path, report_date: date) -> Path: path = tmp_path / 'four_asset_bank_statement.csv'; path.write_text('\n'.join(['Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount', f'SGD,{report_date.isoformat()},{report_date.isoformat()},0.00,2500.00,{report_date.isoformat()},Four Asset Salary,3000.00', f'SGD,{report_date.isoformat()},{report_date.isoformat()},0.00,2500.00,{report_date.isoformat()},Four Asset Rent,-500.00', '']), encoding='utf-8'); return path
-def _unique_pdf_copy(src: Path) -> Path:
-    suffix = int(time.time() * 1000) % 1000000; tmp = Path(tempfile.mkdtemp()); dest = tmp / f'{src.stem}_{suffix}{src.suffix}'; shutil.copy2(src, dest)
-    with dest.open('ab') as fh: fh.write(f'\n%% E2E test run {uuid.uuid4()}\n'.encode())
-    return dest
-async def _auth_headers(page: Page) -> dict[str, str]: cookies = await page.context.cookies(APP_URL); auth_cookie = next((cookie for cookie in cookies if cookie['name'] == 'finance_access_token'), None); assert auth_cookie, 'authenticated Playwright context is missing auth cookie'; return {'Cookie': f"finance_access_token={auth_cookie['value']}"}
-async def _default_image_model(client: httpx.AsyncClient) -> str: response = await client.get(_api_url('/llm/catalog?modality=image')); assert response.status_code == 200, f'model catalog request failed: {response.status_code} {response.text}'; payload = response.json(); return payload.get('default_model') or payload['models'][0]['id']
-async def _upload_bank_csv(client: httpx.AsyncClient, fixture_path: Path) -> str:
-    with fixture_path.open('rb') as fh: response = await client.post(_api_url('/statements'), data={'institution': BANK_INSTITUTION}, files={'file': (fixture_path.name, fh, 'text/csv')})
-    assert response.status_code in (200, 201, 202), f'bank upload failed: {response.status_code} {response.text}'; statement_id = response.json().get('id'); assert statement_id, f'bank upload response missing id: {response.text}'; return str(statement_id)
-async def _upload_brokerage_pdf(client: httpx.AsyncClient, *, source: str, institution: str, model: str, period_end: date) -> str:
-    pdf_path = _unique_pdf_copy(generated_pdf_path(source, period_end=period_end))
-    with pdf_path.open('rb') as fh: response = await client.post(_api_url('/statements'), data={'institution': institution, 'model': model}, files={'file': (pdf_path.name, fh, 'application/pdf')})
-    assert response.status_code in (200, 201, 202), f'{source} upload failed: {response.status_code} {response.text}'; statement_id = response.json().get('id'); assert statement_id, f'{source} upload response missing id: {response.text}'; return str(statement_id)
-def _transaction_count(payload: dict | None) -> int | None: transactions = payload.get('transactions') if payload else None; return len(transactions) if isinstance(transactions, list) else None
-def _statement_timeout_message(statement_id: str, last_payload: dict | None) -> str:
-    if not last_payload: return f'statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms'
-    return f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms; status={last_payload.get('status')!r}; parsing_progress={last_payload.get('parsing_progress')!r}; transactions={_transaction_count(last_payload)!r}; balance_validated={last_payload.get('balance_validated')!r}; validation_error={last_payload.get('validation_error')!r}"
-async def _wait_for_parsed_statement(client: httpx.AsyncClient, statement_id: str, *, gate_name: str, require_transactions: bool=True) -> dict:
-    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000; last_payload: dict | None = None
-    while asyncio.get_running_loop().time() < deadline:
-        response = await client.get(_api_url(f'/statements/{statement_id}')); assert response.status_code == 200, f'{gate_name} statement poll failed for {statement_id}: {response.status_code} {response.text}'; last_payload = response.json(); status = last_payload.get('status'); fail_or_skip_ai_ocr_gate(f"{gate_name} gate rejected statement {statement_id}: {last_payload.get('validation_error')}", statement=last_payload) if status == 'rejected' else None
-        if status == 'parsed':
-            if require_transactions: assert last_payload.get('transactions'), f'{gate_name} parsed statement {statement_id} has no transactions: {last_payload}'
-            return last_payload
-        await asyncio.sleep(5)
-    pytest.fail(_statement_timeout_message(statement_id, last_payload))
-async def _create_manual_snapshot(client: httpx.AsyncClient, *, component_type: str, as_of_date: date, value: Decimal, source: str) -> dict: payload = {'component_type': component_type, 'as_of_date': as_of_date.isoformat(), 'value': str(value), 'currency': 'SGD', 'source': source}; response = await client.post(_api_url('/pricing/manual-valuations'), json=payload); assert response.status_code == 201, f'manual valuation snapshot create failed for {component_type}: {response.status_code} {response.text}'; return response.json()
-_line_total = lambda lines: money_amount(sum((money_amount(line.get('amount', '0')) for line in lines), Decimal('0.00')))
-def _lines_by_name(lines: list[dict], token: str) -> list[dict]: token_lower = token.lower(); return [line for line in lines if token_lower in str(line.get('name', '')).lower()]
-def _line_total_by_name(lines: list[dict], token: str) -> Decimal: matches = _lines_by_name(lines, token); assert matches, f'missing balance-sheet line containing {token!r}; lines={lines}'; return _line_total(matches)
-def _line_total_by_account(lines: list[dict], account_id: str) -> Decimal: matches = [line for line in lines if str(line.get('account_id')) == str(account_id)]; assert matches, f'missing balance-sheet line for account {account_id}; lines={lines}'; return _line_total(matches)
-@ac_proof('four-asset-as-of-net-worth', ac_ids=['AC-testing.product-gates.7', 'AC-extraction.813.10', 'AC-reporting.net-worth-timeseries.2', 'AC-pricing.manualvaluation.5', 'AC-pricing.manualvaluation.6', 'AC-pricing.manualvaluation.7', 'AC-portfolio.valuation.1'], scope='behavioral', ci_tier='post_merge_environment', trust_mode='llm_ocr_post_merge', source_classes=['bank_statement', 'brokerage_statement', 'property_statement', 'liability_statement', 'manual_record'], mirror_proof_id='personal-package-document-pr', issue='#444', required_markers=['e2e', 'tier3', 'critical', 'llm'])
+from __future__ import annotations
+
+from datetime import date, timedelta
+from decimal import ROUND_HALF_UP, Decimal
+from pathlib import Path
+
+import httpx
+import pytest
+from common.testing import money_amount
+from playwright.async_api import Page, expect
+from tests.fixtures.provider_review import (
+    FixtureDisposition,
+    FixtureEnvelope,
+    approve_statement_with_fixture_review,
+)
+
+from tests.e2e._journey_helpers import (
+    api_url,
+    auth_headers,
+    create_manual_valuation,
+    default_image_model,
+    get_json,
+    get_url,
+    import_brokerage_and_holdings,
+    line_total,
+    reconcile_twice_and_assert_clean,
+    unique_pdf_copy,
+    upload_statement,
+    wait_for_statement,
+)
+from tests.e2e.pdf_fixture_paths import generated_pdf_path
+
+BANK_CASH, PROPERTY_VALUE, MORTGAGE_BALANCE, ESOP_VALUE = (
+    Decimal("2500.00"),
+    Decimal("1200000.00"),
+    Decimal("650000.00"),
+    Decimal("42000.00"),
+)
+DASHBOARD_NET_WORTH_LABEL = "Net Worth"
+BANK_DISPOSITIONS = {
+    "Four Asset Salary": FixtureDisposition(
+        intent="income",
+        account_type="INCOME",
+        category="SALARY",
+        rationale="The synthetic fixture declares this row as salary income.",
+    ),
+    "Four Asset Rent": FixtureDisposition(
+        intent="expense",
+        account_type="EXPENSE",
+        category="RENT",
+        rationale="The synthetic fixture declares this row as rent expense.",
+    ),
+}
+
+
+def _dashboard_amount(amount: Decimal) -> str:
+    return f"{int(amount.quantize(Decimal('1'), rounding=ROUND_HALF_UP)):,}"
+
+
+def _report_amount(amount: Decimal) -> str:
+    return f"{amount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP):,.2f}"
+
+
+def test_dashboard_net_worth_label_matches_current_product_copy() -> None:
+    assert DASHBOARD_NET_WORTH_LABEL == "Net Worth"
+
+
+def _line_total_matching(
+    lines: list[dict], *, key: str, value: str, exact: bool = False
+) -> Decimal:
+    matches = [
+        ln
+        for ln in lines
+        if (
+            str(ln.get(key)) == value
+            if exact
+            else value.lower() in str(ln.get(key, "")).lower()
+        )
+    ]
+    assert matches, f"missing balance-sheet line for {key}={value!r}; lines={lines}"
+    return line_total(matches)
+
+
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical
 @pytest.mark.llm
-async def test_four_asset_as_of_net_worth_golden_path(authenticated_page_unique: Page, tmp_path: Path) -> None:
-    'AC-testing.product-gates.7 AC-extraction.813.10 AC-reporting.net-worth-timeseries.2 AC-pricing.manualvaluation.5 AC-pricing.manualvaluation.6 AC-pricing.manualvaluation.7 AC-portfolio.valuation.1 EPIC-005 EPIC-008 EPIC-011 EPIC-017'; page = authenticated_page_unique; report_date = date.today().replace(day=1) - timedelta(days=1); headers = await _auth_headers(page)
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client: bank_fixture = _write_bank_fixture(tmp_path, report_date); bank_statement_id = await _upload_bank_csv(client, bank_fixture); parsed_bank = await _wait_for_parsed_statement(client, bank_statement_id, gate_name='bank CSV'); assert len(parsed_bank.get('transactions') or []) == 2; approval = await approve_statement_with_fixture_review(client, api_url=_api_url, statement_id=bank_statement_id, transactions=parsed_bank['transactions'], dispositions=BANK_DISPOSITIONS, envelope=FixtureEnvelope(currency='SGD', period_start=report_date, period_end=report_date, opening_balance=Decimal('0.00'), closing_balance=Decimal('2500.00'), rationale='The four-asset bank CSV header declares these source facts.')); assert approval['journal_entries_created'] + approval['reviewed_dispositions'] == 2; bank_statement_response = await client.get(_api_url(f'/statements/{bank_statement_id}')); assert bank_statement_response.status_code == 200, f'bank statement lookup failed: {bank_statement_response.status_code} {bank_statement_response.text}'; bank_account_id = bank_statement_response.json().get('account_id'); assert bank_account_id, 'the approved bank statement must be linked to an account'; journal_response = await client.get(_api_url('/journal-entries?limit=6')); assert journal_response.status_code == 200, f'journal entry check failed: {journal_response.status_code} {journal_response.text}'; journal_payload = journal_response.json(); assert journal_payload['total'] == 2; assert {item['status'].lower() for item in journal_payload['items']} == {'posted'}; assert {item['memo'] for item in journal_payload['items']} == {'Four Asset Salary', 'Four Asset Rent'}; first_reconciliation = await client.post(_api_url('/reconciliation/runs'), json={'statement_id': bank_statement_id}); assert first_reconciliation.status_code == 200, f'first reconciliation failed: {first_reconciliation.status_code} {first_reconciliation.text}'; assert first_reconciliation.json() == {'matches_created': 0, 'auto_accepted': 0, 'pending_review': 0, 'unmatched': 0}; second_reconciliation = await client.post(_api_url('/reconciliation/runs'), json={'statement_id': bank_statement_id}); assert second_reconciliation.status_code == 200, f'second reconciliation failed: {second_reconciliation.status_code} {second_reconciliation.text}'; assert second_reconciliation.json() == {'matches_created': 0, 'auto_accepted': 0, 'pending_review': 0, 'unmatched': 0}; stage2_queue = await client.get(_api_url('/reconciliation/review-queue')); assert stage2_queue.status_code == 200, f'stage 2 queue check failed: {stage2_queue.status_code} {stage2_queue.text}'; stage2_payload = stage2_queue.json(); assert stage2_payload['pending_matches'] == []; assert stage2_payload['has_unresolved_checks'] is False; model = await _default_image_model(client); brokerage_statement_id = await _upload_brokerage_pdf(client, source='moomoo', institution='Moomoo Four Asset E2E', model=model, period_end=report_date); parsed_brokerage = await _wait_for_parsed_statement(client, brokerage_statement_id, gate_name='brokerage PDF', require_transactions=False); import_response = await client.post(_api_url('/portfolio/brokerage-imports'), json={'statement_id': parsed_brokerage['id']}); assert import_response.status_code == 200, f'brokerage import failed: {import_response.status_code} {import_response.text}'; import_payload = import_response.json(); assert import_payload['parsed_positions'] > 0, f'no brokerage positions imported: {import_payload}'; holdings_response = await client.get(_api_url('/portfolio/holdings')); assert holdings_response.status_code == 200, f'holdings check failed: {holdings_response.status_code} {holdings_response.text}'; holdings = holdings_response.json()['items']; assert len(holdings) >= import_payload['parsed_positions'], f'missing imported holdings: {holdings}'; brokerage_value = money_amount(sum((money_amount(item['market_value']) for item in holdings), Decimal('0.00'))); assert brokerage_value > Decimal('0.00'), f'brokerage holdings have no market value: {holdings}'; property_snapshot = await _create_manual_snapshot(client, component_type='property_value', as_of_date=report_date, value=PROPERTY_VALUE, source='Four Asset Condo'); mortgage_snapshot = await _create_manual_snapshot(client, component_type='mortgage_balance', as_of_date=report_date, value=MORTGAGE_BALANCE, source='Four Asset Mortgage'); esop_snapshot = await _create_manual_snapshot(client, component_type='esop', as_of_date=report_date, value=ESOP_VALUE, source='Four Asset ESOP'); assert property_snapshot['liquidity_class'] == 'illiquid'; assert mortgage_snapshot['liquidity_class'] == 'liability'; assert esop_snapshot['liquidity_class'] == 'restricted'; components_response = await client.get(_api_url(f'/pricing/valuation-components?as_of_date={report_date.isoformat()}&include_restricted=true')); assert components_response.status_code == 200, f'valuation components check failed: {components_response.status_code} {components_response.text}'; components = components_response.json(); assert money_amount(components['total_assets']) == PROPERTY_VALUE + ESOP_VALUE; assert money_amount(components['total_liabilities']) == MORTGAGE_BALANCE; assert money_amount(components['net_worth_delta']) == PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE; balance_response = await client.get(_api_url(f'/reports/balance-sheet?as_of_date={report_date.isoformat()}&currency=SGD&include_restricted=true')); assert balance_response.status_code == 200, f'balance sheet check failed: {balance_response.status_code} {balance_response.text}'; balance_sheet = balance_response.json(); asset_lines = [line for line in balance_sheet.get('assets', []) if isinstance(line, dict)]; liability_lines = [line for line in balance_sheet.get('liabilities', []) if isinstance(line, dict)]; market_lines = _lines_by_name(asset_lines, 'market valuation adjustment'); market_total = _line_total(market_lines); expected_assets = money_amount(BANK_CASH + brokerage_value + PROPERTY_VALUE + ESOP_VALUE); expected_liabilities = MORTGAGE_BALANCE; expected_net_worth = money_amount(expected_assets - expected_liabilities); expected_net_worth_adjustment = money_amount(brokerage_value + PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE); assert _line_total_by_account(asset_lines, bank_account_id) == BANK_CASH; assert market_total == brokerage_value, f'brokerage market value did not reach reporting exactly; holdings={holdings}; market_lines={market_lines}; balance_sheet={balance_sheet}'; assert _line_total_by_name(asset_lines, 'Four Asset Condo') == PROPERTY_VALUE; assert _line_total_by_name(asset_lines, 'Four Asset ESOP') == ESOP_VALUE; assert _line_total_by_name(liability_lines, 'Four Asset Mortgage') == MORTGAGE_BALANCE; assert money_amount(balance_sheet['total_assets']) == expected_assets; assert money_amount(balance_sheet['total_liabilities']) == expected_liabilities; assert money_amount(balance_sheet['total_assets']) - money_amount(balance_sheet['total_liabilities']) == expected_net_worth; assert money_amount(balance_sheet['net_worth_adjustment_gain_loss']) == expected_net_worth_adjustment; assert money_amount(balance_sheet['equation_delta']) == Decimal('0.00'); assert balance_sheet['is_balanced'] is True; timeseries_response = await client.get(_api_url(f'/reports/net-worth/timeseries?from={report_date.isoformat()}&to={report_date.isoformat()}&granularity=daily&currency=SGD')); assert timeseries_response.status_code == 200, f'net-worth timeseries failed: {timeseries_response.status_code} {timeseries_response.text}'; timeseries = timeseries_response.json(); assert timeseries['currency'] == 'SGD'; assert timeseries['points'], f'empty net-worth timeseries: {timeseries}'; latest_point = timeseries['points'][-1]; assert latest_point['date'] == report_date.isoformat(); assert money_amount(latest_point['total_assets']) == expected_assets; assert money_amount(latest_point['total_liabilities']) == expected_liabilities; assert money_amount(latest_point['net_worth']) == expected_net_worth; assert latest_point['currency'] == 'SGD'
-    await page.goto(_get_url('/dashboard')); await page.wait_for_load_state('domcontentloaded'); await expect(page.get_by_label('Three-statement cockpit', exact=True)).to_be_visible(timeout=10000); include_checkbox = page.get_by_label('Include restricted holdings'); await expect(include_checkbox).to_be_visible(timeout=10000); await include_checkbox.check() if not await include_checkbox.is_checked() else None; await expect(page.locator('.card').filter(has_text='Total Assets').filter(has_text=_dashboard_amount(expected_assets))).to_be_visible(timeout=15000); await expect(page.locator('.card').filter(has_text='Total Liabilities').filter(has_text=_dashboard_amount(expected_liabilities))).to_be_visible(timeout=15000); await expect(page.locator('.card').filter(has_text=DASHBOARD_NET_WORTH_LABEL).filter(has_text=_dashboard_amount(expected_net_worth))).to_be_visible(timeout=15000); await page.goto(_get_url(f'/reports?tab=balance-sheet&end={report_date.isoformat()}&currency=SGD&include_restricted=true')); await page.wait_for_load_state('domcontentloaded'); await expect(page.get_by_role('heading', name='Balance Sheet')).to_be_visible(timeout=10000); await expect(page.locator('.card').filter(has_text='Assets').filter(has_text='Total:')).to_contain_text(_report_amount(expected_assets), timeout=15000); await expect(page.locator('.card').filter(has_text='Liabilities').filter(has_text='Total:')).to_contain_text(_report_amount(expected_liabilities), timeout=15000)  # market valuation adjustment /approvals
+async def test_four_asset_as_of_net_worth_golden_path(
+    authenticated_page_unique: Page, tmp_path: Path
+) -> None:
+    page, report_date = (
+        authenticated_page_unique,
+        date.today().replace(day=1) - timedelta(days=1),
+    )
+    d = report_date.isoformat()
+    csv_bytes = "\n".join(
+        [
+            "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount",
+            f"SGD,{d},{d},0.00,2500.00,{d},Four Asset Salary,3000.00",
+            f"SGD,{d},{d},0.00,2500.00,{d},Four Asset Rent,-500.00",
+            "",
+        ]
+    ).encode("utf-8")
+    async with httpx.AsyncClient(
+        headers=await auth_headers(page), verify=False, timeout=120.0
+    ) as client:
+        bank_id = await upload_statement(
+            client,
+            filename="four_asset_bank_statement.csv",
+            content=csv_bytes,
+            content_type="text/csv",
+            institution="Four Asset E2E Bank",
+            label="bank",
+        )
+        parsed_bank = await wait_for_statement(
+            client,
+            bank_id,
+            poll_seconds=5,
+            target_statuses=("parsed",),
+            gate_name="bank CSV",
+            require_transactions=True,
+        )
+        assert len(parsed_bank["transactions"]) == 2
+        approval = await approve_statement_with_fixture_review(
+            client,
+            api_url=api_url,
+            statement_id=bank_id,
+            transactions=parsed_bank["transactions"],
+            dispositions=BANK_DISPOSITIONS,
+            envelope=FixtureEnvelope(
+                currency="SGD",
+                period_start=report_date,
+                period_end=report_date,
+                opening_balance=Decimal("0.00"),
+                closing_balance=Decimal("2500.00"),
+                rationale="The four-asset bank CSV header declares these source facts.",
+            ),
+        )
+        assert (
+            approval["journal_entries_created"] + approval["reviewed_dispositions"] == 2
+        )
+        bank_account_id = (await get_json(client, f"/statements/{bank_id}")).get(
+            "account_id"
+        )
+        assert bank_account_id
+        journal_payload = await get_json(client, "/journal-entries?limit=6")
+        assert (
+            journal_payload["total"] == 2
+            and {i["status"].lower() for i in journal_payload["items"]} == {"posted"}
+            and {i["memo"] for i in journal_payload["items"]}
+            == {"Four Asset Salary", "Four Asset Rent"}
+        )
+        await reconcile_twice_and_assert_clean(client, bank_id)
+
+        model = await default_image_model(client)
+        pdf_path = unique_pdf_copy(generated_pdf_path("moomoo", period_end=report_date))
+        brokerage_id = await upload_statement(
+            client,
+            filename=pdf_path.name,
+            content=pdf_path.read_bytes(),
+            content_type="application/pdf",
+            institution="Moomoo Four Asset E2E",
+            model=model,
+            label="moomoo",
+        )
+        parsed_brokerage = await wait_for_statement(
+            client,
+            brokerage_id,
+            poll_seconds=5,
+            target_statuses=("parsed",),
+            gate_name="brokerage PDF",
+        )
+        _, holdings = await import_brokerage_and_holdings(
+            client, parsed_brokerage["id"]
+        )
+        brokerage_value = money_amount(
+            sum(
+                (money_amount(item["market_value"]) for item in holdings),
+                Decimal("0.00"),
+            )
+        )
+        assert brokerage_value > Decimal("0.00")
+
+        for ctype, value, source, liq in (
+            ("property_value", PROPERTY_VALUE, "Four Asset Condo", "illiquid"),
+            ("mortgage_balance", MORTGAGE_BALANCE, "Four Asset Mortgage", "liability"),
+            ("esop", ESOP_VALUE, "Four Asset ESOP", "restricted"),
+        ):
+            assert (
+                await create_manual_valuation(
+                    client,
+                    component_type=ctype,
+                    as_of_date=report_date,
+                    value=value,
+                    source=source,
+                )
+            )["liquidity_class"] == liq
+
+        components = await get_json(
+            client,
+            f"/pricing/valuation-components?as_of_date={d}&include_restricted=true",
+        )
+        assert (
+            money_amount(components["total_assets"]) == PROPERTY_VALUE + ESOP_VALUE
+            and money_amount(components["total_liabilities"]) == MORTGAGE_BALANCE
+            and money_amount(components["net_worth_delta"])
+            == PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE
+        )
+
+        bs = await get_json(
+            client,
+            f"/reports/balance-sheet?as_of_date={d}&currency=SGD&include_restricted=true",
+        )
+        asset_lines, liability_lines = (
+            [ln for ln in bs.get("assets", []) if isinstance(ln, dict)],
+            [ln for ln in bs.get("liabilities", []) if isinstance(ln, dict)],
+        )
+        expected_assets = money_amount(
+            BANK_CASH + brokerage_value + PROPERTY_VALUE + ESOP_VALUE
+        )
+        expected_net_worth = money_amount(expected_assets - MORTGAGE_BALANCE)
+        assert (
+            _line_total_matching(
+                asset_lines, key="account_id", value=str(bank_account_id), exact=True
+            )
+            == BANK_CASH
+            and line_total(asset_lines, "market valuation adjustment")
+            == brokerage_value
+            and _line_total_matching(asset_lines, key="name", value="Four Asset Condo")
+            == PROPERTY_VALUE
+            and _line_total_matching(asset_lines, key="name", value="Four Asset ESOP")
+            == ESOP_VALUE
+            and _line_total_matching(
+                liability_lines, key="name", value="Four Asset Mortgage"
+            )
+            == MORTGAGE_BALANCE
+            and money_amount(bs["total_assets"]) == expected_assets
+            and money_amount(bs["total_liabilities"]) == MORTGAGE_BALANCE
+            and money_amount(bs["net_worth_adjustment_gain_loss"])
+            == money_amount(
+                brokerage_value + PROPERTY_VALUE + ESOP_VALUE - MORTGAGE_BALANCE
+            )
+            and money_amount(bs["equation_delta"]) == Decimal("0.00")
+            and bs["is_balanced"] is True
+        )
+
+        ts = await get_json(
+            client,
+            f"/reports/net-worth/timeseries?from={d}&to={d}&granularity=daily&currency=SGD",
+        )
+        assert ts["currency"] == "SGD" and ts["points"]
+        pt = ts["points"][-1]
+        assert (
+            pt["date"],
+            pt["currency"],
+            money_amount(pt["total_assets"]),
+            money_amount(pt["total_liabilities"]),
+            money_amount(pt["net_worth"]),
+        ) == (d, "SGD", expected_assets, MORTGAGE_BALANCE, expected_net_worth)
+
+    await page.goto(get_url("/dashboard"))
+    await page.wait_for_load_state("domcontentloaded")
+    await expect(
+        page.get_by_label("Three-statement cockpit", exact=True)
+    ).to_be_visible(timeout=10000)
+    include_cb = page.get_by_label("Include restricted holdings")
+    await expect(include_cb).to_be_visible(timeout=10000)
+    if not await include_cb.is_checked():
+        await include_cb.check()
+    for label, amount in (
+        ("Total Assets", expected_assets),
+        ("Total Liabilities", MORTGAGE_BALANCE),
+        (DASHBOARD_NET_WORTH_LABEL, expected_net_worth),
+    ):
+        await expect(
+            page.locator(".card")
+            .filter(has_text=label)
+            .filter(has_text=_dashboard_amount(amount))
+        ).to_be_visible(timeout=15000)
+    await page.goto(
+        get_url(
+            f"/reports?tab=balance-sheet&end={d}&currency=SGD&include_restricted=true"
+        )
+    )
+    await page.wait_for_load_state("domcontentloaded")
+    await expect(page.get_by_role("heading", name="Balance Sheet")).to_be_visible(
+        timeout=10000
+    )
+    for label, amount in (
+        ("Assets", expected_assets),
+        ("Liabilities", MORTGAGE_BALANCE),
+    ):
+        await expect(
+            page.locator(".card").filter(has_text=label).filter(has_text="Total:")
+        ).to_contain_text(_report_amount(amount), timeout=15000)

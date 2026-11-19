@@ -1,29 +1,37 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"; import { render, screen, fireEvent } from "@testing-library/react"; import { ConflictResolutionDialog } from "@/components/statements/StatementReview"; describe("ConflictResolutionDialog", () => { const onClose = vi.fn(); beforeEach(() => { vi.clearAllMocks(); }); it("shows empty state when no candidates and closes on overlay and Close button", () => { render( <ConflictResolutionDialog
-isOpen={true}
-onClose={onClose}
-duplicateCandidates={[]}
-transferPairCandidates={[]}
-/> ); expect(screen.getByText("No conflicts detected for this statement.")).toBeInTheDocument(); const overlay = document.querySelector(".fixed.inset-0 > [aria-hidden='true']"); expect(overlay).not.toBeNull(); fireEvent.click(overlay!); expect(onClose).toHaveBeenCalledTimes(1); const closeButtons = screen.getAllByRole("button", { name: /Close/i }); const footerClose = closeButtons.find((b) => b.textContent?.trim() === "Close"); expect(footerClose).toBeDefined(); fireEvent.click(footerClose!); expect(onClose).toHaveBeenCalledTimes(2); fireEvent.click(screen.getByRole("button", { name: "Close modal" })); expect(onClose).toHaveBeenCalledTimes(3); }); it("renders duplicate and transfer candidates with action buttons", () => { const dup = [{ id: "txn-dup-1", description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]; const transfer = [{ id: "txn-transfer-1", description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }]; render( <ConflictResolutionDialog
-isOpen={true}
-onClose={onClose}
-duplicateCandidates={dup}
-transferPairCandidates={transfer}
-/> ); expect(screen.getByText("Duplicate Candidates")).toBeInTheDocument(); expect(screen.getByText("Dup One")).toBeInTheDocument(); expect(screen.getByText("Transfer Pair Candidates")).toBeInTheDocument(); expect(screen.getByText("Transfer A")).toBeInTheDocument(); expect(screen.getAllByText("Resolve").length).toBeGreaterThanOrEqual(1); expect(screen.getAllByText("Link Pair").length).toBeGreaterThanOrEqual(1); }); it("AC16.34.3 Resolve and Link Pair buttons call onResolve with the matching action", () => { const onResolve = vi.fn(); render( <ConflictResolutionDialog
-isOpen={true}
-onClose={onClose}
-duplicateCandidates={[{ id: "txn-dup-1", description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]}
-transferPairCandidates={[{ id: "txn-transfer-1", description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }]}
-onResolve={onResolve}
-/> ); fireEvent.click(screen.getByText("Resolve")); expect(onResolve).toHaveBeenCalledWith("confirm_distinct"); fireEvent.click(screen.getByText("Link Pair")); expect(onResolve).toHaveBeenCalledWith("link_transfer"); }); it("AC16.34.3 disables the action buttons while a resolution is in flight", () => { const onResolve = vi.fn(); render( <ConflictResolutionDialog
-isOpen={true}
-onClose={onClose}
-duplicateCandidates={[{ id: "txn-dup-1", description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }]}
-transferPairCandidates={[]}
-onResolve={onResolve}
-isResolving
-/> ); const resolving = screen.getByText("Resolving…"); expect(resolving).toBeDisabled(); fireEvent.click(resolving); expect(onResolve).not.toHaveBeenCalled(); }); it("calls onClose when Escape pressed inside dialog", () => { render( <ConflictResolutionDialog
-isOpen={true}
-onClose={onClose}
-duplicateCandidates={[]}
-transferPairCandidates={[]}
-/> ); fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" }); expect(onClose).toHaveBeenCalled(); }); }); // AC-reconciliation.fe-stage2-review.27
+import { fireEvent, render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ConflictResolutionDialog } from "@/components/statements/StatementReview";
+import { clk, has } from "./helpers/statementTestFixtures";
+
+const dup = [{ id: "d1", description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }];
+const xfer = [{ id: "x1", description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }];
+
+describe("ConflictResolutionDialog", () => {
+  const onClose = vi.fn();
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it("closes empty dialog via overlay, Close, Close modal, and Escape", () => {
+    render(<ConflictResolutionDialog isOpen onClose={onClose} duplicateCandidates={[]} transferPairCandidates={[]} />);
+    has(["No conflicts detected for this statement."]);
+    fireEvent.click(document.querySelector(".fixed.inset-0 > [aria-hidden='true']")!);
+    fireEvent.click(screen.getAllByRole("button", { name: /Close/i }).find((b) => b.textContent?.trim() === "Close")!);
+    clk("Close modal");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(4);
+  });
+
+  it("AC16.34.3 renders candidates, fires actions, and disables while resolving", () => {
+    const onResolve = vi.fn();
+    const { rerender } = render(<ConflictResolutionDialog isOpen onClose={onClose} duplicateCandidates={dup} transferPairCandidates={xfer} onResolve={onResolve} />);
+    has(["Duplicate Candidates", "Dup One", "Transfer Pair Candidates", "Transfer A"]);
+    fireEvent.click(screen.getByText("Resolve"));
+    expect(onResolve).toHaveBeenCalledWith("confirm_distinct");
+    fireEvent.click(screen.getByText("Link Pair"));
+    expect(onResolve).toHaveBeenCalledWith("link_transfer");
+    rerender(<ConflictResolutionDialog isOpen onClose={onClose} duplicateCandidates={dup} transferPairCandidates={[]} onResolve={onResolve} isResolving />);
+    const r = screen.getByText("Resolving…");
+    expect(r).toBeDisabled();
+    fireEvent.click(r);
+    expect(onResolve).toHaveBeenCalledTimes(2);
+  });
+});
