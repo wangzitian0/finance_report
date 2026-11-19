@@ -21,7 +21,7 @@ from src.reconciliation.extension.matching import MatchingContext, execute_match
 from src.reconciliation.extension.phases.normal_matching import run_normal_matching_phase
 from src.reconciliation.extension.phases.transfer_detection import run_transfer_detection_phase
 from src.reconciliation.extension.repository import SqlReconciliationRepository
-from src.reconciliation.extension.transfer_pairs import InvalidTransferPairError, list_unpaired_transfer_dispositions, persist_transfer_pairs
+from src.reconciliation.extension.transfer_pairs import InvalidTransferPairError, paired_transfer_entry_ids, persist_transfer_pairs
 from src.reconciliation.orm.reconciliation import DispositionKind, ReconciliationMatch, ReconciliationMatchJournalEntry, ReconciliationStatus, ReconciliationTransferPair, ReconciliationTransferPairLeg, TransferPairDecision, TransferPairLegRole, TransferPairReviewState
 from tests.factories import AccountFactory, AtomicTransactionFactory, UserFactory
 
@@ -105,14 +105,11 @@ async def test_AC_reconciliation_economic_disposition_2_and_3_uniqueness_and_con
 @pytest.mark.integration
 async def test_AC_reconciliation_economic_disposition_4_and_5_transfer_pair_round_trip(db: AsyncSession, test_user) -> None:
     uid = test_user.id
-    out_t, in_t, extra_t = _atomic(uid, desc="transfer out"), _atomic(uid, desc="transfer in", direction=TransactionDirection.IN), _atomic(uid, desc="unpaired")
+    out_t, in_t = _atomic(uid, desc="transfer out"), _atomic(uid, desc="transfer in", direction=TransactionDirection.IN)
     out_e, in_e = _journal(uid, "transfer out"), _journal(uid, "transfer in")
-    db.add_all([out_t, in_t, extra_t, out_e, in_e])
+    db.add_all([out_t, in_t, out_e, in_e])
     await db.flush()
     out_m, in_m = await _add_leg(db, out_t, out_e), await _add_leg(db, in_t, in_e)
-    extra_m = _match(extra_t.id, kind=DispositionKind.TRANSFER_LEG)
-    db.add(extra_m)
-    await db.flush()
     cand = TransferPair(out_entry=out_e, in_entry=in_e, confidence=96, score_breakdown={"amount": 100.0})
 
     for attr, bad in (("direction", TransactionDirection.OUT), ("currency", "USD"), ("currency", "XYZ")):
@@ -133,7 +130,7 @@ async def test_AC_reconciliation_economic_disposition_4_and_5_transfer_pair_roun
 
     persisted = await persist_transfer_pairs(db, [cand])
     assert len(persisted) == 1 and await persist_transfer_pairs(db, [cand]) == [] and ReconciliationTransferPair.__table__.c.score_breakdown.nullable is False
-    pid, out_mid, in_mid, extra_mid = persisted[0].id, out_m.id, in_m.id, extra_m.id
+    pid, out_mid, in_mid, out_eid, in_eid = persisted[0].id, out_m.id, in_m.id, out_e.id, in_e.id
     with pytest.raises(InvalidTransferPairError):
         await persist_transfer_pairs(db, [TransferPair(out_entry=in_e, in_entry=out_e, confidence=95, score_breakdown={"amount": 100.0})])
 
@@ -142,7 +139,7 @@ async def test_AC_reconciliation_economic_disposition_4_and_5_transfer_pair_roun
     assert (stored.decision, stored.review_state, stored.version) == (TransferPairDecision.AUTO_PAIRED, TransferPairReviewState.PAIRED, 1)
     legs = (await db.scalars(select(ReconciliationTransferPairLeg).where(ReconciliationTransferPairLeg.pair_id == pid))).all()
     assert {(item.role, item.disposition_id) for item in legs} == {(TransferPairLegRole.OUT, out_mid), (TransferPairLegRole.IN, in_mid)}
-    assert [i.id for i in await list_unpaired_transfer_dispositions(db, user_id=uid)] == [extra_mid]
+    assert await paired_transfer_entry_ids(db, user_id=uid) == {out_eid, in_eid}
 
     with pytest.raises(IntegrityError):
         async with db.begin_nested():

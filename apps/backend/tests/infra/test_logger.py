@@ -7,12 +7,13 @@ import logging
 import sys
 import types
 from unittest.mock import patch
+from uuid import UUID
 
 from infra2_sdk.runtime.otel import OtelSettings, _JsonLogFormatter, signal_endpoint
 from opentelemetry.exporter.otlp.proto.common._internal import _encode_value
 
 from src import observability
-from src.observability import configure_logging, get_logger
+from src.observability import configure_logging, detect_pii, get_logger
 
 
 def test_sdk_json_formatter_otel_settings_and_endpoints(monkeypatch) -> None:
@@ -45,6 +46,8 @@ def test_configure_logging_sanitization_and_contextvars(monkeypatch) -> None:
     proc = observability._sanitize_fields({"event": "Account 1234567890 failed for holder S1234567A", "raw_response": '{"account_number": "1234567890"}', "Authorization": "Bearer secret-jwt-token", "nested": {"provider_response": "raw provider secret", "note": "Contact S1234567A on 1234567890"}, "items": ["Account 1234567890", "S1234567A"]})
     assert "1234567890" not in str(proc) and "S1234567A" not in str(proc) and (proc["raw_response"], proc["Authorization"]) == ("[REDACTED]", "[REDACTED]")
     assert proc["nested"] == {"provider_response": "[REDACTED]", "note": "Contact [NRIC] on [BANK_ACCOUNT]"} and proc["items"] == ["Account [BANK_ACCOUNT]", "[NRIC]"]
+    assert detect_pii("run_id=d2bb00b4-d59f-4e2a-809e-ea6b81234567 stmt=81234567-0123-4123-8123-123456789012 token=ea6b81234567") == []
+    assert observability._sanitize_fields({"run_id": UUID("d2bb00b4-d59f-4e2a-809e-ea6b81234567"), "stmt_id": "81234567-0123-4123-8123-123456789012", "phone": "+65 81234567"}) == {"run_id": "d2bb00b4-d59f-4e2a-809e-ea6b81234567", "stmt_id": "81234567-0123-4123-8123-123456789012", "phone": "[PHONE]"}
 
     root, stream = logging.getLogger(), io.StringIO()
     saved_handlers, saved_level = list(root.handlers), root.level

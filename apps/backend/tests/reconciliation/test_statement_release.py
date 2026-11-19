@@ -14,7 +14,6 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryStatus
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus, accepted_transfer_txn_ids, execute_matching, paired_transfer_entry_ids, release_transaction_dispositions
-from src.reconciliation.extension.transfer_pairs import list_unpaired_transfer_dispositions
 from tests.factories import UserFactory
 from tests.reconciliation.test_transfer_integration import _seed_statement, _seed_txn
 from tests.statement_ingestion import posting_dependencies
@@ -41,7 +40,6 @@ async def test_AC_extraction_2888_2_and_AC_reconciliation_2888_1_retire_releases
     out_eid, in_eid = UUID(out_m.journal_entry_ids[0]), UUID(in_m.journal_entry_ids[0])
     assert await accepted_transfer_txn_ids(db, [out_txn_id, in_txn_id]) == {out_txn_id, in_txn_id}
     assert await paired_transfer_entry_ids(db, user_id=test_user.id) == {out_eid, in_eid}
-    assert await list_unpaired_transfer_dispositions(db, user_id=test_user.id) == []
 
     await retire_statement(db, RetireStatementCommand(statement_id=out_stmt_id, user_id=test_user.id), dependencies=posting_dependencies())
     await db.flush()
@@ -51,7 +49,6 @@ async def test_AC_extraction_2888_2_and_AC_reconciliation_2888_1_retire_releases
     assert (await db.execute(select(ReconciliationMatch.status).where(ReconciliationMatch.id == in_m.id))).scalar_one() is ReconciliationStatus.AUTO_ACCEPTED
     assert await accepted_transfer_txn_ids(db, [out_txn_id, in_txn_id]) == {in_txn_id}
     assert await paired_transfer_entry_ids(db, user_id=test_user.id) == set()
-    assert [m.id for m in await list_unpaired_transfer_dispositions(db, user_id=test_user.id)] == [in_m.id]
 
 
 async def test_release_transaction_dispositions_ignores_rows_of_other_users(db: AsyncSession, test_user):

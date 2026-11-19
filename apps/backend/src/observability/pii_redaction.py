@@ -37,7 +37,9 @@ NRIC_PATTERN = re.compile(r"\b[SGTFM]\d{7}[A-Z]\b", re.IGNORECASE)
 BANK_ACCOUNT_PATTERN = re.compile(r"\b\d{9,12}\b")
 
 # Singapore phone: +65 or 65 followed by 8 digits starting with 6/8/9
-PHONE_PATTERN = re.compile(r"(?:\+?65[-\s]?)?[689]\d{7}\b")
+PHONE_PATTERN = re.compile(r"(?<![0-9A-Za-z])(?:\+?65[-\s]?)?[689]\d{7}\b")
+
+UUID_PATTERN = re.compile(r"\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b")
 
 EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
 
@@ -55,9 +57,12 @@ PII_PATTERNS: list[tuple[PIIType, re.Pattern[str]]] = [
 
 def detect_pii(text: str) -> list[PIIMatch]:
     matches: list[PIIMatch] = []
+    uuid_spans = [(m.start(), m.end()) for m in UUID_PATTERN.finditer(text)]
 
     for pii_type, pattern in PII_PATTERNS:
         for match in pattern.finditer(text):
+            if any(span_start <= match.start() and match.end() <= span_end for span_start, span_end in uuid_spans):
+                continue
             # Skip bank account pattern for likely transaction amounts or dates
             if pii_type == PIIType.BANK_ACCOUNT:
                 value = match.group()
