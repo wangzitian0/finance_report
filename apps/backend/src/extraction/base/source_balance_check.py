@@ -34,6 +34,7 @@ _GROUP_SEPARATOR_CHARS = re.compile(rf"[{re.escape(_GROUP_SEPARATORS)}]")
 class SourceBalanceVerdict(StrEnum):
     VERIFIED = "verified"
     CLOSING_NOT_IN_TEXT = "closing_not_in_text"
+    OPENING_NOT_IN_TEXT = "opening_not_in_text"
     TEXT_UNUSABLE = "text_unusable"
 
 
@@ -94,11 +95,15 @@ def check_closing_balance_against_text(
     if not text or not text.strip() or closing is None or closing == 0 or not amount_list:
         return SourceBalanceVerdict.TEXT_UNUSABLE
     values = text_money_values(text)
-    if opening is not None and abs(opening) not in values:
-        return SourceBalanceVerdict.TEXT_UNUSABLE
     matched = sum(1 for amount in amount_list if abs(amount) in values)
     if matched * MIN_AMOUNT_MATCH_DENOMINATOR < len(amount_list) * MIN_AMOUNT_MATCH_NUMERATOR:
         return SourceBalanceVerdict.TEXT_UNUSABLE
-    if abs(closing) in values:
-        return SourceBalanceVerdict.VERIFIED
-    return SourceBalanceVerdict.CLOSING_NOT_IN_TEXT
+    opening_missing = opening is not None and opening != 0 and abs(opening) not in values
+    closing_in_text = abs(closing) in values
+    if opening_missing and not closing_in_text:
+        return SourceBalanceVerdict.TEXT_UNUSABLE
+    if not closing_in_text:
+        return SourceBalanceVerdict.CLOSING_NOT_IN_TEXT
+    if opening_missing:
+        return SourceBalanceVerdict.OPENING_NOT_IN_TEXT
+    return SourceBalanceVerdict.VERIFIED

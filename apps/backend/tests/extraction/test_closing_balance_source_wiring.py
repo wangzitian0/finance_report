@@ -86,11 +86,31 @@ async def test_AC_extraction_closing_balance_source_2_routing(tmp_path, content_
     res = await _parse(tmp_path, content=content_fn(), payload=_payload(COMPUTED_CLOSING), file_type=file_type)
     if review_expected:
         assert (
-            res.confidence <= Decimal("0.59")
+            res.balance_validated is False
+            and res.confidence <= Decimal("0.59")
             and "Closing balance 4837.50 is not in the document text" in res.review_reasons
         )
     else:
         assert res.confidence >= Decimal("0.85") and res.review_reasons == ()
+
+
+async def test_AC_extraction_3112_fabricated_opening_balance_not_in_text_blocks_validation(tmp_path):
+    pdf_without_opening = _pdf(
+        [
+            "Stage One Routing Bank",
+            "Account 5551-234-7702",
+            "Statement period 2026-05-01 to 2026-05-31",
+            *(f"{d} {desc} {amt}" for d, desc, amt, _ in ROWS),
+            f"Closing Balance {COMPUTED_CLOSING}",
+        ]
+    )
+    with patch("src.extraction.extension.service.record_financial_invariant_violation") as record:
+        res = await _parse(tmp_path, content=pdf_without_opening, payload=_payload(COMPUTED_CLOSING), file_type="pdf")
+    assert res.balance_validated is False
+    assert res.confidence <= Decimal("0.59")
+    assert "Opening balance 2000.00 is not in the document text" in res.review_reasons
+    assert [c.kwargs["kind"] for c in record.call_args_list] == ["opening_balance_not_in_source"]
+    assert "opening_balance_not_in_source" in telemetry_metrics.INVARIANT_VIOLATION_KINDS
 
 
 async def test_AC_extraction_2918_unreadable_text_layer_blocks_auto_approve(tmp_path):

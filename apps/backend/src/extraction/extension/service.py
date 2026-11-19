@@ -416,6 +416,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
             source_verified: bool | None = None
             closing_not_in_source = False
+            opening_not_in_source = False
             if file_type == "csv":
                 source_verified = csv_balance_declared and not csv_balance_missing
             elif file_type == "pdf" and not is_position_snapshot:
@@ -439,6 +440,16 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                             source_review_reason = (
                                 f"Closing balance {statement.closing_balance} is not in the document text"
                             )
+                    elif closing_source_verdict is SourceBalanceVerdict.OPENING_NOT_IN_TEXT:
+                        opening_not_in_source = True
+                        source_verified = False
+                        record_financial_invariant_violation(
+                            kind="opening_balance_not_in_source", institution_class=institution_class
+                        )
+                        if source_review_reason is None:
+                            source_review_reason = (
+                                f"Opening balance {statement.opening_balance} is not in the document text"
+                            )
                     elif closing_source_verdict is SourceBalanceVerdict.TEXT_UNUSABLE:
                         source_verified = False
                         if source_review_reason is None:
@@ -460,11 +471,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         "Image upload has no verifiable text layer; source review required before approval"
                     )
 
+            balance_not_in_source = closing_not_in_source or opening_not_in_source
+            effective_balance_valid = is_valid and not balance_not_in_source
             breakdown = compute_confidence_breakdown(
                 extracted,
                 {
                     **effective_balance_result,
-                    "balance_valid": is_valid if balance_evaluable else False,
+                    "balance_valid": effective_balance_valid if balance_evaluable else False,
                     "balance_proof_available": balance_evaluable,
                     "notes": source_review_reason or effective_balance_result.get("notes"),
                 },
@@ -474,6 +487,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 split_meta_agreed=split_meta_agreed,
                 has_source_fact_gaps=bool(source_fact_gaps) or csv_balance_missing,
                 closing_not_in_source=closing_not_in_source,
+                opening_not_in_source=opening_not_in_source,
                 has_source_review_reason=source_review_reason is not None,
             )
 
@@ -485,7 +499,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     and is_valid
                     and not csv_balance_missing
                     and not source_fact_gaps
-                    and not closing_not_in_source
+                    and not balance_not_in_source
                     and source_review_reason is None
                     and confidence >= HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD
                     and account_id is not None
@@ -494,7 +508,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             )
 
             statement.balance_validated = (
-                None if (not balance_evaluable and per_currency_invalid_note is None) else is_valid
+                None if (not balance_evaluable and per_currency_invalid_note is None) else effective_balance_valid
             )
 
             if not transactions and not brokerage_positions:

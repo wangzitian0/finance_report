@@ -518,6 +518,7 @@ def compute_confidence_breakdown(
     split_meta_agreed: bool | None = None,
     has_source_fact_gaps: bool = False,
     closing_not_in_source: bool = False,
+    opening_not_in_source: bool = False,
     has_source_review_reason: bool = False,
 ) -> ConfidenceBreakdown:
     """Compute auditable confidence (0-100) via 1 - prod(1 - p_k) over independent channels."""
@@ -585,10 +586,12 @@ def compute_confidence_breakdown(
         score = max(0, min(84, base_mismatch - penalty + int(progression_ratio * Decimal("5"))))
         combined = Decimal(score) / Decimal("100")
 
-    if has_source_fact_gaps or closing_not_in_source or not proof_available:
+    if has_source_fact_gaps or closing_not_in_source or opening_not_in_source or not proof_available:
         score = min(score, MISSING_BALANCE_SCORE_CAP)
         capped_reason = capped_reason or (
-            "closing_not_in_source" if closing_not_in_source else "missing_required_source_facts"
+            "closing_not_in_source"
+            if closing_not_in_source
+            else ("opening_not_in_source" if opening_not_in_source else "missing_required_source_facts")
         )
     elif source_verified is False or has_source_review_reason:
         score = min(score, UNVERIFIED_SOURCE_SCORE_CAP)

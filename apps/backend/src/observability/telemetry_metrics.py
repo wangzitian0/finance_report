@@ -63,6 +63,7 @@ INVARIANT_VIOLATION_KINDS = (
     "chain_break",
     "dedup_within_doc_collapse",
     "closing_balance_not_in_source",
+    "opening_balance_not_in_source",
     "llm_led_gate_quarantine_balance",
     "llm_led_gate_quarantine_dedup",
 )
