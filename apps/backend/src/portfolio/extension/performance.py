@@ -326,10 +326,7 @@ async def calculate_time_weighted_return(
         net_cash_flow += amount_base * sign
 
     if start_value == Decimal("0"):
-        if end_value == Decimal("0"):
-            twr_ratio = Ratio.zero()
-            return twr_ratio.to_percent()
-        raise InsufficientDataError("Cannot calculate TWR with zero starting value and non-zero ending value")
+        raise InsufficientDataError("Cannot calculate TWR with zero starting value")
 
     # TWR = (End_Value - Start_Value - Net_Cash_Flow) / Start_Value
     # Simplified for single period (no sub-periods)
@@ -405,9 +402,6 @@ async def calculate_dividend_yield(
 
     current_value = await _get_portfolio_value(db, user_id, as_of_date, resolved_div_base)
     if current_value == Decimal("0"):
-        if annual_dividends == Decimal("0"):
-            dividend_yield_ratio = Ratio.zero()
-            return dividend_yield_ratio.to_percent()
         raise InsufficientDataError("Cannot calculate dividend yield with zero current portfolio value")
 
     dividend_yield_ratio = Ratio.fraction(annual_dividends, current_value)

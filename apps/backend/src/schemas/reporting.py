@@ -154,12 +154,15 @@ class NetWorthTimeSeriesPoint(BaseModel):
     total_liabilities: Decimal
     net_worth: Decimal
     currency: CurrencyStr
+    incomplete: bool = default_obj(lambda: False)
+    missing_fx_currencies: list[str] = default_list()
 
 
 class NetWorthTimeSeriesResponse(BaseModel):
     currency: CurrencyStr
     granularity: NetWorthGranularity
     points: list[NetWorthTimeSeriesPoint]
+    fx_warnings: list[dict[str, str]] = default_list()
 
 
 class NetWorthAllocationSourceLine(BaseModel):

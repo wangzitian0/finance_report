@@ -1171,12 +1171,17 @@ export interface components {
     NetWorthTimeSeriesPoint: {
       currency: string;
       date: string;
+      incomplete?: boolean;
+      missing_fx_currencies?: string[];
       net_worth: string;
       total_assets: string;
       total_liabilities: string;
     };
     NetWorthTimeSeriesResponse: {
       currency: string;
+      fx_warnings?: {
+        [key: string]: string;
+      }[];
       granularity: _S["NetWorthGranularity"];
       points: _S["NetWorthTimeSeriesPoint"][];
     };

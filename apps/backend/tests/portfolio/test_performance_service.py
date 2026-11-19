@@ -70,11 +70,12 @@ async def test_returns_with_empty_and_realistic_data(db: AsyncSession, test_user
         await calculate_xirr(db, test_user.id, base_currency="SGD")
     with pytest.raises(InsufficientDataError):
         await calculate_money_weighted_return(db, test_user.id, base_currency="SGD")
-    assert (
-        await calculate_time_weighted_return(db, test_user.id, today - timedelta(days=30), today, base_currency="SGD"),
-        await calculate_time_weighted_return(db, test_user.id, today, today, base_currency="SGD"),
-        await calculate_dividend_yield(db, test_user.id, base_currency="SGD"),
-    ) == (Decimal("0"), Decimal("0"), Decimal("0"))
+    with pytest.raises(InsufficientDataError):
+        await calculate_time_weighted_return(db, test_user.id, today - timedelta(days=30), today, base_currency="SGD")
+    with pytest.raises(InsufficientDataError):
+        await calculate_time_weighted_return(db, test_user.id, today, today, base_currency="SGD")
+    with pytest.raises(InsufficientDataError):
+        await calculate_dividend_yield(db, test_user.id, base_currency="SGD")
     await _flush(db, AtomicTransaction(user_id=test_user.id, txn_date=today - timedelta(days=30), amount=Decimal("1000.00"), currency="SGD", direction=TransactionDirection.IN, description="Cash only deposit", source_documents={}, dedup_hash="cash_only"))
     with pytest.raises(InsufficientDataError):
         await calculate_xirr(db, test_user.id, base_currency="SGD")

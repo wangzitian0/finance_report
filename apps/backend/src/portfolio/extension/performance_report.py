@@ -14,7 +14,6 @@ from src.audit.money import Currency, Money, to_money
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicPosition
 from src.portfolio.orm.portfolio import ManagedPosition, PositionStatus
-from src.platform import require_base_currency
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InsufficientDataError,
@@ -159,19 +158,22 @@ async def build_investment_performance_report_schedule(
         ),
     ]
 
-    resolved_base = require_base_currency(base_currency or currency)
+    _ = base_currency
+    schedule_currency = Currency.of(currency).code
     used_report_preparation_evidence = False
     try:
         holdings = list(
             await portfolio_service.get_holdings(
-                db=db, user_id=user_id, as_of_date=as_of_date, include_disposed=True, base_currency=resolved_base
+                db=db, user_id=user_id, as_of_date=as_of_date, include_disposed=True, base_currency=schedule_currency
             )
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
         holdings = []
 
     if not holdings:
-        holdings = await _report_preparation_holdings(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base)
+        holdings = await _report_preparation_holdings(
+            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=schedule_currency
+        )
         used_report_preparation_evidence = bool(holdings)
         notes.append(
             "No holdings snapshot existed on or before the as-of date; the schedule used active holdings "
@@ -206,33 +208,33 @@ async def build_investment_performance_report_schedule(
 
     xirr = await _metric_or_note(
         "XIRR",
-        lambda: performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base),
+        lambda: performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=schedule_currency),
     )
     twr = await _metric_or_note(
         "TWR",
         lambda: performance.calculate_time_weighted_return(
-            db=db, user_id=user_id, period_start=period_start, period_end=period_end, base_currency=resolved_base
+            db=db, user_id=user_id, period_start=period_start, period_end=period_end, base_currency=schedule_currency
         ),
     )
     mwr = await _metric_or_note(
         "MWR",
         lambda: performance.calculate_money_weighted_return(
-            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base
+            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=schedule_currency
         ),
     )
     dividend_yield = await _metric_or_note(
         "Dividend yield",
         lambda: performance.calculate_dividend_yield(
-            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base
+            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=schedule_currency
         ),
     )
 
     realized_by_asset, realized_source_refs = await portfolio_service.get_realized_pnl_by_asset(
-        db, user_id, start_date=period_start, end_date=period_end, target_currency=currency
+        db, user_id, start_date=period_start, end_date=period_end, target_currency=schedule_currency
     )
     source_links: set[str] = {"report_section:investment_performance", *realized_source_refs}
     dividend_by_asset = await portfolio_service.get_dividend_income_by_asset(
-        db, user_id, start_date=period_start, end_date=period_end, target_currency=currency
+        db, user_id, start_date=period_start, end_date=period_end, target_currency=schedule_currency
     )
 
     schemas = _portfolio_schemas()
@@ -244,7 +246,7 @@ async def build_investment_performance_report_schedule(
             if position is None
             else (position.cost_basis_money, position.acquisition_date)
         )
-        cost_basis = (await convert_money(db, base_money, currency, acq_date, lazy_load=True)).quantize()
+        cost_basis = (await convert_money(db, base_money, schedule_currency, acq_date, lazy_load=True)).quantize()
         market_value = to_money(holding.market_value)
         holding_rows.append(
             schemas.InvestmentPerformanceHoldingRow(
@@ -255,7 +257,7 @@ async def build_investment_performance_report_schedule(
                 unrealized_pnl=to_money(market_value - cost_basis.amount),
                 realized_pnl=to_money(realized_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
                 dividend_income=to_money(dividend_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
-                currency=holding.currency,
+                currency=schedule_currency,
             )
         )
 
@@ -272,7 +274,7 @@ async def build_investment_performance_report_schedule(
             ("geography", allocation.get_geography_allocation),
             ("asset_class", allocation.get_asset_class_allocation),
         )
-        for row in await loader(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=resolved_base)
+        for row in await loader(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=schedule_currency)
     ]
     if used_report_preparation_evidence and not allocation_rows and holding_rows:
         total_market_value = sum((row.market_value for row in holding_rows), Decimal("0.00"))
@@ -399,7 +401,7 @@ async def build_investment_performance_report_schedule(
         period_start=period_start,
         period_end=period_end,
         as_of_date=as_of_date,
-        currency=currency,
+        currency=schedule_currency,
         xirr=_percent(xirr),
         time_weighted_return=_percent(twr),
         money_weighted_return=_percent(mwr),

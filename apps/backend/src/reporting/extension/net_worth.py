@@ -342,8 +342,8 @@ async def _ledger_net_worth_balances(
     target_currency: str,
     *,
     liability_names: dict[UUID, str] | None = None,
-) -> list[tuple[dict[UUID, Decimal], dict[UUID, Decimal]]]:
-    """Return asset and liability ledger balances by account for each point date."""
+) -> list[tuple[dict[UUID, Decimal], dict[UUID, Decimal], list[str]]]:
+    """Return asset/liability ledger balances and missing FX currencies for each point date."""
     first_point = point_dates[0]
     signed_columns = (JournalLine.account_id, Account.type, Account.name, JournalLine.currency, JournalLine.direction)
 
@@ -379,7 +379,7 @@ async def _ledger_net_worth_balances(
         account_types[row.account_id] = row.type
         if liability_names is not None and row.type == AccountType.LIABILITY:
             liability_names[row.account_id] = row.name
-        key = (row.account_id, row.currency)
+        key = (row.account_id, row.currency.upper())
         running[key] = running.get(key, Decimal("0")) + _signed_amount(row.type, row.direction, row.total)
 
     first_seen: dict[str, date] = {}
@@ -403,23 +403,23 @@ async def _ledger_net_worth_balances(
         except PricingError:
             rates_by_currency[currency_code] = {}
 
-    balances: list[tuple[dict[UUID, Decimal], dict[UUID, Decimal]]] = []
+    balances: list[tuple[dict[UUID, Decimal], dict[UUID, Decimal], list[str]]] = []
     movement_dates = sorted(movements_by_date)
     next_movement = 0
+    target = target_currency.upper()
     for point in point_dates:
         while next_movement < len(movement_dates) and movement_dates[next_movement] <= point:
             for row in movements_by_date[movement_dates[next_movement]]:
                 apply(row)
             next_movement += 1
         unrounded: dict[UUID, Decimal] = {}
+        missing_currencies: set[str] = set()
         for (account_id, line_currency), amount in running.items():
-            rate = (
-                Decimal("1")
-                if line_currency == target_currency.upper()
-                else rates_by_currency.get(line_currency, {}).get(point)
-            )
+            rate = Decimal("1") if line_currency == target else rates_by_currency.get(line_currency, {}).get(point)
             if rate is not None:
                 unrounded[account_id] = unrounded.get(account_id, Decimal("0")) + amount * rate
+            elif amount != Decimal("0"):
+                missing_currencies.add(line_currency)
         balances.append(
             (
                 {aid: _quantize_money(amt) for aid, amt in unrounded.items() if account_types[aid] == AccountType.ASSET},
@@ -428,6 +428,7 @@ async def _ledger_net_worth_balances(
                     for aid, amt in unrounded.items()
                     if account_types[aid] == AccountType.LIABILITY
                 },
+                sorted(missing_currencies),
             )
         )
     return balances
@@ -502,7 +503,7 @@ async def get_net_worth_timeseries(
         ledger = await _ledger_net_worth_balances(
             db, user_id, point_dates, target_currency, liability_names=ledger_liability_names
         )
-    ledger_assets = [assets for assets, _ in ledger]
+    ledger_assets = [assets for assets, _, _ in ledger]
     portfolio_totals = await _portfolio_adjustment_totals(db, user_id, point_dates, ledger_assets, target_currency)
     excluded_ledger_ids_by_date: dict[date, set[UUID]] = {}
     try:
@@ -519,7 +520,9 @@ async def get_net_worth_timeseries(
         raise ReportError(str(exc)) from exc
 
     points: list[dict[str, object]] = []
-    for point_date, (assets, liabilities), portfolio_total in zip(point_dates, ledger, portfolio_totals, strict=True):
+    for point_date, (assets, liabilities, missing_fx_currencies), portfolio_total in zip(
+        point_dates, ledger, portfolio_totals, strict=True
+    ):
         valuation_assets, valuation_liabilities = valuation_lines[point_date]
         excluded_ids = excluded_ledger_ids_by_date.get(point_date, set())
         total_assets = _quantize_money(
@@ -538,6 +541,8 @@ async def get_net_worth_timeseries(
                 "total_liabilities": total_liabilities,
                 "net_worth": _quantize_money(total_assets - total_liabilities),
                 "currency": target_currency,
+                "incomplete": bool(missing_fx_currencies),
+                "missing_fx_currencies": missing_fx_currencies,
             }
         )
 
@@ -546,13 +551,27 @@ async def get_net_worth_timeseries(
             (
                 index
                 for index, point in enumerate(points)
-                if point["total_assets"] != Decimal("0.00") or point["total_liabilities"] != Decimal("0.00")
+                if (
+                    point["total_assets"] != Decimal("0.00")
+                    or point["total_liabilities"] != Decimal("0.00")
+                    or bool(point["incomplete"])
+                )
             ),
             len(points) - 1,
         )
         points = points[first_with_value:]
 
-    return {"currency": target_currency, "granularity": granularity, "points": points}
+    fx_warnings = [
+        {
+            "type": "missing_fx_rate_partial_skip",
+            "base_currency": currency_code,
+            "quote_currency": target_currency,
+            "rate_date": cast(date, point["date"]).isoformat(),
+        }
+        for point in points
+        for currency_code in cast(list[str], point["missing_fx_currencies"])
+    ]
+    return {"currency": target_currency, "granularity": granularity, "points": points, "fx_warnings": fx_warnings}
 
 
 async def get_category_breakdown(
