@@ -449,38 +449,6 @@ _FUTU_NON_POSITION_EVENT_TOKENS: tuple[str, ...] = (
 )
 
 
-def _parse_futu_aggregate_position(
-    payload: dict[str, Any], broker: str, snapshot_date: date | None
-) -> list[BrokeragePositionSnapshot]:
-    best_value: Decimal | None = None
-    for event in payload.get("events") or payload.get("transactions") or []:
-        if not isinstance(event, dict):
-            continue
-        if str(event.get("direction") or "").strip().upper() == "OUT":
-            continue
-        description = str(event.get("description") or "").lower()
-        if any(token in description for token in _FUTU_NON_POSITION_EVENT_TOKENS):
-            continue
-        value = _clean_decimal(event.get("amount"), field="market_value", row=event.get("description") or "event")
-        if value is None or value <= 0:
-            continue
-        if "valuation" in description or best_value is None or value > best_value:
-            best_value = value
-    if best_value is None:
-        return []
-    return [
-        BrokeragePositionSnapshot(
-            snapshot_date=snapshot_date,
-            asset_identifier="FUTU_STOCK_AND_OPTIONS",
-            broker=broker,
-            quantity=Decimal("1"),
-            market_value=_position_money("FUTU_STOCK_AND_OPTIONS", best_value),
-            currency=_payload_currency(payload, "HKD"),
-            asset_type=AssetType.OTHER,
-        )
-    ]
-
-
 class UnsupportedBrokerageCsvError(Exception):
     """Raised when a CSV matches an unsupported brokerage schema (e.g. trade history)."""
 
@@ -674,8 +642,6 @@ def parse_brokerage_positions(
         return _parse_moomoo_margin_history_positions(
             payload, broker, snapshot_date
         ) or _parse_moomoo_subscription_positions(payload, broker, snapshot_date)
-    if broker == "Futu":
-        return _parse_futu_aggregate_position(payload, broker, snapshot_date)
     return []
 
 

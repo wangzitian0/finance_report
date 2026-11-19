@@ -22,7 +22,6 @@ from src.observability import get_logger
 from src.platform import require_base_currency
 from src.portfolio.base.errors import (
     AssetNotFoundError,
-    InvalidDateRangeError,
     PortfolioNotFoundError,
 )
 from src.portfolio.orm.portfolio import (
@@ -39,8 +38,6 @@ if TYPE_CHECKING:
         HoldingResponse,
         PortfolioSummaryDashboardResponse,
         PortfolioSummaryResponse,
-        RealizedPnLResponse,
-        UnrealizedPnLResponse,
     )
 
 logger = get_logger(__name__)
@@ -348,136 +345,6 @@ class PortfolioService:
                     return position
 
         return next((p for p in positions if p.status == PositionStatus.ACTIVE), positions[0])
-
-    async def calculate_realized_pnl(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        period_start: date,
-        period_end: date,
-        *,
-        base_currency: str | None = None,
-    ) -> RealizedPnLResponse:
-        """Calculate realized P&L for disposed positions within [period_start, period_end]."""
-        if period_start > period_end:
-            raise InvalidDateRangeError(f"period_start ({period_start}) cannot be after period_end ({period_end})")
-
-        disposed_positions = (
-            await db.scalars(
-                select(ManagedPosition).where(
-                    ManagedPosition.user_id == user_id,
-                    ManagedPosition.status == PositionStatus.DISPOSED,
-                    ManagedPosition.disposal_date.isnot(None),
-                    ManagedPosition.disposal_date.between(period_start, period_end),
-                )
-            )
-        ).all()
-        if not disposed_positions:
-            return _portfolio_schemas().RealizedPnLResponse(
-                period_start=period_start,
-                period_end=period_end,
-                total_realized_pnl=Decimal("0"),
-                total_realized_pnl_percent=Decimal("0"),
-                positions_count=0,
-                details=[],
-            )
-
-        total_realized_pnl = Decimal("0")
-        total_converted_cost = Decimal("0")
-        details: list[dict] = []
-        resolved_base = require_base_currency(base_currency)
-
-        for position in disposed_positions:
-            assert position.disposal_date is not None
-            disposal_price, converted_disposal, converted_cost, realized_pnl, realized_pnl_ratio = (
-                await self._value_managed_position(
-                    db, position, position.disposal_date, user_id, resolved_base, quantize=False
-                )
-            )
-            total_realized_pnl += realized_pnl.amount
-            total_converted_cost += converted_cost.amount
-            details.append(
-                {
-                    "asset_identifier": position.asset_identifier,
-                    "quantity": position.quantity,
-                    "disposal_date": position.disposal_date,
-                    "disposal_price": disposal_price,
-                    "cost_basis": converted_cost.amount,
-                    "disposal_value": converted_disposal.amount,
-                    "realized_pnl": realized_pnl.amount,
-                    "realized_pnl_percent": realized_pnl_ratio.to_percent(),
-                    "currency": converted_cost.currency.code,
-                    "cost_basis_method": position.cost_basis_method,
-                }
-            )
-
-        await db.flush()
-        return _portfolio_schemas().RealizedPnLResponse(
-            period_start=period_start,
-            period_end=period_end,
-            total_realized_pnl=to_money(total_realized_pnl),
-            total_realized_pnl_percent=Ratio.fraction_or_zero(total_realized_pnl, total_converted_cost).to_percent(),
-            positions_count=len(disposed_positions),
-            details=details,
-        )
-
-    async def calculate_unrealized_pnl(
-        self,
-        db: AsyncSession,
-        user_id: UUID,
-        as_of_date: date | None = None,
-        *,
-        base_currency: str | None = None,
-    ) -> UnrealizedPnLResponse:
-        """Calculate unrealized P&L for active positions as of as_of_date."""
-        eval_date = as_of_date or date.today()
-        positions = (
-            await db.scalars(
-                select(ManagedPosition).where(
-                    ManagedPosition.user_id == user_id,
-                    ManagedPosition.status == PositionStatus.ACTIVE,
-                )
-            )
-        ).all()
-        if not positions:
-            raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
-
-        total_market_value = Decimal("0")
-        total_cost_basis = Decimal("0")
-        total_unrealized_pnl = Decimal("0")
-        details: list[dict] = []
-        resolved_base = require_base_currency(base_currency)
-
-        for position in positions:
-            latest_price, converted_market, converted_cost, unrealized_pnl, unrealized_pnl_ratio = (
-                await self._value_managed_position(db, position, eval_date, user_id, resolved_base, quantize=False)
-            )
-            total_market_value += converted_market.amount
-            total_cost_basis += converted_cost.amount
-            total_unrealized_pnl += unrealized_pnl.amount
-            details.append(
-                {
-                    "asset_identifier": position.asset_identifier,
-                    "quantity": position.quantity,
-                    "current_price": latest_price,
-                    "market_value": converted_market.amount,
-                    "cost_basis": converted_cost.amount,
-                    "unrealized_pnl": unrealized_pnl.amount,
-                    "unrealized_pnl_percent": unrealized_pnl_ratio.to_percent(),
-                    "currency": converted_market.currency.code,
-                }
-            )
-
-        await db.flush()
-        return _portfolio_schemas().UnrealizedPnLResponse(
-            as_of_date=eval_date,
-            total_unrealized_pnl=to_money(total_unrealized_pnl),
-            total_unrealized_pnl_percent=Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis).to_percent(),
-            total_market_value=to_money(total_market_value),
-            total_cost_basis=to_money(total_cost_basis),
-            holdings_count=len(positions),
-            details=details,
-        )
 
     async def get_portfolio_summary(
         self,

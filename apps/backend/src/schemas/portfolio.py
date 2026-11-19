@@ -62,25 +62,6 @@ class HoldingsListResponse(ListResponse[HoldingResponse]):
     warnings: list[dict[str, str]] = default_list()
 
 
-class RealizedPnLResponse(BaseModel):
-    period_start: date
-    period_end: date
-    total_realized_pnl: MoneyAmount
-    total_realized_pnl_percent: Percent
-    positions_count: int
-    details: list[dict]
-
-
-class UnrealizedPnLResponse(BaseModel):
-    as_of_date: date
-    total_unrealized_pnl: MoneyAmount
-    total_unrealized_pnl_percent: Percent
-    total_market_value: MoneyAmount
-    total_cost_basis: MoneyAmount
-    holdings_count: int
-    details: list[dict]
-
-
 class CostBasisMethodUpdateResponse(BaseModel):
     updated_count: int
     cost_basis_method: CostBasisMethod
