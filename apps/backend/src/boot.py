@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
+from pydantic import AliasChoices
+
 from infra2_sdk.runtime.config_schema import (
     EnvironmentConflictError,
     environment_manifest_from_model,
@@ -49,6 +51,16 @@ _PROBE_METHODS = {
     "analytics": "_check_analytics",
     "market_data": "_check_market_data",
 }
+
+
+def _env_names(field: str) -> tuple[str, ...]:
+    """Return the env var names that set a settings field (its validation alias, else the upper-case field name)."""
+    alias = Settings.model_fields[field].validation_alias
+    if isinstance(alias, AliasChoices):
+        return tuple(c for c in alias.choices if isinstance(c, str))
+    return (alias,) if isinstance(alias, str) else (field.upper(),)
+
+
 _SAFE_PRINT_FIELDS = (
     "debug",
     "environment",
@@ -168,7 +180,7 @@ class Bootloader:
         for field in _SENSITIVE_PRINT_FIELDS:
             print(f"  {field}: {'set' if getattr(settings, field, None) else 'not set'}")
         print("\nFields using defaults:")
-        defaults_used = [f for f in _SAFE_PRINT_FIELDS if not os.getenv(f.upper())]
+        defaults_used = [f for f in _SAFE_PRINT_FIELDS if not any(os.getenv(n) for n in _env_names(f))]
         print("\n".join(f"  - {f}" for f in defaults_used) if defaults_used else "  (none)")
         print("=" * 60 + "\n")
 

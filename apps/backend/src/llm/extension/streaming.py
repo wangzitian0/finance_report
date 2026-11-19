@@ -69,7 +69,7 @@ def _estimate_prompt_tokens(messages: list[dict[str, Any]]) -> int:
 async def _resolve_provider(api_key: str | None, base_url: str | None, user_id: UUID | None = None) -> ProviderRef:
     """Resolve the provider for a transport call.
 
-    Explicit ``api_key`` wins (its protocol is taken from ``AI_PROVIDER``);
+    Explicit ``api_key`` wins (its protocol is taken from ``LLM_PROVIDER``);
     otherwise resolve the configured default provider for ``user_id`` — the user's
     own provider if they configured one, else the deployment default, else the env
     fallback (see :func:`get_config_source`). ``user_id=None`` keeps the original
@@ -179,7 +179,7 @@ async def _stream_ai_base(
         _label, _pid = _log_provider()
         logger.error(
             "AI provider streaming failed",
-            provider=_label,  # resolved provider (DB or env), not the env AI_PROVIDER
+            provider=_label,  # resolved provider (DB or env), not the env LLM_PROVIDER
             provider_id=_pid,
             model=model,
             mode=mode_label,

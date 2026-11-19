@@ -16,8 +16,8 @@
       "timeout_seconds": 360,
       "optional_env": [
         "INFRA2_TOUCHED_FILES",
-        "AI_PROVIDER",
-        "AI_BASE_URL",
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
         "LARGE_MODEL",
         "SMALL_MODEL",
         "MULTIMODAL_MODEL"
@@ -33,8 +33,8 @@
       ],
       "timeout_seconds": 540,
       "optional_env": [
-        "AI_PROVIDER",
-        "AI_BASE_URL",
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
         "LARGE_MODEL",
         "SMALL_MODEL",
         "MULTIMODAL_MODEL",
@@ -56,8 +56,8 @@
       ],
       "timeout_seconds": 3600,
       "optional_env": [
-        "AI_PROVIDER",
-        "AI_BASE_URL",
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
         "LARGE_MODEL",
         "SMALL_MODEL",
         "MULTIMODAL_MODEL",

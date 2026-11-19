@@ -38,17 +38,17 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `MULTIMODAL_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Multimodal-role AI model id for vision and OCR (image, PDF and file input). Unset: the infra2 SDK default; set it only to customize production. |
 | `PREFECT_API_URL` |  |  |  | AI Provider | EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed). |
 | `SMALL_MODEL` | `glm-5.3-flash` |  |  | AI Provider | Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production. |
-| `S3_ACCESS_KEY` | `minio` |  | yes | S3 / MinIO Storage | S3 / MinIO access key. |
-| `S3_BUCKET` | `statements` |  | yes | S3 / MinIO Storage | S3 / MinIO bucket name for uploaded statements. |
-| `S3_ENDPOINT` | `http://127.0.0.1:9000` | `http://localhost:9000` | yes | S3 / MinIO Storage | S3 / MinIO endpoint used for storing uploaded statement files. |
-| `S3_PRESIGN_EXPIRY_SECONDS` | `300` | `900` |  | S3 / MinIO Storage | Presigned URL TTL (seconds) for general S3 access. |
-| `S3_PUBLIC_ACCESS_KEY` |  |  | yes | S3 / MinIO Storage | Public S3 access key (falls back to internal S3 settings when unset). |
-| `S3_PUBLIC_BUCKET` |  |  | yes | S3 / MinIO Storage | Public S3 bucket (falls back to internal S3 settings when unset). |
-| `S3_PUBLIC_ENDPOINT` |  | `https://your-public-s3-endpoint.example.com` | yes | S3 / MinIO Storage | Publicly reachable S3 endpoint for AI services. REQUIRED in production if S3_ENDPOINT is internal (e.g. http://minio:9000). Some AI providers need publicly accessible URLs to download statement PDFs for parsing. If not set, the system sends file_content (Base64) when available and only falls back to the S3 file_url when no content is provided. |
-| `S3_PUBLIC_SECRET_KEY` |  |  | yes | S3 / MinIO Storage | Public S3 secret key (falls back to internal S3 settings when unset). |
-| `S3_REGION` | `us-east-1` |  |  | S3 / MinIO Storage | S3 region. |
-| `S3_SECRET_KEY` | `minio_local_secret` | `<YOUR_S3_SECRET_KEY>` | yes | S3 / MinIO Storage | S3 / MinIO secret key. |
-| `STATEMENT_REVIEW_PRESIGN_EXPIRY_SECONDS` | `120` |  |  | S3 / MinIO Storage | Short-lived PDF preview URL TTL for Stage 1 statement review. |
+| `S3_ACCESS_KEY` | `minio` |  | yes | S3 Storage | S3 access key. |
+| `S3_BUCKET` | `statements` |  | yes | S3 Storage | S3 bucket name for uploaded statements. |
+| `S3_ENDPOINT` | `http://127.0.0.1:9000` | `http://localhost:9000` | yes | S3 Storage | S3 endpoint used for storing uploaded statement files. |
+| `S3_PRESIGN_EXPIRY_SECONDS` | `300` | `900` |  | S3 Storage | Presigned URL TTL (seconds) for general S3 access. |
+| `S3_PUBLIC_ACCESS_KEY` |  |  | yes | S3 Storage | Public S3 access key (falls back to internal S3 settings when unset). |
+| `S3_PUBLIC_BUCKET` |  |  | yes | S3 Storage | Public S3 bucket (falls back to internal S3 settings when unset). |
+| `S3_PUBLIC_ENDPOINT` |  | `https://your-public-s3-endpoint.example.com` | yes | S3 Storage | Publicly reachable S3 endpoint for AI services. REQUIRED in production if S3_ENDPOINT is internal (e.g. http://minio:9000). Some AI providers need publicly accessible URLs to download statement PDFs for parsing. If not set, the system sends file_content (Base64) when available and only falls back to the S3 file_url when no content is provided. |
+| `S3_PUBLIC_SECRET_KEY` |  |  | yes | S3 Storage | Public S3 secret key (falls back to internal S3 settings when unset). |
+| `S3_REGION` | `us-east-1` |  |  | S3 Storage | S3 region. |
+| `S3_SECRET_KEY` | `minio_local_secret` | `<YOUR_S3_SECRET_KEY>` | yes | S3 Storage | S3 secret key. |
+| `STATEMENT_REVIEW_PRESIGN_EXPIRY_SECONDS` | `120` |  |  | S3 Storage | Short-lived PDF preview URL TTL for Stage 1 statement review. |
 | `OPENPANEL_API_URL` |  |  |  | Observability | OpenPanel API base URL (e.g. https://openpanel.zitian.party/api). |
 | `OPENPANEL_CLIENT_ID` |  |  |  | Observability | Per-env OpenPanel project client-id for server-side events (empty = analytics off). |
 | `OPENPANEL_ENVIRONMENT` |  |  |  | Observability | Canonical OpenPanel environment label (falls back to `environment`). |
