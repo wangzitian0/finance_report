@@ -48,5 +48,5 @@ async def test_AC_advisor_context_1_bounded_read_set_and_citations(db: AsyncSess
         "Why is my net worth down?",
     )
     safe_hrefs, known_refs = set(CHAT_METADATA_SAFE_HREFS), BOUNDED_SOURCE_REFS | {"balance_sheet.total_equity", "income_statement.current_month"}
-    assert metadata.grounded is True and metadata.citations
+    assert metadata.citations
     assert all(c.href in safe_hrefs and c.source_ref in known_refs for c in metadata.citations) and all(a.href in safe_hrefs for a in metadata.actions)

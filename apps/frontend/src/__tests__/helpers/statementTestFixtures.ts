@@ -1467,18 +1467,7 @@ export async function stmtsDelFlow(api: ApiMock, ui: React.ReactElement, toast: 
   clk(STMTS.noSelBtn); expect(api).not.toHaveBeenCalled(); expect(toast).not.toHaveBeenCalled();
 }
 
-export async function upErrStorageChecks(ui: React.ReactElement, fetchM: { mockResolvedValueOnce: (v: never) => unknown; mockRejectedValueOnce: (e: unknown) => unknown }, up: ReturnType<typeof vi.fn>, tr: ReturnType<typeof vi.fn>, evFailed: string, put: (f: File | File[], k?: string) => Promise<void>) {
-  fetchM.mockResolvedValueOnce({ default_model: UP.g, models: [AI_MODELS[1]] } as never);
-  const v1 = ren(ui); await see(UP.noDef); await put(UP.pdf());
-  clk(/upload & parse/i); await see(UP.selAi); expect(up).not.toHaveBeenCalled(); v1.unmount();
-  fetchM.mockRejectedValueOnce(new Error("Network Error")); const v2 = ren(ui); await see(UP.netErr); v2.unmount();
-  const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-  vi.stubGlobal("localStorage", UP.badLS); const v3 = ren(ui), sel = await fLbl(UP.aiLbl);
-  await wValIs(sel, UP.g); hasC(warn, UP.warns.r, expect.any(Error));
-  await selOpt(sel, UP.q); hasC(warn, UP.warns.w, expect.any(Error)); v3.unmount();
-  const mem = memStorage(); mem.setItem(UP.k, "obsolete");
-  vi.spyOn(mem, "removeItem").mockImplementation(() => { throw new Error("rm"); }); vi.stubGlobal("localStorage", mem);
-  const v4 = ren(ui); await wValIs(() => lbl(UP.aiLbl), UP.g); hasC(warn, UP.warns.rm, expect.any(Error)); warn.mockRestore(); v4.unmount();
+export async function upErrStorageChecks(ui: React.ReactElement, up: ReturnType<typeof vi.fn>, tr: ReturnType<typeof vi.fn>, evFailed: string, put: (f: File | File[], k?: string) => Promise<void>) {
   up.mockRejectedValueOnce(new Error("Server Error")); ren(ui);
   await put(UP.pdf()); clk(/upload & parse/i); await see("Server Error");
   hasC(tr, evFailed, expect.objectContaining({ error_category: "error" }));

@@ -61,11 +61,10 @@ def _post_upload(
     *,
     institution: str | None = "DBS",
     account_id=None,
-    model: str | None = None,
 ):
     data = {
         k: str(v)
-        for k, v in (("institution", institution), ("account_id", account_id), ("model", model))
+        for k, v in (("institution", institution), ("account_id", account_id))
         if v is not None
     }
     return client.post(
@@ -98,28 +97,26 @@ def _patch_parse_document(
 
 
 async def test_upload_statement_duplicate(
-    client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub, test_user
+    client: AsyncClient, monkeypatch, storage_stub, test_user
 ):
     _patch_parse_document(monkeypatch, test_user.id)
     assert (
-        await _post_upload(client, "statement.pdf", b"duplicate-statement", model=_FLASH_MODEL)
+        await _post_upload(client, "statement.pdf", b"duplicate-statement")
     ).status_code == status.HTTP_202_ACCEPTED
     await statement_pipeline.wait_for_parse_tasks()
     assert (
-        await _post_upload(client, "statement.pdf", b"duplicate-statement", model=_FLASH_MODEL)
+        await _post_upload(client, "statement.pdf", b"duplicate-statement")
     ).status_code == status.HTTP_409_CONFLICT
 
 
 @pytest.mark.parametrize(
-    ("filename", "content", "institution", "model", "modalities", "expected_status", "detail_part"),
+    ("filename", "content", "institution", "expected_status", "detail_part"),
     [
-        ("statement.exe", b"content", "DBS", None, None, status.HTTP_400_BAD_REQUEST, "unsupported file type"),
+        ("statement.exe", b"content", "DBS", status.HTTP_400_BAD_REQUEST, "unsupported file type"),
         (
             "large-statement.pdf",
             b"x" * (10 * 1024 * 1024 + 1),
             "DBS",
-            _FLASH_MODEL,
-            frozenset({Modality.TEXT, Modality.IMAGE}),
             status.HTTP_413_CONTENT_TOO_LARGE,
             "10mb",
         ),
@@ -127,51 +124,26 @@ async def test_upload_statement_duplicate(
             "statement.csv",
             b"date,amount\n2025-01-01,10.00\n",
             None,
-            None,
-            None,
             status.HTTP_400_BAD_REQUEST,
             "institution",
         ),
-        (
-            "statement.pdf",
-            b"content",
-            "DBS",
-            "unknown/model",
-            None,
-            status.HTTP_400_BAD_REQUEST,
-            "invalid model selection",
-        ),
-        (
-            "statement.pdf",
-            b"content",
-            "DBS",
-            "text-only/model",
-            frozenset({Modality.TEXT}),
-            status.HTTP_400_BAD_REQUEST,
-            "does not support image",
-        ),
     ],
-    ids=["bad_ext", "too_large", "missing_inst", "bad_model", "text_only_model"],
+    ids=["bad_ext", "too_large", "missing_inst"],
 )
 async def test_upload_validation_rejections(
     client: AsyncClient,
-    monkeypatch,
     storage_stub,
     filename,
     content,
     institution,
-    model,
-    modalities,
     expected_status,
     detail_part,
 ):
-    if model is not None:
-        patch_catalog(monkeypatch, modalities)
-    resp = await _post_upload(client, filename, content, institution=institution, model=model)
+    resp = await _post_upload(client, filename, content, institution=institution)
     assert resp.status_code == expected_status and detail_part in resp.json()["detail"].lower()
 
 
-async def test_upload_file_too_large(client: AsyncClient, model_catalog_stub, storage_stub, test_user, monkeypatch):
+async def test_upload_file_too_large(client: AsyncClient, storage_stub, test_user, monkeypatch):
     """#2956: Streamed upload enforces 10MB ceiling in bounded chunks and accepts exact 10MB files."""
     from starlette.datastructures import UploadFile
 
@@ -184,7 +156,7 @@ async def test_upload_file_too_large(client: AsyncClient, model_catalog_stub, st
 
     monkeypatch.setattr(UploadFile, "read", spy_read)
     content = b"x" * (10 * 1024 * 1024 + 1)
-    resp = await _post_upload(client, "large-statement.pdf", content, institution="DBS", model=_FLASH_MODEL)
+    resp = await _post_upload(client, "large-statement.pdf", content, institution="DBS")
     assert resp.status_code == status.HTTP_413_CONTENT_TOO_LARGE
     assert "10MB" in resp.json()["detail"]
     assert read_sizes and all(0 < size <= 10 * 1024 * 1024 + 1 for size in read_sizes), f"Unbounded read: {read_sizes}"
@@ -192,7 +164,7 @@ async def test_upload_file_too_large(client: AsyncClient, model_catalog_stub, st
     read_sizes.clear()
     exact = b"y" * (10 * 1024 * 1024)
     _patch_parse_document(monkeypatch, test_user.id)
-    ok_resp = await _post_upload(client, "exact-10mb.pdf", exact, institution="DBS", model=_FLASH_MODEL)
+    ok_resp = await _post_upload(client, "exact-10mb.pdf", exact, institution="DBS")
     assert ok_resp.status_code == status.HTTP_202_ACCEPTED
     await statement_pipeline.wait_for_parse_tasks()
     assert read_sizes and all(0 < size <= 10 * 1024 * 1024 + 1 for size in read_sizes)
@@ -210,17 +182,16 @@ async def test_upload_rejects_cross_user_account_id(client: AsyncClient, db, mon
     assert mock_storage.upload_bytes.call_count == 0
 
 
-@pytest.mark.parametrize("model", [None, _FLASH_MODEL])
 async def test_upload_ocr_pipeline_source_and_audit_logs(
-    client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user, model
+    client: AsyncClient, db, monkeypatch, storage_stub, test_user
 ):
-    content = b"audit-log-input" if model else b"content"
+    content = b"audit-log-input"
     mock_parse, mock_info = AsyncMock(return_value=None), MagicMock()
     monkeypatch.setattr("src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
     monkeypatch.setattr("src.routers.statements.logger.info", mock_info)
 
     assert (
-        resp := await _post_upload(client, "staging-audit.pdf", content, model=model)
+        resp := await _post_upload(client, "staging-audit.pdf", content)
     ).status_code == status.HTTP_202_ACCEPTED
     created = resp.json()
     document = await db.get(UploadedDocument, (await db.get(StatementSummary, created["id"])).uploaded_document_id)
@@ -246,7 +217,7 @@ async def test_upload_ocr_pipeline_source_and_audit_logs(
     )
     await statement_pipeline.wait_for_parse_tasks()
     job = mock_parse.await_args.kwargs["job"]
-    assert isinstance(job, ParseJob) and (str(job.statement_id), job.model) == (created["id"], model)
+    assert isinstance(job, ParseJob) and (str(job.statement_id), job.model) == (created["id"], None)
     assert (
         job.storage_key.startswith(f"statements/{created['id']}/")
         and job.storage_key.endswith(".pdf")
@@ -267,8 +238,8 @@ async def test_upload_ocr_pipeline_source_and_audit_logs(
                 "filename": "staging-audit.pdf",
                 "file_type": "pdf",
                 "institution": "DBS",
-                "model_requested": model,
-                "model_to_use": model,
+                "model_requested": None,
+                "model_to_use": None,
                 "file_size_bytes": len(content),
                 "file_hash_prefix": prefix,
             },
@@ -288,7 +259,7 @@ async def test_upload_ocr_pipeline_source_and_audit_logs(
                 "audit_event": "statement.parse.enqueued",
                 "request_id": accepted["request_id"],
                 "statement_id": created["id"],
-                "model_to_use": model,
+                "model_to_use": None,
             },
         ),
     ):
@@ -379,7 +350,7 @@ async def test_pending_review_and_decisions(
     account = await create_statement_account(db, test_user.id, "Review Queue Account")
     await db.commit()
     created_ids = [
-        (await _post_upload(client, f"statement-{i}.pdf", c, account_id=account.id, model=_FLASH_MODEL)).json()["id"]
+        (await _post_upload(client, f"statement-{i}.pdf", c, account_id=account.id)).json()["id"]
         for i, c in enumerate(contents)
     ]
     await statement_pipeline.wait_for_parse_tasks()
@@ -549,7 +520,7 @@ async def test_retry_statement_completion_and_failure(
     client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user, fail_retry
 ):
     _patch_parse_document(monkeypatch, test_user.id, confidence_score=60)
-    upload_resp = await _post_upload(client, "statement.pdf", b"statement-retry", model=_FLASH_MODEL)
+    upload_resp = await _post_upload(client, "statement.pdf", b"statement-retry")
     assert upload_resp.status_code == status.HTTP_202_ACCEPTED
     stmt_id = upload_resp.json()["id"]
     await statement_pipeline.wait_for_parse_tasks()
@@ -594,7 +565,7 @@ async def test_background_parse_error_logging(
         resp = await client.post(f"/statements/{statement.id}/runs", json={"model": "google/gemini-flash"})
         stmt_id = statement.id
     else:
-        resp = await _post_upload(client, "statement.pdf", b"content", model=_FLASH_MODEL)
+        resp = await _post_upload(client, "statement.pdf", b"content")
         stmt_id = resp.json()["id"]
     assert resp.status_code == status.HTTP_202_ACCEPTED
     await statement_pipeline.wait_for_parse_tasks()
@@ -737,7 +708,7 @@ async def test_list_and_transactions_flow(
         ],
     )
     assert (
-        upload_resp := await _post_upload(client, "statement.pdf", b"statement-flow", model=_FLASH_MODEL)
+        upload_resp := await _post_upload(client, "statement.pdf", b"statement-flow")
     ).status_code == status.HTTP_202_ACCEPTED
     statement_id = upload_resp.json()["id"]
     await statement_pipeline.wait_for_parse_tasks()

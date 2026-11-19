@@ -1,5 +1,4 @@
 import { expect, it } from "vitest";
-import { toAiModelCatalogViewModel } from "../lib/aiModels";
 import type { Schemas } from "../lib/api-schema";
 import { toJournalEntryViewModel, toTransactionViewModel } from "../lib/normalizers";
 const ts = "2026-03-01T10:00:00Z", E = expect;
@@ -16,6 +15,4 @@ const ln = (id: string, account_id: string, direction: "DEBIT" | "CREDIT", fx_ra
 const lines = [ln("l1", "a1", "DEBIT", "1.0"), ln("l2", "a2", "CREDIT")];
 E(toJournalEntryViewModel({ ...base, confidence_tier: "HIGH", lines }, "10.00")).toMatchObject({ id: "je1", memo: "R", total_amount: "10.00", lines });
 E(toJournalEntryViewModel({ ...base, id: "je2", status: "draft" as const, lines: [] })).toMatchObject({ id: "je2", lines: [], total_amount: undefined });
-E(toAiModelCatalogViewModel({ models: [{ id: "g4", is_free: false, modalities: ["text"], provider_id: "o", supports_reasoning: false }, { id: "gf", is_free: true, modalities: ["text"], provider_id: "g", supports_reasoning: false }] })).toMatchObject({ default_model: "g4", models: [{ is_free: false }, { is_free: true }] });
-E(toAiModelCatalogViewModel({ models: [] })).toMatchObject({ default_model: "", models: [] });
 });

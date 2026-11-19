@@ -83,7 +83,6 @@ llm_cassette_refresh|ai||Refresh recorded LLM cassettes in local runs.
 llm_live|ai||Force live LLM provider calls.
 s3_region|s3|na|S3 region.
 s3_presign_expiry_seconds|s3|na|Presigned URL TTL (seconds) for general S3 access.
-statement_review_presign_expiry_seconds|s3||Short-lived PDF preview URL TTL for Stage 1 statement review.
 otel_exporter_otlp_endpoint|obs|i|OTLP exporter endpoint. Optional: set in production to ship telemetry to the OTLP collector (infra2-owned).
 otel_service_name|obs|i|OpenTelemetry service name.
 otel_resource_attributes|obs|i|OpenTelemetry resource attributes (comma-separated key=value pairs).
@@ -272,7 +271,6 @@ class Settings(BaseSettings):
     llm_live: bool = _f("llm_live", False)
     s3_region: str = _f("s3_region", "us-east-1")
     s3_presign_expiry_seconds: int = _f("s3_presign_expiry_seconds", 300, ex="900")
-    statement_review_presign_expiry_seconds: int = _f("statement_review_presign_expiry_seconds", 120, ge=30, le=600)
     otel_exporter_otlp_endpoint: str | None = _f(
         "otel_exporter_otlp_endpoint", None, ex="http://platform-signoz-otel-collector:4318"
     )

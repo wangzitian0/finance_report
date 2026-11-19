@@ -177,7 +177,6 @@ async def test_assistant_answers_from_the_data_of_the_user(
         assert not (misstated := misstated_metrics(answer, oracle)), (
             f"expected {oracle}, found {misstated}. Answer: {answer[:1200]}"
         )
-        assert metadata.get("grounded") is True
         cited = {
             c.get("source_ref"): c
             for c in metadata.get("citations", [])

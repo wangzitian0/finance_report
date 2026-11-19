@@ -1,49 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useId, useState } from "react";
 
-import { fetchAiModels } from "@/lib/aiModels";
 import { useToast } from "@/components/ui/Toast";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 
-const STORAGE_KEY = "statement_model_v1";
 const BANK_SUGGESTIONS = ["DBS", "OCBC", "UOB", "HSBC", "Citibank", "Standard Chartered", "Chase", "Bank of America", "Wells Fargo", "American Express"];
-
-let storageWarningShown = false;
-
-type AiModelOption = { id: string; name?: string; is_free: boolean };
-
-function getSafeStorage(key: string): string | null {
-  try {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem(key);
-  } catch (error) {
-    console.warn(`[Storage] Failed to read ${key}:`, error);
-    return null;
-  }
-}
-
-function setSafeStorage(key: string, value: string, showToastFn?: (msg: string, type: "success" | "error" | "warning" | "info") => void): void {
-  try {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(key, value);
-  } catch (error) {
-    console.warn(`[Storage] Failed to write ${key}:`, error);
-    if (!storageWarningShown && showToastFn) {
-      showToastFn("Unable to save your model preference. Your selection is temporary for this session.", "warning");
-      storageWarningShown = true;
-    }
-  }
-}
-
-function removeSafeStorage(key: string): void {
-  try {
-    if (typeof window === "undefined") return;
-    localStorage.removeItem(key);
-  } catch (error) {
-    console.warn(`[Storage] Failed to remove ${key}:`, error);
-  }
-}
 
 function getFileExtension(fileName: string): string {
   return fileName.split(".").pop()?.toLowerCase() || "";
@@ -69,62 +31,14 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
   const fileInputId = `file-upload-${reactId}`;
   const institutionId = `institution-${reactId}`;
   const banksListId = `banks-list-${reactId}`;
-  const aiModelId = `ai-model-${reactId}`;
   const { showToast } = useToast();
   const [isDragging, setIsDragging] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [institution, setInstitution] = useState("");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [models, setModels] = useState<AiModelOption[]>([]);
-  const [selectedModel, setSelectedModel] = useState<string>("");
-  const [modelLoading, setModelLoading] = useState(true);
   const isCsvFile =
     kind === "csv" || (files.length > 0 && files.every((f) => getFileExtension(f.name) === "csv"));
-
-  useEffect(() => {
-    if (kind === "csv") {
-      setModelLoading(false);
-      return;
-    }
-    let active = true;
-    async function loadModels(): Promise<void> {
-      try {
-        const data = await fetchAiModels({ modality: "image" });
-        if (!active) return;
-        setModels(data.models);
-        const stored = getSafeStorage(STORAGE_KEY);
-        const isStoredValid = stored && data.models.some((m) => m.id === stored);
-        const isDefaultValid = data.models.some((m) => m.id === data.default_model);
-
-        if (stored && !isStoredValid) removeSafeStorage(STORAGE_KEY);
-        if (isStoredValid) {
-          setSelectedModel(stored);
-          return;
-        }
-        if (!isDefaultValid) {
-          console.error("[StatementUploader] Default model validation failed:", {
-            defaultModel: data.default_model,
-            availableModels: data.models.map((m) => m.id),
-          });
-          setError("We couldn't find a default AI model. Refresh and try again.");
-          setSelectedModel("");
-          return;
-        }
-        setSelectedModel(data.default_model);
-      } catch (err) {
-        if (!active) return;
-        console.error("[StatementUploader] Failed to load AI models:", err);
-        setError("Unable to load AI models. Please try again.");
-        setModels([]);
-        setSelectedModel("");
-      } finally {
-        if (active) setModelLoading(false);
-      }
-    }
-    void loadModels();
-    return () => { active = false; };
-  }, [kind]);
 
   const validateAndSetFiles = useCallback(
     (incoming: FileList | File[]): void => {
@@ -152,11 +66,6 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
       setError("Please select a file");
       return;
     }
-    const hasNonCsv = files.some((f) => getFileExtension(f.name) !== "csv");
-    if (hasNonCsv && !selectedModel) {
-      setError("Please select an AI model");
-      return;
-    }
     setUploading(true);
     setError(null);
 
@@ -167,7 +76,6 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
         const formData = new FormData();
         formData.append("file", currentFile);
         if (institution.trim()) formData.append("institution", institution.trim());
-        if (!currentIsCsv) formData.append("model", selectedModel);
 
         track(ANALYTICS_EVENTS.UPLOAD_STARTED, { is_csv: currentIsCsv });
         await apiOperationUpload("upload_statement_statements_post", { body: formData });
@@ -278,36 +186,10 @@ export default function StatementUploader({ onUploadComplete, onError, kind = "a
 
       {error && <div className="alert-error">{error}</div>}
 
-      {isCsvFile ? (
+      {isCsvFile && (
         <div className="rounded-md border border-[var(--border)] bg-[var(--background-muted)] px-3 py-2">
           <p className="text-sm font-medium">CSV files are parsed directly</p>
           <p className="text-xs text-muted mt-1">No AI model needed.</p>
-        </div>
-      ) : (
-        <div>
-          <label htmlFor={aiModelId} className="block text-sm font-medium mb-1.5">AI Model</label>
-          <select
-            id={aiModelId}
-            data-testid={`uploader-model-${kind}`}
-            className="input"
-            value={selectedModel}
-            onChange={(e) => {
-              const next = e.target.value;
-              setSelectedModel(next);
-              if (next) setSafeStorage(STORAGE_KEY, next, showToast);
-            }}
-            disabled={modelLoading}
-            aria-label="AI model"
-          >
-            {models.length === 0 ? (
-              <option value="">No models available</option>
-            ) : (
-              models.map((m) => (
-                <option key={m.id} value={m.id}>{m.name || m.id} — {m.is_free ? "Free" : "Paid"}</option>
-              ))
-            )}
-          </select>
-          <p className="text-xs text-muted mt-1">Defaults to the configured OCR model. Paid models are available if enabled.</p>
         </div>
       )}
 

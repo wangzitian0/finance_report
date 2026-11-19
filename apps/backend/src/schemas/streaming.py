@@ -38,7 +38,7 @@ class ChatStreamEnvelope(BaseModel):
 
     def _advisor_metadata_header(self) -> str | None:
         meta = self.advisor_metadata
-        if meta is None or not (meta.grounded or meta.citations or meta.actions):
+        if meta is None or not (meta.citations or meta.actions):
             return None
         return meta.model_dump_json()
 

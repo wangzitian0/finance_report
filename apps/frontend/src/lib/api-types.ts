@@ -459,7 +459,6 @@ export interface components {
       account_id?: string | null;
       file: string;
       institution?: string | null;
-      model?: string | null;
     };
     BrokerageImportRequest: {
       filename?: string | null;
@@ -604,7 +603,6 @@ export interface components {
     ChatMessageRoleEnum: "user" | "assistant" | "system";
     ChatRequest: {
       message: string;
-      model?: string | null;
       session_id?: string | null;
     };
     ChatSessionResponse: {
