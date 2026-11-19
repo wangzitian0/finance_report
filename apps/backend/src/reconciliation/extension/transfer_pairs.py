@@ -151,26 +151,8 @@ async def paired_transfer_entry_ids(db: AsyncSession, *, user_id: UUID) -> set[U
     return set(result.scalars().all())
 
 
-async def list_unpaired_transfer_dispositions(db: AsyncSession, *, user_id: UUID) -> list[ReconciliationMatch]:
-    paired_ids = select(ReconciliationTransferPairLeg.disposition_id).where(
-        ReconciliationTransferPairLeg.pair_id.in_(_current_pair_ids())
-    )
-    result = await db.execute(
-        select(ReconciliationMatch)
-        .join(AtomicTransaction, AtomicTransaction.id == ReconciliationMatch.atomic_txn_id)
-        .where(
-            AtomicTransaction.user_id == user_id,
-            *_current_transfer_leg_clauses(),
-            ReconciliationMatch.id.notin_(paired_ids),
-        )
-        .order_by(ReconciliationMatch.created_at, ReconciliationMatch.id)
-    )
-    return list(result.scalars().all())
-
-
 __all__ = [
     "InvalidTransferPairError",
-    "list_unpaired_transfer_dispositions",
     "paired_transfer_entry_ids",
     "persist_transfer_pairs",
 ]

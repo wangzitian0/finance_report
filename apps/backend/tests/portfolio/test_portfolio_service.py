@@ -209,7 +209,7 @@ async def test_get_portfolio_summary_cases(db, test_user, svc, account):
         summary.total_realized_pnl,
         summary.net_pnl,
         summary.net_pnl_percent,
-    ) == (2, 1, 3, "SGD", Decimal("9125.00"), Decimal("7600.00"), Decimal("1525.00"), Decimal("0"), Decimal("1525.00"), Decimal("20.07"))
+    ) == (2, 1, 3, "SGD", Decimal("3625.00"), Decimal("2600.00"), Decimal("1025.00"), Decimal("0"), Decimal("1025.00"), Decimal("39.42"))
 
 
 async def test_get_latest_price_and_atomic_helpers(db, test_user, svc, active_position, account):

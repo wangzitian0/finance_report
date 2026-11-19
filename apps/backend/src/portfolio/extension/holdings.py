@@ -352,12 +352,17 @@ class PortfolioService:
     ) -> PortfolioSummaryResponse:
         """Return overall portfolio summary including market value, cost basis, and P&L."""
         holdings = await self.get_holdings(db, user_id, as_of_date, include_disposed=True, base_currency=base_currency)
-        total_market_value = sum((h.market_value for h in holdings), Decimal("0"))
-        total_cost_basis = sum((h.cost_basis for h in holdings), Decimal("0"))
-        total_unrealized_pnl = sum((h.unrealized_pnl for h in holdings), Decimal("0"))
-        active_count = sum(1 for h in holdings if h.status == PositionStatus.ACTIVE)
+        active_holdings = [h for h in holdings if h.status == PositionStatus.ACTIVE]
+        total_market_value = sum((h.market_value for h in active_holdings), Decimal("0"))
+        total_cost_basis = sum((h.cost_basis for h in active_holdings), Decimal("0"))
+        total_unrealized_pnl = sum((h.unrealized_pnl for h in active_holdings), Decimal("0"))
+        active_count = len(active_holdings)
         net_pnl_ratio = Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis)
-        currency = holdings[0].currency if holdings else require_base_currency(base_currency)
+        currency = (
+            active_holdings[0].currency
+            if active_holdings
+            else (holdings[0].currency if holdings else require_base_currency(base_currency))
+        )
         return _portfolio_schemas().PortfolioSummaryResponse(
             total_market_value=to_money(total_market_value),
             total_cost_basis=to_money(total_cost_basis),
