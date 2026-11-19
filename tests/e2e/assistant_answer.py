@@ -1,29 +1,165 @@
-'AC-advisor.grounding.3'; from __future__ import annotations; import re; from collections.abc import Mapping; from decimal import Decimal; ANSWER_TIMEOUT_SECONDS = 120; ANSWERS_PER_JOURNEY = 2; CSV_PARSE_TIMEOUT_SECONDS = 120; WAIT_CEILING_MINUTES = (ANSWERS_PER_JOURNEY * ANSWER_TIMEOUT_SECONDS + CSV_PARSE_TIMEOUT_SECONDS) / 60; METRIC_LABELS: dict[str, tuple[str, ...]] = {'net_worth': ('net worth',), 'income': ('income this month', 'monthly income', 'income for this month', "this month's income", 'earned this month', 'total income'), 'expenses': ('expenses this month', 'monthly expenses', 'expenses for this month', "this month's expenses", 'spent this month', 'total expenses')}; QUESTION = "What is my net worth today, and what are my total income and my total expenses this month? Start your answer with three lines in this form: 'Net worth: <amount>', 'Income this month: <amount>', 'Expenses this month: <amount>'. Use the exact amounts."; OUT_OF_DATA_QUESTION = 'How much did I spend on dining in March 2019?'; EMPTY_ANSWER_FAILURE = 'the assistant sent HTTP 200 with an empty body after {seconds} s for {question!r}: the provider stream failed before its first chunk, and the AI service may be unavailable'; OUT_OF_DATA_TOPIC = re.compile('\\bdining\\b|\\bmarch\\s+2019\\b', re.IGNORECASE); _CODES = 'SGD|USD|CNY|RMB|HKD|MYR|EUR|GBP|JPY|AUD|CAD|NZD|CHF|INR|THB|IDR|PHP|KRW|TWD|VND'; _NUMBER = '\\d[\\d,]*(?:\\.\\d+)?'; _END = '(?![\\d%]|[.,]\\d)'; _UNITS = 'days?|weeks?|months?|years?|hours?|transactions?|entries|rows?|statements?|accounts?|items?'; _UNIT = f'(?![ \\t]*(?i:{_UNITS})\\b)'; _AMOUNT = re.compile(f'(?:(?<![A-Za-z])(?i:{_CODES})|S\\$|US\\$|HK\\$|\\$|¥|€|£)[ \\t]*({_NUMBER})(?![\\d%]|\\.\\d)|(?<![\\w.,])({_NUMBER})[ \\t]*(?:(?i:{_CODES})\\b|(?i:dollars?)\\b)|(?<![\\w.,$])(\\d{{1,3}}(?:,\\d{{3}})+(?:\\.\\d+)?|\\d+\\.\\d{{2}}|(?!(?:19|20)\\d\\d(?!\\d))\\d{{3,}}){_END}{_UNIT}'); _MONTH = '(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?'; _NOT_AN_AMOUNT = re.compile(f'\\b\\d{{1,2}}[ \\t]+{_MONTH}(?:[ \\t]+\\d{{4}})?\\b|\\b{_MONTH}[ \\t]+\\d{{1,2}}(?:,[ \\t]*\\d{{4}})?\\b|\\b{_MONTH}[ \\t]+\\d{{4}}\\b|\\b\\d{{4}}-\\d{{2}}-\\d{{2}}\\b|\\d+(?:\\.\\d+)?[ \\t]*%|\\b\\d+[ \\t]+(?:{_UNITS})\\b', re.IGNORECASE); _STATED = re.compile(f'(?P<before>[-−])?(?:(?i:{_CODES})|S\\$|US\\$|HK\\$|[$¥€£])?[ \\t]*(?P<after>[-−])?(?P<number>{_NUMBER})'); _LABEL = re.compile('|'.join((f"(?P<{metric}_{index}>{re.escape(label).replace(chr(39), '[' + chr(39) + '’]')})" for metric, labels in METRIC_LABELS.items() for index, label in enumerate(labels))), re.IGNORECASE); _MARKUP = re.compile('\\([^)]*\\)|[\\s*:#|_\\-–—]'); _SENTENCE_END = re.compile('(?<=[.!?])\\s+'); _CLAUSE_END = re.compile('(?<!\\d),|,(?!\\d)|;|\\s[—–-]\\s|—|\\b(?:but|while|whereas|although|however|with)\\b', re.IGNORECASE); _ABBREVIATION = re.compile('(?:^|[\\s(])(?:approx|e\\.g|i\\.e|vs|est|ca|avg)\\.$', re.IGNORECASE); _NO_DATA = re.compile("\\bno\\b[^.\\n]{0,60}\\b(?:data|records?|transactions?|information|statements?|details?|entries|history)\\b|\\b(?:don['’]t|do not|doesn['’]t|does not|didn['’]t|did not) (?:have|show|include|contain|cover|extend|see|find)\\b|\\b(?:is|are|was|were)(?:n['’]t| not) (?:available|recorded|included|covered|present|shown|listed|found|part of|in (?:your|the|my))\\b|\\bnot (?:available|recorded|included|covered|present|found)\\b|\\bunavailable\\b|\\boutside\\b|\\b(?:cannot|can['’]t|unable to)\\b", re.IGNORECASE); _decimal = lambda raw: Decimal(raw.replace(',', ''))
+from __future__ import annotations
+
+import re
+from collections.abc import Mapping
+from decimal import Decimal
+
+ANSWER_TIMEOUT_SECONDS = 120
+ANSWERS_PER_JOURNEY = 2
+CSV_PARSE_TIMEOUT_SECONDS = 120
+WAIT_CEILING_MINUTES = (
+    ANSWERS_PER_JOURNEY * ANSWER_TIMEOUT_SECONDS + CSV_PARSE_TIMEOUT_SECONDS
+) / 60
+METRIC_LABELS: dict[str, tuple[str, ...]] = {
+    "net_worth": ("net worth",),
+    "income": (
+        "income this month",
+        "monthly income",
+        "income for this month",
+        "this month's income",
+        "earned this month",
+        "total income",
+    ),
+    "expenses": (
+        "expenses this month",
+        "monthly expenses",
+        "expenses for this month",
+        "this month's expenses",
+        "spent this month",
+        "total expenses",
+    ),
+}
+QUESTION = (
+    "What is my net worth today, and what are my total income and my total expenses this month? "
+    "Start your answer with three lines in this form: 'Net worth: <amount>', 'Income this month: <amount>', "
+    "'Expenses this month: <amount>'. Use the exact amounts."
+)
+OUT_OF_DATA_QUESTION = "How much did I spend on dining in March 2019?"
+EMPTY_ANSWER_FAILURE = "the assistant sent HTTP 200 with an empty body after {seconds} s for {question!r}: the provider stream failed before its first chunk, and the AI service may be unavailable"
+OUT_OF_DATA_TOPIC = re.compile(r"\bdining\b|\bmarch\s+2019\b", re.IGNORECASE)
+_CODES = (
+    "SGD|USD|CNY|RMB|HKD|MYR|EUR|GBP|JPY|AUD|CAD|NZD|CHF|INR|THB|IDR|PHP|KRW|TWD|VND"
+)
+_NUMBER = r"\d[\d,]*(?:\.\d+)?"
+_END = r"(?![\d%]|[.,]\d)"
+_UNITS = r"days?|weeks?|months?|years?|hours?|transactions?|entries|rows?|statements?|accounts?|items?"
+_UNIT = rf"(?![ \t]*(?i:{_UNITS})\b)"
+_AMOUNT = re.compile(
+    rf"(?:(?<![A-Za-z])(?i:{_CODES})|S\$|US\$|HK\$|\$|¥|€|£)[ \t]*({_NUMBER})(?![\d%]|\.\d)"
+    rf"|(?<![\w.,])({_NUMBER})[ \t]*(?:(?i:{_CODES})\b|(?i:dollars?)\b)"
+    rf"|(?<![\w.,$])(\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d{{2}}|(?!(?:19|20)\d\d(?!\d))\d{{3,}}){_END}{_UNIT}"
+)
+_MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
+_NOT_AN_AMOUNT = re.compile(
+    rf"\b\d{{1,2}}[ \t]+{_MONTH}(?:[ \t]+\d{{4}})?\b|\b{_MONTH}[ \t]+\d{{1,2}}(?:,[ \t]*\d{{4}})?\b"
+    rf"|\b{_MONTH}[ \t]+\d{{4}}\b|\b\d{{4}}-\d{{2}}-\d{{2}}\b|\d+(?:\.\d+)?[ \t]*%|\b\d+[ \t]+(?:{_UNITS})\b",
+    re.IGNORECASE,
+)
+_STATED = re.compile(
+    rf"(?P<before>[-−])?(?:(?i:{_CODES})|S\$|US\$|HK\$|[$¥€£])?[ \t]*(?P<after>[-−])?(?P<number>{_NUMBER})"
+)
+_LABEL = re.compile(
+    "|".join(
+        f"(?P<{m}_{i}>{re.escape(lbl).replace(chr(39), '[' + chr(39) + '’]')})"
+        for m, lbls in METRIC_LABELS.items()
+        for i, lbl in enumerate(lbls)
+    ),
+    re.IGNORECASE,
+)
+_MARKUP = re.compile(r"\([^)]*\)|[\s*:#|_\-–—]")
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+_CLAUSE_END = re.compile(
+    r"(?<!\d),|,(?!\d)|;|\s[—–-]\s|—|\b(?:but|while|whereas|although|however|with)\b",
+    re.IGNORECASE,
+)
+_ABBREVIATION = re.compile(
+    r"(?:^|[\s(])(?:approx|e\.g|i\.e|vs|est|ca|avg)\.$", re.IGNORECASE
+)
+_NO_DATA = re.compile(
+    r"\bno\b[^.\n]{0,60}\b(?:data|records?|transactions?|information|statements?|details?|entries|history)\b"
+    r"|\b(?:don['’]t|do not|doesn['’]t|does not|didn['’]t|did not) (?:have|show|include|contain|cover|extend|see|find)\b"
+    r"|\b(?:is|are|was|were)(?:n['’]t| not) (?:available|recorded|included|covered|present|shown|listed|found|part of|in (?:your|the|my))\b"
+    r"|\bnot (?:available|recorded|included|covered|present|found)\b|\bunavailable\b|\boutside\b|\b(?:cannot|can['’]t|unable to)\b",
+    re.IGNORECASE,
+)
+
+
+def _decimal(raw: str) -> Decimal:
+    return Decimal(raw.replace(",", ""))
+
+
 def _stated_value(text: str) -> Decimal | None:
-    match = _STATED.search(_NOT_AN_AMOUNT.sub(' ', text))
-    if match is None: return None
-    value = _decimal(match['number']); return -value if match['before'] or match['after'] else value
+    match = _STATED.search(_NOT_AN_AMOUNT.sub(" ", text))
+    if match is None:
+        return None
+    value = _decimal(match["number"])
+    return -value if match["before"] or match["after"] else value
+
+
 def _label_text(answer: str, start: int, end: int) -> str:
-    line, _, rest = answer[start:end].partition('\n'); cleaned = _NOT_AN_AMOUNT.sub(' ', line)
-    if any((character.isdigit() for character in cleaned)) or _MARKUP.sub('', cleaned): return line
-    return next((other for other in rest.split('\n') if other.strip()), '')
+    line, _, rest = answer[start:end].partition("\n")
+    cleaned = _NOT_AN_AMOUNT.sub(" ", line)
+    if any(ch.isdigit() for ch in cleaned) or _MARKUP.sub("", cleaned):
+        return line
+    return next((other for other in rest.split("\n") if other.strip()), "")
+
+
 def stated_amounts(answer: str) -> dict[str, Decimal | None]:
-    stated: dict[str, Decimal | None] = dict.fromkeys(METRIC_LABELS); decided: set[str] = set(); labels = list(_LABEL.finditer(answer))
-    for (position, match) in enumerate(labels):
-        metric = match.lastgroup.rsplit('_', 1)[0] if match.lastgroup else ''
-        if metric in decided: continue
-        end = labels[position + 1].start() if position + 1 < len(labels) else len(answer); value = _stated_value(_label_text(answer, match.end(), end))
-        if value is not None: stated[metric] = value; decided.add(metric)
+    stated: dict[str, Decimal | None] = dict.fromkeys(METRIC_LABELS)
+    decided: set[str] = set()
+    labels = list(_LABEL.finditer(answer))
+    for pos, match in enumerate(labels):
+        metric = match.lastgroup.rsplit("_", 1)[0] if match.lastgroup else ""
+        if metric in decided:
+            continue
+        end = labels[pos + 1].start() if pos + 1 < len(labels) else len(answer)
+        if (value := _stated_value(_label_text(answer, match.end(), end))) is not None:
+            stated[metric] = value
+            decided.add(metric)
     return stated
-def misstated_metrics(answer: str, expected: Mapping[str, Decimal]) -> dict[str, Decimal | None]: stated = stated_amounts(answer); return {metric: stated[metric] for metric, amount in expected.items() if stated[metric] != amount}
-money_amounts = lambda answer: {_decimal(next((group for group in groups if group))) for groups in _AMOUNT.findall(answer)}
+
+
+def misstated_metrics(
+    answer: str, expected: Mapping[str, Decimal]
+) -> dict[str, Decimal | None]:
+    stated = stated_amounts(answer)
+    return {
+        metric: stated[metric]
+        for metric, amount in expected.items()
+        if stated[metric] != amount
+    }
+
+
+def money_amounts(answer: str) -> set[Decimal]:
+    return {
+        _decimal(next(g for g in groups if g)) for groups in _AMOUNT.findall(answer)
+    }
+
+
 def _sentences(answer: str) -> list[str]:
     sentences: list[str] = []
-    for line in answer.split('\n'):
-        pending = ''
+    for line in answer.split("\n"):
+        pending = ""
         for piece in _SENTENCE_END.split(line):
-            pending = f'{pending} {piece}' if pending else piece
-            if not _ABBREVIATION.search(pending): sentences.append(pending); pending = ''
-        sentences.append(pending) if pending else None
-    return [sentence for sentence in sentences if sentence.strip()]
-topic_claims = lambda answer: [clause.strip() for sentence in _sentences(answer) for clause in _CLAUSE_END.split(sentence) if OUT_OF_DATA_TOPIC.search(clause) and _AMOUNT.search(clause)]; says_no_data = lambda answer: any((OUT_OF_DATA_TOPIC.search(sentence) and _NO_DATA.search(sentence) for sentence in _sentences(answer)))
+            pending = f"{pending} {piece}" if pending else piece
+            if not _ABBREVIATION.search(pending):
+                sentences.append(pending)
+                pending = ""
+        if pending:
+            sentences.append(pending)
+    return [s for s in sentences if s.strip()]
+
+
+def topic_claims(answer: str) -> list[str]:
+    return [
+        c.strip()
+        for s in _sentences(answer)
+        for c in _CLAUSE_END.split(s)
+        if OUT_OF_DATA_TOPIC.search(c) and _AMOUNT.search(c)
+    ]
+
+
+def says_no_data(answer: str) -> bool:
+    return any(
+        OUT_OF_DATA_TOPIC.search(s) and _NO_DATA.search(s) for s in _sentences(answer)
+    )

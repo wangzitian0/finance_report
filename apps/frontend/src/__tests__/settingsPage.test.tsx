@@ -1,1 +1,46 @@
-import { describe, it, expect, vi, beforeEach } from "vitest"; import { render, screen, fireEvent } from "@testing-library/react"; import SettingsPage from "@/app/(main)/settings/page"; const navigationState = vi.hoisted(() => ({ searchParams: new URLSearchParams() })); const replaceMock = vi.fn(); vi.mock("next/navigation", () => ({ useSearchParams: () => navigationState.searchParams, useRouter: () => ({ replace: replaceMock }), })); vi.mock("@/components/settings/SettingsPanels", () => ({ GeneralSettingsPanel: () => <div data-testid="general-settings">GeneralMock</div>, AiSettingsPanel: () => <div data-testid="ai-settings">AiMock</div>, LlmSettingsPanel: () => <div data-testid="llm-settings">LlmMock</div>, AccountsPanel: () => <div data-testid="accounts-settings">AccountsMock</div>, })); describe("Merged Settings page (EPIC-022 AC22.21.4)", () => { beforeEach(() => { navigationState.searchParams = new URLSearchParams(); replaceMock.mockReset(); }); it("renders General/AI/LLM as tabs and defaults to General", () => { render(<SettingsPage />); expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true"); expect(screen.getByTestId("general-settings")).toBeInTheDocument(); expect(screen.queryByTestId("ai-settings")).toBeNull(); }); it("switches to the AI and LLM tabs and syncs the ?tab= query for deep links", () => { render(<SettingsPage />); fireEvent.click(screen.getByRole("tab", { name: "AI" })); expect(screen.getByTestId("ai-settings")).toBeInTheDocument(); expect(replaceMock).toHaveBeenCalledWith("/settings?tab=ai", { scroll: false }); fireEvent.click(screen.getByRole("tab", { name: "LLM Models" })); expect(screen.getByTestId("llm-settings")).toBeInTheDocument(); expect(replaceMock).toHaveBeenCalledWith("/settings?tab=llm", { scroll: false }); }); it("moves between tabs with the arrow keys (WAI-ARIA tabs pattern)", () => { render(<SettingsPage />); const tablist = screen.getByRole("tablist", { name: "Settings sections" }); fireEvent.keyDown(tablist, { key: "ArrowRight" }); expect(screen.getByRole("tab", { name: "AI" })).toHaveAttribute("aria-selected", "true"); expect(screen.getByRole("tab", { name: "AI" })).toHaveFocus(); expect(replaceMock).toHaveBeenCalledWith("/settings?tab=ai", { scroll: false }); fireEvent.keyDown(tablist, { key: "ArrowLeft" }); expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("aria-selected", "true"); }); it("wires each tab to its panel via aria-controls/labelledby", () => { render(<SettingsPage />); const tab = screen.getByRole("tab", { name: "General" }); const panel = screen.getByRole("tabpanel"); expect(tab).toHaveAttribute("aria-controls", "settings-panel-general"); expect(panel).toHaveAttribute("aria-labelledby", "settings-tab-general"); }); it("AC-ledger.fe-accounts-tab.1 shows the chart of accounts in the Accounts tab that ?tab=accounts opens", () => { navigationState.searchParams = new URLSearchParams("tab=accounts"); render(<SettingsPage />); expect(screen.getByRole("tab", { name: "Accounts" })).toHaveAttribute("aria-selected", "true"); expect(screen.getByTestId("accounts-settings")).toBeInTheDocument(); expect(screen.queryByTestId("general-settings")).toBeNull(); expect(screen.queryByRole("link", { name: /Chart of Accounts/i })).toBeNull(); fireEvent.click(screen.getByRole("tab", { name: "General" })); expect(screen.queryByTestId("accounts-settings")).toBeNull(); fireEvent.click(screen.getByRole("tab", { name: "Accounts" })); expect(replaceMock).toHaveBeenLastCalledWith("/settings?tab=accounts", { scroll: false }); expect(screen.getByTestId("accounts-settings")).toBeInTheDocument(); }); it("opens the tab named by the ?tab= query (e.g. /settings/ai → ?tab=ai)", () => { navigationState.searchParams = new URLSearchParams("tab=ai"); render(<SettingsPage />); expect(screen.getByRole("tab", { name: "AI" })).toHaveAttribute("aria-selected", "true"); expect(screen.getByTestId("ai-settings")).toBeInTheDocument(); }); });
+import { beforeEach, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import SettingsPage from "@/app/(main)/settings/page";
+const nav = vi.hoisted(() => ({ searchParams: new URLSearchParams() }));
+const replaceMock = vi.fn(), S = screen, E = expect, tab = (n: string) => S.getByRole("tab", { name: n });
+vi.mock("next/navigation", () => ({ useSearchParams: () => nav.searchParams, useRouter: () => ({ replace: replaceMock }) }));
+vi.mock("@/components/settings/SettingsPanels", () => ({
+GeneralSettingsPanel: () => <div data-testid="general-settings" />, AiSettingsPanel: () => <div data-testid="ai-settings" />,
+LlmSettingsPanel: () => <div data-testid="llm-settings" />, AccountsPanel: () => <div data-testid="accounts-settings" />,
+}));
+beforeEach(() => { nav.searchParams = new URLSearchParams(); replaceMock.mockReset(); });
+it("EPIC-022 AC22.21.4 tabs, ARIA, keyboard nav", () => {
+render(<SettingsPage />);
+const gen = tab("General");
+E(gen).toHaveAttribute("aria-selected", "true");
+E(gen).toHaveAttribute("aria-controls", "settings-panel-general");
+E(S.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "settings-tab-general");
+E(S.getByTestId("general-settings")).toBeInTheDocument();
+E(S.queryByTestId("ai-settings")).toBeNull();
+for (const [name, q, tid] of [["AI", "ai", "ai-settings"], ["LLM Models", "llm", "llm-settings"]] as const) {
+fireEvent.click(tab(name));
+E(S.getByTestId(tid)).toBeInTheDocument();
+E(replaceMock).toHaveBeenCalledWith(`/settings?tab=${q}`, { scroll: false });
+}
+fireEvent.click(gen);
+const list = S.getByRole("tablist", { name: "Settings sections" });
+fireEvent.keyDown(list, { key: "ArrowRight" });
+E(tab("AI")).toHaveAttribute("aria-selected", "true");
+E(tab("AI")).toHaveFocus();
+fireEvent.keyDown(list, { key: "ArrowLeft" });
+E(gen).toHaveAttribute("aria-selected", "true");
+});
+it.each([["ai", "AI", "ai-settings"], ["accounts", "Accounts", "accounts-settings"]] as const)("AC-ledger.fe-accounts-tab.1 ?tab=%s", (q, name, tid) => {
+nav.searchParams = new URLSearchParams(`tab=${q}`);
+render(<SettingsPage />);
+E(tab(name)).toHaveAttribute("aria-selected", "true");
+E(S.getByTestId(tid)).toBeInTheDocument();
+E(S.queryByTestId("general-settings")).toBeNull();
+E(S.queryByRole("link", { name: /Chart of Accounts/i })).toBeNull();
+if (q === "accounts") {
+fireEvent.click(tab("General"));
+E(S.queryByTestId("accounts-settings")).toBeNull();
+fireEvent.click(tab("Accounts"));
+E(replaceMock).toHaveBeenLastCalledWith("/settings?tab=accounts", { scroll: false });
+}
+});

@@ -1,1 +1,46 @@
-import { QueryClientProvider } from "@tanstack/react-query"; import { act, renderHook, waitFor } from "@testing-library/react"; import React, { type ReactNode } from "react"; import { expect, it, vi } from "vitest"; import { useBaseCurrency } from "@/hooks/useBaseCurrency"; import { useLogout } from "@/hooks/useLogout"; import { apiOperation } from "@/lib/api"; import { clearUser } from "@/lib/auth"; import { createAppQueryClient } from "@/lib/queryClient"; const push = vi.fn(); vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) })); vi.mock("@/lib/api", () => ({ apiOperation: vi.fn() })); vi.mock("@/lib/auth", () => ({ clearUser: vi.fn() })); function makeWrapper(queryClient = createAppQueryClient()) { const Wrapper = ({ children }: { children: ReactNode }) => React.createElement(QueryClientProvider, { client: queryClient }, children); return { queryClient, Wrapper }; }; it("coalesces duplicate logout actions while server expiration is pending", async () => { let complete!: () => void; vi.mocked(apiOperation).mockReturnValue(new Promise<void>((resolve) => { complete = resolve; })); const { Wrapper } = makeWrapper(); const { result } = renderHook(() => useLogout(), { wrapper: Wrapper }); let first!: Promise<void>; act(() => { first = result.current.handleLogout(); void result.current.handleLogout(); }); expect(apiOperation).toHaveBeenCalledTimes(1); expect(clearUser).not.toHaveBeenCalled(); await act(async () => { complete(); await first; }); expect(clearUser).toHaveBeenCalledOnce(); expect(push).toHaveBeenCalledWith("/login"); }); it("clears the React Query cache before navigating to login (#2553)", async () => { vi.mocked(apiOperation).mockResolvedValue(undefined as never); const { queryClient, Wrapper } = makeWrapper(); queryClient.setQueryData(["user-settings", "base-currency"], { base_currency: "USD" }); queryClient.setQueryData(["accounts"], [{ id: "acc-1", name: "User 1 Savings" }]); let cacheSizeAtPush = -1; push.mockImplementationOnce(() => { cacheSizeAtPush = queryClient.getQueryCache().getAll().length; }); const { result } = renderHook(() => useLogout(), { wrapper: Wrapper }); await act(async () => { await result.current.handleLogout(); }); expect(cacheSizeAtPush).toBe(0); expect(queryClient.getQueryData(["user-settings", "base-currency"])).toBeUndefined(); expect(queryClient.getQueryData(["accounts"])).toBeUndefined(); expect(push).toHaveBeenCalledWith("/login"); }); it("isolates a second user in the same tab from the first user's cached query data (#2553)", async () => { const { queryClient, Wrapper } = makeWrapper(); queryClient.setQueryData(["user-settings", "base-currency"], { base_currency: "USD" }); const user1View = renderHook(() => useBaseCurrency(), { wrapper: Wrapper }); expect(user1View.result.current.baseCurrency).toBe("USD"); user1View.unmount(); vi.mocked(apiOperation).mockResolvedValueOnce(undefined as never); const logoutHook = renderHook(() => useLogout(), { wrapper: Wrapper }); await act(async () => { await logoutHook.result.current.handleLogout(); }); logoutHook.unmount(); let resolveUser2Currency!: (val: { base_currency: string }) => void; vi.mocked(apiOperation).mockImplementation((op: string) => { if (op === "get_base_currency_users_me_settings_base_currency_get") { return new Promise((resolve) => { resolveUser2Currency = resolve; }) as never; }; return Promise.resolve(undefined as never); }); const user2View = renderHook(() => useBaseCurrency(), { wrapper: Wrapper }); expect(user2View.result.current.baseCurrency).not.toBe("USD"); expect(user2View.result.current.baseCurrency).toBe("SGD"); await act(async () => { resolveUser2Currency({ base_currency: "EUR" }); }); await waitFor(() => expect(user2View.result.current.baseCurrency).toBe("EUR")); }); // AC-identity.fe-auth.15
+import { QueryClientProvider } from "@tanstack/react-query";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import React, { type ReactNode } from "react";
+import { expect, it, vi } from "vitest";
+import { useBaseCurrency } from "@/hooks/useBaseCurrency";
+import { useLogout } from "@/hooks/useLogout";
+import { apiOperation } from "@/lib/api";
+import { clearUser } from "@/lib/auth";
+import { createAppQueryClient } from "@/lib/queryClient";
+const push = vi.fn(), api = vi.mocked(apiOperation), E = expect;
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/lib/api", () => ({ apiOperation: vi.fn() }));
+vi.mock("@/lib/auth", () => ({ clearUser: vi.fn() }));
+it("coalesces logout, clears cache, isolates user (#2553)", async () => {
+let done!: () => void;
+api.mockReturnValue(new Promise<void>((r) => { done = r; }));
+const { result } = renderHook(() => useLogout());
+let p!: Promise<void>;
+act(() => { p = result.current.handleLogout(); void result.current.handleLogout(); });
+E(api).toHaveBeenCalledTimes(1);
+E(clearUser).not.toHaveBeenCalled();
+await act(async () => { done(); await p; });
+E(clearUser).toHaveBeenCalledOnce();
+E(push).toHaveBeenCalledWith("/login");
+api.mockResolvedValue(undefined as never);
+const qc = createAppQueryClient(), wrapper = ({ children }: { children: ReactNode }) => React.createElement(QueryClientProvider, { client: qc }, children);
+qc.setQueryData(["user-settings", "base-currency"], { base_currency: "USD" });
+qc.setQueryData(["accounts"], [{ id: "a1", name: "S" }]);
+let atPush = -1;
+push.mockImplementationOnce(() => { atPush = qc.getQueryCache().getAll().length; });
+const u1 = renderHook(() => useBaseCurrency(), { wrapper });
+E(u1.result.current.baseCurrency).toBe("USD");
+u1.unmount();
+const lo = renderHook(() => useLogout(), { wrapper });
+await act(async () => { await lo.result.current.handleLogout(); });
+lo.unmount();
+E([atPush, qc.getQueryData(["user-settings", "base-currency"]), qc.getQueryData(["accounts"])]).toEqual([0, undefined, undefined]);
+E(push).toHaveBeenCalledWith("/login");
+let res2!: (v: { base_currency: string }) => void;
+api.mockImplementation((op: string) => op === "get_base_currency_users_me_settings_base_currency_get" ? new Promise((r) => { res2 = r; }) as never : Promise.resolve(undefined as never));
+const u2 = renderHook(() => useBaseCurrency(), { wrapper });
+E(u2.result.current.baseCurrency).toBe("SGD");
+await act(async () => { res2({ base_currency: "EUR" }); });
+await waitFor(() => E(u2.result.current.baseCurrency).toBe("EUR"));
+});
+// AC-identity.fe-auth.15

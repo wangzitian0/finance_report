@@ -1,1 +1,22 @@
-import { describe, it, expect, beforeEach, vi } from "vitest"; import { getTheme, setTheme, toggleTheme, initTheme } from "../lib/theme"; const localStorageMock = (() => { let store: Record<string, string> = {}; return { getItem: (key: string) => store[key] ?? null, setItem: (key: string, value: string) => { store[key] = value; }, removeItem: (key: string) => { delete store[key]; }, clear: () => { store = {}; }, }; })(); vi.stubGlobal("localStorage", localStorageMock); describe("theme utilities", () => { beforeEach(() => { localStorageMock.clear(); document.documentElement.className = ""; vi.restoreAllMocks(); }); describe("getTheme", () => { it("AC16.7.1 returns stored dark theme from localStorage", () => { localStorage.setItem("theme", "dark"); expect(getTheme()).toBe("dark"); }); it("AC16.7.1 returns stored light theme from localStorage", () => { localStorage.setItem("theme", "light"); expect(getTheme()).toBe("light"); }); it("AC16.7.1 returns system preference dark when no stored value", () => { Object.defineProperty(window, "matchMedia", { writable: true, value: vi.fn().mockImplementation((query: string) => ({ matches: query === "(prefers-color-scheme: dark)", media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(), })), }); expect(getTheme()).toBe("dark"); }); it("AC16.7.1 returns light when no stored value and system prefers light", () => { Object.defineProperty(window, "matchMedia", { writable: true, value: vi.fn().mockImplementation((query: string) => ({ matches: false, media: query, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(), })), }); expect(getTheme()).toBe("light"); }); }); describe("setTheme", () => { it("AC16.7.2 adds dark class when setting dark theme", () => { setTheme("dark"); expect(document.documentElement.classList.contains("dark")).toBe(true); expect(localStorage.getItem("theme")).toBe("dark"); }); it("AC16.7.2 removes dark class when setting light theme", () => { document.documentElement.classList.add("dark"); setTheme("light"); expect(document.documentElement.classList.contains("dark")).toBe(false); expect(localStorage.getItem("theme")).toBe("light"); }); }); describe("toggleTheme", () => { it("AC16.7.3 toggles from light to dark", () => { localStorage.setItem("theme", "light"); const result = toggleTheme(); expect(result).toBe("dark"); expect(document.documentElement.classList.contains("dark")).toBe(true); }); it("AC16.7.3 toggles from dark to light", () => { localStorage.setItem("theme", "dark"); const result = toggleTheme(); expect(result).toBe("light"); expect(document.documentElement.classList.contains("dark")).toBe(false); }); }); describe("initTheme", () => { it("AC16.7.4 initializes theme from stored value", () => { localStorage.setItem("theme", "dark"); initTheme(); expect(document.documentElement.classList.contains("dark")).toBe(true); }); }); }); // AC-meta.fe-utils.5 AC-meta.fe-utils.6 AC-meta.fe-utils.7 AC-meta.fe-utils.8
+import { beforeEach, expect, it, vi } from "vitest";
+import { getTheme, initTheme, setTheme, toggleTheme } from "../lib/theme";
+const stubMM = (dark: boolean) => Object.defineProperty(window, "matchMedia", { writable: true, value: vi.fn((q: string) => ({ matches: dark && q === "(prefers-color-scheme: dark)", media: q, onchange: null, addListener: vi.fn(), removeListener: vi.fn(), addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn() })) });
+beforeEach(() => { window.localStorage.clear(); document.documentElement.className = ""; vi.restoreAllMocks(); });
+it("AC16.7.1 AC16.7.2 AC16.7.3 AC16.7.4 theme helpers", () => {
+  for (const [s, d, e] of [["dark", false, "dark"], ["light", true, "light"], [null, true, "dark"], [null, false, "light"]] as const) {
+    window.localStorage.clear();
+    if (s) window.localStorage.setItem("theme", s);
+    stubMM(d);
+    expect(getTheme()).toBe(e);
+  }
+  setTheme("dark");
+  expect([document.documentElement.classList.contains("dark"), window.localStorage.getItem("theme")]).toEqual([true, "dark"]);
+  setTheme("light");
+  expect([document.documentElement.classList.contains("dark"), window.localStorage.getItem("theme")]).toEqual([false, "light"]);
+  expect([toggleTheme(), document.documentElement.classList.contains("dark")]).toEqual(["dark", true]);
+  expect([toggleTheme(), document.documentElement.classList.contains("dark")]).toEqual(["light", false]);
+  window.localStorage.setItem("theme", "dark");
+  initTheme();
+  expect(document.documentElement.classList.contains("dark")).toBe(true);
+});
+// AC-meta.fe-utils.5 AC-meta.fe-utils.6 AC-meta.fe-utils.7 AC-meta.fe-utils.8

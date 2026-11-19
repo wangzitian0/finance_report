@@ -1,8 +1,30 @@
-import { render, screen } from "@testing-library/react"; import type { ReactNode } from "react"; import { describe, expect, it, vi } from "vitest"; import RootLayout, { metadata, viewport } from "@/app/layout"; import { analyticsClientIdMissingInDeployedEnv } from "@/lib/analytics-env"; vi.mock("next/font/google", () => ({ Inter: () => ({ variable: "--font-inter" }), })); vi.mock("@/components/RootClients", () => ({ AuthGuard: ({ children }: { children: ReactNode }) => <div data-testid="auth-guard">{children}</div>, Analytics: () => <div data-testid="analytics" />, })); vi.mock("@/app/providers", () => ({ Providers: ({ children }: { children: ReactNode }) => <div data-testid="providers">{children}</div>, })); describe("RootLayout", () => { it("AC16.17.5 composes Providers and AuthGuard around children", () => { render( <RootLayout> <div>Root Child</div> </RootLayout>, ); expect(screen.getByTestId("providers")).toBeInTheDocument(); expect(screen.getByTestId("auth-guard")).toBeInTheDocument(); expect(screen.getByText("Root Child")).toBeInTheDocument() }); it("Infra-014 C5: warns once per process when client id is missing in a deployed env", () => { const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {}); const prevUrl = process.env.NEXT_PUBLIC_APP_URL
-const prevId = process.env.OPENPANEL_CLIENT_ID
-process.env.NEXT_PUBLIC_APP_URL = "https://report.zitian.party"
-delete process.env.OPENPANEL_CLIENT_ID
-try { render(<RootLayout><div>a</div></RootLayout>); render(<RootLayout><div>b</div></RootLayout>); expect(errorSpy).toHaveBeenCalledTimes(1); expect(String(errorSpy.mock.calls[0]?.[0])).toContain("OPENPANEL_CLIENT_ID is empty") } finally { errorSpy.mockRestore(); if (prevUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL
-else process.env.NEXT_PUBLIC_APP_URL = prevUrl
-if (prevId === undefined) delete process.env.OPENPANEL_CLIENT_ID
-else process.env.OPENPANEL_CLIENT_ID = prevId } }); it("Infra-014 C5: flags a missing OpenPanel client id only in deployed non-preview envs", () => { expect(analyticsClientIdMissingInDeployedEnv(undefined, "https://report.zitian.party")).toBe(true); expect(analyticsClientIdMissingInDeployedEnv("", "https://report-staging.zitian.party")).toBe(true); expect(analyticsClientIdMissingInDeployedEnv(undefined, "https://report-pr-7.zitian.party")).toBe(false); expect(analyticsClientIdMissingInDeployedEnv(undefined, "http://localhost:3000")).toBe(false); expect(analyticsClientIdMissingInDeployedEnv(undefined, undefined)).toBe(false); expect(analyticsClientIdMissingInDeployedEnv("abc-123", "https://report.zitian.party")).toBe(false) }); it("AC16.25.4 root layout metadata keeps viewport-only theme color", () => { expect(metadata).not.toHaveProperty("themeColor"); expect(viewport.themeColor).toBe("#7c3aed"); expect(metadata.appleWebApp).toEqual({ capable: true, title: "Finance Report", statusBarStyle: "default", }); expect(metadata.other).toEqual({ "mobile-web-app-capable": "yes", }) }) }) // AC-meta.fe-app-shell.21 AC-meta.fe-app-shell.6
+import { render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { expect, it, vi } from "vitest";
+import RootLayout, { metadata, viewport } from "@/app/layout";
+import { analyticsClientIdMissingInDeployedEnv } from "@/lib/analytics-env";
+vi.mock("next/font/google", () => ({ Inter: () => ({ variable: "--font-inter" }) }));
+vi.mock("@/components/RootClients", () => ({ AuthGuard: ({ children }: { children: ReactNode }) => <div data-testid="ag">{children}</div>, Analytics: () => <div data-testid="an" /> }));
+vi.mock("@/app/providers", () => ({ Providers: ({ children }: { children: ReactNode }) => <div data-testid="pr">{children}</div> }));
+it("AC16.17.5 AC16.25.4 Infra-014 C5 RootLayout + analytics env", () => {
+const err = vi.spyOn(console, "error").mockImplementation(() => {}), prevUrl = process.env.NEXT_PUBLIC_APP_URL, prevId = process.env.OPENPANEL_CLIENT_ID;
+process.env.NEXT_PUBLIC_APP_URL = "https://report.zitian.party";
+delete process.env.OPENPANEL_CLIENT_ID;
+try {
+const r1 = render(<RootLayout><div>Root Child</div></RootLayout>);
+expect(screen.getByTestId("pr")).toBeInTheDocument();
+expect(screen.getByTestId("ag")).toBeInTheDocument();
+expect(screen.getByText("Root Child")).toBeInTheDocument();
+r1.unmount();
+render(<RootLayout><div>b</div></RootLayout>);
+const openPanelErrs = err.mock.calls.filter(([m]) => String(m).includes("OPENPANEL_CLIENT_ID is empty"));
+expect(openPanelErrs).toHaveLength(1);
+} finally {
+err.mockRestore();
+if (prevUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL; else process.env.NEXT_PUBLIC_APP_URL = prevUrl;
+if (prevId === undefined) delete process.env.OPENPANEL_CLIENT_ID; else process.env.OPENPANEL_CLIENT_ID = prevId;
+}
+expect([metadata.appleWebApp, metadata.other, viewport.themeColor, "themeColor" in metadata]).toEqual([{ capable: true, title: "Finance Report", statusBarStyle: "default" }, { "mobile-web-app-capable": "yes" }, "#7c3aed", false]);
+for (const [id, u, exp] of [[undefined, "https://report.zitian.party", true], ["", "https://report-staging.zitian.party", true], [undefined, "https://report-pr-7.zitian.party", false], [undefined, "http://localhost:3000", false], [undefined, undefined, false], ["abc-123", "https://report.zitian.party", false]] as const) expect(analyticsClientIdMissingInDeployedEnv(id, u)).toBe(exp);
+});
+// AC-meta.fe-app-shell.21 AC-meta.fe-app-shell.6

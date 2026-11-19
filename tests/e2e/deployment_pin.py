@@ -1,4 +1,4 @@
-"""AC-testing.package-lifecycle.3: pin a live proof to the deployment it names."""
+"""Pin a live proof to the deployment it names."""
 
 from __future__ import annotations
 

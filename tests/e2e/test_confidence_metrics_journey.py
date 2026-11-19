@@ -1,22 +1,195 @@
-from __future__ import annotations; import asyncio; import os; import uuid; from datetime import date; from decimal import Decimal; import httpx; import pytest; from common.testing.ac_proof import ac_proof; from tests.fixtures.provider_review import FixtureDisposition, FixtureEnvelope, approve_statement_with_fixture_review; from deployment_pin import assert_pinned_deployment, resolve_expected_commit; from journey_checkpoint import checkpoint; from playwright.async_api import Page, expect; APP_URL = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS = int(os.getenv('PARSING_TIMEOUT_MS', '480000')); CURRENCY = 'SGD'; EXPECTED_TOTAL_STATEMENTS = 2; EXPECTED_LOW_CONFIDENCE_STATEMENTS = 1; EXPECTED_LOW_CONFIDENCE_RATIO = Decimal('0.5'); EXPECTED_REPLAY_PROPORTION_BEFORE = Decimal('1.00000'); EXPECTED_REPLAY_PROPORTION_AFTER = Decimal('0.00000'); EXPECTED_MATCH_RATE = Decimal('100.00'); CSV_HEADER = 'Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount'; LOW_CONFIDENCE_CSV_HEADER = 'Statement Currency,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount'; DISPOSITIONS = {'salary credit acme': FixtureDisposition('income', 'INCOME', 'Monthly salary credit', 'SALARY')}; _api_url = lambda path: f"{APP_URL.rstrip('/')}/api{path}"  # AC-reconciliation.2465.1 AC-reconciliation.2561.1
-async def _auth_headers(page: Page) -> dict[str, str]: cookies = await page.context.cookies(APP_URL); auth_cookie = next((cookie for cookie in cookies if cookie['name'] == 'finance_access_token'), None); assert auth_cookie, 'authenticated Playwright context is missing auth cookie'; return {'Cookie': f"finance_access_token={auth_cookie['value']}"}
-async def _assert_pinned_before_journey(page: Page, record_property) -> None:
-    expected_version = os.getenv('EXPECTED_SHA'); assert expected_version, 'core-journey proof requires an explicit EXPECTED_SHA'; expected_commit = resolve_expected_commit(expected_version); headers = await _auth_headers(page)
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client: health = await client.get(_api_url('/health')); assert health.status_code == 200; assert_pinned_deployment(health.json(), expected_version, expected_commit); frontend = await client.get(f"{APP_URL.rstrip('/')}/frontend-version.json"); assert frontend.status_code == 200, 'frontend deployment version must be observable'; assert_pinned_deployment(frontend.json(), expected_version, expected_commit)
-    checkpoint(record_property, 'U12')
-async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str) -> dict:
-    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000; last_payload: dict | None = None
-    while asyncio.get_running_loop().time() < deadline:
-        response = await client.get(_api_url(f'/statements/{statement_id}')); assert response.status_code == 200, f'statement poll failed for {statement_id}: {response.text}'; last_payload = response.json(); status = last_payload.get('status')
-        if status in ('rejected', 'approved', 'parsed'): return last_payload
-        await asyncio.sleep(0.5)
-    raise TimeoutError(f'statement {statement_id} did not parse: {last_payload}')
-@ac_proof('confidence-metrics-measured-journey', ac_ids=['AC-extraction.1814.4'], scope='behavioral', ci_tier='post_merge_environment', issue='#2370', required_markers=['e2e', 'journey'])
+from __future__ import annotations
+
+import uuid
+from datetime import date
+from decimal import Decimal
+
+import httpx
+import pytest
+from playwright.async_api import Page, expect
+from tests.fixtures.provider_review import FixtureDisposition, FixtureEnvelope
+
+from tests.e2e._journey_helpers import (
+    assert_pinned_via_client,
+    auth_headers,
+    create_account,
+    get_json,
+    get_url,
+    post_json,
+    upload_parse_and_approve_csv,
+    upload_statement,
+    wait_for_statement,
+)
+from tests.e2e.journey_checkpoint import checkpoint
+
+CURRENCY = "SGD"
+CSV_HEADER = "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
+LOW_CONFIDENCE_CSV_HEADER = "Statement Currency,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
+DISPOSITIONS = {
+    "salary credit acme": FixtureDisposition(
+        "income", "INCOME", "Monthly salary credit", "SALARY"
+    )
+}
+
+
 @pytest.mark.e2e
 @pytest.mark.journey
-async def test_proportion_of_low_confidence_data_is_measured(authenticated_page_unique: Page, record_property) -> None:
-    'AC-extraction.1814.4 EPIC-018'; page = authenticated_page_unique; await _assert_pinned_before_journey(page, record_property); assert EXPECTED_TOTAL_STATEMENTS == 2; assert EXPECTED_LOW_CONFIDENCE_STATEMENTS == 1; assert EXPECTED_LOW_CONFIDENCE_RATIO == Decimal('0.5'); assert EXPECTED_REPLAY_PROPORTION_BEFORE == Decimal('1.00000'); assert EXPECTED_REPLAY_PROPORTION_AFTER == Decimal('0.00000'); assert EXPECTED_MATCH_RATE == Decimal('100.00'); headers = await _auth_headers(page)
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
-        acc_resp = await client.post(_api_url('/accounts'), json={'name': 'Confidence Metrics Savings', 'type': 'ASSET', 'currency': CURRENCY}); assert acc_resp.status_code == 201, f'account creation failed: {acc_resp.text}'; account_id = acc_resp.json()['id']; valid_filename = f'confidence_valid_{uuid.uuid4().hex[:6]}.csv'; valid_csv = '\n'.join([CSV_HEADER, 'SGD,2026-01-01,2026-01-31,10000.00,20000.00,2026-01-05,Salary Credit ACME,5000.00', 'SGD,2026-01-01,2026-01-31,10000.00,20000.00,2026-01-20,Salary Credit ACME,5000.00', '']); valid_upload = await client.post(_api_url('/statements'), data={'institution': 'Confidence Valid Bank', 'account_id': account_id}, files={'file': (valid_filename, valid_csv.encode('utf-8'), 'text/csv')}); assert valid_upload.status_code in (200, 201, 202), f'valid statement upload failed: {valid_upload.text}'; valid_statement_id = valid_upload.json()['id']; valid_parsed = await _wait_for_parsed(client, valid_statement_id); assert valid_parsed['balance_validated'] is True; assert valid_parsed['confidence_score'] >= 50; assert len(valid_parsed['transactions']) == 2; approval = await approve_statement_with_fixture_review(client, api_url=_api_url, statement_id=valid_statement_id, transactions=valid_parsed['transactions'], dispositions=DISPOSITIONS, envelope=FixtureEnvelope(currency=CURRENCY, period_start=date(2026, 1, 1), period_end=date(2026, 1, 31), opening_balance=Decimal('10000.00'), closing_balance=Decimal('20000.00'), rationale='The generated CSV declares these source facts.')); assert approval['status'] == 'approved', f'valid statement approval failed: {approval}'; reconcile_resp = await client.post(_api_url('/reconciliation/runs'), json={'statement_id': valid_statement_id}); assert reconcile_resp.status_code == 200, f'reconciliation run failed: {reconcile_resp.text}'; assert reconcile_resp.json() == {'matches_created': 0, 'auto_accepted': 0, 'pending_review': 0, 'unmatched': 0}, f'the run did not treat the posted rows as resolved: {reconcile_resp.json()}'
-        for txn in valid_parsed['transactions']: corr_resp = await client.post(_api_url('/statements/corrections'), json={'transaction_id': txn['id'], 'corrected_category': 'SALARY'}); assert corr_resp.status_code == 201, f'correction creation failed: {corr_resp.text}'
-        low_conf_filename = f'confidence_low_{uuid.uuid4().hex[:6]}.csv'; low_conf_csv = '\n'.join([LOW_CONFIDENCE_CSV_HEADER, 'SGD,20000.00,99999.00,2026-02-10,Unverified Expense,-500.00', '']); low_conf_upload = await client.post(_api_url('/statements'), data={'institution': 'Confidence Low Score Bank', 'account_id': account_id}, files={'file': (low_conf_filename, low_conf_csv.encode('utf-8'), 'text/csv')}); assert low_conf_upload.status_code in (200, 201, 202), f'low-confidence statement upload failed: {low_conf_upload.text}'; low_conf_statement_id = low_conf_upload.json()['id']; low_conf_parsed = await _wait_for_parsed(client, low_conf_statement_id); assert low_conf_parsed['balance_validated'] is False; assert low_conf_parsed['confidence_score'] < 50; assert len(low_conf_parsed['transactions']) == 1; replay_resp = await client.get(_api_url('/statements/correction-loop/replay')); assert replay_resp.status_code == 200, f'correction loop replay failed: {replay_resp.status_code} {replay_resp.text}'; replay = replay_resp.json(); assert replay['holdout_size'] == 1; assert replay['grounded'] == 1; prop_before = Decimal(str(replay['proportion_before'])); prop_after = Decimal(str(replay['proportion_after'])); assert prop_before == EXPECTED_REPLAY_PROPORTION_BEFORE; assert prop_after == EXPECTED_REPLAY_PROPORTION_AFTER; assert prop_after < prop_before; assert replay['reduced'] is True; stats_resp = await client.get(_api_url('/reconciliation/stats')); assert stats_resp.status_code == 200, f'reconciliation stats failed: {stats_resp.status_code} {stats_resp.text}'; stats = stats_resp.json(); assert stats['total_transactions'] == 2; assert stats['matched_transactions'] == 2; assert stats['unmatched_transactions'] == 0; assert stats['matched_transactions'] + stats['unmatched_transactions'] == stats['total_transactions']; match_rate = Decimal(str(stats['match_rate'])); assert match_rate == EXPECTED_MATCH_RATE; scoped_unmatched_resp = await client.get(_api_url('/reconciliation/unmatched'), params={'statement_id': low_conf_statement_id}); assert scoped_unmatched_resp.status_code == 200, f'scoped unmatched list failed: {scoped_unmatched_resp.status_code} {scoped_unmatched_resp.text}'; scoped_unmatched = scoped_unmatched_resp.json(); assert scoped_unmatched['total'] == 1, f'scoped unmatched list must hold the Stage-1 row: {scoped_unmatched_resp.status_code} {scoped_unmatched_resp.text}'; assert [item['id'] for item in scoped_unmatched['items']] == [low_conf_parsed['transactions'][0]['id']], f'scoped unmatched item is not the Stage-1 row: {scoped_unmatched_resp.status_code} {scoped_unmatched_resp.text}'; unscoped_unmatched_resp = await client.get(_api_url('/reconciliation/unmatched')); assert unscoped_unmatched_resp.status_code == 200, f'unscoped unmatched list failed: {unscoped_unmatched_resp.status_code} {unscoped_unmatched_resp.text}'; unscoped_unmatched = unscoped_unmatched_resp.json(); assert unscoped_unmatched['total'] == 0, f'unscoped unmatched list must hold no Stage-1 row: {unscoped_unmatched_resp.status_code} {unscoped_unmatched_resp.text}'; stmts_resp = await client.get(_api_url('/statements')); assert stmts_resp.status_code == 200, f'statements list failed: {stmts_resp.status_code} {stmts_resp.text}'; stmts = stmts_resp.json()['items']; total_statements = len(stmts); assert total_statements > 0, 'statements list must not be empty'; assert total_statements == EXPECTED_TOTAL_STATEMENTS; low_confidence_statements = sum((1 for s in stmts if s['confidence_score'] is not None and s['confidence_score'] < 50 or s['balance_validated'] is False)); assert low_confidence_statements == EXPECTED_LOW_CONFIDENCE_STATEMENTS; statement_low_confidence_ratio = Decimal(low_confidence_statements) / Decimal(total_statements); assert statement_low_confidence_ratio == EXPECTED_LOW_CONFIDENCE_RATIO; await page.goto(f"{APP_URL.rstrip('/')}/audit?tab=health", wait_until='domcontentloaded'); await expect(page.locator('main')).to_contain_text('Correction Loop Proof', timeout=30000); await expect(page.locator('main')).to_contain_text('Accuracy on Past Edits', timeout=30000); await expect(page.locator('main')).to_contain_text('Improves extraction', timeout=30000); await expect(page.locator('main')).to_contain_text('Before correction reuse', timeout=30000); await expect(page.locator('main')).to_contain_text('100.0%', timeout=30000); await expect(page.locator('main')).to_contain_text('After correction reuse', timeout=30000); await expect(page.locator('main')).to_contain_text('0.0%', timeout=30000); await page.goto(f"{APP_URL.rstrip('/')}/statements", wait_until='domcontentloaded'); await page.locator('main').wait_for(state='visible', timeout=30000); await expect(page.get_by_text(f'{EXPECTED_TOTAL_STATEMENTS} total')).to_be_visible(timeout=30000); valid_row = page.locator('.relative.block').filter(has_text=valid_filename); await expect(valid_row).to_be_visible(timeout=30000); await expect(valid_row).to_contain_text('Approved'); low_conf_row = page.locator('.relative.block').filter(has_text=low_conf_filename); await expect(low_conf_row).to_be_visible(timeout=30000); await expect(low_conf_row).to_contain_text('Ready to review'); record_property('replay_proportion_before', str(prop_before)); record_property('replay_proportion_after', str(prop_after)); record_property('replay_reduced', str(replay['reduced'])); record_property('statement_low_confidence_ratio', str(statement_low_confidence_ratio)); record_property('reconciliation_match_rate', str(match_rate)); checkpoint(record_property, 'U13')
+async def test_proportion_of_low_confidence_data_is_measured(
+    authenticated_page_unique: Page, record_property
+) -> None:
+    page = authenticated_page_unique
+    async with httpx.AsyncClient(
+        headers=await auth_headers(page), verify=False, timeout=120.0
+    ) as client:
+        await assert_pinned_via_client(client, record_property)
+        account_id = await create_account(
+            client, "Confidence Metrics Savings", currency=CURRENCY
+        )
+        valid_filename = f"confidence_valid_{uuid.uuid4().hex[:6]}.csv"
+        valid_csv = "\n".join(
+            [
+                CSV_HEADER,
+                "SGD,2026-01-01,2026-01-31,10000.00,20000.00,2026-01-05,Salary Credit ACME,5000.00",
+                "SGD,2026-01-01,2026-01-31,10000.00,20000.00,2026-01-20,Salary Credit ACME,5000.00",
+                "",
+            ]
+        )
+        valid_id, valid_parsed = await upload_parse_and_approve_csv(
+            client,
+            filename=valid_filename,
+            csv_bytes=valid_csv.encode("utf-8"),
+            institution="Confidence Valid Bank",
+            account_id=account_id,
+            dispositions=DISPOSITIONS,
+            expected_txns=2,
+            envelope=FixtureEnvelope(
+                currency=CURRENCY,
+                period_start=date(2026, 1, 1),
+                period_end=date(2026, 1, 31),
+                opening_balance=Decimal("10000.00"),
+                closing_balance=Decimal("20000.00"),
+                rationale="The generated CSV declares these source facts.",
+            ),
+        )
+        assert (
+            valid_parsed["balance_validated"] is True
+            and valid_parsed["confidence_score"] >= 50
+        )
+        assert await post_json(
+            client,
+            "/reconciliation/runs",
+            json={"statement_id": valid_id},
+            expected_status=(200,),
+        ) == {
+            "matches_created": 0,
+            "auto_accepted": 0,
+            "pending_review": 0,
+            "unmatched": 0,
+        }
+        for txn in valid_parsed["transactions"]:
+            await post_json(
+                client,
+                "/statements/corrections",
+                json={"transaction_id": txn["id"], "corrected_category": "SALARY"},
+                expected_status=(201,),
+            )
+
+        low_filename = f"confidence_low_{uuid.uuid4().hex[:6]}.csv"
+        low_csv = "\n".join(
+            [
+                LOW_CONFIDENCE_CSV_HEADER,
+                "SGD,20000.00,99999.00,2026-02-10,Unverified Expense,-500.00",
+                "",
+            ]
+        )
+        low_id = await upload_statement(
+            client,
+            filename=low_filename,
+            content=low_csv.encode("utf-8"),
+            content_type="text/csv",
+            institution="Confidence Low Score Bank",
+            account_id=account_id,
+        )
+        low_parsed = await wait_for_statement(
+            client,
+            low_id,
+            poll_seconds=0.5,
+            target_statuses=("parsed", "approved", "rejected"),
+            fail_statuses=(),
+        )
+        assert (
+            low_parsed["balance_validated"] is False
+            and low_parsed["confidence_score"] < 50
+            and len(low_parsed["transactions"]) == 1
+        )
+
+        replay = await get_json(client, "/statements/correction-loop/replay")
+        prop_before, prop_after = (
+            Decimal(str(replay["proportion_before"])),
+            Decimal(str(replay["proportion_after"])),
+        )
+        assert (
+            replay["holdout_size"] == 1
+            and replay["grounded"] == 1
+            and prop_before == Decimal("1.00000")
+            and prop_after == Decimal("0.00000")
+            and replay["reduced"] is True
+        )
+        stats = await get_json(client, "/reconciliation/stats")
+        match_rate = Decimal(str(stats["match_rate"]))
+        assert (
+            stats["total_transactions"],
+            stats["matched_transactions"],
+            stats["unmatched_transactions"],
+            match_rate,
+        ) == (2, 2, 0, Decimal("100.00"))
+
+        scoped = await get_json(
+            client, "/reconciliation/unmatched", statement_id=low_id
+        )
+        assert (
+            scoped["total"] == 1
+            and [i["id"] for i in scoped["items"]]
+            == [low_parsed["transactions"][0]["id"]]
+            and (await get_json(client, "/reconciliation/unmatched"))["total"] == 0
+        )
+        stmts = (await get_json(client, "/statements"))["items"]
+        low_count = sum(
+            1
+            for s in stmts
+            if (s["confidence_score"] is not None and s["confidence_score"] < 50)
+            or s["balance_validated"] is False
+        )
+        ratio = Decimal(low_count) / Decimal(len(stmts))
+        assert len(stmts) == 2 and low_count == 1 and ratio == Decimal("0.5")
+
+    await page.goto(get_url("/audit?tab=health"), wait_until="domcontentloaded")
+    for phrase in (
+        "Correction Loop Proof",
+        "Accuracy on Past Edits",
+        "Improves extraction",
+        "Before correction reuse",
+        "100.0%",
+        "After correction reuse",
+        "0.0%",
+    ):
+        await expect(page.locator("main")).to_contain_text(phrase, timeout=30000)
+    await page.goto(get_url("/statements"), wait_until="domcontentloaded")
+    await page.locator("main").wait_for(state="visible", timeout=30000)
+    await expect(page.get_by_text("2 total")).to_be_visible(timeout=30000)
+    for fname, status_label in (
+        (valid_filename, "Approved"),
+        (low_filename, "Ready to review"),
+    ):
+        row = page.locator(".relative.block").filter(has_text=fname)
+        await expect(row).to_be_visible(timeout=30000)
+        await expect(row).to_contain_text(status_label)
+    for k, v in {
+        "replay_proportion_before": str(prop_before),
+        "replay_proportion_after": str(prop_after),
+        "replay_reduced": str(replay["reduced"]),
+        "statement_low_confidence_ratio": str(ratio),
+        "reconciliation_match_rate": str(match_rate),
+    }.items():
+        record_property(k, v)
+    checkpoint(record_property, "U13")

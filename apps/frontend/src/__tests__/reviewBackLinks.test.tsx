@@ -1,3 +1,38 @@
-import type { ReactNode } from "react"; import { describe, expect, it, vi, beforeEach } from "vitest"; import { render, screen, waitFor } from "@testing-library/react"; import { BackLink } from "@/components/ui/SmartBackLink"; import { AiSuggestionsQueue } from "@/components/audit/AuditPanels"; import { apiOperation } from "@/lib/api"; const navigationState = vi.hoisted(() => ({ searchParams: new URLSearchParams(), })); vi.mock("next/link", () => ({ __esModule: true, default: ({ href, children, ...rest }: { href: string; children: ReactNode }) => ( <a href={href} {...rest}>
-{children}
-</a> ), })); vi.mock("@/lib/api", () => ({ apiOperation: vi.fn(), })); vi.mock("next/navigation", () => ({ useSearchParams: () => navigationState.searchParams, })); describe("Review surfaces back-link + plain copy (EPIC-022 AC22.5.3, AC22.5.4)", () => { beforeEach(() => { vi.mocked(apiOperation).mockReset(); navigationState.searchParams = new URLSearchParams(); }); it("AC22.5.3 BackLink defaults to the upload page", () => { render(<BackLink>Back to Upload</BackLink>); expect(screen.getByRole("link", { name: /Back to Upload/i })).toHaveAttribute( "href", "/upload", ); }); it("the AI suggestion queue shows the empty state when the response has no items field", async () => { vi.mocked(apiOperation).mockResolvedValue({} as any); render(<AiSuggestionsQueue />); expect(await screen.findByText("No pending AI suggestions")).toBeInTheDocument(); }); it("the AI suggestion queue shows a back-link only when the caller passes return_to", async () => { vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any); render(<AiSuggestionsQueue />); await waitFor(() => expect(screen.getByText("Suggestions to review")).toBeInTheDocument()); expect(screen.queryByRole("link")).not.toBeInTheDocument(); }); it("AC22.11.3 BackLink returns attention-origin users to the attention queue", () => { navigationState.searchParams = new URLSearchParams("from=attention"); render(<BackLink>Back to Notifications</BackLink>); expect(screen.getByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute( "href", "/audit?tab=needs-you", ); }); it("AC22.5.4 the review surface heading uses plain language, not internal jargon", async () => { vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any); render(<AiSuggestionsQueue />); await waitFor(() => expect(screen.getByText("Suggestions to review")).toBeInTheDocument()); expect(screen.queryByText(/Stage 2/i)).not.toBeInTheDocument(); expect(screen.queryByText(/60-84 score band/i)).not.toBeInTheDocument(); }); it("forwards statement_id query parameter and honors safe internal return_to in BackLink", async () => { navigationState.searchParams = new URLSearchParams( "statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview", ); vi.mocked(apiOperation).mockResolvedValue({ items: [] } as any); render(<AiSuggestionsQueue />); await waitFor(() => expect(vi.mocked(apiOperation)).toHaveBeenCalledWith( "list_classification_suggestions_statements_classification_suggestions_get", { query: { statement_id: "s1" } }, ), ); expect( await screen.findByRole("link", { name: /Back to Statement Review/i }), ).toHaveAttribute("href", "/statements/s1/review"); }); }); // AC-platform.fe-ia-inbox.4 AC-platform.fe-ia-inbox.5
+import type { ReactNode } from "react";
+import { beforeEach, expect, it, vi } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { BackLink } from "@/components/ui/SmartBackLink";
+import { AiSuggestionsQueue } from "@/components/audit/AuditPanels";
+import { apiOperation } from "@/lib/api";
+const nav = vi.hoisted(() => ({ searchParams: new URLSearchParams() }));
+vi.mock("next/link", () => ({ __esModule: true, default: ({ href, children, ...r }: { href: string; children: ReactNode }) => <a href={href} {...r}>{children}</a> }));
+vi.mock("@/lib/api", () => ({ apiOperation: vi.fn() }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => nav.searchParams }));
+beforeEach(() => { vi.mocked(apiOperation).mockReset(); nav.searchParams = new URLSearchParams(); });
+it("AC22.5.3 AC22.5.4 AC22.11.3 back-links & suggestions queue", async () => {
+const S = screen, E = expect, api = vi.mocked(apiOperation);
+const b1 = render(<BackLink>Back to Upload</BackLink>);
+E(S.getByRole("link", { name: /Back to Upload/i })).toHaveAttribute("href", "/upload");
+b1.unmount();
+nav.searchParams = new URLSearchParams("from=attention");
+const b2 = render(<BackLink>Back to Notifications</BackLink>);
+E(S.getByRole("link", { name: /Back to Needs Confirmation/i })).toHaveAttribute("href", "/audit?tab=needs-you");
+b2.unmount();
+nav.searchParams = new URLSearchParams();
+api.mockResolvedValueOnce({} as any);
+const r1 = render(<AiSuggestionsQueue />);
+E(await S.findByText("No pending AI suggestions")).toBeInTheDocument();
+r1.unmount();
+api.mockResolvedValueOnce({ items: [] } as any);
+const r2 = render(<AiSuggestionsQueue />);
+await waitFor(() => E(S.getByText("Suggestions to review")).toBeInTheDocument());
+E(S.queryByRole("link")).toBeNull();
+E(S.queryByText(/Stage 2|60-84 score band/i)).toBeNull();
+r2.unmount();
+nav.searchParams = new URLSearchParams("statement_id=s1&return_to=%2Fstatements%2Fs1%2Freview");
+api.mockResolvedValueOnce({ items: [] } as any);
+render(<AiSuggestionsQueue />);
+await waitFor(() => E(api).toHaveBeenCalledWith("list_classification_suggestions_statements_classification_suggestions_get", { query: { statement_id: "s1" } }));
+E(await S.findByRole("link", { name: /Back to Statement Review/i })).toHaveAttribute("href", "/statements/s1/review");
+});
+// AC-platform.fe-ia-inbox.4 AC-platform.fe-ia-inbox.5

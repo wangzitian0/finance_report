@@ -1,35 +1,314 @@
-from __future__ import annotations; import asyncio; import os; import uuid; from datetime import date; from decimal import Decimal; import httpx; import pytest; from common.testing.ac_proof import ac_proof; from tests.fixtures.provider_review import FixtureEnvelope, approve_statement_with_fixture_review; from deployment_pin import assert_pinned_deployment, resolve_expected_commit; from journey_checkpoint import checkpoint; from playwright.async_api import Page; APP_URL = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS = int(os.getenv('PARSING_TIMEOUT_MS', '480000')); CURRENCY = 'SGD'; PERIOD_START = '2026-03-01'; PERIOD_END = '2026-03-31'; OUT_DATE = '2026-03-10'; IN_DATE = '2026-03-11'; TRANSFER_DESCRIPTION = 'Funds transfer between own accounts Account A to Account B reference TRF20260310001'; A_OPENING = Decimal('1000.00'); A_OUT_AMOUNT = Decimal('500.00'); A_CLOSING = Decimal('500.00'); B_OPENING = Decimal('200.00'); B_IN_AMOUNT = Decimal('500.00'); B_CLOSING = Decimal('700.00'); EXPECTED_PROCESSING_BALANCE = Decimal('0.00'); EXPECTED_NET_INCOME = Decimal('0.00'); EXPECTED_BALANCE_A = Decimal('500.00'); EXPECTED_BALANCE_B = Decimal('700.00'); EXPECTED_TOTAL_ASSETS = Decimal('1200.00'); CSV_HEADER = 'Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount'; _api_url = lambda path: f"{APP_URL.rstrip('/')}/api{path}"
-async def _auth_headers(page: Page) -> dict[str, str]: cookies = await page.context.cookies(APP_URL); auth_cookie = next((cookie for cookie in cookies if cookie['name'] == 'finance_access_token'), None); assert auth_cookie, 'authenticated Playwright context is missing auth cookie'; return {'Cookie': f"finance_access_token={auth_cookie['value']}"}
-async def _assert_pinned_before_upload(page: Page, record_property) -> None:
-    expected_version = os.getenv('EXPECTED_SHA'); assert expected_version, 'core-journey proof requires an explicit EXPECTED_SHA'; expected_commit = resolve_expected_commit(expected_version); headers = await _auth_headers(page)
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client: health = await client.get(_api_url('/health')); assert health.status_code == 200; assert_pinned_deployment(health.json(), expected_version, expected_commit); frontend = await client.get(f"{APP_URL.rstrip('/')}/frontend-version.json"); assert frontend.status_code == 200, 'frontend deployment version must be observable'; assert_pinned_deployment(frontend.json(), expected_version, expected_commit)
-    checkpoint(record_property, 'U12')
-def _statement_csv(*, opening: Decimal, closing: Decimal, day: str, amount: str, description: str=TRANSFER_DESCRIPTION, period_start: str=PERIOD_START, period_end: str=PERIOD_END) -> str: row = f'{CURRENCY},{period_start},{period_end},{opening},{closing},{day},{description},{amount}'; return '\n'.join([CSV_HEADER, row, ''])
-async def _create_asset_account(client: httpx.AsyncClient, name: str) -> str: response = await client.post(_api_url('/accounts'), json={'name': name, 'type': 'ASSET', 'currency': CURRENCY}); assert response.status_code == 201, f'account {name} creation failed: {response.status_code} {response.text}'; return str(response.json()['id'])
-async def _upload_csv(client: httpx.AsyncClient, *, institution: str, account_id: str, content: str) -> str: filename = f'transfer_proof_{uuid.uuid4().hex[:8]}.csv'; response = await client.post(_api_url('/statements'), data={'institution': institution, 'account_id': account_id}, files={'file': (filename, content.encode('utf-8'), 'text/csv')}); assert response.status_code in (200, 201, 202), f'{institution} upload failed: {response.status_code} {response.text}'; statement_id = response.json().get('id'); assert statement_id, f'{institution} upload response missing id: {response.text}'; return str(statement_id)
-async def _wait_for_parsed(client: httpx.AsyncClient, statement_id: str) -> dict:
-    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000; last_payload: dict | None = None
-    while asyncio.get_running_loop().time() < deadline:
-        response = await client.get(_api_url(f'/statements/{statement_id}')); assert response.status_code == 200, f'statement poll failed for {statement_id}: {response.status_code} {response.text}'; last_payload = response.json(); status = last_payload.get('status'); pytest.fail(f"statement {statement_id} ended in {status} instead of 'parsed': {last_payload.get('validation_error')}") if status in ('rejected', 'uploaded', 'approved') else None
-        if status == 'parsed': return last_payload
-        await asyncio.sleep(2)
-    pytest.fail(f"statement {statement_id} did not reach 'parsed' within {PARSING_TIMEOUT_MS}ms; last payload: {last_payload}")
-async def _get_json(client: httpx.AsyncClient, path: str) -> dict: response = await client.get(_api_url(path)); assert response.status_code == 200, f'GET {path} failed: {response.status_code} {response.text}'; return response.json()
-def _processing_ledger_balance(entries: list[dict], processing_id: str) -> Decimal:
-    balance = Decimal('0.00')
-    for entry in entries:
-        for line in entry['lines']:
-            if line['account_id'] != processing_id: continue
-            amount = Decimal(line['amount']); balance += amount if line['direction'] == 'DEBIT' else -amount
-    return balance
-@ac_proof('transfer-clears-through-processing', ac_ids=['AC-ledger.transfer-clearing.1'], scope='behavioral', ci_tier='post_merge_environment', issue='#2384', required_markers=['e2e', 'journey'])
+from __future__ import annotations
+
+import uuid
+from datetime import date
+from decimal import Decimal
+
+import httpx
+import pytest
+from playwright.async_api import Page
+from tests.fixtures.provider_review import (
+    FixtureEnvelope,
+    approve_statement_with_fixture_review,
+)
+
+from tests.e2e._journey_helpers import (
+    api_url,
+    assert_pinned_via_client,
+    auth_headers,
+    create_account,
+    get_json,
+    post_json,
+    upload_statement,
+    wait_for_statement,
+)
+from tests.e2e.journey_checkpoint import checkpoint
+
+CURRENCY, PERIOD_START, PERIOD_END = "SGD", "2026-03-01", "2026-03-31"
+TRANSFER_DESCRIPTION = "Funds transfer between own accounts Account A to Account B reference TRF20260310001"
+EXPECTED_PROCESSING_BALANCE = Decimal("0.00")
+CSV_HEADER = "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
+
+
+async def _run_transfer_pair(
+    client: httpx.AsyncClient,
+    *,
+    specs: list[tuple[str, str, str, Decimal, Decimal, str, str]],
+    period_start: str,
+    period_end: str,
+    expected_reconciliation: dict[str, int] | None = None,
+) -> list[tuple[str, str, dict]]:
+    items = []
+    for account_name, institution, day, opening, closing, amount, description in specs:
+        acc_id = await create_account(client, account_name, currency=CURRENCY)
+        csv_text = "\n".join(
+            [
+                CSV_HEADER,
+                f"{CURRENCY},{period_start},{period_end},{opening},{closing},{day},{description},{amount}",
+                "",
+            ]
+        )
+        items.append(
+            (acc_id, institution, day, opening, closing, csv_text.encode("utf-8"))
+        )
+    parsed_items = []
+    for acc_id, institution, _, opening, closing, csv_bytes in items:
+        stmt_id = await upload_statement(
+            client,
+            filename=f"transfer_proof_{uuid.uuid4().hex[:8]}.csv",
+            content=csv_bytes,
+            content_type="text/csv",
+            institution=institution,
+            account_id=acc_id,
+            label=institution,
+        )
+        parsed = await wait_for_statement(
+            client,
+            stmt_id,
+            poll_seconds=2,
+            target_statuses=("parsed",),
+            fail_statuses=("rejected", "uploaded", "approved"),
+        )
+        assert len(parsed["transactions"]) == 1
+        parsed_items.append((acc_id, stmt_id, parsed, opening, closing))
+    matching = await post_json(
+        client,
+        "/reconciliation/runs",
+        json={},
+        expected_status=(200,),
+        label="transfer matching",
+    )
+    if expected_reconciliation is not None:
+        assert matching == expected_reconciliation
+    for _, stmt_id, parsed, opening, closing in parsed_items:
+        await approve_statement_with_fixture_review(
+            client,
+            api_url=api_url,
+            statement_id=stmt_id,
+            transactions=parsed["transactions"],
+            dispositions={},
+            envelope=FixtureEnvelope(
+                currency=CURRENCY,
+                period_start=date.fromisoformat(period_start),
+                period_end=date.fromisoformat(period_end),
+                opening_balance=opening,
+                closing_balance=closing,
+                rationale="The generated CSV header declares these source facts.",
+            ),
+        )
+    return [(acc_id, stmt_id, parsed) for acc_id, stmt_id, parsed, _, _ in parsed_items]
+
+
 @pytest.mark.e2e
 @pytest.mark.journey
-async def test_transfer_between_accounts_clears_through_processing(authenticated_page_unique: Page, record_property) -> None:
-    'AC-ledger.transfer-clearing.1 EPIC-004 EPIC-008 EPIC-015'; page = authenticated_page_unique; await _assert_pinned_before_upload(page, record_property); headers = await _auth_headers(page)
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0) as client:
-        account_a = await _create_asset_account(client, 'Transfer Proof A'); account_b = await _create_asset_account(client, 'Transfer Proof B'); statement_a = await _upload_csv(client, institution='Transfer Proof Bank A', account_id=account_a, content=_statement_csv(opening=A_OPENING, closing=A_CLOSING, day=OUT_DATE, amount=f'-{A_OUT_AMOUNT}')); statement_b = await _upload_csv(client, institution='Transfer Proof Bank B', account_id=account_b, content=_statement_csv(opening=B_OPENING, closing=B_CLOSING, day=IN_DATE, amount=f'{B_IN_AMOUNT}')); parsed_a = await _wait_for_parsed(client, statement_a); parsed_b = await _wait_for_parsed(client, statement_b); assert len(parsed_a['transactions']) == 1; assert len(parsed_b['transactions']) == 1; matching = await client.post(_api_url('/reconciliation/runs'), json={}); assert matching.status_code == 200, f'transfer matching failed: {matching.status_code} {matching.text}'; assert matching.json() == {'matches_created': 2, 'auto_accepted': 2, 'pending_review': 0, 'unmatched': 0}
-        for (statement_id, parsed, opening, closing) in ((statement_a, parsed_a, A_OPENING, A_CLOSING), (statement_b, parsed_b, B_OPENING, B_CLOSING)): approval = await approve_statement_with_fixture_review(client, api_url=_api_url, statement_id=statement_id, transactions=parsed['transactions'], dispositions={}, envelope=FixtureEnvelope(currency=CURRENCY, period_start=date.fromisoformat(PERIOD_START), period_end=date.fromisoformat(PERIOD_END), opening_balance=opening, closing_balance=closing, rationale='The generated CSV header declares these source facts.')); assert approval.get('status') == 'approved'
-        matches = (await _get_json(client, '/reconciliation/matches?limit=200'))['items']; legs = [match for match in matches if match['transaction']['description'] == TRANSFER_DESCRIPTION]; assert len(legs) == 2, f'expected two transfer legs, got {len(legs)}'; by_kind = {next(iter(match['score_breakdown'])): match for match in legs if len(match['score_breakdown']) == 1}; assert set(by_kind) == {'transfer_out', 'transfer_in'}; out_leg = by_kind['transfer_out']; in_leg = by_kind['transfer_in']; assert out_leg['status'] == in_leg['status'] == 'auto_accepted'; assert out_leg['transaction']['direction'] == 'OUT'; assert in_leg['transaction']['direction'] == 'IN'; assert Decimal(out_leg['transaction']['amount']) == A_OUT_AMOUNT; assert Decimal(in_leg['transaction']['amount']) == B_IN_AMOUNT; entries = (await _get_json(client, '/journal-entries?limit=100'))['items']; entries_by_id = {entry['id']: entry for entry in entries}; out_entry = entries_by_id[out_leg['journal_entry_ids'][0]]; in_entry = entries_by_id[in_leg['journal_entry_ids'][0]]; out_lines = {line['account_id']: line for line in out_entry['lines']}; in_lines = {line['account_id']: line for line in in_entry['lines']}; assert account_a in out_lines; assert account_b in in_lines; processing_ids = set(out_lines) - {account_a} & set(in_lines) - {account_b}; assert len(processing_ids) == 1, 'both legs must use one shared Processing account'; processing_id = processing_ids.pop(); assert out_lines[account_a]['direction'] == 'CREDIT'; assert out_lines[processing_id]['direction'] == 'DEBIT'; assert in_lines[account_b]['direction'] == 'DEBIT'; assert in_lines[processing_id]['direction'] == 'CREDIT'; assert all((leg_entry['source_type'] == 'system' and leg_entry['status'] in ('posted', 'reconciled') for leg_entry in (out_entry, in_entry))); assert _processing_ledger_balance(entries, processing_id) == EXPECTED_PROCESSING_BALANCE; summary = await _get_json(client, '/reconciliation/transfers/summary'); assert Decimal(summary['current_balance']) == EXPECTED_PROCESSING_BALANCE; assert summary['pending_count'] == 0; assert Decimal(summary['pending_total']) == Decimal('0.00'); pending = await _get_json(client, '/reconciliation/transfers/pending'); assert pending['items'] == []; assert pending['total'] == 0; accounts = (await _get_json(client, '/accounts?include_balance=true'))['items']; balances = {account['id']: Decimal(account['balance']) for account in accounts}; assert balances[account_a] == EXPECTED_BALANCE_A; assert balances[account_b] == EXPECTED_BALANCE_B; income = await _get_json(client, f'/reports/income-statement?start_date={PERIOD_START}&end_date={PERIOD_END}&currency={CURRENCY}'); assert Decimal(income['net_income']) == EXPECTED_NET_INCOME; assert income['income'] == []; assert income['expenses'] == []; balance_sheet = await _get_json(client, f'/reports/balance-sheet?as_of_date={PERIOD_END}&currency={CURRENCY}'); assert Decimal(balance_sheet['total_assets']) == EXPECTED_TOTAL_ASSETS; account_rev_a = await _create_asset_account(client, 'Transfer Review A'); account_rev_b = await _create_asset_account(client, 'Transfer Review B'); desc_rev_out = 'TRANSFER TO SAVINGS ACCOUNT'; desc_rev_in = 'TRANSFER FROM CURRENT ACCOUNT'; rev_period_start = '2026-04-01'; rev_period_end = '2026-04-30'; rev_out_date = '2026-04-10'; rev_in_date = '2026-04-11'; rev_a_opening = Decimal('1000.00'); rev_out_amount = Decimal('300.00'); rev_a_closing = Decimal('700.00'); rev_b_opening = Decimal('200.00'); rev_in_amount = Decimal('300.00'); rev_b_closing = Decimal('500.00'); statement_rev_a = await _upload_csv(client, institution='Transfer Review Bank A', account_id=account_rev_a, content=_statement_csv(opening=rev_a_opening, closing=rev_a_closing, day=rev_out_date, amount=f'-{rev_out_amount}', description=desc_rev_out, period_start=rev_period_start, period_end=rev_period_end)); statement_rev_b = await _upload_csv(client, institution='Transfer Review Bank B', account_id=account_rev_b, content=_statement_csv(opening=rev_b_opening, closing=rev_b_closing, day=rev_in_date, amount=f'{rev_in_amount}', description=desc_rev_in, period_start=rev_period_start, period_end=rev_period_end)); parsed_rev_a = await _wait_for_parsed(client, statement_rev_a); parsed_rev_b = await _wait_for_parsed(client, statement_rev_b); assert len(parsed_rev_a['transactions']) == 1; assert len(parsed_rev_b['transactions']) == 1; rev_txn_ids = {str(parsed_rev_a['transactions'][0]['id']), str(parsed_rev_b['transactions'][0]['id'])}; matching_rev = await client.post(_api_url('/reconciliation/runs'), json={}); assert matching_rev.status_code == 200
-        for (statement_id, parsed, opening, closing) in ((statement_rev_a, parsed_rev_a, rev_a_opening, rev_a_closing), (statement_rev_b, parsed_rev_b, rev_b_opening, rev_b_closing)): approval = await approve_statement_with_fixture_review(client, api_url=_api_url, statement_id=statement_id, transactions=parsed['transactions'], dispositions={}, envelope=FixtureEnvelope(currency=CURRENCY, period_start=date.fromisoformat(rev_period_start), period_end=date.fromisoformat(rev_period_end), opening_balance=opening, closing_balance=closing, rationale='The generated CSV header declares these source facts.')); assert approval.get('status') == 'approved'
-        pending_rev_before = await _get_json(client, '/reconciliation/transfers/pending'); assert pending_rev_before['total'] == 2; assert len(pending_rev_before['items']) == 2; run_checks_resp = await client.post(_api_url('/reconciliation/consistency-checks/runs'), json={'statement_id': statement_rev_a}); assert run_checks_resp.status_code == 200, f'run-checks failed: {run_checks_resp.text}'; checks_data = run_checks_resp.json(); transfer_pair_check = next((c for c in checks_data.get('items', []) if c.get('check_type') == 'transfer_pair' and set(c.get('related_txn_ids') or []) == rev_txn_ids), None); assert transfer_pair_check is not None, f'expected transfer_pair check, got: {checks_data}'; check_id = transfer_pair_check['id']; resolve_resp = await client.post(_api_url(f'/reconciliation/consistency-checks/{check_id}/resolutions'), json={'action': 'approve'}); assert resolve_resp.status_code == 200, f'resolve check failed: {resolve_resp.text}'; pending_rev_after = await _get_json(client, '/reconciliation/transfers/pending'); assert pending_rev_after['items'] == []; assert pending_rev_after['total'] == 0; summary_rev_after = await _get_json(client, '/reconciliation/transfers/summary'); assert summary_rev_after['pending_count'] == 0; assert Decimal(summary_rev_after['current_balance']) == EXPECTED_PROCESSING_BALANCE; assert Decimal(summary_rev_after['pending_total']) == Decimal('0.00'); checkpoint(record_property, 'U7')
+async def test_transfer_between_accounts_clears_through_processing(
+    authenticated_page_unique: Page, record_property
+) -> None:
+    async with httpx.AsyncClient(
+        headers=await auth_headers(authenticated_page_unique),
+        verify=False,
+        timeout=120.0,
+    ) as client:
+        await assert_pinned_via_client(client, record_property)
+        pair_1 = await _run_transfer_pair(
+            client,
+            specs=[
+                (
+                    "Transfer Proof A",
+                    "Transfer Proof Bank A",
+                    "2026-03-10",
+                    Decimal("1000.00"),
+                    Decimal("500.00"),
+                    "-500.00",
+                    TRANSFER_DESCRIPTION,
+                ),
+                (
+                    "Transfer Proof B",
+                    "Transfer Proof Bank B",
+                    "2026-03-11",
+                    Decimal("200.00"),
+                    Decimal("700.00"),
+                    "500.00",
+                    TRANSFER_DESCRIPTION,
+                ),
+            ],
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            expected_reconciliation={
+                "matches_created": 2,
+                "auto_accepted": 2,
+                "pending_review": 0,
+                "unmatched": 0,
+            },
+        )
+        account_a, account_b = pair_1[0][0], pair_1[1][0]
+
+        legs = [
+            m
+            for m in (await get_json(client, "/reconciliation/matches?limit=200"))[
+                "items"
+            ]
+            if m["transaction"]["description"] == TRANSFER_DESCRIPTION
+        ]
+        by_kind = {
+            next(iter(m["score_breakdown"])): m
+            for m in legs
+            if len(m["score_breakdown"]) == 1
+        }
+        assert len(legs) == 2 and set(by_kind) == {"transfer_out", "transfer_in"}
+        out_leg, in_leg = by_kind["transfer_out"], by_kind["transfer_in"]
+        assert (
+            out_leg["status"] == in_leg["status"] == "auto_accepted"
+            and out_leg["transaction"]["direction"] == "OUT"
+            and in_leg["transaction"]["direction"] == "IN"
+        )
+        assert Decimal(out_leg["transaction"]["amount"]) == Decimal(
+            "500.00"
+        ) and Decimal(in_leg["transaction"]["amount"]) == Decimal("500.00")
+
+        entries = (await get_json(client, "/journal-entries?limit=100"))["items"]
+        by_id = {e["id"]: e for e in entries}
+        out_entry, in_entry = (
+            by_id[out_leg["journal_entry_ids"][0]],
+            by_id[in_leg["journal_entry_ids"][0]],
+        )
+        out_lines, in_lines = (
+            {ln["account_id"]: ln for ln in e["lines"]} for e in (out_entry, in_entry)
+        )
+        processing_ids = (set(out_lines) - {account_a}) & (set(in_lines) - {account_b})
+        assert (
+            account_a in out_lines
+            and account_b in in_lines
+            and len(processing_ids) == 1
+        )
+        processing_id = processing_ids.pop()
+        assert (
+            out_lines[account_a]["direction"] == "CREDIT"
+            and out_lines[processing_id]["direction"] == "DEBIT"
+            and in_lines[account_b]["direction"] == "DEBIT"
+            and in_lines[processing_id]["direction"] == "CREDIT"
+        )
+        assert all(
+            e["source_type"] == "system" and e["status"] in ("posted", "reconciled")
+            for e in (out_entry, in_entry)
+        )
+        assert (
+            sum(
+                (
+                    Decimal(ln["amount"])
+                    if ln["direction"] == "DEBIT"
+                    else -Decimal(ln["amount"])
+                    for e in entries
+                    for ln in e["lines"]
+                    if ln["account_id"] == processing_id
+                ),
+                Decimal("0.00"),
+            )
+            == EXPECTED_PROCESSING_BALANCE
+        )
+
+        summary, pending = (
+            await get_json(client, "/reconciliation/transfers/summary"),
+            await get_json(client, "/reconciliation/transfers/pending"),
+        )
+        assert (
+            Decimal(summary["current_balance"]) == EXPECTED_PROCESSING_BALANCE
+            and summary["pending_count"] == 0
+            and Decimal(summary["pending_total"]) == Decimal("0.00")
+            and pending["items"] == []
+            and pending["total"] == 0
+        )
+        balances = {
+            acc["id"]: Decimal(acc["balance"])
+            for acc in (await get_json(client, "/accounts?include_balance=true"))[
+                "items"
+            ]
+        }
+        assert balances[account_a] == Decimal("500.00") and balances[
+            account_b
+        ] == Decimal("700.00")
+        income = await get_json(
+            client,
+            f"/reports/income-statement?start_date={PERIOD_START}&end_date={PERIOD_END}&currency={CURRENCY}",
+        )
+        assert (
+            Decimal(income["net_income"]) == Decimal("0.00")
+            and income["income"] == []
+            and income["expenses"] == []
+        )
+        assert Decimal(
+            (
+                await get_json(
+                    client,
+                    f"/reports/balance-sheet?as_of_date={PERIOD_END}&currency={CURRENCY}",
+                )
+            )["total_assets"]
+        ) == Decimal("1200.00")
+
+        pair_2 = await _run_transfer_pair(
+            client,
+            specs=[
+                (
+                    "Transfer Review A",
+                    "Transfer Review Bank A",
+                    "2026-04-10",
+                    Decimal("1000.00"),
+                    Decimal("700.00"),
+                    "-300.00",
+                    "TRANSFER TO SAVINGS ACCOUNT",
+                ),
+                (
+                    "Transfer Review B",
+                    "Transfer Review Bank B",
+                    "2026-04-11",
+                    Decimal("200.00"),
+                    Decimal("500.00"),
+                    "300.00",
+                    "TRANSFER FROM CURRENT ACCOUNT",
+                ),
+            ],
+            period_start="2026-04-01",
+            period_end="2026-04-30",
+        )
+        rev_txn_ids = {
+            str(pair_2[0][2]["transactions"][0]["id"]),
+            str(pair_2[1][2]["transactions"][0]["id"]),
+        }
+        pending_before = await get_json(client, "/reconciliation/transfers/pending")
+        assert pending_before["total"] == 2 and len(pending_before["items"]) == 2
+        checks = await post_json(
+            client,
+            "/reconciliation/consistency-checks/runs",
+            json={"statement_id": pair_2[0][1]},
+            expected_status=(200,),
+        )
+        transfer_check = next(
+            (
+                c
+                for c in checks.get("items", [])
+                if c.get("check_type") == "transfer_pair"
+                and set(c.get("related_txn_ids") or []) == rev_txn_ids
+            ),
+            None,
+        )
+        assert transfer_check is not None, (
+            f"expected transfer_pair check, got: {checks}"
+        )
+        await post_json(
+            client,
+            f"/reconciliation/consistency-checks/{transfer_check['id']}/resolutions",
+            json={"action": "approve"},
+            expected_status=(200,),
+        )
+        pending_after, summary_after = (
+            await get_json(client, "/reconciliation/transfers/pending"),
+            await get_json(client, "/reconciliation/transfers/summary"),
+        )
+        assert (
+            pending_after["items"] == []
+            and pending_after["total"] == 0
+            and summary_after["pending_count"] == 0
+            and Decimal(summary_after["current_balance"]) == EXPECTED_PROCESSING_BALANCE
+            and Decimal(summary_after["pending_total"]) == Decimal("0.00")
+        )
+        checkpoint(record_property, "U7")

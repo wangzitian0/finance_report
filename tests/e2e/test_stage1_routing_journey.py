@@ -1,56 +1,311 @@
-from __future__ import annotations; import asyncio; import os; from collections import Counter; from dataclasses import dataclass; from datetime import date; from decimal import Decimal; from pathlib import Path; import httpx; import pytest; from common.testing.ac_proof import ac_proof; from deployment_pin import assert_pinned_deployment, resolve_expected_commit; from journey_checkpoint import checkpoint; from playwright.async_api import Page; from tests.e2e.auto_accept_poll import wait_for_auto_approved_statement; APP_URL = os.getenv('APP_URL', 'http://localhost:3000'); PARSING_TIMEOUT_MS = int(os.getenv('PARSING_TIMEOUT_MS', '480000')); POLL_SECONDS = 3; SETTLE_SECONDS = 5; AUTO_ACCEPT_CONFIDENCE = 85; INSTITUTION = 'Stage One Routing Bank'; CLEAN_ACCOUNT_NUMBER = '5551-234-8901'; BROKEN_ACCOUNT_NUMBER = '5551-234-7702'; CURRENCY = 'SGD'; PERIOD_START = date(2026, 5, 1); PERIOD_END = date(2026, 5, 31); OPENING_BALANCE = Decimal('2000.00'); CLEAN_CLOSING_BALANCE = Decimal('4837.50'); BROKEN_CLOSING_BALANCE = CLEAN_CLOSING_BALANCE + Decimal('0.05'); BROKEN_REVIEW_REASON = 'Balance mismatch: delta=0.05 exceeds tolerance 0.001'
+from __future__ import annotations
+
+import asyncio
+from collections import Counter
+from dataclasses import dataclass
+from datetime import date
+from decimal import Decimal
+from pathlib import Path
+
+import httpx
+import pytest
+from playwright.async_api import Page
+
+from tests.e2e._journey_helpers import (
+    PARSING_TIMEOUT_MS,
+    RecordedRequest,
+    api_url,
+    assert_default_ai_settings,
+    assert_pinned_via_client,
+    assert_statement_rows_equal,
+    auth_headers,
+    default_image_model,
+    get_json,
+    recording_hook,
+    upload_statement,
+    wait_for_statement,
+)
+from tests.e2e.auto_accept_poll import wait_for_auto_approved_statement
+from tests.e2e.journey_checkpoint import checkpoint
+
+POLL_SECONDS, SETTLE_SECONDS, AUTO_ACCEPT_CONFIDENCE = 3, 5, 85
+INSTITUTION, CURRENCY = "Stage One Routing Bank", "SGD"
+PERIOD_START, PERIOD_END = date(2026, 5, 1), date(2026, 5, 31)
+OPENING_BALANCE, CLEAN_CLOSING_BALANCE = Decimal("2000.00"), Decimal("4837.50")
+BROKEN_CLOSING_BALANCE = CLEAN_CLOSING_BALANCE + Decimal("0.05")
+BROKEN_REVIEW_REASON = "Balance mismatch: delta=0.05 exceeds tolerance 0.001"
+
+
 @dataclass(frozen=True)
-class FixtureRow: txn_date: date; description: str; direction: str; amount: Decimal
-FIXTURE_ROWS = (FixtureRow(date(2026, 5, 3), 'Salary Credit ACME PTE LTD', 'IN', Decimal('3000.00')), FixtureRow(date(2026, 5, 7), 'FairPrice Supermarket Groceries', 'OUT', Decimal('85.40')), FixtureRow(date(2026, 5, 12), 'ComfortDelGro Taxi Fare', 'OUT', Decimal('23.60')), FixtureRow(date(2026, 5, 20), 'Singtel Mobile Bill', 'OUT', Decimal('55.00')), FixtureRow(date(2026, 5, 31), 'Interest Credited', 'IN', Decimal('1.50'))); _api_url = lambda path: f"{APP_URL.rstrip('/')}/api{path}"
-async def _auth_headers(page: Page) -> dict[str, str]: cookies = await page.context.cookies(APP_URL); auth_cookie = next((cookie for cookie in cookies if cookie['name'] == 'finance_access_token'), None); assert auth_cookie, 'authenticated Playwright context is missing auth cookie'; return {'Cookie': f"finance_access_token={auth_cookie['value']}"}
-def _render_statement_pdf(path: Path, *, account_number: str, closing_balance: Decimal) -> Path:
-    from reportlab.lib import colors; from reportlab.lib.pagesizes import A4; from reportlab.lib.styles import getSampleStyleSheet; from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle; styles = getSampleStyleSheet(); total_credits = sum((r.amount for r in FIXTURE_ROWS if r.direction == 'IN')); total_debits = sum((r.amount for r in FIXTURE_ROWS if r.direction == 'OUT')); table = [['Date', 'Description', 'Debit', 'Credit']]
-    for row in FIXTURE_ROWS: shown = f'{row.amount:,.2f}'; table.append([row.txn_date.isoformat(), row.description, shown if row.direction == 'OUT' else '', shown if row.direction == 'IN' else ''])
-    story = [Paragraph(INSTITUTION, styles['Title']), Paragraph('Monthly Account Statement', styles['Heading2']), Paragraph(f'Account Number: {account_number}', styles['Normal']), Paragraph(f'Currency: {CURRENCY}', styles['Normal']), Paragraph(f'Statement Period: {PERIOD_START.isoformat()} to {PERIOD_END.isoformat()}', styles['Normal']), Spacer(1, 12), Paragraph(f'Statement Summary: Opening Balance {CURRENCY} {OPENING_BALANCE:,.2f}, Closing Balance {CURRENCY} {closing_balance:,.2f}', styles['Normal']), Paragraph(f'Opening Balance: {CURRENCY} {OPENING_BALANCE:,.2f}', styles['Normal']), Spacer(1, 12), Table(table, style=TableStyle([('GRID', (0, 0), (-1, -1), 0.5, colors.black), ('ALIGN', (2, 1), (-1, -1), 'RIGHT')])), Spacer(1, 12), Paragraph(f'Total Credits: {CURRENCY} {total_credits:,.2f}', styles['Normal']), Paragraph(f'Total Debits: {CURRENCY} {total_debits:,.2f}', styles['Normal']), Paragraph(f'Closing Balance: {CURRENCY} {closing_balance:,.2f}', styles['Normal'])]; SimpleDocTemplate(str(path), pagesize=A4).build(story); return path
-_signed_net = lambda rows: sum((row.amount if row.direction == 'IN' else -row.amount for row in rows), Decimal('0'))
-async def _default_image_model(client: httpx.AsyncClient) -> str: response = await client.get(_api_url('/llm/catalog?modality=image')); assert response.status_code == 200, f'model catalog request failed: {response.status_code} {response.text}'; payload = response.json(); return payload.get('default_model') or payload['models'][0]['id']
-async def _upload_pdf(client: httpx.AsyncClient, *, pdf_path: Path, model: str) -> str:
-    with pdf_path.open('rb') as handle: response = await client.post(_api_url('/statements'), data={'institution': INSTITUTION, 'model': model}, files={'file': (pdf_path.name, handle, 'application/pdf')})
-    assert response.status_code in (200, 201, 202), f'upload failed: {response.status_code} {response.text}'; statement_id = response.json().get('id'); assert statement_id, f'upload response missing id: {response.text}'; return str(statement_id)
-async def _get_statement(client: httpx.AsyncClient, statement_id: str) -> dict: response = await client.get(_api_url(f'/statements/{statement_id}')); assert response.status_code == 200, f'statement read failed: {response.status_code} {response.text}'; return response.json()
-async def _get_journal_entries(client: httpx.AsyncClient) -> list[dict]: response = await client.get(_api_url('/journal-entries?limit=100')); assert response.status_code == 200, f'journal entry read failed: {response.status_code} {response.text}'; payload = response.json(); assert payload['total'] == len(payload['items']), 'the user holds more entries than one page; the count check needs every entry'; return payload['items']
-def _posted_entries_for(entries: list[dict], statement: dict) -> list[dict]: transaction_ids = {transaction['id'] for transaction in statement['transactions']}; return [entry for entry in entries if entry['source_id'] in transaction_ids and entry['status'] == 'posted']
-async def _wait_for_auto_accept(client: httpx.AsyncClient, statement_id: str) -> tuple[dict, list[dict]]:
+class FixtureRow:
+    txn_date: date
+    description: str
+    direction: str
+    amount: Decimal
+
+
+FIXTURE_ROWS = (
+    FixtureRow(
+        date(2026, 5, 3), "Salary Credit ACME PTE LTD", "IN", Decimal("3000.00")
+    ),
+    FixtureRow(
+        date(2026, 5, 7), "FairPrice Supermarket Groceries", "OUT", Decimal("85.40")
+    ),
+    FixtureRow(date(2026, 5, 12), "ComfortDelGro Taxi Fare", "OUT", Decimal("23.60")),
+    FixtureRow(date(2026, 5, 20), "Singtel Mobile Bill", "OUT", Decimal("55.00")),
+    FixtureRow(date(2026, 5, 31), "Interest Credited", "IN", Decimal("1.50")),
+)
+EXPECTED_EVENTS = [
+    {
+        "date": r.txn_date.isoformat(),
+        "amount": str(r.amount),
+        "direction": r.direction,
+        "currency": CURRENCY,
+    }
+    for r in FIXTURE_ROWS
+]
+
+
+def _render_statement_pdf(
+    path: Path, *, account_number: str, closing_balance: Decimal
+) -> Path:
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import (
+        Paragraph,
+        SimpleDocTemplate,
+        Spacer,
+        Table,
+        TableStyle,
+    )
+
+    styles = getSampleStyleSheet()
+    total_credits = sum(r.amount for r in FIXTURE_ROWS if r.direction == "IN")
+    total_debits = sum(r.amount for r in FIXTURE_ROWS if r.direction == "OUT")
+    table = [
+        ["Date", "Description", "Debit", "Credit"],
+        *(
+            [
+                r.txn_date.isoformat(),
+                r.description,
+                f"{r.amount:,.2f}" if r.direction == "OUT" else "",
+                f"{r.amount:,.2f}" if r.direction == "IN" else "",
+            ]
+            for r in FIXTURE_ROWS
+        ),
+    ]
+    story = [
+        Paragraph(INSTITUTION, styles["Title"]),
+        Paragraph("Monthly Account Statement", styles["Heading2"]),
+        Paragraph(f"Account Number: {account_number}", styles["Normal"]),
+        Paragraph(f"Currency: {CURRENCY}", styles["Normal"]),
+        Paragraph(
+            f"Statement Period: {PERIOD_START.isoformat()} to {PERIOD_END.isoformat()}",
+            styles["Normal"],
+        ),
+        Spacer(1, 12),
+        Paragraph(
+            f"Statement Summary: Opening Balance {CURRENCY} {OPENING_BALANCE:,.2f}, Closing Balance {CURRENCY} {closing_balance:,.2f}",
+            styles["Normal"],
+        ),
+        Paragraph(
+            f"Opening Balance: {CURRENCY} {OPENING_BALANCE:,.2f}", styles["Normal"]
+        ),
+        Spacer(1, 12),
+        Table(
+            table,
+            style=TableStyle(
+                [
+                    ("GRID", (0, 0), (-1, -1), 0.5, colors.black),
+                    ("ALIGN", (2, 1), (-1, -1), "RIGHT"),
+                ]
+            ),
+        ),
+        Spacer(1, 12),
+        Paragraph(f"Total Credits: {CURRENCY} {total_credits:,.2f}", styles["Normal"]),
+        Paragraph(f"Total Debits: {CURRENCY} {total_debits:,.2f}", styles["Normal"]),
+        Paragraph(
+            f"Closing Balance: {CURRENCY} {closing_balance:,.2f}", styles["Normal"]
+        ),
+    ]
+    SimpleDocTemplate(str(path), pagesize=A4).build(story)
+    return path
+
+
+def _posted_entries_for(entries: list[dict], statement: dict) -> list[dict]:
+    txn_ids = {t["id"] for t in statement["transactions"]}
+    return [e for e in entries if e["source_id"] in txn_ids and e["status"] == "posted"]
+
+
+async def _wait_for_auto_accept(
+    client: httpx.AsyncClient, statement_id: str
+) -> tuple[dict, list[dict]]:
     async def _fetch_posted(statement: dict) -> tuple[bool, list[dict]]:
-        posted = _posted_entries_for(await _get_journal_entries(client), statement)
-        return (len(posted) == len(FIXTURE_ROWS), posted)
+        payload = await get_json(client, "/journal-entries?limit=100")
+        assert payload["total"] == len(payload["items"])
+        posted = _posted_entries_for(payload["items"], statement)
+        return len(posted) == len(FIXTURE_ROWS), posted
 
     return await wait_for_auto_approved_statement(
         client,
-        api_url=_api_url,
+        api_url=api_url,
         statement_id=statement_id,
         timeout_ms=PARSING_TIMEOUT_MS,
         poll_seconds=POLL_SECONDS,
         fetch_entries=_fetch_posted,
-        terminal_fail_statuses=frozenset({'rejected', 'uploaded'}),
-        failure_prefix='clean statement was not auto-accepted',
-        timeout_message=lambda st, entries: f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms (clean statement: approved with every entry posted): status={st.get('status')} posted_entries={len(entries)}",
+        terminal_fail_statuses=frozenset({"rejected", "uploaded"}),
+        failure_prefix="clean statement was not auto-accepted",
+        timeout_message=lambda st,
+        entries: f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms: status={st.get('status')} posted_entries={len(entries)}",
     )
-async def _wait_for_parse_end(client: httpx.AsyncClient, statement_id: str) -> dict:
-    deadline = asyncio.get_running_loop().time() + PARSING_TIMEOUT_MS / 1000; statement: dict = {}
-    while asyncio.get_running_loop().time() < deadline:
-        statement = await _get_statement(client, statement_id)
-        if statement['status'] != 'parsing': return statement
-        await asyncio.sleep(POLL_SECONDS)
-    pytest.fail(f"statement {statement_id} did not reach parsed within {PARSING_TIMEOUT_MS}ms (broken statement): status={statement.get('status')}")
-_statement_rows = lambda statement: sorted(((t['txn_date'], Decimal(str(t['amount'])), t['direction'], t['currency']) for t in statement['transactions'])); _fixture_rows = lambda: sorted(((row.txn_date.isoformat(), row.amount, row.direction, CURRENCY) for row in FIXTURE_ROWS))
-@dataclass(frozen=True)
-class RecordedRequest: method: str; path: str
-def _recording_hook(requests: list[RecordedRequest]):
-    async def record(request: httpx.Request) -> None: requests.append(RecordedRequest(request.method, request.url.path))
-    return record
-_review_action_requests = lambda requests: [request for request in requests if '/approvals' in request.path or '/rejections' in request.path or (request.method != 'GET' and ('/review-envelopes' in request.path or 'reviewed-dispositions' in request.path))]; _settings_write_requests = lambda requests: [request for request in requests if request.method != 'GET' and request.path.endswith('/users/me/settings')]; _bank_side_lines = lambda entries, account_id: Counter(((line['direction'], Decimal(str(line['amount']))) for entry in entries for line in entry['lines'] if line['account_id'] == account_id))
-@ac_proof('stage1-routing-clean-accepted-broken-reviewed', ac_ids=['AC-extraction.stage1-routing.1'], scope='behavioral', ci_tier='post_merge_environment', trust_mode='llm_ocr_post_merge', source_classes=['bank_statement'], mirror_proof_id='extraction-corpus-journeys-pr', issue='#2392', required_markers=['e2e', 'tier3', 'critical', 'llm'])
+
+
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical
 @pytest.mark.llm
 @pytest.mark.product_defaults
-async def test_stage1_accepts_clean_source_and_reviews_broken_source(authenticated_page_unique: Page, tmp_path: Path, record_property) -> None:
-    'AC-extraction.stage1-routing.1 EPIC-003 EPIC-008'; assert OPENING_BALANCE + _signed_net(FIXTURE_ROWS) == CLEAN_CLOSING_BALANCE; assert OPENING_BALANCE + _signed_net(FIXTURE_ROWS) != BROKEN_CLOSING_BALANCE; expected_version = os.getenv('EXPECTED_SHA'); assert expected_version, 'the Stage 1 routing proof requires an explicit EXPECTED_SHA'; expected_commit = resolve_expected_commit(expected_version); record_property('expected_version', expected_version); record_property('expected_commit', expected_commit); headers = await _auth_headers(authenticated_page_unique); sent_requests: list[RecordedRequest] = []
-    async with httpx.AsyncClient(headers=headers, verify=False, timeout=120.0, event_hooks={'request': [_recording_hook(sent_requests)]}) as client: health = await client.get(_api_url('/health')); assert health.status_code == 200; assert_pinned_deployment(health.json(), expected_version, expected_commit); frontend = await client.get(f"{APP_URL.rstrip('/')}/frontend-version.json"); assert frontend.status_code == 200, 'frontend deployment version must be observable'; assert_pinned_deployment(frontend.json(), expected_version, expected_commit); checkpoint(record_property, 'U12'); settings = await client.get(_api_url('/users/me/settings')); assert settings.status_code == 200, f'user settings read failed: {settings.status_code} {settings.text}'; assert settings.json()['enable_ai_classification'] is True, 'a new user must have AI classification on by default (#2405)'; assert settings.json()['auto_accept_ai_suggestions'] is True, 'a new user must not hold a choice against the automatic acceptance (#2405)'; assert settings.json()['auto_accept_ai_suggestions_active'] is True, 'a new user must have the system accept the AI suggestions by default (#2405)'; model = await _default_image_model(client); record_property('selected_ocr_model', model); clean_pdf = _render_statement_pdf(tmp_path / 'stage1_clean.pdf', account_number=CLEAN_ACCOUNT_NUMBER, closing_balance=CLEAN_CLOSING_BALANCE); clean_id = await _upload_pdf(client, pdf_path=clean_pdf, model=model); clean, posted = await _wait_for_auto_accept(client, clean_id); assert clean['status'] == 'approved'; assert clean['balance_validated'] is True; assert clean['confidence_score'] >= AUTO_ACCEPT_CONFIDENCE; assert clean['account_id'], 'Stage 1 must bind the statement to a bank account'; assert Decimal(str(clean['opening_balance'])) == OPENING_BALANCE; assert Decimal(str(clean['closing_balance'])) == CLEAN_CLOSING_BALANCE; assert clean['currency'] == CURRENCY; assert clean['period_start'] == PERIOD_START.isoformat(); assert clean['period_end'] == PERIOD_END.isoformat(); assert _statement_rows(clean) == _fixture_rows(), 'the extracted transactions must equal the fixture rows'; assert len(posted) == len(FIXTURE_ROWS); assert {entry['source_id'] for entry in posted} == {transaction['id'] for transaction in clean['transactions']}, 'each source transaction must have exactly one posted entry'; assert all((entry['decision_anchor_id'] for entry in posted)), 'each posted entry must keep its authority anchor'; assert _bank_side_lines(posted, clean['account_id']) == Counter((('DEBIT' if row.direction == 'IN' else 'CREDIT', row.amount) for row in FIXTURE_ROWS)), 'the bank-side ledger lines must equal the fixture rows'; await asyncio.sleep(SETTLE_SECONDS); settled = await _get_statement(client, clean_id); assert settled['status'] == 'approved', 'the clean statement must stay approved after posting'; entries_after_clean = await _get_journal_entries(client); assert len(_posted_entries_for(entries_after_clean, settled)) == len(FIXTURE_ROWS); record_property('clean_statement_id', clean_id); record_property('clean_confidence_score', clean['confidence_score']); review_actions = _review_action_requests(sent_requests); assert review_actions == [], f'the test must not approve or review the clean statement: {review_actions}'; record_property('statement_approval_api_attempts', len(review_actions)); settings_writes = _settings_write_requests(sent_requests); assert settings_writes == [], f'the default setting must be enough; the test sent: {settings_writes}'; broken_pdf = _render_statement_pdf(tmp_path / 'stage1_broken.pdf', account_number=BROKEN_ACCOUNT_NUMBER, closing_balance=BROKEN_CLOSING_BALANCE); broken_id = await _upload_pdf(client, pdf_path=broken_pdf, model=model); await _wait_for_parse_end(client, broken_id); await asyncio.sleep(SETTLE_SECONDS); reviewed = await _get_statement(client, broken_id); assert reviewed['status'] == 'parsed', f"broken statement was not sent to review: id={broken_id} status={reviewed['status']} opening_balance={reviewed['opening_balance']} closing_balance={reviewed['closing_balance']} confidence_score={reviewed['confidence_score']} rows={_statement_rows(reviewed)} validation_error={reviewed['validation_error']!r}"; assert Decimal(str(reviewed['opening_balance'])) == OPENING_BALANCE; assert Decimal(str(reviewed['closing_balance'])) == BROKEN_CLOSING_BALANCE; assert reviewed['balance_validated'] is False; assert (reviewed['validation_error'] or '') == BROKEN_REVIEW_REASON; assert _statement_rows(reviewed) == _fixture_rows(), 'the reviewer must see the fixture rows of the broken statement'; review = await client.get(_api_url(f'/statements/{broken_id}/review')); assert review.status_code == 200; assert review.json()['stage1_status'] == 'pending_review'; assert review.json()['balance_validated'] is False; entries_after_broken = await _get_journal_entries(client); assert _posted_entries_for(entries_after_broken, reviewed) == [], 'the broken statement must post no ledger entry'; assert {entry['id'] for entry in entries_after_broken} == {entry['id'] for entry in entries_after_clean}, 'no ledger entry may appear after the broken upload'; record_property('broken_statement_id', broken_id); record_property('broken_confidence_score', reviewed['confidence_score']); checkpoint(record_property, 'U3')
+async def test_stage1_accepts_clean_source_and_reviews_broken_source(
+    authenticated_page_unique: Page, tmp_path: Path, record_property
+) -> None:
+    signed_net = sum(
+        (r.amount if r.direction == "IN" else -r.amount for r in FIXTURE_ROWS),
+        Decimal("0"),
+    )
+    assert (
+        OPENING_BALANCE + signed_net == CLEAN_CLOSING_BALANCE
+        and OPENING_BALANCE + signed_net != BROKEN_CLOSING_BALANCE
+    )
+    sent_requests: list[RecordedRequest] = []
+    async with httpx.AsyncClient(
+        headers=await auth_headers(authenticated_page_unique),
+        verify=False,
+        timeout=120.0,
+        event_hooks={"request": [recording_hook(sent_requests)]},
+    ) as client:
+        await assert_pinned_via_client(
+            client, record_property, reason="the Stage 1 routing proof"
+        )
+        await assert_default_ai_settings(client)
+        model = await default_image_model(client)
+        record_property("selected_ocr_model", model)
+
+        clean_pdf = _render_statement_pdf(
+            tmp_path / "stage1_clean.pdf",
+            account_number="5551-234-8901",
+            closing_balance=CLEAN_CLOSING_BALANCE,
+        )
+        clean_id = await upload_statement(
+            client,
+            filename=clean_pdf.name,
+            content=clean_pdf.read_bytes(),
+            content_type="application/pdf",
+            institution=INSTITUTION,
+            model=model,
+        )
+        clean, posted = await _wait_for_auto_accept(client, clean_id)
+        assert (
+            clean["status"] == "approved"
+            and clean["balance_validated"] is True
+            and clean["confidence_score"] >= AUTO_ACCEPT_CONFIDENCE
+            and clean["account_id"]
+            and Decimal(str(clean["opening_balance"])) == OPENING_BALANCE
+            and Decimal(str(clean["closing_balance"])) == CLEAN_CLOSING_BALANCE
+            and (clean["currency"], clean["period_start"], clean["period_end"])
+            == (CURRENCY, PERIOD_START.isoformat(), PERIOD_END.isoformat())
+        )
+        assert_statement_rows_equal(clean["transactions"], EXPECTED_EVENTS)
+        assert (
+            len(posted) == len(FIXTURE_ROWS)
+            and {e["source_id"] for e in posted}
+            == {t["id"] for t in clean["transactions"]}
+            and all(e["decision_anchor_id"] for e in posted)
+        )
+        assert Counter(
+            (ln["direction"], Decimal(str(ln["amount"])))
+            for e in posted
+            for ln in e["lines"]
+            if ln["account_id"] == clean["account_id"]
+        ) == Counter(
+            (
+                ("DEBIT" if r.direction == "IN" else "CREDIT", r.amount)
+                for r in FIXTURE_ROWS
+            )
+        )
+
+        await asyncio.sleep(SETTLE_SECONDS)
+        settled = await get_json(client, f"/statements/{clean_id}")
+        assert settled["status"] == "approved"
+        entries_after_clean = (await get_json(client, "/journal-entries?limit=100"))[
+            "items"
+        ]
+        assert len(_posted_entries_for(entries_after_clean, settled)) == len(
+            FIXTURE_ROWS
+        )
+        assert [
+            r
+            for r in sent_requests
+            if "/approvals" in r.path
+            or "/rejections" in r.path
+            or (
+                r.method != "GET"
+                and ("/review-envelopes" in r.path or "reviewed-dispositions" in r.path)
+            )
+        ] == []
+        assert [
+            r
+            for r in sent_requests
+            if r.method != "GET" and r.path.endswith("/users/me/settings")
+        ] == []
+
+        broken_pdf = _render_statement_pdf(
+            tmp_path / "stage1_broken.pdf",
+            account_number="5551-234-7702",
+            closing_balance=BROKEN_CLOSING_BALANCE,
+        )
+        broken_id = await upload_statement(
+            client,
+            filename=broken_pdf.name,
+            content=broken_pdf.read_bytes(),
+            content_type="application/pdf",
+            institution=INSTITUTION,
+            model=model,
+        )
+        await wait_for_statement(
+            client,
+            broken_id,
+            poll_seconds=POLL_SECONDS,
+            target_statuses=("parsed", "approved", "rejected"),
+            fail_statuses=(),
+        )
+        await asyncio.sleep(SETTLE_SECONDS)
+        reviewed = await get_json(client, f"/statements/{broken_id}")
+        assert (
+            reviewed["status"] == "parsed"
+            and reviewed["balance_validated"] is False
+            and Decimal(str(reviewed["opening_balance"])) == OPENING_BALANCE
+            and Decimal(str(reviewed["closing_balance"])) == BROKEN_CLOSING_BALANCE
+            and (reviewed["validation_error"] or "") == BROKEN_REVIEW_REASON
+        )
+        assert_statement_rows_equal(reviewed["transactions"], EXPECTED_EVENTS)
+        review = await get_json(client, f"/statements/{broken_id}/review")
+        assert (
+            review["stage1_status"] == "pending_review"
+            and review["balance_validated"] is False
+        )
+        entries_after_broken = (await get_json(client, "/journal-entries?limit=100"))[
+            "items"
+        ]
+        assert _posted_entries_for(entries_after_broken, reviewed) == [] and {
+            e["id"] for e in entries_after_broken
+        } == {e["id"] for e in entries_after_clean}
+        for k, v in {
+            "clean_statement_id": clean_id,
+            "clean_confidence_score": clean["confidence_score"],
+            "statement_approval_api_attempts": 0,
+            "broken_statement_id": broken_id,
+            "broken_confidence_score": reviewed["confidence_score"],
+        }.items():
+            record_property(k, v)
+        checkpoint(record_property, "U3")

@@ -1,12 +1,42 @@
-'AC8.13.36 AC8.13.39'; import os; import pytest; import httpx; import logging; from conftest import TestConfig, _strict_e2e_gates_enabled; logger = logging.getLogger(__name__)
+from __future__ import annotations
+
+import logging
+import os
+
+import httpx
+import pytest
+
+from tests.e2e.conftest import TestConfig, _strict_e2e_gates_enabled
+
+logger = logging.getLogger(__name__)
+
+
 @pytest.mark.smoke
 @pytest.mark.e2e
-async def test_deployed_version_matches_source(config: TestConfig):
-    'AC8.13.36 AC8.13.39 EPIC-007 EPIC-008 EPIC-012 EPIC-026'
-    if not config.EXPECTED_SHA: pytest.fail('Fatal: EXPECTED_SHA must be explicitly set in CI, staging, and strict gate environments') if _strict_e2e_gates_enabled() or os.getenv('CI') == 'true' or config.TEST_ENV != 'local' else None; logger.warning('Skipping version check: EXPECTED_SHA not set in environment'); pytest.skip('EXPECTED_SHA not set')
-    api_url = config.APP_URL.rstrip('/'); health_url = f'{api_url}/api/health'; logger.info(f'Checking version at {health_url} (Expected: {config.EXPECTED_SHA})')
+async def test_deployed_version_matches_source(config: TestConfig) -> None:
+    if not config.EXPECTED_SHA:
+        if (
+            _strict_e2e_gates_enabled()
+            or os.getenv("CI") == "true"
+            or config.TEST_ENV != "local"
+        ):
+            pytest.fail(
+                "Fatal: EXPECTED_SHA must be explicitly set in CI, staging, and strict gate environments"
+            )
+        logger.warning("Skipping version check: EXPECTED_SHA not set in environment")
+        pytest.skip("EXPECTED_SHA not set")
+    health_url = f"{config.APP_URL.rstrip('/')}/api/health"
     async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
-        response = await client.get(health_url); assert response.status_code == 200, f'Health check failed: {response.status_code}'; data = response.json(); deployed_sha = data.get('git_sha'); assert deployed_sha is not None, "Response missing 'git_sha' field"
-        if len(config.EXPECTED_SHA) != len(deployed_sha): short_len = min(len(config.EXPECTED_SHA), len(deployed_sha)); assert config.EXPECTED_SHA[:short_len] == deployed_sha[:short_len], f'Version mismatch (short comparison)! Expected: {config.EXPECTED_SHA}, Got: {deployed_sha}'
-        else: assert deployed_sha == config.EXPECTED_SHA, f'Version mismatch! Expected: {config.EXPECTED_SHA}, Got: {deployed_sha}'
-        logger.info('Version verification passed')
+        resp = await client.get(health_url)
+        assert resp.status_code == 200, f"Health check failed: {resp.status_code}"
+        deployed_sha = resp.json().get("git_sha")
+        assert deployed_sha is not None, "Response missing 'git_sha' field"
+        if len(config.EXPECTED_SHA) != len(deployed_sha):
+            short_len = min(len(config.EXPECTED_SHA), len(deployed_sha))
+            assert config.EXPECTED_SHA[:short_len] == deployed_sha[:short_len], (
+                f"Version mismatch! Expected: {config.EXPECTED_SHA}, Got: {deployed_sha}"
+            )
+        else:
+            assert deployed_sha == config.EXPECTED_SHA, (
+                f"Version mismatch! Expected: {config.EXPECTED_SHA}, Got: {deployed_sha}"
+            )

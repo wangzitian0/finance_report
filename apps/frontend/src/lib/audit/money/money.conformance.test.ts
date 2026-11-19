@@ -1,7 +1,34 @@
-import { readFileSync } from "node:fs"; import { dirname, resolve } from "node:path"; import { fileURLToPath } from "node:url"; import Decimal from "decimal.js"; import { describe, expect, it } from "vitest"; import { Currency, CurrencyMismatchError, ExchangeRate, FloatNotAllowedError, InvalidCurrencyError, ISO_4217_CODES, } from "./index"; import { Money, convert, type RoundingName } from "./money"; const here = dirname(fileURLToPath(import.meta.url)); const vectorsPath = resolve( here, "../../../../../../common/audit/money/conformance/vectors.json", ); const VECTORS = JSON.parse(readFileSync(vectorsPath, "utf-8")) as { money_quantum: string; default_rounding: string; iso4217: string[]; rounding: { amount: string; rounding: RoundingName; expected: string }[]; convert: { amount: string; from: string; rate: string; to: string; rounding: RoundingName; expected: string; }[]; currency_normalize: { input: string; expected: string }[]; currency_invalid: string[]; }; describe("money conformance (cross-language standard #1167)", () => { it("AC-audit.20.1 declares the same quantum and default rounding", () => { expect(VECTORS.money_quantum).toBe("0.01"); expect(VECTORS.default_rounding).toBe("ROUND_HALF_EVEN"); }); it("AC-audit.20.1 matches every rounding vector (banker's rounding, not HALF_UP)", () => { for (const c of VECTORS.rounding) { const got = new Money(c.amount, "USD").quantize(c.rounding).amount; expect(got.equals(new Decimal(c.expected)), JSON.stringify(c)).toBe(true); } }); it("AC-audit.20.2 quantize() and convert() share the same rounding vocabulary", () => { const roundingNames = new Set(VECTORS.rounding.map((c) => c.rounding)); const convertRoundingNames = new Set(VECTORS.convert.map((c) => c.rounding)); expect(convertRoundingNames.size).toBeGreaterThan(0); for (const name of convertRoundingNames) { expect(roundingNames.has(name)).toBe(true); } }); it("AC-audit.30.3 matches every convert vector through ExchangeRate", () => { for (const c of VECTORS.convert) { const result = convert( new Money(c.amount, c.from), new ExchangeRate(c.from, c.to, c.rate), c.rounding, ); expect( result.amount.equals(new Decimal(c.expected)), JSON.stringify(c), ).toBe(true); expect(result.currency.code).toBe(c.to); } }); it("AC-audit.19.1 normalizes and rejects currencies per the standard", () => { for (const c of VECTORS.currency_normalize) { expect(new Currency(c.input).code).toBe(c.expected); }; for (const bad of VECTORS.currency_invalid) { expect(() => new Currency(bad)).toThrow(InvalidCurrencyError); } }); it("AC-audit.19.1 embeds exactly the canonical ISO-4217 set", () => { expect([...ISO_4217_CODES].sort()).toEqual([...VECTORS.iso4217].sort()); }); }); describe("money value-type laws (TS rendering of the contract)", () => { it("AC-audit.19.1 AC-audit.30.3 rejects float (JS number) amounts and rates", () => {
-// @ts-expect-error number is intentionally not assignable to AmountInput
-expect(() => new Money(10.0, "USD")).toThrow(FloatNotAllowedError);
-// @ts-expect-error number rate is rejected
-expect(() => new ExchangeRate("USD", "EUR", 1.2)).toThrow( FloatNotAllowedError, ); }); it("AC-audit.19.2 is same-currency only for arithmetic and comparison", () => { const usd = new Money("10.00", "USD"); const sgd = new Money("10.00", "SGD"); expect(Money.zero("USD").equals(new Money("0", "USD"))).toBe(true); expect( usd.add(new Money("5", "USD")).amount.equals(new Decimal("15")), ).toBe(true); expect( usd.subtract(new Money("2", "USD")).amount.equals(new Decimal("8")), ).toBe(true); expect(() => usd.add(sgd)).toThrow(); expect(usd.equals(sgd)).toBe(false); const a = new Money("1", "USD"); const b = new Money("2", "USD"); expect(a.lessThan(b)).toBe(true); expect(a.lessThanOrEqual(b)).toBe(true); expect(b.greaterThan(a)).toBe(true); expect(b.greaterThanOrEqual(a)).toBe(true); expect(a.compareTo(b)).toBe(-1); expect(String(a)).toBe("1 USD"); expect(() => a.lessThan(sgd)).toThrow(); }); it("AC-audit.19.1 AC-audit.30.3 rejects non-finite Decimal amounts and rates", () => { expect(() => new Money(new Decimal(Infinity), "USD")).toThrow( FloatNotAllowedError, ); expect(() => new ExchangeRate("USD", "EUR", new Decimal(Infinity))).toThrow( FloatNotAllowedError, ); }); it("AC-audit.30.3 uses ExchangeRate as the typed conversion boundary", () => { const rate = new ExchangeRate("usd", "sgd", "1.35"); expect(rate.base.code).toBe("USD"); expect(rate.quote.code).toBe("SGD"); expect(String(rate)).toBe("USD/SGD 1.35"); expect( convert(new Money("100.00", "USD"), rate).equals( new Money("135.00", "SGD"), ), ).toBe(true); expect( convert(new Money("135.00", "SGD"), rate.inverse()).equals( new Money("100.00", "USD"), ), ).toBe(true); expect(() => convert(new Money("100.00", "EUR"), rate)).toThrow( CurrencyMismatchError, ); expect(() => new ExchangeRate("USD", "SGD", "0")).toThrow();
-// @ts-expect-error convert rejects non-ExchangeRate objects at runtime too
-expect(() => convert(new Money("100.00", "USD"), "1.35")).toThrow( FloatNotAllowedError, ); }); }); // AC2.21.1
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import Decimal from "decimal.js";
+import { expect, it } from "vitest";
+import { Currency, CurrencyMismatchError, ExchangeRate, FloatNotAllowedError, InvalidCurrencyError, ISO_4217_CODES } from "./index";
+import { Money, convert } from "./money";
+const V = JSON.parse(readFileSync(resolve(__dirname, "../../../../../../common/audit/money/conformance/vectors.json"), "utf-8"));
+const M = (a: string, c = "USD") => new Money(a, c), D = (v: string) => new Decimal(v), E = expect;
+it("AC-audit.20.1 AC-audit.20.2 AC-audit.19.1 AC-audit.19.2 AC-audit.30.3 money", () => {
+E([V.money_quantum, V.default_rounding]).toEqual(["0.01", "ROUND_HALF_EVEN"]);
+for (const c of V.rounding) E(M(c.amount).quantize(c.rounding).amount.equals(D(c.expected))).toBe(true);
+const rSet = new Set(V.rounding.map((c: any) => c.rounding));
+E(V.convert.length).toBeGreaterThan(0);
+for (const c of V.convert) { E(rSet.has(c.rounding)).toBe(true); const r = convert(M(c.amount, c.from), new ExchangeRate(c.from, c.to, c.rate), c.rounding); E([r.amount.equals(D(c.expected)), r.currency.code]).toEqual([true, c.to]); }
+for (const c of V.currency_normalize) E(new Currency(c.input).code).toBe(c.expected);
+for (const bad of V.currency_invalid) E(() => new Currency(bad)).toThrow(InvalidCurrencyError);
+E([...ISO_4217_CODES].sort()).toEqual([...V.iso4217].sort());
+// @ts-expect-error number rejected
+E(() => new Money(10.0, "USD")).toThrow(FloatNotAllowedError);
+// @ts-expect-error number rejected
+E(() => new ExchangeRate("USD", "EUR", 1.2)).toThrow(FloatNotAllowedError);
+E(() => new Money(new Decimal(Infinity), "USD")).toThrow(FloatNotAllowedError);
+E(() => new ExchangeRate("USD", "EUR", new Decimal(Infinity))).toThrow(FloatNotAllowedError);
+const usd = M("10.00"), sgd = M("10.00", "SGD"), a = M("1"), b = M("2"), rate = new ExchangeRate("usd", "sgd", "1.35");
+E([Money.zero("USD").equals(M("0")), usd.add(M("5")).amount.equals(D("15")), usd.subtract(M("2")).amount.equals(D("8")), usd.equals(sgd), a.lessThan(b), a.lessThanOrEqual(b), b.greaterThan(a), b.greaterThanOrEqual(a), a.compareTo(b), String(a)]).toEqual([true, true, true, false, true, true, true, true, -1, "1 USD"]);
+E(() => usd.add(sgd)).toThrow();
+E(() => a.lessThan(sgd)).toThrow();
+E([rate.base.code, rate.quote.code, String(rate), convert(M("100.00"), rate).equals(M("135.00", "SGD")), convert(M("135.00", "SGD"), rate.inverse()).equals(M("100.00"))]).toEqual(["USD", "SGD", "USD/SGD 1.35", true, true]);
+E(() => convert(M("100.00", "EUR"), rate)).toThrow(CurrencyMismatchError);
+E(() => new ExchangeRate("USD", "SGD", "0")).toThrow();
+// @ts-expect-error non-ExchangeRate rejected
+E(() => convert(M("100.00"), "1.35")).toThrow(FloatNotAllowedError);
+});
+// AC2.21.1

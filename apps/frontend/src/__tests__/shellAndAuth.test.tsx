@@ -1,10 +1,45 @@
-import { render, screen, waitFor } from "@testing-library/react"; import type { ReactNode } from "react"; import { beforeEach, describe, expect, it, vi } from "vitest"; import { AppShell } from "@/components/AppShell"; import { AuthGuard } from "@/components/RootClients"; const pushMock = vi.fn(); const isAuthenticatedMock = vi.fn(); let pathnameMock = "/dashboard"; vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }), usePathname: () => pathnameMock, })); vi.mock("@/lib/auth", () => ({ isAuthenticated: () => isAuthenticatedMock(), })); vi.mock("@/hooks/useSessionBootstrap", () => ({ useSessionBootstrap: vi.fn(), })); vi.mock("@/components/llm/FirstRunModal", () => ({ FirstRunModal: () => null, })); vi.mock("@/hooks/useWorkspace", () => ({ WorkspaceProvider: ({ children }: { children: ReactNode }) => <div data-testid="workspace-provider">{children}</div>, useWorkspace: () => ({ isCollapsed: true }), })); vi.mock("@/components/AppNav", () => ({ Sidebar: () => <div data-testid="sidebar">Sidebar</div>, WorkspaceTabs: () => <div data-testid="workspace-tabs">Tabs</div>, })); vi.mock("@/components/ui/Toast", () => ({ ToastProvider: ({ children }: { children: ReactNode }) => <div data-testid="toast-provider">{children}</div>, })); describe("AppShell and AuthGuard", () => { beforeEach(() => { pushMock.mockReset()
-isAuthenticatedMock.mockReset()
-pathnameMock = "/dashboard" }); it("AC16.19.1 renders providers and collapse-aware shell layout", () => { const { container } = render( <AppShell> <div>Shell Child</div> </AppShell>, ); expect(screen.getByTestId("workspace-provider")).toBeInTheDocument(); expect(screen.getByTestId("toast-provider")).toBeInTheDocument(); expect(screen.getByTestId("sidebar")).toBeInTheDocument(); expect(screen.getByTestId("workspace-tabs")).toBeInTheDocument(); expect(screen.getByText("Shell Child")).toBeInTheDocument(); expect(container.querySelector('[class*="md:ml-16"]')).not.toBeNull(); expect(screen.getByTestId("workspace-tabs").parentElement?.className).toContain("hidden md:block") }); it("AC22.12.2 exposes a skip-to-content link targeting the main landmark", () => { const { container } = render( <AppShell> <div>Shell Child</div> </AppShell>, ); const skipLink = screen.getByRole("link", { name: "Skip to main content" }); expect(skipLink).toHaveAttribute("href", "#main-content"); expect(skipLink).toHaveClass("sr-only"); expect(skipLink.className).toContain("focus:not-sr-only"); const main = container.querySelector("main#main-content"); expect(main).not.toBeNull(); expect(main).toHaveAttribute("tabIndex", "-1") }); it("AC16.19.2 redirects unauthenticated protected routes", async () => { isAuthenticatedMock.mockReturnValue(false); const { container } = render( <AuthGuard> <div>Protected Content</div> </AuthGuard>, ); await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login")); expect(container.textContent).toBe("") }); it("AC16.19.2 allows public routes and handles auth storage logout", async () => { pathnameMock = "/login"
-isAuthenticatedMock.mockReturnValue(false); render( <AuthGuard> <div>Public Content</div> </AuthGuard>, ); await waitFor(() => expect(screen.getByText("Public Content")).toBeInTheDocument()) }); it("AC16.19.2 handles storage logout for protected routes", async () => { pathnameMock = "/dashboard"
-isAuthenticatedMock.mockReturnValue(true); render( <AuthGuard> <div>Protected Content</div> </AuthGuard>, ); await waitFor(() => expect(screen.getByText("Protected Content")).toBeInTheDocument())
-window.dispatchEvent(new StorageEvent("storage", { key: "finance_user_id", newValue: null })); await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/login")) }); it("AC16.19.2 shows loading skeleton for unauthenticated protected routes", () => { isAuthenticatedMock.mockReturnValue(false); const { container } = render( <AuthGuard><div>Protected Content</div></AuthGuard>, ); expect(screen.queryByText("Protected Content")).not.toBeInTheDocument(); expect(container.querySelector(".animate-pulse")).not.toBeNull() }); it("AC16.19.2 handles storage login event on login page", async () => { pathnameMock = "/login"
-isAuthenticatedMock.mockReturnValue(false); render(<AuthGuard><div>Login Content</div></AuthGuard>); await waitFor(() => expect(screen.getByText("Login Content")).toBeInTheDocument())
-window.dispatchEvent(new StorageEvent("storage", { key: "finance_user_id", newValue: "user-1" })); await waitFor(() => expect(pushMock).toHaveBeenCalledWith("/")) }); it("AC16.19.2 ignores unrelated storage events", async () => { pathnameMock = "/dashboard"
-isAuthenticatedMock.mockReturnValue(true); render(<AuthGuard><div>Content</div></AuthGuard>); await waitFor(() => expect(screen.getByText("Content")).toBeInTheDocument())
-window.dispatchEvent(new StorageEvent("storage", { key: "other_key", newValue: null })); expect(screen.getByText("Content")).toBeInTheDocument(); expect(pushMock).not.toHaveBeenCalled() }) }) // AC-identity.fe-auth.13 AC-identity.fe-auth.14 AC-meta.fe-ia-nav.14 AC22.15.3 EPIC-022 EPIC-023
+import { render, screen, waitFor } from "@testing-library/react";
+import type { ReactNode } from "react";
+import { beforeEach, expect, it, vi } from "vitest";
+import { AppShell } from "@/components/AppShell";
+import { AuthGuard } from "@/components/RootClients";
+const pushMock = vi.fn(), isAuth = vi.fn(), S = screen, E = expect;
+let pathname = "/dashboard";
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }), usePathname: () => pathname }));
+vi.mock("@/lib/auth", () => ({ isAuthenticated: () => isAuth() }));
+vi.mock("@/hooks/useSessionBootstrap", () => ({ useSessionBootstrap: vi.fn() }));
+vi.mock("@/components/llm/FirstRunModal", () => ({ FirstRunModal: () => null }));
+vi.mock("@/hooks/useWorkspace", () => ({ WorkspaceProvider: ({ children }: { children: ReactNode }) => <div data-testid="wp">{children}</div>, useWorkspace: () => ({ isCollapsed: true }) }));
+vi.mock("@/components/AppNav", () => ({ Sidebar: () => <div data-testid="sb" />, WorkspaceTabs: () => <div data-testid="wt" /> }));
+vi.mock("@/components/ui/Toast", () => ({ ToastProvider: ({ children }: { children: ReactNode }) => <div data-testid="tp">{children}</div> }));
+beforeEach(() => { pushMock.mockReset(); isAuth.mockReset(); pathname = "/dashboard"; });
+it("AC16.19.1 AC22.12.2 AC16.19.2 shell + auth", async () => {
+const s = render(<AppShell><div>Child</div></AppShell>);
+for (const id of ["wp", "tp", "sb", "wt"]) E(S.getByTestId(id)).toBeInTheDocument();
+E(S.getByText("Child")).toBeInTheDocument();
+E(s.container.querySelector('[class*="md:ml-16"]')).not.toBeNull();
+E(S.getByTestId("wt").parentElement?.className).toContain("hidden md:block");
+const skip = S.getByRole("link", { name: "Skip to main content" });
+E(skip).toHaveAttribute("href", "#main-content");
+E(skip).toHaveClass("sr-only");
+E(skip.className).toContain("focus:not-sr-only");
+E(s.container.querySelector("main#main-content")).toHaveAttribute("tabIndex", "-1");
+s.unmount();
+isAuth.mockReturnValue(false);
+const g = render(<AuthGuard><div>Prot</div></AuthGuard>);
+E(S.queryByText("Prot")).toBeNull();
+E(g.container.querySelector(".animate-pulse")).not.toBeNull();
+await waitFor(() => E(pushMock).toHaveBeenCalledWith("/login"));
+E(g.container.textContent).toBe("");
+});
+it.each([["/dashboard", true, "other_key", null, null], ["/dashboard", true, "finance_user_id", null, "/login"], ["/login", false, "finance_user_id", "user-1", "/"]] as const)(
+"AC16.19.2 %s %s",
+async (p, a, k, v, exp) => {
+pathname = p; isAuth.mockReturnValue(a);
+render(<AuthGuard><div>Ok</div></AuthGuard>);
+await waitFor(() => E(S.getByText("Ok")).toBeInTheDocument());
+window.dispatchEvent(new StorageEvent("storage", { key: k, newValue: v }));
+if (exp) await waitFor(() => E(pushMock).toHaveBeenCalledWith(exp)); else E(pushMock).not.toHaveBeenCalled();
+},
+);
+// AC-identity.fe-auth.13 AC-identity.fe-auth.14 AC-meta.fe-ia-nav.14 AC22.15.3 EPIC-022 EPIC-023
