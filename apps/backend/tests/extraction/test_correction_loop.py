@@ -146,6 +146,9 @@ async def test_AC_extraction_2926_replay_emits_low_confidence_telemetry(db, test
     monkeypatch.setitem(telemetry_metrics._instruments, "confidence_tier_count", tier_counter)
     monkeypatch.setitem(telemetry_metrics._instruments, "low_confidence_proportion", prop_hist)
 
+    await CorrectionLoopService().replay(db, test_user.id)
+    assert tier_counter.calls == [] and prop_hist.calls == []
+
     await StatementSummaryFactory.create_async(
         db, user_id=test_user.id, status=BankStatementStatus.PARSED, confidence_score=90, balance_validated=True
     )
@@ -158,4 +161,4 @@ async def test_AC_extraction_2926_replay_emits_low_confidence_telemetry(db, test
 
     assert (1, {"tier": "high", "stage": "replay"}) in tier_counter.calls
     assert (1, {"tier": "low", "stage": "replay"}) in tier_counter.calls
-    assert any(val == 0.5 and attrs == {"source": "replay"} for val, attrs in prop_hist.calls)
+    assert prop_hist.calls == [(0.5, {"source": "replay"})]
