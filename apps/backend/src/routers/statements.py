@@ -427,7 +427,6 @@ async def upload_statement(
     file: UploadFile = File(...),
     institution: Annotated[str | None, Form()] = None,
     account_id: Annotated[UUID | None, Form()] = None,
-    model: Annotated[str | None, Form()] = None,
     *,
     ctx: Ctx,
 ) -> BankStatementResponse:
@@ -457,12 +456,9 @@ async def upload_statement(
     ).scalar_one_or_none():
         raise ConflictError("Duplicate statement upload")
 
-    if extension != "csv":
-        await _validate_vision_model(model)
-
     statement_id = uuid4()
     request_id = ensure_request_id()
-    model_to_use = model
+    model_to_use = None
     file_hash_prefix = file_hash[:12]
     logger.info(
         "statement.upload.accepted",
@@ -473,7 +469,7 @@ async def upload_statement(
         filename=filename,
         file_type=extension,
         institution=institution or "(auto-detect)",
-        model_requested=model,
+        model_requested=None,
         model_to_use=model_to_use,
         file_size_bytes=len(content),
         file_hash_prefix=file_hash_prefix,

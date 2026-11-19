@@ -140,7 +140,6 @@ class AIAdvisorService:
         user_id: UUID,
         message: str,
         session_id: UUID | None = None,
-        model: str | None = None,
         *,
         base_currency: str | None = None,
     ) -> ChatStream:
@@ -162,7 +161,7 @@ class AIAdvisorService:
         metadata = self.build_chat_grounding_metadata(context, raw_message)
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
         bound = await _bound_scene_binding(user_id)
-        model_key = model or (bound.model_id if bound else None) or self.large_model
+        model_key = (bound.model_id if bound else None) or self.large_model
         cache_key = f"{user_id}:{language}:{normalize_question(message)}:{context_hash}:{model_key}"
         _CACHE.prune()
         if cached := _CACHE.get(cache_key):
@@ -180,7 +179,7 @@ class AIAdvisorService:
 
         return ChatStream(
             session_id=session.id,
-            stream=self._stream_and_store(db, session, messages, language, cache_key, model, user_id, bound),
+            stream=self._stream_and_store(db, session, messages, language, cache_key, user_id, bound),
             model_name=model_key,
             cached=False,
             metadata=metadata,
@@ -206,6 +205,11 @@ class AIAdvisorService:
         today = date.today()
         start_date = today.replace(day=1)
         resolved_base = require_base_currency(base_currency)
+        total_assets: Decimal | None = None
+        total_liabilities: Decimal | None = None
+        opening_equity: Decimal | None = None
+        net_income_bs: Decimal | None = None
+        net_worth: Decimal | None = None
         ending_unrealized_fx: Decimal | None = None
         try:
             balance = cast(
@@ -229,7 +233,6 @@ class AIAdvisorService:
             bs_tier = str(balance["confidence_tier"]) if balance.get("confidence_tier") else _worst_lines_tier(bs_lines)
             ending_unrealized_fx = Decimal(str(balance["unrealized_fx_gain_loss"]))
         except ReportError:
-            total_assets = total_liabilities = opening_equity = net_income_bs = net_worth = Decimal("0")
             currency = resolved_base
             bs_tier = "UNAVAILABLE"
 
@@ -253,6 +256,8 @@ class AIAdvisorService:
                 cast(list[dict[str, Any]], inc.get("expenses") or []),
             )
 
+        monthly_income: Decimal | None = None
+        monthly_expenses: Decimal | None = None
         try:
             monthly_income, monthly_expenses, inc_lines, exp_lines = await _load_inc(start_date, today, ending_unrealized_fx)
             if monthly_income == Decimal("0") and monthly_expenses == Decimal("0"):
@@ -273,7 +278,6 @@ class AIAdvisorService:
                     monthly_income, monthly_expenses, inc_lines, exp_lines = await _load_inc(latest_pnl_date.replace(day=1), hist_end)
             inc_tier = _worst_lines_tier([*inc_lines, *exp_lines])
         except ReportError:
-            monthly_income = monthly_expenses = Decimal("0")
             exp_lines = []
             inc_tier = "UNAVAILABLE"
 
@@ -294,16 +298,18 @@ class AIAdvisorService:
         except ReportError:
             top_expenses = "N/A"
 
-        fmt = lambda amt: self._format_money(amt, currency)  # noqa: E731
+        def _fmt(amt: Decimal | None) -> str:
+            return "unavailable" if amt is None else self._format_money(amt, currency)
+
         return {
-            "total_assets": fmt(total_assets),
-            "total_liabilities": fmt(total_liabilities),
-            "net_worth": fmt(net_worth),
-            "equity": fmt(net_worth),
-            "opening_equity": fmt(opening_equity),
-            "net_income": fmt(net_income_bs),
-            "monthly_income": fmt(monthly_income),
-            "monthly_expenses": fmt(monthly_expenses),
+            "total_assets": _fmt(total_assets),
+            "total_liabilities": _fmt(total_liabilities),
+            "net_worth": _fmt(net_worth),
+            "equity": _fmt(net_worth),
+            "opening_equity": _fmt(opening_equity),
+            "net_income": _fmt(net_income_bs),
+            "monthly_income": _fmt(monthly_income),
+            "monthly_expenses": _fmt(monthly_expenses),
             "top_expenses": top_expenses or "N/A",
             **(await self._get_reconciliation_summary(db, user_id)),
             "balance_sheet_confidence_tier": bs_tier,
@@ -637,7 +643,7 @@ class AIAdvisorService:
 
         if not citations:
             add_citation("Financial Summary", "financial_summary", "DETERMINISTIC", "/reports")
-        return ChatResponseMetadata(grounded=bool(citations or actions), citations=citations[:4], actions=actions[:3])
+        return ChatResponseMetadata(citations=citations[:4], actions=actions[:3])
 
     def _display_confidence_tier(self, value: str | None) -> str:
         return str(value).upper() if value else "DETERMINISTIC"
@@ -763,7 +769,6 @@ class AIAdvisorService:
         messages: list[dict[str, str]],
         language: str,
         cache_key: str,
-        preferred_model: str | None,
         user_id: UUID | None = None,
         bound: SceneBinding | None = None,
     ) -> AsyncIterator[str]:
@@ -771,7 +776,7 @@ class AIAdvisorService:
         chunks: list[str] = []
         model_used: str | None = None
         try:
-            async for chunk, model_name in self._stream_openrouter(messages, preferred_model, user_id, bound):
+            async for chunk, model_name in self._stream_openrouter(messages, user_id, bound):
                 model_used = model_name
                 if safe_chunk := redactor.process(chunk):
                     chunks.append(safe_chunk)
@@ -828,7 +833,6 @@ class AIAdvisorService:
     async def _stream_openrouter(
         self,
         messages: list[dict[str, str]],
-        preferred_model: str | None,
         user_id: UUID | None = None,
         bound: SceneBinding | None = None,
     ) -> AsyncIterator[tuple[str, str]]:
@@ -836,7 +840,7 @@ class AIAdvisorService:
         from src.observability import ErrorIds
 
         models = [self.large_model]
-        if preferred_model is None and bound is not None:
+        if bound is not None:
             try:
                 async for chunk in get_llm_client(user_id).stream(Scene.ADVISOR_CHAT, messages):
                     yield chunk, bound.model_id
@@ -851,9 +855,6 @@ class AIAdvisorService:
                 )
         reasoning: ReasoningEffort | None = bound.reasoning if bound else _large_role_reasoning()
         max_tokens = bound.max_tokens if bound else None
-        if preferred_model:
-            models = [preferred_model, *models]
-            reasoning = max_tokens = None
         last_error: Exception | None = None
 
         for i, model in enumerate(models):

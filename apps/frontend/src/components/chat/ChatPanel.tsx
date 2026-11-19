@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Bot, Loader2, MessageSquareText, PanelLeft } from "lucide-react";
 
 import { apiOperation, apiOperationStream } from "@/lib/api";
-import { fetchAiModels } from "@/lib/aiModels";
 import type { Schemas } from "@/lib/api-schema";
 import { normalizeAdvisorSuggestions } from "@/lib/types";
 import type {
@@ -25,7 +24,6 @@ import { MarkdownMessage } from "@/components/chat/MarkdownMessage";
 const DISCLAIMER_EN = "The above analysis is for reference only.";
 const DISCLAIMER_ZH = "\u4ee5\u4e0a\u5206\u6790\u4ec5\u4f9b\u53c2\u8003\u3002";
 const SESSION_KEY = "ai_chat_session_id";
-const MODEL_KEY = "ai_chat_model_v1";
 
 type ChatRole = "user" | "assistant";
 interface ChatBubbleViewModel {
@@ -113,11 +111,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   const [sessionsOpen, setSessionsOpen] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [initialPromptHandled, setInitialPromptHandled] = useState(false);
-  const [models, setModels] = useState<
-    { id: string; name?: string; is_free: boolean }[]
-  >([]);
-  const [selectedModel, setSelectedModel] = useState<string>("");
-  const [loadingModels, setLoadingModels] = useState(true);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const language = useMemo(() => getBrowserLanguage(), []);
@@ -221,38 +214,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages, scrollToBottom]);
-  useEffect(() => {
-    let active = true;
-    const loadModels = async () => {
-      try {
-        const data = await fetchAiModels({ modality: "text" });
-        if (!active) return;
-        setModels(data.models);
-        const stored =
-          typeof window !== "undefined"
-            ? localStorage.getItem(MODEL_KEY)
-            : null;
-        let preferred =
-          stored && data.models.some((m) => m.id === stored)
-            ? stored
-            : data.default_model;
-        if (!data.models.some((m) => m.id === preferred)) {
-          preferred = data.models[0]?.id || "";
-        }
-        setSelectedModel(preferred);
-      } catch {
-        if (!active) return;
-        setModels([]);
-        setSelectedModel("");
-      } finally {
-        if (active) setLoadingModels(false);
-      }
-    };
-    void loadModels();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const updateMessage = useCallback(
     (
@@ -331,7 +292,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
             body: {
               message: messageText,
               session_id: sessionId,
-              model: selectedModel || undefined,
             },
           });
         if (newSessionId) {
@@ -354,7 +314,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
       input,
       isStreaming,
       refreshSessionList,
-      selectedModel,
       sessionId,
       updateMessage,
     ],
@@ -421,29 +380,6 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
             <PanelLeft className="h-3.5 w-3.5" aria-hidden="true" />
             Sessions
           </button>
-          <select
-            className="input text-xs min-w-0 max-w-full sm:min-w-[200px]"
-            value={selectedModel}
-            onChange={(event) => {
-              const next = event.target.value;
-              setSelectedModel(next);
-              if (typeof window !== "undefined" && next) {
-                localStorage.setItem(MODEL_KEY, next);
-              }
-            }}
-            disabled={loadingModels}
-            aria-label="AI model"
-          >
-            {models.length === 0 ? (
-              <option value="">Default (server)</option>
-            ) : (
-              models.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name || model.id} — {model.is_free ? "Free" : "Paid"}
-                </option>
-              ))
-            )}
-          </select>
           <button
             onClick={clearSession}
             className="btn-secondary text-xs px-3 py-1"

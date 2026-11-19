@@ -59,10 +59,6 @@ async def test_gxs_browser_upload_to_saved_package(
         file_path=pdf,
         select_model=False,
     )
-    record_property(
-        "requested_ocr_model",
-        await page.locator('[data-testid="uploader-model-statement"]').input_value(),
-    )
     record_property("source_statement_id", statement_id)
     checkpoint(record_property, "U1")
 

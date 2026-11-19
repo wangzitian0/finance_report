@@ -107,7 +107,6 @@ async def test_parsing_supervisor_and_router_error_paths(db, test_user, monkeypa
             await upload_statement(
                 file=UploadFile(filename="test.pdf", file=BytesIO(b"content")),
                 institution="DBS",
-                model=None,
                 ctx=RequestContext(db, test_user.id),
             )
         assert exc2.value.status_code == 500

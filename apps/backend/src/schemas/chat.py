@@ -28,7 +28,6 @@ class ChatSessionStatusEnum(str, Enum):
 class ChatRequest(BaseModel):
     message: Annotated[str, Field(min_length=1, max_length=4000)]
     session_id: UUID | None = None
-    model: Annotated[str, Field(max_length=120)] | None = None
 
 
 class ChatMessageResponse(BaseModel):
@@ -89,7 +88,6 @@ class ChatActionChip(BaseModel):
 
 
 class ChatResponseMetadata(BaseModel):
-    grounded: bool = False
     citations: list[ChatCitation] = default_list()
     actions: list[ChatActionChip] = default_list()
 

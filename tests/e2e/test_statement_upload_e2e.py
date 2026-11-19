@@ -81,25 +81,3 @@ async def test_model_selection_and_upload(authenticated_page_unique: Page) -> No
         ).get("id")
         == statement_id
     )
-
-
-@pytest.mark.e2e
-async def test_stale_model_id_auto_cleanup(authenticated_page_unique: Page) -> None:
-    _skip_if_no_url()
-    page = authenticated_page_unique
-    await page.goto(get_url("/upload", _APP_URL), wait_until="domcontentloaded")
-    await expect(
-        page.locator('[data-testid="uploader-model-statement"]')
-    ).to_be_visible(timeout=15000)
-    stale_id = "test/nonexistent-model-for-stale-cleanup-test"
-    await page.evaluate(f'localStorage.setItem("statement_model_v1", "{stale_id}")')
-    await page.reload(wait_until="domcontentloaded")
-    await expect(
-        page.locator('[data-testid="uploader-model-statement"]')
-    ).to_be_visible(timeout=15000)
-    await page.wait_for_function(
-        "(staleId) => localStorage.getItem('statement_model_v1') !== staleId",
-        arg=stale_id,
-        timeout=15000,
-    )
-    assert await page.evaluate('localStorage.getItem("statement_model_v1")') != stale_id

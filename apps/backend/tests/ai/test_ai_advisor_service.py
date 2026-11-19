@@ -124,13 +124,12 @@ async def test_chat_stream_refusal_and_cache(db: AsyncSession, test_user, monkey
     assert cached_chat.cached is True and "cached response" in body and body.endswith(DISCLAIMER_EN)
 
 
-@pytest.mark.parametrize(("preferred", "expected_model", "expected_effort", "raised_exc", "expected_cls", "match"), [
-    (None, "large", ReasoningEffort.HIGH, None, None, None),
-    ("preferred", "preferred", None, None, None, None),
-    (None, "large", None, AIStreamError(message="fail large", retryable=True), AIStreamError, "fail large"),
-    (None, "large", None, ValueError("bad internal state"), AIAdvisorError, "Internal error: ValueError"),
+@pytest.mark.parametrize(("expected_model", "expected_effort", "raised_exc", "expected_cls", "match"), [
+    ("large", ReasoningEffort.HIGH, None, None, None),
+    ("large", None, AIStreamError(message="fail large", retryable=True), AIStreamError, "fail large"),
+    ("large", None, ValueError("bad internal state"), AIAdvisorError, "Internal error: ValueError"),
 ])
-async def test_stream_openrouter_model_selection_and_errors(monkeypatch: pytest.MonkeyPatch, preferred: str | None, expected_model: str, expected_effort: ReasoningEffort | None, raised_exc: Exception | None, expected_cls: type[Exception] | None, match: str | None) -> None:
+async def test_stream_openrouter_model_selection_and_errors(monkeypatch: pytest.MonkeyPatch, expected_model: str, expected_effort: ReasoningEffort | None, raised_exc: Exception | None, expected_cls: type[Exception] | None, match: str | None) -> None:
     service = AIAdvisorService()
     service.small_model, service.large_model = "small", "large"
     calls: list[tuple[str, ReasoningEffort | None]] = []
@@ -144,11 +143,11 @@ async def test_stream_openrouter_model_selection_and_errors(monkeypatch: pytest.
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
     if expected_cls is not None:
         with pytest.raises(expected_cls, match=match):
-            async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}], preferred, None):
+            async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
                 pass
         assert calls[0][0] == expected_model
     else:
-        assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], preferred, None)] == [("hello", expected_model)]
+        assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], None)] == [("hello", expected_model)]
         assert calls[0][0] == expected_model and (expected_effort is None or calls[0][1] == expected_effort)
 
 
@@ -169,7 +168,22 @@ async def test_get_financial_context_handles_report_errors(db: AsyncSession, tes
     for name in ("generate_balance_sheet", "generate_income_statement", "get_category_breakdown"):
         monkeypatch.setattr(ai_advisor_service, name, lambda *_a, **_k: aboom(ReportError("boom")))
     context = await AIAdvisorService().get_financial_context(db, test_user.id, base_currency="SGD")
-    assert (context["total_assets"].endswith("0.00"), context["monthly_income"].endswith("0.00"), context["top_expenses"], context["match_rate"]) == (True, True, "N/A", "0.0%")
+    assert (
+        context["total_assets"],
+        context["total_liabilities"],
+        context["net_worth"],
+        context["opening_equity"],
+        context["net_income"],
+        context["monthly_income"],
+        context["monthly_expenses"],
+        context["top_expenses"],
+        context["match_rate"],
+        context["balance_sheet_confidence_tier"],
+        context["income_statement_confidence_tier"],
+    ) == ("unavailable", "unavailable", "unavailable", "unavailable", "unavailable", "unavailable", "unavailable", "N/A", "0.0%", "UNAVAILABLE", "UNAVAILABLE")
+    prompt = get_ai_advisor_prompt(context, "en")
+    overview = prompt.split("Structured advisor facts")[0]
+    assert "Total assets: unavailable" in overview and "Monthly income: unavailable" in overview and "0.00" not in overview
 
 
 async def test_AC21_2_1_advisor_context_sources_and_degradation(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -214,7 +228,7 @@ async def test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_an
     service, captured_messages = AIAdvisorService(), []
     service.api_key = "test-key"
 
-    async def fake_stream_and_store(_db, _session, messages, _lang, _ck, _pref, _uid=None, _bound=None):
+    async def fake_stream_and_store(_db, _session, messages, _lang, _ck, _uid=None, _bound=None):
         captured_messages.extend(messages)
         yield "ok"
 
@@ -238,7 +252,7 @@ def test_AC22_14_grounding_metadata_and_confidence_rollup() -> None:
         },
         "What is my net worth and what should I review?",
     )
-    assert metadata.grounded is True and {c.source_ref for c in metadata.citations} >= {"balance_sheet.total_equity", "income_statement.current_month"} and {c.confidence_tier for c in metadata.citations} >= {"TRUSTED", "HIGH"}
+    assert {c.source_ref for c in metadata.citations} >= {"balance_sheet.total_equity", "income_statement.current_month"} and {c.confidence_tier for c in metadata.citations} >= {"TRUSTED", "HIGH"}
     assert [a.model_dump() for a in metadata.actions] == [{"kind": "reconciliation_review", "label": "Review 2", "href": "/reconciliation?tab=review-queue", "count": 2}]
     assert (
         service._safe_chat_href("/reports?tab=balance-sheet&currency=SGD"), service._safe_chat_href("/reports?tab=package#readiness"),
@@ -277,11 +291,11 @@ async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_use
         yield ("A" * 80, "test-model")
 
     monkeypatch.setattr(service, "_stream_openrouter", lambda *_a, **_k: fake_openrouter(False))
-    assert (await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key", None))).endswith(DISCLAIMER_EN) and ai_advisor_service._CACHE.get("cache-key") is not None
+    assert (await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))).endswith(DISCLAIMER_EN) and ai_advisor_service._CACHE.get("cache-key") is not None
 
     monkeypatch.setattr(service, "_stream_openrouter", lambda *_a, **_k: fake_openrouter(True))
     with pytest.raises(AIAdvisorError, match="stream failed"):
-        await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key", None))
+        await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))
 
     service.api_key = "test-key"
     _stub_context(service, monkeypatch)
@@ -335,7 +349,7 @@ async def test_AC23_4_5_advisor_user_scoped_model_and_provider(monkeypatch: pyte
 
     client = SimpleNamespace(stream=lambda scene, messages: (seen.update({"scene": scene, "messages": messages}) or _gen()))
     monkeypatch.setattr(ai_advisor_service, "get_llm_client", lambda user_id: seen.setdefault("user_id", user_id) and client)
-    async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}], None, uid, bound):
+    async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}], uid, bound):
         pass
     assert seen == {"user_id": uid, "scene": Scene.ADVISOR_CHAT, "messages": [{"role": "user", "content": "hi"}]}
 

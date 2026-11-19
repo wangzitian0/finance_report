@@ -11,7 +11,7 @@ import pytest
 from src.advisor import AIAdvisorError
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.llm import AIStreamError
-from src.platform import BaseAppException, ResourceNotFoundError, ServiceUnavailableError, ValidationFailedError
+from src.platform import BaseAppException, ResourceNotFoundError
 from src.request_context import RequestContext
 from src.routers.chat import SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS, chat_history, chat_message, delete_session, suggestions
 
@@ -22,8 +22,8 @@ def _ctx(db=None, user_id=None) -> RequestContext:
     return ctx
 
 
-def _payload(message: str = "What are my expenses?", *, session_id=None, model: str | None = None) -> MagicMock:
-    return MagicMock(message=message, session_id=session_id, model=model)
+def _payload(message: str = "What are my expenses?", *, session_id=None) -> MagicMock:
+    return MagicMock(message=message, session_id=session_id)
 
 
 def _mock_chat_service(
@@ -32,10 +32,8 @@ def _mock_chat_service(
     model_name: str | None = None,
     metadata=None,
     side_effect=None,
-    small_model: str = "allowed_model",
-    large_model: str = "large_model",
 ) -> MagicMock:
-    service = MagicMock(small_model=small_model, large_model=large_model)
+    service = MagicMock()
     if side_effect is not None:
         service.chat_stream = AsyncMock(side_effect=side_effect)
     else:
@@ -150,7 +148,6 @@ async def test_chat_error_status_mapping(error: AIAdvisorError, expected_status:
         (
             None,
             {
-                "grounded": True,
                 "citations": [{"label": "Balance Sheet", "source_ref": "balance_sheet.total_equity", "confidence_tier": "TRUSTED", "href": "/reports?tab=balance-sheet"}],
                 "actions": [{"kind": "reconciliation_review", "label": "Review 2", "href": "/reconciliation?tab=review-queue", "count": 2}],
             },
@@ -171,40 +168,6 @@ async def test_chat_response_headers(model_name, metadata, expected_header, expe
     assert (actual_val is not None) if expected_val is True else (actual_val == expected_val)
     if expected_exposed:
         assert expected_exposed in response.headers.get("Access-Control-Expose-Headers", "")
-
-
-@pytest.mark.parametrize(
-    ("model", "catalog_side_effect", "catalog_return", "expected_err", "expected_detail"),
-    [
-        ("allowed_model", None, None, None, None),
-        ("external_model", None, object(), None, None),
-        ("unknown_model", None, None, ValidationFailedError, "Invalid model selection"),
-        ("unknown_model", Exception("Some error"), None, ServiceUnavailableError, "Unable to validate requested model"),
-    ],
-)
-async def test_chat_model_validation(model, catalog_side_effect, catalog_return, expected_err, expected_detail) -> None:
-    async def mock_stream():
-        yield "Hello"
-
-    mock_get = AsyncMock(side_effect=catalog_side_effect) if catalog_side_effect else AsyncMock(return_value=catalog_return)
-    service = _mock_chat_service(stream=mock_stream(), model_name=model)
-    with (
-        patch("src.routers.chat.AIAdvisorService", return_value=service),
-        patch("src.routers.chat.LitellmCatalog") as mock_catalog,
-    ):
-        mock_catalog.return_value.get = mock_get
-        if expected_err is not None:
-            with pytest.raises(expected_err) as exc_info:
-                await chat_message(_payload(model=model), ctx=_ctx())
-            assert expected_detail in exc_info.value.detail
-        else:
-            response = await chat_message(_payload(model=model), ctx=_ctx())
-            assert response.headers.get("X-Model-Name") == model
-            service.chat_stream.assert_called_once()
-        if model == "allowed_model":
-            mock_get.assert_not_called()
-        else:
-            mock_get.assert_called_once_with(model)
 
 
 @pytest.mark.no_db

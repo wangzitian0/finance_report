@@ -27,7 +27,7 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
         (
             "tuning",
             "db_pool_size db_pool_max_overflow s3_presign_expiry_seconds "
-            "statement_review_presign_expiry_seconds storage_sweep_grace_period_hours "
+            "storage_sweep_grace_period_hours "
             "storage_sweep_interval_seconds ai_chat_completions_path ai_json_timeout_seconds "
             "ai_json_max_tokens ai_json_disable_thinking ai_json_seed ai_extract_max_attempts "
             "large_model small_model multimodal_model market_data_fx_bridge_currency "

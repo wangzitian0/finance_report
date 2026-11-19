@@ -202,7 +202,6 @@ export interface ChatActionChip {
 }
 
 export interface ChatResponseMetadata {
-  grounded: boolean;
   citations: ChatCitation[];
   actions: ChatActionChip[];
 }

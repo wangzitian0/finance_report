@@ -48,7 +48,6 @@ Where a field's `.env.example` value intentionally differs from its code default
 | `S3_PUBLIC_SECRET_KEY` |  |  | yes | S3 Storage | Public S3 secret key (falls back to internal S3 settings when unset). |
 | `S3_REGION` | `us-east-1` |  |  | S3 Storage | S3 region. |
 | `S3_SECRET_KEY` | `minio_local_secret` | `<YOUR_S3_SECRET_KEY>` | yes | S3 Storage | S3 secret key. |
-| `STATEMENT_REVIEW_PRESIGN_EXPIRY_SECONDS` | `120` |  |  | S3 Storage | Short-lived PDF preview URL TTL for Stage 1 statement review. |
 | `OPENPANEL_API_URL` |  |  |  | Observability | OpenPanel API base URL (e.g. https://openpanel.zitian.party/api). |
 | `OPENPANEL_CLIENT_ID` |  |  |  | Observability | Per-env OpenPanel project client-id for server-side events (empty = analytics off). |
 | `OPENPANEL_ENVIRONMENT` |  |  |  | Observability | Canonical OpenPanel environment label (falls back to `environment`). |

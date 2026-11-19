@@ -984,9 +984,6 @@ export function runOtelVitalsCheck(
   expect(() => captureWebVitals(v.provider, OTEL_CFG, {})).not.toThrow();
 }
 
-export const CHAT_BASE_MODELS = { models: [{ id: "model-1", name: "Model 1", is_free: true }], default_model: "model-1" };
-export const CHAT_ALT_MODELS = { models: [{ id: "model-alt", name: "Alt", is_free: true }], default_model: "missing" };
-
 export async function checkChatBrief() {
   const b = await screen.findByLabelText("Advisor Brief");
   expect(within(b).getByText("Report package is blocked by one review-required item.")).toBeInTheDocument();
@@ -1278,8 +1275,6 @@ export async function runChatSessionsFlow(api: ApiMockFn, stream: ReturnType<typ
   await dlgEl("AI sessions");
   clkTxt("Cash flow review");
   await waitOp(api, OPS.CHAT_HIST, expect.objectContaining({ query: expect.objectContaining({ session_id: "sess-1" }) }));
-  fireEvent.change(await screen.findByLabelText(/ai model/i), { target: { value: "model-2" } });
-  expect(localStorage.getItem("ai_chat_model_v1")).toBe("model-2");
 
   const ta = screen.getByPlaceholderText(/Ask about spending trends/i);
   expect(btn("Send")).toBeDisabled();
@@ -1645,12 +1640,9 @@ export function checkCoveragePeriodNote(expectedText: string, btnDisabled = true
 export async function runChatErrorStates(
   renderChat: () => { unmount: () => void },
   stream: ReturnType<typeof vi.fn>,
-  models: ReturnType<typeof vi.fn>,
 ) {
-  models.mockResolvedValue(CHAT_ALT_MODELS);
   stream.mockResolvedValueOnce({ response: { body: null } as never, sessionId: "s3" }).mockRejectedValueOnce(new Error("Network Fail"));
-  const v1 = renderChat();
-  expect(((await screen.findByLabelText(/ai model/i)) as HTMLSelectElement).value).toBe("model-alt");
+  const v1 = renderChat(); await waitFor(() => noTxt(/Loading chat history/i));
   const ta = screen.getByPlaceholderText(/Ask about spending trends/i);
   fireEvent.change(ta, { target: { value: "a" } }); clkBtn("Send"); await screen.findByText("No response stream available.");
   fireEvent.change(ta, { target: { value: "b" } }); clkBtn("Send");
@@ -2235,15 +2227,9 @@ export const OTEL_ENV = {
 
 export const CHAT_GROUNDED_HEADERS = {
   "X-Advisor-Metadata": JSON.stringify({
-    grounded: true,
     citations: [{ label: "Balance Sheet", source_ref: "balance_sheet.total_equity", confidence_tier: "TRUSTED", href: "/reports/balance-sheet" }],
     actions: [{ kind: "reconciliation_review", label: "Review 2", href: "/reconciliation?tab=review-queue", count: 2 }],
   }),
-};
-
-export const CHAT_TWO_MODELS = {
-  models: [{ id: "model-1", name: "Model 1", is_free: true }, { id: "model-2", name: "Model 2", is_free: false }],
-  default_model: "model-1",
 };
 
 export const COCKPIT_EXPECTED_ROWS = [

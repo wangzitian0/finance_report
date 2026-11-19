@@ -563,11 +563,6 @@ async def upload_statement_via_ui(
         await page.locator('[data-testid="uploader-institution-statement"]').fill(
             institution
         )
-        if select_model:
-            model_select = page.locator('[data-testid="uploader-model-statement"]')
-            await expect(model_select).to_be_visible(timeout=15000)
-            await expect(model_select).not_to_have_value("", timeout=15000)
-            await model_select.select_option(index=0)
         await page.set_input_files(
             '[data-testid="uploader-file-statement"]', str(file_path)
         )

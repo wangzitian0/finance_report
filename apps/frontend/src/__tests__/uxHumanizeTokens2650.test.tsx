@@ -22,7 +22,6 @@ vi.mock("next/link", async () => (await import("./helpers/shellTestFixtures")).l
 const showToastMock = vi.fn();
 vi.mock("@/components/ui/Toast", () => ({ useToast: () => ({ showToast: showToastMock }) }));
 vi.mock("@/lib/api", () => ({ apiOperation: vi.fn(), apiOperationDownload: vi.fn(), apiOperationStream: vi.fn() }));
-vi.mock("@/lib/aiModels", () => ({ fetchAiModels: vi.fn().mockResolvedValue({ default_model: "gpt-4o", models: [{ id: "gpt-4o", name: "GPT-4o", is_free: true }] }) }));
 const mockedPkg = vi.hoisted(() => vi.fn());
 vi.mock("@/hooks/usePersonalReportPackage", async (o) => (await import("./helpers/shellTestFixtures")).pkgHookMock(mockedPkg)(o));
 const api = vi.mocked(apiOperation);

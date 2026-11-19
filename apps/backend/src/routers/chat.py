@@ -20,12 +20,11 @@ from src.advisor import (
     detect_language,
 )
 from src.deps import Ctx, ReadCtx
-from src.llm import LitellmCatalog, LLMError
+from src.llm import LLMError
 from src.observability import get_logger
 from src.platform import (
     ResourceNotFoundError,
     ServiceUnavailableError,
-    ValidationFailedError,
     get_owned_or_raise,
 )
 from src.schemas.chat import (
@@ -83,18 +82,6 @@ def _session_dto(
     )
 
 
-async def _validate_requested_model(service: AIAdvisorService, model: str | None) -> None:
-    if not model or model in {service.large_model, service.small_model}:
-        return
-    try:
-        allowed = await LitellmCatalog().get(model) is not None
-    except Exception as exc:
-        logger.error("Failed to validate model", model=model, error=str(exc))
-        raise ServiceUnavailableError("Unable to validate requested model at this time.") from exc
-    if not allowed:
-        raise ValidationFailedError("Invalid model selection.")
-
-
 @router.post(
     "",
     response_class=StreamingResponse,
@@ -104,13 +91,11 @@ async def chat_message(payload: ChatRequest, *, ctx: Ctx) -> StreamingResponse:
     """Send a chat message and stream the AI response."""
     db, user_id = ctx.db, ctx.user_id
     service = AIAdvisorService()
-    await _validate_requested_model(service, payload.model)
     stream = await service.chat_stream(
         db,
         user_id,
         payload.message,
         payload.session_id,
-        payload.model,
         base_currency=await ctx.get_base_currency(),
     )
     stream_iter = aiter(stream.stream)

@@ -2998,7 +2998,7 @@ async def verify_failure_and_retry_convergence(db, db_engine, test_user, monkeyp
     upload = UploadFile(filename="failure-convergence.pdf", file=BytesIO(b"source bytes"))
     with pytest.raises(DomainError) as exc:
         await statements_router.upload_statement(
-            file=upload, institution="Example Bank", model=None, ctx=RequestContext(db, test_user.id)
+            file=upload, institution="Example Bank", ctx=RequestContext(db, test_user.id)
         )
     await upload.close()
     orphan_key = next(iter(storage.keys))
