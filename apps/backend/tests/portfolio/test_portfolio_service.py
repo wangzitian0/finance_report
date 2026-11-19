@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AtomicPosition
 from src.ledger import Account, AccountType
-from src.portfolio import AssetNotFoundError, InvalidDateRangeError, PortfolioNotFoundError, PortfolioService
+from src.portfolio import AssetNotFoundError, PortfolioNotFoundError, PortfolioService
 from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
 from src.pricing import MarketDataOverride, PriceSource
 from src.pricing.orm.market_data import FxRate
@@ -174,52 +174,20 @@ async def test_get_holdings_fx_zero_cost_and_user_isolation(db, test_user, svc, 
     assert ((msft.market_value, msft.cost_basis, msft.currency), free.unrealized_pnl_percent, (noclass.asset_type, noclass.sector, noclass.geography)) == ((Decimal("8100.00"), Decimal("6500.00"), "SGD"), Decimal("0.00"), (None, None, None))
 
 
-async def test_realized_pnl_edge_and_happy_cases(db, test_user, svc, account):
-    start, end = date.today() - timedelta(days=30), date.today()
-    with pytest.raises(InvalidDateRangeError):
-        await svc.calculate_realized_pnl(db, test_user.id, end, end - timedelta(days=1), base_currency="SGD")
-    empty = await svc.calculate_realized_pnl(db, test_user.id, start, end, base_currency="SGD")
-    assert (empty.total_realized_pnl, empty.positions_count, empty.details) == (Decimal("0"), 0, [])
-    await _flush(
-        db,
-        _pos(test_user.id, account.id, "GOOG", qty=Decimal("20"), cost=Decimal("3000.00"), acq_days=120, disposal_date=end - timedelta(days=5), status=PositionStatus.DISPOSED),
-        _atom(test_user.id, "GOOG", "Broker", qty=Decimal("20"), mv=Decimal("4000.00"), snap_date=end - timedelta(days=5), dedup_hash="goog_disposed"),
-    )
-    happy = await svc.calculate_realized_pnl(db, test_user.id, start, end, base_currency="SGD")
-    assert (happy.positions_count, happy.total_realized_pnl, len(happy.details), happy.details[0]["asset_identifier"]) == (1, Decimal("1000.00"), 1, "GOOG")
-
-
-async def test_realized_pnl_zero_cost_and_fx(db, test_user, svc, account):
-    today = date.today()
-    await _flush(
-        db,
-        _pos(test_user.id, account.id, "ZERO", qty=Decimal("10"), cost=Decimal("0.00"), acq_days=60, disposal_date=today - timedelta(days=3), status=PositionStatus.DISPOSED),
-        _atom(test_user.id, "ZERO", "B", qty=Decimal("10"), mv=Decimal("500.00"), snap_date=today - timedelta(days=3), dedup_hash="zero_cost_disposed"),
-    )
-    zero_res = await svc.calculate_realized_pnl(db, test_user.id, today - timedelta(days=30), today, base_currency="SGD")
-    assert (zero_res.total_realized_pnl, zero_res.total_realized_pnl_percent) == (Decimal("500.00"), Decimal("0.00"))
-    await _flush(
-        db,
-        _pos(test_user.id, account.id, "TSLA", qty=Decimal("5"), cost=Decimal("1000.00"), currency="USD", acq_days=90, disposal_date=today - timedelta(days=2), status=PositionStatus.DISPOSED, method=CostBasisMethod.LIFO),
-        _atom(test_user.id, "TSLA", "B", qty=Decimal("5"), mv=Decimal("1500.00"), currency="USD", snap_date=today - timedelta(days=2), dedup_hash="tsla_disposed_fx"),
-        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.35"), rate_date=today - timedelta(days=2), source="test"),
-        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.30"), rate_date=today - timedelta(days=90), source="test"),
-    )
-    fx_res = await svc.calculate_realized_pnl(db, test_user.id, today - timedelta(days=30), today, base_currency="SGD")
-    assert (fx_res.positions_count, fx_res.total_realized_pnl) == (2, Decimal("1225.00"))
-
-
-async def test_unrealized_pnl_and_summary_cases(db, test_user, svc, account):
-    with pytest.raises(PortfolioNotFoundError):
-        await svc.calculate_unrealized_pnl(db, test_user.id, base_currency="SGD")
+async def test_get_portfolio_summary_cases(db, test_user, svc, account):
     await _flush(
         db,
         _pos(test_user.id, account.id, "GIFT", qty=Decimal("5"), cost=Decimal("0.00"), acq_days=30, method=CostBasisMethod.AVGCOST),
         _atom(test_user.id, "GIFT", "B", qty=Decimal("5"), mv=Decimal("250.00"), dedup_hash="gift_unrealized"),
     )
-    zero_upnl = await svc.calculate_unrealized_pnl(db, test_user.id, base_currency="SGD")
     zero_summary = await svc.get_portfolio_summary(db, test_user.id, base_currency="SGD")
-    assert (zero_upnl.total_unrealized_pnl_percent, zero_upnl.details[0]["unrealized_pnl_percent"], zero_summary.net_pnl_percent) == (Decimal("0.00"), Decimal("0.00"), Decimal("0.00"))
+    assert (
+        zero_summary.total_market_value,
+        zero_summary.total_cost_basis,
+        zero_summary.total_unrealized_pnl,
+        zero_summary.net_pnl,
+        zero_summary.net_pnl_percent,
+    ) == (Decimal("250.00"), Decimal("0.00"), Decimal("250.00"), Decimal("250.00"), Decimal("0.00"))
     await _flush(
         db,
         _pos(test_user.id, account.id, "NVDA", qty=Decimal("10"), cost=Decimal("2000.00"), currency="USD", acq_days=45),
@@ -229,9 +197,19 @@ async def test_unrealized_pnl_and_summary_cases(db, test_user, svc, account):
         _pos(test_user.id, account.id, "MSFT", qty=Decimal("50"), cost=Decimal("5000.00"), acq_days=120, disposal_date=date.today() - timedelta(days=10), status=PositionStatus.DISPOSED),
         _atom(test_user.id, "MSFT", "Test Broker", qty=Decimal("50"), mv=Decimal("5500.00"), sector="Technology", geography="US", asset_type="stock", dedup_hash="msft_disposed_summary"),
     )
-    upnl = await svc.calculate_unrealized_pnl(db, test_user.id, base_currency="SGD")
     summary = await svc.get_portfolio_summary(db, test_user.id, base_currency="SGD")
-    assert ((upnl.holdings_count, upnl.total_market_value, upnl.total_cost_basis, upnl.total_unrealized_pnl), (summary.active_positions_count, summary.disposed_positions_count, summary.holdings_count, summary.currency)) == ((2, Decimal("3625.00"), Decimal("2600.00"), Decimal("1025.00")), (2, 1, 3, "SGD"))
+    assert (
+        summary.active_positions_count,
+        summary.disposed_positions_count,
+        summary.holdings_count,
+        summary.currency,
+        summary.total_market_value,
+        summary.total_cost_basis,
+        summary.total_unrealized_pnl,
+        summary.total_realized_pnl,
+        summary.net_pnl,
+        summary.net_pnl_percent,
+    ) == (2, 1, 3, "SGD", Decimal("9125.00"), Decimal("7600.00"), Decimal("1525.00"), Decimal("0"), Decimal("1525.00"), Decimal("20.07"))
 
 
 async def test_get_latest_price_and_atomic_helpers(db, test_user, svc, active_position, account):

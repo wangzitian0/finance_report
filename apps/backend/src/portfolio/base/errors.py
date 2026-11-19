@@ -23,10 +23,6 @@ class PortfolioNotFoundError(ResourceNotFoundError, PortfolioError):
     """Raised when portfolio positions are not found for a user."""
 
 
-class InvalidDateRangeError(PortfolioError):
-    """Raised when date range is invalid."""
-
-
 class AssetNotFoundError(ResourceNotFoundError, PortfolioError):
     """Raised when asset is not found."""
 
