@@ -48,7 +48,12 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
 
     __tablename__ = "statement_summaries"
     __table_args__ = (
-        UniqueConstraint("user_id", "file_hash", name="uq_statement_summaries_user_file_hash"),
+        UniqueConstraint(
+            "user_id",
+            "file_hash",
+            "sub_account_key",
+            name="uq_statement_summaries_user_file_hash_sub_account",
+        ),
         # This composite identity lets every result/envelope reference prove
         # its tenant and statement ownership at the database boundary.
         UniqueConstraint("user_id", "id", name="uq_statement_summaries_user_id_id"),
@@ -101,6 +106,13 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
         comment="Current immutable StatementExtractionResultRecord",
     )
     file_hash: Mapped[str] = mapped_column(String(64), nullable=False, comment="SHA256, canonical document join key")
+    sub_account_key: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default="",
+        server_default="",
+        comment="Sub-account partition key within a consolidated document (empty for primary/single-account)",
+    )
 
     # DIM conform: custody account the statement belongs to (set at confirm).
     account_id: Mapped[UUID | None] = mapped_column(

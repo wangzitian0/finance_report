@@ -36,11 +36,25 @@ _COUNTER_SPECS: tuple[tuple[str, str, str], ...] = (
         "finance.invariant.violation",
         "Financial-invariant violations detected during statement parsing.",
     ),
+    (
+        "confidence_tier_count",
+        "finance.extraction.confidence_tier",
+        "Non-retired statements and classification runs counted by confidence tier.",
+    ),
 )
 
 _HISTOGRAM_SPECS: tuple[tuple[str, str, str], ...] = (
     ("ai_provider_latency", "finance.ai_provider.latency", "AI provider call latency by model and outcome."),
+    (
+        "low_confidence_proportion",
+        "finance.correction_loop.low_confidence_proportion",
+        "Fraction of low-confidence items observed in correction-loop replay.",
+    ),
 )
+
+CONFIDENCE_TIERS = ("high", "medium", "low")
+CONFIDENCE_STAGES = ("extraction", "classification", "replay")
+LOW_CONFIDENCE_SOURCES = ("replay", "extraction")
 
 INVARIANT_VIOLATION_KINDS = (
     "balance_mismatch",
@@ -265,3 +279,20 @@ def record_financial_invariant_violation(*, kind: str, institution_class: str = 
     safe_class = institution_class if institution_class in INVARIANT_INSTITUTION_CLASSES else "unknown"
     if (counter := _instruments.get("financial_invariant_violation")) is not None:
         counter.add(1, {"kind": kind, "institution_class": safe_class})
+
+
+def record_confidence_tier(*, tier: str, stage: str, count: int = 1) -> None:
+    """Emit bounded-cardinality confidence tier counts for extraction, classification, and replay."""
+    if tier not in CONFIDENCE_TIERS or stage not in CONFIDENCE_STAGES or count <= 0:
+        return
+    if (counter := _instruments.get("confidence_tier_count")) is not None:
+        counter.add(count, {"tier": tier, "stage": stage})
+
+
+def record_low_confidence_proportion(*, proportion: float, source: str = "replay") -> None:
+    """Record the bounded [0, 1] low-confidence proportion into OTEL histogram telemetry."""
+    if source not in LOW_CONFIDENCE_SOURCES:
+        return
+    clamped = max(0.0, min(1.0, float(proportion)))
+    if (histogram := _instruments.get("low_confidence_proportion")) is not None:
+        histogram.record(clamped, {"source": source})

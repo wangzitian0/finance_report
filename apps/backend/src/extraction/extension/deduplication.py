@@ -234,7 +234,13 @@ async def dual_write_layer2(
         statement.extraction_metadata = effective_metadata
 
     try:
-        await _check_reparse_identity_conflicts(db, user_id, file_hash, effective_metadata)
+        await _check_reparse_identity_conflicts(
+            db,
+            user_id,
+            file_hash,
+            effective_metadata,
+            sub_account_key=statement.sub_account_key or "",
+        )
         uploaded_doc, document_created = await resolve_source_identity(
             db,
             SourceIdentityCommand(
@@ -243,33 +249,15 @@ async def dual_write_layer2(
                 file_hash=file_hash,
                 original_filename=original_filename or file_hash,
                 document_type=doc_type,
-                extraction_metadata=effective_metadata,
             ),
         )
         if not document_created:
             uploaded_doc.original_filename = original_filename or uploaded_doc.original_filename
             uploaded_doc.document_type = doc_type
-            if effective_metadata is not None:
-                uploaded_doc.extraction_metadata = effective_metadata
 
         from src.extraction.extension.evidence_graph_integration import EvidenceGraphIntegrationService
 
         evidence_graph = EvidenceGraphIntegrationService()
-        layer2_count = (
-            await _upsert_layer2_transactions(
-                db=db,
-                user_id=user_id,
-                transactions=transactions,
-                uploaded_doc=uploaded_doc,
-                doc_type=doc_type,
-                statement_account_id=statement.account_id,
-                dedup_service=dedup_service,
-                evidence_graph=evidence_graph,
-            )
-            if not envelope_only
-            else 0
-        )
-
         canonical_statement = await _persist_conform_statement_summary(
             db=db,
             user_id=user_id,
@@ -277,6 +265,21 @@ async def dual_write_layer2(
             statement=statement,
             effective_metadata=effective_metadata,
             uploaded_doc=uploaded_doc,
+        )
+        await db.flush()
+        layer2_count = (
+            await _upsert_layer2_transactions(
+                db=db,
+                user_id=user_id,
+                transactions=transactions,
+                uploaded_doc=uploaded_doc,
+                doc_type=doc_type,
+                statement_account_id=canonical_statement.account_id,
+                dedup_service=dedup_service,
+                evidence_graph=evidence_graph,
+            )
+            if not envelope_only
+            else 0
         )
 
         try:
@@ -320,17 +323,20 @@ async def _check_reparse_identity_conflicts(
     user_id: UUID,
     file_hash: str,
     effective_metadata: dict[str, Any] | None,
+    *,
+    sub_account_key: str = "",
 ) -> None:
     """Changing an already-posted source needs the explicit correction/void lifecycle."""
     prior = await db.scalar(
-        select(StatementSummary).where(StatementSummary.user_id == user_id, StatementSummary.file_hash == file_hash)
+        select(StatementSummary)
+        .where(
+            StatementSummary.user_id == user_id,
+            StatementSummary.file_hash == file_hash,
+            StatementSummary.sub_account_key == sub_account_key,
+        )
+        .limit(1)
     )
     if prior is None or prior.uploaded_document_id is None:
-        return
-
-    old_payload = (prior.extraction_metadata or {}).get("statement_extraction_result")
-    new_payload = (effective_metadata or {}).get("statement_extraction_result")
-    if old_payload == new_payload:
         return
 
     source_record = (
@@ -338,14 +344,28 @@ async def _check_reparse_identity_conflicts(
         if prior.current_extraction_result_id
         else None
     )
-    if source_record is not None and source_record.user_id == user_id and source_record.statement_id == prior.id:
+    valid_source_record = (
+        source_record
+        if source_record is not None and source_record.user_id == user_id and source_record.statement_id == prior.id
+        else None
+    )
+    old_payload = (
+        valid_source_record.payload
+        if valid_source_record is not None
+        else (prior.extraction_metadata or {}).get("statement_extraction_result")
+    )
+    new_payload = (effective_metadata or {}).get("statement_extraction_result")
+    if old_payload == new_payload:
+        return
+
+    if valid_source_record is not None:
         for position in await list_opening_positions(db, user_id=user_id, as_of=date.max):
             source_decision = position.source_decision
             if (
                 position.account_id == prior.account_id
                 and source_decision is not None
                 and source_decision.target.kind in {"statement_extraction_result", "reviewed_statement_envelope"}
-                and source_decision.target.id == source_record.payload.get("result_id")
+                and source_decision.target.id == valid_source_record.payload.get("result_id")
             ):
                 raise TransactionIdentityReviewRequired(
                     "Changed source-backed opening requires correction review before reparse; existing source and stock were preserved"
@@ -430,14 +450,17 @@ async def _persist_conform_statement_summary(
     uploaded_doc: UploadedDocument,
 ) -> StatementSummary:
     """DWD conform: bind the confirmed envelope to its ODS document and persist."""
+    sub_key = statement.sub_account_key or ""
     existing = (
         await db.execute(
             select(StatementSummary)
             .where(StatementSummary.user_id == user_id)
             .where(StatementSummary.file_hash == file_hash)
+            .where(StatementSummary.sub_account_key == sub_key)
         )
     ).scalar_one_or_none()
     if existing is not None and existing is not statement:
+        existing.sub_account_key = sub_key
         existing.account_id = statement.account_id if statement.account_id is not None else existing.account_id
         existing.institution = statement.institution
         existing.account_last4 = statement.account_last4

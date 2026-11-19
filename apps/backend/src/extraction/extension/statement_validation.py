@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
 from src.audit.money.adopt import balance_check
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status, TransactionDirection
-from src.extraction.base.validation import should_invert_positive_balance_owed
+from src.extraction.base.validation import evaluate_statement_balance
 from src.extraction.extension.statement_runs import ActiveRunExists, get_active_run
 from src.extraction.extension.reviewed_statement_envelope import (
     get_current_statement_extraction_result,
@@ -25,7 +25,7 @@ from src.extraction.extension.transaction_identity import (
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import account_service
-from src.platform import ResourceNotFoundError, ValidationFailedError
+from src.platform import ConflictError, ResourceNotFoundError, ValidationFailedError
 
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 
@@ -81,10 +81,14 @@ async def resolve_statement_transactions(
         )
         query = query.where(or_(AtomicTransaction.dedup_hash.in_(current_ids), AtomicTransaction.id.in_(alias_ids)))
 
-    rows = list((await db.execute(query.order_by(AtomicTransaction.txn_date, AtomicTransaction.created_at))).scalars().all())
+    rows = list(
+        (await db.execute(query.order_by(AtomicTransaction.txn_date, AtomicTransaction.created_at))).scalars().all()
+    )
     if isinstance(facts, list):
         if len(rows) != len(facts):
-            raise ValidationFailedError("Current source transaction identity requires review: incomplete persisted facts")
+            raise ValidationFailedError(
+                "Current source transaction identity requires review: incomplete persisted facts"
+            )
         alias_pairs = list(
             (
                 await db.execute(
@@ -125,7 +129,9 @@ async def resolve_statement_transactions(
                 row_dir,
                 None,
             ) not in fact_keys:
-                raise ValidationFailedError("Current source transaction identity requires review: source fact or currency differs")
+                raise ValidationFailedError(
+                    "Current source transaction identity requires review: source fact or currency differs"
+                )
             if row.id not in aliased_rows:
                 _, resolved = await resolve_transaction_identity(
                     db,
@@ -135,7 +141,9 @@ async def resolve_statement_transactions(
                     custody_scope=scope,
                 )
                 if resolved is None or resolved.id != row.id:
-                    raise ValidationFailedError("Current source transaction identity requires review: legacy custody differs")
+                    raise ValidationFailedError(
+                        "Current source transaction identity requires review: legacy custody differs"
+                    )
 
             candidate_hashes = [row.dedup_hash, *sorted(alias_hashes_by_row.get(row.id, ()))]
             if row.currency:
@@ -179,9 +187,7 @@ def _undeclared_currency_row(currency: str, net: Decimal) -> dict:
     }
 
 
-def _per_currency_validation_response(
-    per_currency: list[dict], primary_currency: str, *, declared_mode: bool
-) -> dict:
+def _per_currency_validation_response(per_currency: list[dict], primary_currency: str, *, declared_mode: bool) -> dict:
     primary = next((row for row in per_currency if row["currency"] == primary_currency), per_currency[0])
     return {
         "opening_balance": primary["opening_balance"],
@@ -216,32 +222,60 @@ async def validate_balance_chain(
 
     typed_balances = statement.typed_currency_balances()
     if len(typed_balances):
-        nets = {currency: Decimal("0") for currency in typed_balances.currencies()}
-        for txn in transactions:
-            ccy = txn.currency.strip().upper()
-            nets[ccy] = nets.get(ccy, Decimal("0")) + _signed_txn_amount(txn)
-
+        balance_dicts = [
+            {
+                "currency": balance.currency.code,
+                "opening": str(balance.opening.amount),
+                "closing": str(balance.closing.amount),
+            }
+            for balance in typed_balances
+        ]
+        txn_payloads = [
+            {
+                "amount": str(txn.amount),
+                "direction": _direction_val(txn.direction),
+                "currency": txn.currency.strip().upper(),
+            }
+            for txn in transactions
+        ]
+        eval_res = evaluate_statement_balance(
+            opening=None,
+            closing=None,
+            currency=statement.currency,
+            currency_balances=balance_dicts,
+            transactions=txn_payloads,
+            tolerance=BALANCE_TOLERANCE,
+        )
         per_currency = []
-        for balance in typed_balances:
-            currency = balance.currency.code
-            expected, delta = balance_check(
-                balance.opening.amount, balance.closing.amount, nets.get(currency, Decimal("0")), currency
-            )
-            per_currency.append(
-                {
-                    "currency": currency,
-                    "opening_balance": str(balance.opening.amount),
-                    "closing_balance": str(balance.closing.amount),
-                    "calculated_closing": str(expected),
-                    "closing_delta": str(delta),
-                    "closing_match": delta <= BALANCE_TOLERANCE,
-                    "declared_balance": True,
-                }
-            )
+        for row in eval_res.get("per_currency", []):
+            ccy = row["currency"]
+            if row.get("declared_balance"):
+                bal = typed_balances.get(ccy)
+                assert bal is not None
+                per_currency.append(
+                    {
+                        "currency": ccy,
+                        "opening_balance": str(bal.opening.amount),
+                        "closing_balance": str(bal.closing.amount),
+                        "calculated_closing": row["expected_closing"],
+                        "closing_delta": row["raw_difference"],
+                        "closing_match": bool(row["balance_valid"]),
+                        "declared_balance": True,
+                    }
+                )
+            else:
+                per_currency.append(
+                    {
+                        "currency": ccy,
+                        "opening_balance": None,
+                        "closing_balance": None,
+                        "calculated_closing": row["expected_closing"],
+                        "closing_delta": row["raw_difference"],
+                        "closing_match": False,
+                        "declared_balance": False,
+                    }
+                )
         declared = set(typed_balances.currencies())
-        for currency in sorted(set(nets) - declared):
-            per_currency.append(_undeclared_currency_row(currency, nets[currency]))
-
         primary_currency = (statement.currency or "").strip().upper()
         if (
             primary_currency
@@ -263,27 +297,19 @@ async def validate_balance_chain(
 
     opening_balance = statement.effective_opening_balance() or Decimal("0")
     opening_delta = Decimal("0.00")
-    txn_sum = sum((_signed_txn_amount(txn) for txn in transactions), Decimal("0"))
-    calculated_closing = opening_balance + txn_sum
+    txn_payloads = [{"amount": str(txn.amount), "direction": _direction_val(txn.direction)} for txn in transactions]
+    eval_res = evaluate_statement_balance(
+        opening=opening_balance,
+        closing=statement.closing_balance if statement.closing_balance is not None else Decimal("0"),
+        currency=statement.currency,
+        currency_balances=None,
+        transactions=txn_payloads,
+        tolerance=BALANCE_TOLERANCE,
+    )
+    calculated_closing = Decimal(eval_res["expected_closing"])
 
     closing_known = statement.closing_balance is not None
-    closing_delta = abs((statement.closing_balance or Decimal("0")) - calculated_closing)
-
-    if (
-        closing_known
-        and statement.closing_balance is not None
-        and should_invert_positive_balance_owed(
-            opening_balance, statement.closing_balance, txn_sum, len(transactions), tolerance=BALANCE_TOLERANCE
-        )
-    ):
-        opening_balance = -opening_balance
-        statement.opening_balance = opening_balance
-        statement.closing_balance = -statement.closing_balance
-        for txn in transactions:
-            if txn.balance_after is not None and txn.balance_after > Decimal("0"):
-                txn.balance_after = -txn.balance_after
-        calculated_closing = opening_balance + txn_sum
-        closing_delta = abs(statement.closing_balance - calculated_closing)
+    closing_delta = Decimal(eval_res["raw_difference"]) if closing_known else abs(calculated_closing)
 
     prev_statement = await _get_previous_approved_statement(db, statement) if include_previous_statement else None
     result: dict = {
@@ -420,16 +446,24 @@ def _raise_if_statement_conflicts_unresolved(
     if statement.stage1_conflicts_resolved_at is not None:
         return
     if _has_unresolved_statement_conflicts(transactions):
-        raise ValidationFailedError("Cannot approve statement while unresolved duplicate or transfer-pair candidates remain")
+        raise ValidationFailedError(
+            "Cannot approve statement while unresolved duplicate or transfer-pair candidates remain"
+        )
 
 
 def _raise_if_approved_envelope_incomplete(statement: StatementSummary) -> None:
     if statement.account_id is None:
-        raise ValidationFailedError("Account mapping required before posting. Confirm the statement account before posting.")
+        raise ValidationFailedError(
+            "Account mapping required before posting. Confirm the statement account before posting."
+        )
     if not (statement.currency or "").strip():
-        raise ValidationFailedError("Statement currency required before posting. Confirm the source currency before posting.")
+        raise ValidationFailedError(
+            "Statement currency required before posting. Confirm the source currency before posting."
+        )
     if statement.period_start is None or statement.period_end is None:
-        raise ValidationFailedError("Statement period required before posting. Confirm the source date range before posting.")
+        raise ValidationFailedError(
+            "Statement period required before posting. Confirm the source date range before posting."
+        )
     if statement.period_start > statement.period_end:
         raise ValidationFailedError("Statement period is invalid. Confirm the source date range before posting.")
     if statement.opening_balance is None or statement.closing_balance is None:
@@ -451,6 +485,7 @@ async def approve_statement_with_transactions(
     *,
     ignore_run_id: UUID | None = None,
     statement: StatementSummary | None = None,
+    expected_source_result_digest: str | None = None,
 ) -> tuple[StatementSummary, list[AtomicTransaction]]:
     if statement is None:
         statement = await _get_statement_for_update(db, statement_id, user_id)
@@ -460,6 +495,12 @@ async def approve_statement_with_transactions(
     active_run = await get_active_run(db, statement_id)
     if active_run is not None and active_run.id != ignore_run_id:
         raise ActiveRunExists(active_run.id)
+    if expected_source_result_digest is not None:
+        current_result = await get_current_statement_extraction_result(
+            db, user_id=user_id, statement_id=statement_id, statement=statement
+        )
+        if current_result is None or current_result.content_digest != expected_source_result_digest:
+            raise ConflictError("Extraction result changed since you opened this page. Reload and review again.")
     if statement.status not in _APPROVABLE_STATUSES:
         raise ValidationFailedError(
             f"Statement cannot be approved while its status is {statement.status.value}. Reload the statement."

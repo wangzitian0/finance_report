@@ -35,9 +35,10 @@ set +a
 python3 scripts/register_prefect_deployment.py
 
 echo "🎬 Starting Prefect worker (pool: finance-report)..."
+export PREFECT_WORKER_QUERY_SECONDS="${PREFECT_WORKER_QUERY_SECONDS:-1}"
 # --type process: belt-and-suspenders auto-create if the pool is somehow
 # missing (registration above already creates it) — non-interactive per
 # Prefect's documented `worker start --pool <name> --type <type>` behavior.
 # --limit bounds simultaneous child OS flow subprocesses so multi-PDF batch
 # uploads do not exhaust container memory/DB connections and stall heartbeats.
-exec prefect worker start --pool finance-report --type process --limit "${PREFECT_WORKER_CONCURRENCY_LIMIT:-4}"
+exec prefect worker start --pool finance-report --type process --prefetch-seconds "${PREFECT_WORKER_PREFETCH_SECONDS:-5}" --limit "${PREFECT_WORKER_CONCURRENCY_LIMIT:-4}"

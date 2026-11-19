@@ -33,6 +33,7 @@ from src.audit.orm import TraceRecordRow
 from src.composition import compose_statement_ingestion_use_case, compose_statement_posting_dependencies
 from src.config import settings
 from src.database import create_app_engine, create_session_maker_from_db
+from src.extraction.base.validation import split_multi_account_extraction
 from src.extraction import (
     ActiveRunExists,
     BankStatementStatus,
@@ -210,12 +211,12 @@ class ScriptedService:
     def __init__(self, errors: list[BaseException | None]) -> None:
         self.errors, self.calls, self.real = list(errors), 0, ExtractionService()
 
-    async def parse_document(self, *args, **kwargs):
+    async def parse_documents(self, *args, **kwargs):
         self.calls += 1
         error = self.errors.pop(0) if self.errors else None
         if error is not None:
             raise error
-        return await self.real.parse_document(*args, **kwargs)
+        return await self.real.parse_documents(*args, **kwargs)
 
 
 class ScriptedLoader:
@@ -233,7 +234,7 @@ class ScriptedLoader:
 
 
 class ForbiddenService:
-    async def parse_document(self, *_args, **_kwargs):
+    async def parse_documents(self, *_args, **_kwargs):
         raise AssertionError("the worker called the model for a run that it could not claim")
 
 
@@ -559,8 +560,8 @@ def high_confidence_pdf_service(rows: list[dict]):
     buffer = BytesIO()
     page = canvas.Canvas(buffer)
     page.drawString(72, 720, f"Opening: {opening} Closing: {closing}")
-    for row in rows:
-        page.drawString(72, 700, f"{row['date'].isoformat()} {row['description']} {row['amount']}")
+    for idx, row in enumerate(rows):
+        page.drawString(72, 700 - idx * 16, f"{row['date'].isoformat()} {row['description']} {row['amount']}")
     page.showPage()
     page.save()
     return service, buffer.getvalue()
@@ -991,7 +992,10 @@ async def assert_stream_extract_case(
         and force_model is None
         and (not err_match or ("strict JSON object" in err_match and "no arrays" not in err_match))
     ):
-        with patch("src.extraction.extension.service.stream_ai_json", return_value=fake_stream(accum_val)):
+        with patch(
+            "src.extraction.extension.service.stream_ai_json",
+            side_effect=lambda **_kw: fake_stream(accum_val),
+        ):
             if err_match:
                 with pytest.raises(ExtractionError, match=err_match):
                     await service.extract_financial_data(file_content, "DBS", file_type, file_url=file_url)
@@ -1043,7 +1047,9 @@ def integrity_payload(**changes) -> dict:
 
 async def integrity_parse(payload, *, db=None, user_id=None, account_id=None, source=None):
     service = ExtractionService()
-    service._extract_vision_source = AsyncMock(return_value=payload)
+    service._extract_vision_source = AsyncMock(
+        return_value=(payload if isinstance(payload, tuple) else (split_multi_account_extraction(payload), None))
+    )
     return await service.parse_document(
         source or DocumentSource.resolve(path=Path("synthetic.pdf"), content=b"synthetic"),
         user_id=user_id or uuid4(),
@@ -1168,7 +1174,9 @@ def custody_payload(**changes) -> dict:
 
 async def custody_parse(db, uid, *, account_id=None, **changes):
     service = ExtractionService()
-    service._extract_vision_source = AsyncMock(return_value=custody_payload(**changes))
+    service._extract_vision_source = AsyncMock(
+        return_value=(split_multi_account_extraction(custody_payload(**changes)), None)
+    )
     _, statement, _ = await parse_and_load_statement_projection(
         service,
         db=db,
@@ -1184,7 +1192,7 @@ async def custody_parse(db, uid, *, account_id=None, **changes):
 async def custody_history(db, uid, account, *, corrupt=False):
     source = DocumentSource.resolve(path=Path("synthetic-history.pdf"), content=uuid4().bytes)
     service = ExtractionService()
-    service._extract_vision_source = AsyncMock(return_value=custody_payload())
+    service._extract_vision_source = AsyncMock(return_value=(split_multi_account_extraction(custody_payload()), None))
     result = await service.parse_document(source, user_id=uid, account_id=account.id)
     document = UploadedDocument(
         user_id=uid,
@@ -3257,14 +3265,8 @@ async def verify_parse_background_storage_error(db, test_user, monkeypatch) -> N
     db.add(statement)
     await db.commit()
 
-    async def mock_threadpool(func, *args, **kwargs):
-        if "generate_presigned_url" in str(func):
-            raise StorageError("Presigned fail")
-        return func(*args, **kwargs)
-
-    monkeypatch.setattr("fastapi.concurrency.run_in_threadpool", mock_threadpool)
     monkeypatch.setattr(
-        "src.extraction.extension.service.ExtractionService.parse_document",
+        "src.extraction.extension.service.ExtractionService.parse_documents",
         AsyncMock(side_effect=ExtractionError("API key not configured")),
     )
     await parse_statement_background(

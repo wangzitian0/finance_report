@@ -1741,6 +1741,7 @@ export interface components {
       account_id?: string | null;
       auto_fill_default_categories: boolean;
       create_account_if_missing: boolean;
+      expected_source_result_digest?: string | null;
     };
     Stage1ApprovalResponse: {
       account_id: string | null;
@@ -1785,7 +1786,6 @@ export interface components {
       manual_opening_balance?: string | null;
       opening_balance: string | null;
       original_filename: string;
-      pdf_url?: string | null;
       period_end: string | null;
       period_start: string | null;
       reviewed_envelope?: _S["ReviewedStatementEnvelopeResponse"] | null;

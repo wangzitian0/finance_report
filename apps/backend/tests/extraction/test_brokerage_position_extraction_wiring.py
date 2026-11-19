@@ -246,14 +246,10 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
         await session.flush()
         summary.uploaded_document_id = doc.id
         await session.flush()
-        return res
+        return [res]
 
     monkeypatch.setattr(
-        "src.extraction.extension.statement_parsing.ExtractionService.parse_document", fake_parse_document
-    )
-    monkeypatch.setattr(
-        "src.extraction.extension.statement_parsing.StorageService.generate_presigned_url",
-        lambda *args, **kwargs: "https://example.com/moomoo-positions-2506.pdf",
+        "src.extraction.extension.statement_parsing.ExtractionService.parse_documents", fake_parse_document
     )
     await parse_statement_background(
         job=ParseJob(

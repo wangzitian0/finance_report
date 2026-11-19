@@ -28,12 +28,31 @@ from tests.factories import UserFactory
 from tests.statement_ingestion import posting_dependencies
 
 
+def _pdf_with_text(text: str) -> bytes:
+    from io import BytesIO
+    from reportlab.pdfgen import canvas
+
+    buf = BytesIO()
+    pdf = canvas.Canvas(buf)
+    pdf.drawString(72, 720, text)
+    pdf.showPage()
+    pdf.save()
+    return buf.getvalue()
+
+
 async def _dormant(db, user_id, amount=Decimal("1000")):
     await set_base_currency(db, "SGD", user_id=user_id)
     account = await make_account(db, user_id, name="Dormant Bank")
     document, statement = await _source(db, user_id, account=account)
-    source = DocumentSource.resolve(path=Path(document.file_path), content=b"synthetic", content_hash=document.file_hash)
-    result = await _parse(_payload(opening_balance=str(amount), closing_balance=str(amount), transactions=[]), db=db, user_id=user_id, account_id=account.id, source=source)
+    pdf_bytes = _pdf_with_text(f"Opening Balance {amount:.2f} Closing Balance {amount:.2f}")
+    source = DocumentSource.resolve(path=Path(document.file_path), content=pdf_bytes, content_hash=document.file_hash)
+    result = await _parse(
+        _payload(opening_balance=str(amount), closing_balance=str(amount), transactions=[]),
+        db=db,
+        user_id=user_id,
+        account_id=account.id,
+        source=source,
+    )
     record = await _store_result(db, statement, result)
     await db.commit()
     command = {
@@ -46,7 +65,7 @@ async def _dormant(db, user_id, amount=Decimal("1000")):
         "closing_balance": str(amount),
         "rationale": "I checked the original source and confirm there was no activity this month.",
     }
-    assert result.confidence == Decimal("0.75") and result.missing_required_facts == () and not result.requires_review
+    assert result.confidence == Decimal("0.60") and result.missing_required_facts == () and not result.requires_review
     return account, document, statement, result, record, command
 
 
@@ -60,7 +79,9 @@ async def test_complete_dormant_source_human_confirmation(client, db, test_user,
     contribution = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
     approved = await client.post(f"/statements/{statement.id}/approvals", json={})
     positions = await list_opening_positions(db, user_id=test_user.id, as_of=date.max)
-    lineage = await client.get("/statements/evidence-lineage", params={"entity_type": "opening_position", "entity_id": str(account.id)})
+    lineage = await client.get(
+        "/statements/evidence-lineage", params={"entity_type": "opening_position", "entity_id": str(account.id)}
+    )
     await db.refresh(statement)
     await db.refresh(record)
     assert (
@@ -82,10 +103,27 @@ async def test_complete_dormant_source_human_confirmation(client, db, test_user,
         record.payload == result.to_payload(),
         record.payload["confidence"],
     ) == (
-        200, True, [], 400, 200, confirmation.json()["id"], "authoritative", "reviewed_statement_envelope",
-        200, 1, amount, contribution.decision, amount == 0, 200, 75, True, "0.75",
+        200,
+        True,
+        [],
+        400,
+        200,
+        confirmation.json()["id"],
+        "authoritative",
+        "reviewed_statement_envelope",
+        200,
+        1,
+        amount,
+        contribution.decision,
+        amount == 0,
+        200,
+        60,
+        True,
+        "0.6",
     )
-    assert str(document.id) in {n["entity_id"] for n in lineage.json()["nodes"] if n["entity_type"] == "uploaded_document"}
+    assert str(document.id) in {
+        n["entity_id"] for n in lineage.json()["nodes"] if n["entity_type"] == "uploaded_document"
+    }
 
 
 @pytest.mark.parametrize(
@@ -101,7 +139,11 @@ async def test_complete_dormant_source_human_confirmation(client, db, test_user,
 async def test_human_confirmation_cannot_rewrite_known_source(client, db, test_user, change):
     _, _, statement, result, record, command = await _dormant(db, test_user.id)
     response = await client.post(f"/statements/{statement.id}/review-envelopes", json={**command, **change})
-    assert (response.status_code, record.payload == result.to_payload(), await list_opening_positions(db, user_id=test_user.id, as_of=date.max)) == (400, True, ())
+    assert (
+        response.status_code,
+        record.payload == result.to_payload(),
+        await list_opening_positions(db, user_id=test_user.id, as_of=date.max),
+    ) == (400, True, ())
 
 
 async def test_human_confirmation_ownership_and_custody_guards(client, db, test_user):
@@ -110,12 +152,21 @@ async def test_human_confirmation_ownership_and_custody_guards(client, db, test_
     other = await UserFactory.create_async(db)
     foreign = await make_account(db, other.id, name="Foreign Bank")
     await db.commit()
-    rebind = await client.post(f"/statements/{statement.id}/review-envelopes", json={**command, "account_id": str(conflicting.id)})
-    foreign_acct = await client.post(f"/statements/{statement.id}/review-envelopes", json={**command, "account_id": str(foreign.id)})
+    rebind = await client.post(
+        f"/statements/{statement.id}/review-envelopes", json={**command, "account_id": str(conflicting.id)}
+    )
+    foreign_acct = await client.post(
+        f"/statements/{statement.id}/review-envelopes", json={**command, "account_id": str(foreign.id)}
+    )
     await db.refresh(statement)
     _, _, foreign_statement, _, _, foreign_command = await _dormant(db, other.id)
     foreign_stmt = await client.post(f"/statements/{foreign_statement.id}/review-envelopes", json=foreign_command)
-    assert (rebind.status_code, str(statement.account_id), foreign_acct.status_code, foreign_stmt.status_code in (400, 404)) == (400, command["account_id"], 400, True)
+    assert (
+        rebind.status_code,
+        str(statement.account_id),
+        foreign_acct.status_code,
+        foreign_stmt.status_code in (400, 404),
+    ) == (400, command["account_id"], 400, True)
 
 
 async def test_revoked_retired_and_stale_reparse_envelope_guards(client, db, test_user):
@@ -124,23 +175,60 @@ async def test_revoked_retired_and_stale_reparse_envelope_guards(client, db, tes
     current = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
     policy, now = ReviewedEnvelopeDecisionTracePolicy(), datetime.now(UTC)
     obs = TraceRecord.observation(
-        scope=TraceScope.tenant(test_user.id), target=current.decision.target, target_class=TraceTargetClass.FINANCIAL,
-        assertion=VersionedTraceRef("review", "withdrawn", "1"), authority=policy.authority, result=TraceResult.FAIL,
-        execution_id="synthetic-review-withdrawal", evidence_manifest_digest=current.decision.target.version, occurred_at=now, reason_code="human_review_withdrawn", score=None,
+        scope=TraceScope.tenant(test_user.id),
+        target=current.decision.target,
+        target_class=TraceTargetClass.FINANCIAL,
+        assertion=VersionedTraceRef("review", "withdrawn", "1"),
+        authority=policy.authority,
+        result=TraceResult.FAIL,
+        execution_id="synthetic-review-withdrawal",
+        evidence_manifest_digest=current.decision.target.version,
+        occurred_at=now,
+        reason_code="human_review_withdrawn",
+        score=None,
     )
-    revoked = TraceRecord.decision(scope=TraceScope.tenant(test_user.id), target=current.decision.target, policy=policy, execution_id=obs.execution_id, occurred_at=now, parents=(obs,), supersedes_id=current.decision.decision_id)
+    revoked = TraceRecord.decision(
+        scope=TraceScope.tenant(test_user.id),
+        target=current.decision.target,
+        policy=policy,
+        execution_id=obs.execution_id,
+        occurred_at=now,
+        parents=(obs,),
+        supersedes_id=current.decision.decision_id,
+    )
     await posting_dependencies().trace_emitter_factory(db).emit_many((obs, revoked))
     await db.commit()
     after_revoke = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
     approve_revoked = await client.post(f"/statements/{statement.id}/approvals", json={})
-    assert (confirmation.status_code, after_revoke.state, after_revoke.decision, approve_revoked.status_code, (await db.execute(select(JournalEntry))).scalars().all()) == (200, "unproven", None, 400, [])
+    assert (
+        confirmation.status_code,
+        after_revoke.state,
+        after_revoke.decision,
+        approve_revoked.status_code,
+        (await db.execute(select(JournalEntry))).scalars().all(),
+    ) == (200, "unproven", None, 400, [])
 
-    result2 = await _parse(_payload(opening_balance="1000", closing_balance="1000", transactions=[], institution="Corrected source header"), db=db, user_id=test_user.id, account_id=account.id, source=DocumentSource.resolve(path=Path(document.file_path), content=b"synthetic", content_hash=document.file_hash))
+    result2 = await _parse(
+        _payload(
+            opening_balance="1000", closing_balance="1000", transactions=[], institution="Corrected source header"
+        ),
+        db=db,
+        user_id=test_user.id,
+        account_id=account.id,
+        source=DocumentSource.resolve(
+            path=Path(document.file_path), content=b"synthetic", content_hash=document.file_hash
+        ),
+    )
     replacement = await _store_result(db, statement, result2)
     await db.commit()
     stale_resp = await client.post(f"/statements/{statement.id}/review-envelopes", json=command)
     after_reparse = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
-    assert (replacement.id != record.id, await db.get(StatementExtractionResultRecord, record.id) is not None, stale_resp.status_code, after_reparse.state) == (True, True, 400, "unproven")
+    assert (
+        replacement.id != record.id,
+        await db.get(StatementExtractionResultRecord, record.id) is not None,
+        stale_resp.status_code,
+        after_reparse.state,
+    ) == (True, True, 400, "unproven")
 
 
 async def test_retired_source_cannot_be_resurrected_by_confirmation(client, db, test_user):

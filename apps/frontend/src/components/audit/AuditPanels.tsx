@@ -30,7 +30,7 @@ import { humanizeWorkflowText } from "@/components/workflow/workflowFormat";
 import { useApiQuery } from "@/hooks/useApiQuery";
 import { useAttentionQueue } from "@/hooks/useAttentionQueue";
 import { getGradeColor, getGradeLabel } from "@/hooks/useDataQualityHealth";
-import { apiOperation } from "@/lib/api";
+import { ApiError, apiOperation } from "@/lib/api";
 import { type AttentionKind } from "@/lib/attention";
 import { withAttentionSource } from "@/lib/attentionNavigation";
 import { getCategoriesForDirection } from "@/lib/categories";
@@ -495,6 +495,7 @@ export function AiSuggestionsQueue() {
   const [correctedValues, setCorrectedValues] = useState<Record<string, string>>({});
   const [decisions, setDecisions] = useState<Record<string, string>>({});
   const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
+  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState<Record<string, boolean>>({});
 
   const submitFeedback = async (suggestion: AiSuggestion, action: FeedbackAction) => {
@@ -505,9 +506,21 @@ export function AiSuggestionsQueue() {
       const saved = await apiOperation("create_classification_feedback_statements_classification_feedback_post", {
         body: { suggestion_id: id, action, ...(action === "edit_accept" && corrected ? { corrected_value: { value: corrected } } : {}) },
       });
+      setConflictNotice(null);
       setRowErrors(({ [id]: _cleared, ...rest }) => rest);
       setDecisions((c) => ({ ...c, [id]: EFFECT_LABEL[saved?.effect ?? "recorded"] ?? EFFECT_LABEL.recorded }));
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        const message = err.message || "This suggestion was superseded. Refreshing the review queue.";
+        setDecisions(({ [id]: _stale, ...rest }) => rest);
+        setConflictNotice(message);
+        setRowErrors((c) => ({
+          ...c,
+          [id]: message,
+        }));
+        void suggestionsQuery.refetch();
+        return;
+      }
       setRowErrors((c) => ({ ...c, [id]: err instanceof Error ? err.message : "Failed to save your decision" }));
     } finally {
       setSaving(({ [id]: _done, ...rest }) => rest);
@@ -561,6 +574,7 @@ export function AiSuggestionsQueue() {
         <p className="text-xs text-muted">Approve or correct the AI&apos;s suggested categories and matches that need a human eye.</p>
       </div>
       {error && <div className="alert-error">{error}</div>}
+      {conflictNotice && <div role="alert" className="alert-error">{conflictNotice}</div>}
       <div className="card overflow-hidden">
         {suggestions.length === 0 ? (
           <div className="p-8 text-center text-muted">No pending AI suggestions</div>

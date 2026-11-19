@@ -75,8 +75,17 @@ async def _wait_until_idle() -> None:
 def _patch_approval(monkeypatch, calls: list, *, created_count: int = 2):
     stmt = SimpleNamespace(status=BankStatementStatus.APPROVED)
     for fn, out in (
-        ("approve_statement_with_transactions", lambda *_a: (calls.append(("approve_statement",)), (stmt, ["txn-1"]))[1]),
-        ("auto_create_posted_entries_for_statement", lambda *_a, **_kw: (calls.append(("auto_post",)), SimpleNamespace(created_count=created_count, status=StatementPostingStatus.POSTED))[1]),
+        (
+            "approve_statement_with_transactions",
+            lambda *_a, **_kw: (calls.append(("approve_statement",)), (stmt, ["txn-1"]))[1],
+        ),
+        (
+            "auto_create_posted_entries_for_statement",
+            lambda *_a, **_kw: (
+                calls.append(("auto_post",)),
+                SimpleNamespace(created_count=created_count, status=StatementPostingStatus.POSTED),
+            )[1],
+        ),
         ("try_auto_post_statement_opening_balance", lambda *_a, **_kw: calls.append(("opening_balance",))),
     ):
         monkeypatch.setattr(statement_workflow, fn, AsyncMock(side_effect=out))
@@ -87,19 +96,41 @@ async def test_statement_workflow_service(monkeypatch):
     session = _FakeSession(approve_calls)
     session.commit = AsyncMock(side_effect=lambda: approve_calls.append(("commit",)))
     _patch_approval(monkeypatch, approve_calls, created_count=3)
-    outcome = await statement_workflow.approve_statement_workflow(session, sid, uid, dependencies=object(), base_currency="SGD")
+    outcome = await statement_workflow.approve_statement_workflow(
+        session, sid, uid, dependencies=object(), base_currency="SGD"
+    )
     rejected_stmt = SimpleNamespace(id=sid, name="rejected")
-    monkeypatch.setattr(statement_workflow, "reject_statement", AsyncMock(side_effect=lambda *_a, **_kw: (reject_calls.append(("reject_statement",)), rejected_stmt)[1]))
-    result = await statement_workflow.reject_statement_workflow(_FakeSession(reject_calls), sid, uid, reason="looks wrong", base_currency="SGD")
+    monkeypatch.setattr(
+        statement_workflow,
+        "reject_statement",
+        AsyncMock(side_effect=lambda *_a, **_kw: (reject_calls.append(("reject_statement",)), rejected_stmt)[1]),
+    )
+    result = await statement_workflow.reject_statement_workflow(
+        _FakeSession(reject_calls), sid, uid, reason="looks wrong", base_currency="SGD"
+    )
     assert (
-        outcome.created_count, approve_calls, result is rejected_stmt, reject_calls,
+        outcome.created_count,
+        approve_calls,
+        result is rejected_stmt,
+        reject_calls,
         statements_router.approve_statement_workflow is statement_workflow.approve_statement_workflow,
         statements_router.reject_statement_workflow is statement_workflow.reject_statement_workflow,
-        not hasattr(statements_router, "approve_statement_svc") and not hasattr(statements_router, "reject_statement_svc"),
+        not hasattr(statements_router, "approve_statement_svc")
+        and not hasattr(statements_router, "reject_statement_svc"),
     ) == (
-        3, [("approve_statement",), ("auto_post",), ("opening_balance",), ("commit",)],
-        True, [("read_status",), ("reject_statement",), ("release_lock", f"statement-release:{uid}"), ("flush",), ("refresh", rejected_stmt)],
-        True, True, True,
+        3,
+        [("approve_statement",), ("auto_post",), ("opening_balance",), ("commit",)],
+        True,
+        [
+            ("read_status",),
+            ("reject_statement",),
+            ("release_lock", f"statement-release:{uid}"),
+            ("flush",),
+            ("refresh", rejected_stmt),
+        ],
+        True,
+        True,
+        True,
     )
 
 
@@ -109,19 +140,44 @@ async def test_AC_extraction_2970_1_approve_returns_while_the_refresh_is_pending
     _patch_approval(monkeypatch, calls)
     session = _FakeSession(calls)
     session.commit = AsyncMock(side_effect=lambda: calls.append(("commit",)))
-    outcome = await asyncio.wait_for(statement_workflow.approve_statement_workflow(session, uuid4(), uuid4(), dependencies=object(), base_currency="SGD"), WAIT_SECONDS)
+    outcome = await asyncio.wait_for(
+        statement_workflow.approve_statement_workflow(
+            session, uuid4(), uuid4(), dependencies=object(), base_currency="SGD"
+        ),
+        WAIT_SECONDS,
+    )
     await asyncio.wait_for(runner.started.wait(), WAIT_SECONDS)
-    assert outcome.created_count == 2 and statement_workflow._refresh_task is not None and not statement_workflow._refresh_task.done() and calls == [("approve_statement",), ("auto_post",), ("opening_balance",), ("commit",)]
+    assert (
+        outcome.created_count == 2
+        and statement_workflow._refresh_task is not None
+        and not statement_workflow._refresh_task.done()
+        and calls == [("approve_statement",), ("auto_post",), ("opening_balance",), ("commit",)]
+    )
     runner.release.set()
     await _wait_until_idle()
     assert (runner.runs, calls.count(("commit",))) == (1, 1)
 
 
-async def test_AC_extraction_2970_1_a_failed_refresh_leaves_the_approval_committed(production_like, monkeypatch, client, db, test_user):
+async def test_AC_extraction_2970_1_a_failed_refresh_leaves_the_approval_committed(
+    production_like, monkeypatch, client, db, test_user
+):
     runner = _Runner(error=RuntimeError("tuple concurrently updated"))
     runner.release.set()
     monkeypatch.setattr(statement_workflow, "analyze_tenant_tables", runner)
-    rows = [{"description": "Salary", "amount": Decimal("2500.00"), "direction": TransactionDirection.IN, "date": date(2026, 1, 1)}, {"description": "Rent", "amount": Decimal("12.50"), "direction": TransactionDirection.OUT, "date": date(2026, 1, 2)}]
+    rows = [
+        {
+            "description": "Salary",
+            "amount": Decimal("2500.00"),
+            "direction": TransactionDirection.IN,
+            "date": date(2026, 1, 1),
+        },
+        {
+            "description": "Rent",
+            "amount": Decimal("12.50"),
+            "direction": TransactionDirection.OUT,
+            "date": date(2026, 1, 2),
+        },
+    ]
     seeded = await seed_parsed_statement(db, test_user.id, original_filename="refresh_failure.pdf", transactions=rows)
     seeded.statement.period_start, seeded.statement.period_end = rows[0]["date"], rows[-1]["date"]
     await attach_reviewed_corpus_semantics(db, test_user.id, seeded.transactions)
@@ -130,9 +186,14 @@ async def test_AC_extraction_2970_1_a_failed_refresh_leaves_the_approval_committ
         response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
         await _wait_until_idle()
     failures = [e for e in logs if e["event"] == "statement.statistics_refresh.failed"]
-    assert (response.status_code, runner.runs, await db.scalar(select(StatementSummary.status).where(StatementSummary.id == seeded.id)), len(failures), failures[0]["log_level"], failures[0]["error_type"]) == (
-        200, 1, BankStatementStatus.APPROVED, 1, "warning", "RuntimeError"
-    )
+    assert (
+        response.status_code,
+        runner.runs,
+        await db.scalar(select(StatementSummary.status).where(StatementSummary.id == seeded.id)),
+        len(failures),
+        failures[0]["log_level"],
+        failures[0]["error_type"],
+    ) == (200, 1, BankStatementStatus.APPROVED, 1, "warning", "RuntimeError")
 
 
 async def test_AC_extraction_2970_1_coalescing_and_gap(production_like, monkeypatch):
@@ -179,10 +240,19 @@ async def test_AC_extraction_2970_1_refresh_timeouts_and_env_guards(production_l
         commit = AsyncMock(side_effect=lambda: stmts.append("COMMIT"))
 
     await statement_workflow.analyze_tenant_tables(Rec)
-    assert stmts == ["SET LOCAL lock_timeout = '2s'", "SET LOCAL statement_timeout = '20s'", f"ANALYZE {', '.join(statement_workflow.TENANT_ANALYZE_TABLES)}", "COMMIT"]
+    assert stmts == [
+        "SET LOCAL lock_timeout = '2s'",
+        "SET LOCAL statement_timeout = '20s'",
+        f"ANALYZE {', '.join(statement_workflow.TENANT_ANALYZE_TABLES)}",
+        "COMMIT",
+    ]
 
     with monkeypatch.context() as mp:
-        for setting_env, process_env, dialect in [("testing", "staging", "postgresql"), ("staging", "testing", "postgresql"), ("staging", "staging", "sqlite")]:
+        for setting_env, process_env, dialect in [
+            ("testing", "staging", "postgresql"),
+            ("staging", "testing", "postgresql"),
+            ("staging", "staging", "sqlite"),
+        ]:
             runner = _Runner()
             runner.release.set()
             mp.setattr(statement_workflow, "analyze_tenant_tables", runner)

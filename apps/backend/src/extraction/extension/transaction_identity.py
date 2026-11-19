@@ -28,13 +28,18 @@ async def source_custody_scope(
     document = await db.get(UploadedDocument, document_id)
     if document is not None and document.user_id != user_id:
         raise ValueError("Transaction source belongs to another user")
-    summary = await db.scalar(
-        select(StatementSummary).where(
-            StatementSummary.user_id == user_id, StatementSummary.uploaded_document_id == document_id
-        )
+    summaries = list(
+        (
+            await db.scalars(
+                select(StatementSummary).where(
+                    StatementSummary.user_id == user_id, StatementSummary.uploaded_document_id == document_id
+                )
+            )
+        ).all()
     )
-    source_account = summary.account_id if summary is not None else None
-    if account_id is not None and source_account is not None and account_id != source_account:
+    bound_accounts = [s.account_id for s in summaries if s.account_id is not None]
+    source_account = bound_accounts[0] if len(set(bound_accounts)) == 1 else None
+    if account_id is not None and bound_accounts and account_id not in set(bound_accounts):
         raise TransactionIdentityReviewRequired("Transaction identity requires review: source custody changed")
     account_id = account_id or source_account
     if account_id is not None:

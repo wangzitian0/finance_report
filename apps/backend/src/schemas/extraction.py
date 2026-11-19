@@ -25,13 +25,6 @@ if TYPE_CHECKING:
     from src.extraction import AtomicTransaction, ClassificationSuggestion, StatementSummary, UploadedDocument
 
 
-class CurrencyBalance(BaseModel):
-    currency: CurrencyCode
-    opening: Decimal
-    closing: Decimal
-    model_config = ConfigDict(from_attributes=True)
-
-
 class StatementDecisionRequest(BaseModel):
     notes: str | None = Field(
         default=None,
@@ -164,10 +157,8 @@ def compose_statement_list_item_response(
     summary: StatementSummary,
     uploaded_document: UploadedDocument | None,
 ) -> BankStatementListItemResponse:
-    file_path = uploaded_document.file_path if uploaded_document else getattr(summary, "file_path", None)
-    original_filename = (
-        uploaded_document.original_filename if uploaded_document else getattr(summary, "original_filename", None)
-    )
+    file_path = uploaded_document.file_path if uploaded_document else ""
+    original_filename = uploaded_document.original_filename if uploaded_document else ""
     failure_reason = brokerage_import_failure_reason(summary)
     return BankStatementListItemResponse(
         id=summary.id,
@@ -305,7 +296,9 @@ class CorrectionRequest(BaseModel):
     """Request to record a user correction."""
 
     transaction_id: UUID
-    corrected_category: str = Field(..., min_length=1, max_length=100, description="User-corrected transaction category")
+    corrected_category: str = Field(
+        ..., min_length=1, max_length=100, description="User-corrected transaction category"
+    )
     corrected_account_id: UUID | None = None
 
 
@@ -380,7 +373,6 @@ class StatementReviewResponse(BankStatementResponse):
     source_missing_facts: list[str] = default_list()
     source_envelope_reviewable: bool = False
     reviewed_envelope: ReviewedStatementEnvelopeResponse | None = None
-    pdf_url: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -388,6 +380,12 @@ class Stage1ApprovalRequest(BaseModel):
     account_id: UUID | None = None
     create_account_if_missing: bool = False
     auto_fill_default_categories: bool = False
+    expected_source_result_digest: str | None = Field(
+        default=None,
+        min_length=64,
+        max_length=64,
+        description="Expected SHA-256 digest of the active source envelope.",
+    )
 
 
 class Stage1ApprovalResponse(BaseModel):

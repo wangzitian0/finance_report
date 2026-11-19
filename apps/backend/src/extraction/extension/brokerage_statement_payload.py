@@ -145,17 +145,19 @@ def _enrich_brokerage_payload_from_statement(
 def _brokerage_payload_from_persisted_extraction(
     *,
     statement: StatementSummary,
-    uploaded_document: UploadedDocument | None,
+    uploaded_document: UploadedDocument | None = None,
     transactions: list[AtomicTransaction] | None = None,
+    extraction_result: StatementExtractionResult | None = None,
 ) -> dict | None:
     """Load the persisted OCR extraction payload for statement-scoped imports."""
-    payload = _extract_brokerage_payload_from_metadata(statement.extraction_metadata)
-    if payload is not None:
-        return _enrich_brokerage_payload_from_statement(payload, statement, transactions)
-
-    if uploaded_document is None:
-        return None
-    payload = _extract_brokerage_payload_from_metadata(uploaded_document.extraction_metadata)
+    _ = uploaded_document
+    payload: dict | None = None
+    if extraction_result is not None:
+        payload = _extract_brokerage_payload_from_metadata(
+            {"statement_extraction_result": extraction_result.to_payload()}
+        )
+    if payload is None:
+        payload = _extract_brokerage_payload_from_metadata(statement.extraction_metadata)
     if payload is None:
         return None
     return _enrich_brokerage_payload_from_statement(payload, statement, transactions)

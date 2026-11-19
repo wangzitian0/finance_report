@@ -203,8 +203,10 @@ async def test_batched_extract_flows_and_staged_meta(monkeypatch):
         with patch.object(service, "_extract_json_with_model", single):
             res = await service.extract_financial_data(_pdf_with_pages(pages), "DBS", "pdf")
         assert (
-            single.await_count == 1
-            and "PARTIAL DOCUMENT" not in single.await_args.kwargs["messages"][0]["content"][0]["text"]
+            single.await_count == 2
+            and all(
+                "PARTIAL DOCUMENT" not in c.kwargs["messages"][0]["content"][0]["text"] for c in single.await_args_list
+            )
             and res["transactions"] == [{"description": "small"}]
         )
 

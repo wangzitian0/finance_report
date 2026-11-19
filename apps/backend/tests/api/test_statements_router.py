@@ -80,7 +80,7 @@ def _patch_parse_document(
 ):
     if side_effect is not None:
         monkeypatch.setattr(
-            statement_parsing_mod.ExtractionService, "parse_document", AsyncMock(side_effect=side_effect)
+            statement_parsing_mod.ExtractionService, "parse_documents", AsyncMock(side_effect=side_effect)
         )
         return
 
@@ -92,9 +92,9 @@ def _patch_parse_document(
         )
         if modifier:
             modifier(stmt, source)
-        return await persist_mock_result(db, source=source, statement=stmt, transactions=transactions or [])
+        return [await persist_mock_result(db, source=source, statement=stmt, transactions=transactions or [])]
 
-    monkeypatch.setattr(statement_parsing_mod.ExtractionService, "parse_document", fake_parse)
+    monkeypatch.setattr(statement_parsing_mod.ExtractionService, "parse_documents", fake_parse)
 
 
 async def test_upload_statement_duplicate(
@@ -169,6 +169,33 @@ async def test_upload_validation_rejections(
         patch_catalog(monkeypatch, modalities)
     resp = await _post_upload(client, filename, content, institution=institution, model=model)
     assert resp.status_code == expected_status and detail_part in resp.json()["detail"].lower()
+
+
+async def test_upload_file_too_large(client: AsyncClient, model_catalog_stub, storage_stub, test_user, monkeypatch):
+    """#2956: Streamed upload enforces 10MB ceiling in bounded chunks and accepts exact 10MB files."""
+    from starlette.datastructures import UploadFile
+
+    read_sizes: list[int] = []
+    original_read = UploadFile.read
+
+    async def spy_read(self, size: int = -1):
+        read_sizes.append(size)
+        return await original_read(self, size)
+
+    monkeypatch.setattr(UploadFile, "read", spy_read)
+    content = b"x" * (10 * 1024 * 1024 + 1)
+    resp = await _post_upload(client, "large-statement.pdf", content, institution="DBS", model=_FLASH_MODEL)
+    assert resp.status_code == status.HTTP_413_CONTENT_TOO_LARGE
+    assert "10MB" in resp.json()["detail"]
+    assert read_sizes and all(0 < size <= 10 * 1024 * 1024 + 1 for size in read_sizes), f"Unbounded read: {read_sizes}"
+
+    read_sizes.clear()
+    exact = b"y" * (10 * 1024 * 1024)
+    _patch_parse_document(monkeypatch, test_user.id)
+    ok_resp = await _post_upload(client, "exact-10mb.pdf", exact, institution="DBS", model=_FLASH_MODEL)
+    assert ok_resp.status_code == status.HTTP_202_ACCEPTED
+    await statement_pipeline.wait_for_parse_tasks()
+    assert read_sizes and all(0 < size <= 10 * 1024 * 1024 + 1 for size in read_sizes)
 
 
 async def test_upload_rejects_cross_user_account_id(client: AsyncClient, db, monkeypatch):
@@ -594,29 +621,64 @@ async def test_delete_statement_success(client: AsyncClient, db, test_user, monk
     assert (await db.get(StatementSummary, statement_id, populate_existing=True)).status is BankStatementStatus.RETIRED
 
 
-@pytest.mark.parametrize("storage_err", [False, True])
-async def test_get_statement_for_review(client: AsyncClient, db, test_user, monkeypatch, storage_err):
-    statement = await add_statement(db, test_user.id, f"hash_review_{storage_err}", confidence=75)
-    document = await seed_uploaded_document(db, statement, file_path="statements/review/short-presign.pdf")
-    statement_id, document_path = statement.id, document.file_path
+async def test_get_statement_for_review_omits_unused_presigned_pdf_url(client: AsyncClient, db, test_user, monkeypatch):
+    """#2959: Review response no longer mints an unused presigned pdf_url."""
+    statement = await add_statement(db, test_user.id, "hash_review_no_presign", confidence=75)
+    await seed_uploaded_document(db, statement, file_path="statements/review/no-presign.pdf")
     await db.commit()
     mock_storage = MagicMock()
-    mock_storage.generate_presigned_url.side_effect = StorageError("S3 Down") if storage_err else None
-    mock_storage.generate_presigned_url.return_value = "https://example.com/file"
     monkeypatch.setattr("src.routers.statements.StorageService", MagicMock(return_value=mock_storage))
 
-    result = (resp := await client.get(f"/statements/{statement_id}/review")).json()
-    assert resp.status_code == status.HTTP_200_OK and result["id"] == str(statement_id)
-    if storage_err:
-        assert result["pdf_url"] is None
-    else:
-        assert (
-            result["pdf_url"] == "https://example.com/file"
-            and {"opening_balance", "closing_match"} <= result["balance_validation_result"].keys()
-        )
-        mock_storage.generate_presigned_url.assert_called_once_with(
-            key=document_path, expires_in=settings.statement_review_presign_expiry_seconds, public=True
-        )
+    resp = await client.get(f"/statements/{statement.id}/review")
+    result = resp.json()
+    assert resp.status_code == status.HTTP_200_OK and result["id"] == str(statement.id)
+    assert "pdf_url" not in result
+    assert {"opening_balance", "closing_match"} <= result["balance_validation_result"].keys()
+    mock_storage.generate_presigned_url.assert_not_called()
+
+
+async def test_approve_statement_rejects_stale_source_result_digest(client: AsyncClient, db, test_user):
+    """#3025: Stale tab digest returns 409 Conflict instead of posting an unseen extraction result."""
+    from pathlib import Path
+    from src.composition import compose_statement_posting_dependencies
+    from src.extraction.extension.extraction_trace import build_extraction_trace_records
+    from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
+
+    account = await create_statement_account(db, test_user.id, "Digest Pin Account")
+    statement = build_statement(test_user.id, "hash_approve_digest_pin", 90)
+    statement.account_id = account.id
+    statement.currency = "SGD"
+    statement.opening_balance = Decimal("100.00")
+    statement.closing_balance = Decimal("100.00")
+    db.add(statement)
+    await db.flush()
+    await seed_uploaded_document(db, statement, file_path="statements/doc/digest.pdf")
+    source = DocumentSource.resolve(path=Path("digest.pdf"), content=b"%PDF-1.7-digest")
+    result = await persist_mock_result(db, source=source, statement=statement, transactions=[])
+    trace_records = build_extraction_trace_records(
+        result,
+        user_id=test_user.id,
+        execution_id=f"statement:{statement.id}:result:{result.result_id}",
+        occurred_at=statement.created_at,
+    )
+    await compose_statement_posting_dependencies().trace_emitter_factory(db).emit_many(trace_records)
+    await persist_statement_extraction_result(
+        db, statement=statement, result=result, source_trace_record_id=trace_records[0].record_id
+    )
+    await db.commit()
+
+    stale_resp = await client.post(
+        f"/statements/{statement.id}/approvals",
+        json={"expected_source_result_digest": "0" * 64},
+    )
+    assert stale_resp.status_code == status.HTTP_409_CONFLICT
+    assert "changed" in stale_resp.json()["detail"].lower() or "reload" in stale_resp.json()["detail"].lower()
+
+    fresh_resp = await client.post(
+        f"/statements/{statement.id}/approvals",
+        json={"expected_source_result_digest": result.content_digest},
+    )
+    assert fresh_resp.status_code == status.HTTP_200_OK
 
 
 @pytest.mark.parametrize(

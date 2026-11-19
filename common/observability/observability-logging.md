@@ -6,7 +6,7 @@
 
 Tracks statement upload, parsing, model selection (`selectedModel="glm-5.3-flash"`, `model_requested="glm-5.3-flash"`, `force_model="glm-5.3-flash"` vs `small_model`), brokerage import, reconciliation runs, journal post/void, auth failures, and rate limits across frontend (`StatementUploader.tsx`) and backend (`observability/`, `routers/{statements,reconciliation,journal,llm}.py`, `extraction/extension/statement_parsing.py`).
 
-Every staging audit event emits `audit_event` with `request_id`, `statement_id` (when scoped), `phase`, `progress` (`5 parse_started`, `10 storage_url_resolved`, `20 extraction_started`, `70 extraction_completed`, `80 statement_metadata_persisted`, `90 transactions_persisted`, `100 statement_persisted`), `model_requested`, `model_to_use`, `file_type`, and `file_hash_prefix`:
+Every staging audit event emits `audit_event` with `request_id`, `statement_id` (when scoped), `phase`, `progress` (`5 parse_started`, `20 extraction_started`, `70 extraction_completed`, `80 statement_metadata_persisted`, `90 transactions_persisted`, `100 statement_persisted`), `model_requested`, `model_to_use`, `file_type`, and `file_hash_prefix`:
 - `statement.upload.accepted`, `statement.upload.storage_saved`, `statement.upload.storage_failed`
 - `statement.parse.enqueued`, `statement.parse.checkpoint`, `statement.parse.extraction_completed`, `statement.parse.completed`, `statement.parse.failed`, `statement.parse.async_task.failed`
 - `statement.brokerage_import.{started,completed,failed}` (`BrokerageImportRejectedError` logs at `warning`; others at `error`)

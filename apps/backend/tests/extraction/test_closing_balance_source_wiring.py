@@ -24,9 +24,16 @@ COMPUTED_CLOSING = "4837.50"
 
 def _payload(closing: str) -> dict:
     return {
-        "institution": "Stage One Routing Bank", "account_last4": "7702", "currency": "SGD",
-        "period_start": "2026-05-01", "period_end": "2026-05-31", "opening_balance": "2000.00", "closing_balance": closing,
-        "transactions": [{"date": d, "description": desc, "amount": amt, "direction": dir_} for d, desc, amt, dir_ in ROWS],
+        "institution": "Stage One Routing Bank",
+        "account_last4": "7702",
+        "currency": "SGD",
+        "period_start": "2026-05-01",
+        "period_end": "2026-05-31",
+        "opening_balance": "2000.00",
+        "closing_balance": closing,
+        "transactions": [
+            {"date": d, "description": desc, "amount": amt, "direction": dir_} for d, desc, amt, dir_ in ROWS
+        ],
     }
 
 
@@ -41,7 +48,17 @@ def _pdf(lines: list[str]) -> bytes:
 
 
 def _statement_pdf(printed_closing: str) -> bytes:
-    return _pdf(["Stage One Routing Bank", "Account 5551-234-7702", "Statement period 2026-05-01 to 2026-05-31", "Opening Balance 2000.00", *(f"{d} {desc} {amt}" for d, desc, amt, _ in ROWS), f"Closing Balance {printed_closing}", f"Closing Balance {printed_closing}"])
+    return _pdf(
+        [
+            "Stage One Routing Bank",
+            "Account 5551-234-7702",
+            "Statement period 2026-05-01 to 2026-05-31",
+            "Opening Balance 2000.00",
+            *(f"{d} {desc} {amt}" for d, desc, amt, _ in ROWS),
+            f"Closing Balance {printed_closing}",
+            f"Closing Balance {printed_closing}",
+        ]
+    )
 
 
 async def _parse(tmp_path, *, content: bytes, payload: dict, file_type: str = "pdf"):
@@ -49,7 +66,12 @@ async def _parse(tmp_path, *, content: bytes, payload: dict, file_type: str = "p
     path = tmp_path / f"statement.{file_type}"
     path.write_bytes(content)
     with patch.object(svc, "extract_financial_data", new=AsyncMock(return_value=payload)):
-        return await svc.parse_document(DocumentSource.resolve(path=path, content=content), institution="Stage One Routing Bank", user_id=uuid4(), file_type=file_type)
+        return await svc.parse_document(
+            DocumentSource.resolve(path=path, content=content),
+            institution="Stage One Routing Bank",
+            user_id=uuid4(),
+            file_type=file_type,
+        )
 
 
 @pytest.mark.parametrize(
@@ -57,23 +79,38 @@ async def _parse(tmp_path, *, content: bytes, payload: dict, file_type: str = "p
     [
         (lambda: _statement_pdf("4837.55"), "pdf", True),
         (lambda: _statement_pdf(COMPUTED_CLOSING), "pdf", False),
-        (lambda: b"dummy", "pdf", False),
-        (lambda: _statement_pdf("4837.55"), "png", False),
     ],
-    ids=["mismatch-goes-review", "matched-keeps-high", "unreadable-pdf", "png-skipped"],
+    ids=["mismatch-goes-review", "matched-keeps-high"],
 )
 async def test_AC_extraction_closing_balance_source_2_routing(tmp_path, content_fn, file_type, review_expected):
     res = await _parse(tmp_path, content=content_fn(), payload=_payload(COMPUTED_CLOSING), file_type=file_type)
     if review_expected:
-        assert res.confidence <= Decimal("0.59") and "Closing balance 4837.50 is not in the document text" in res.review_reasons
+        assert (
+            res.confidence <= Decimal("0.59")
+            and "Closing balance 4837.50 is not in the document text" in res.review_reasons
+        )
     else:
         assert res.confidence >= Decimal("0.85") and res.review_reasons == ()
+
+
+async def test_AC_extraction_2918_unreadable_text_layer_blocks_auto_approve(tmp_path):
+    res = await _parse(tmp_path, content=b"dummy", payload=_payload(COMPUTED_CLOSING), file_type="pdf")
+    assert res.confidence < Decimal("0.85")
+    assert any("text layer" in reason.lower() or "source" in reason.lower() for reason in res.review_reasons)
+
+
+async def test_AC_extraction_2918_image_upload_blocks_auto_approve(tmp_path):
+    res = await _parse(tmp_path, content=_statement_pdf("4837.55"), payload=_payload(COMPUTED_CLOSING), file_type="png")
+    assert res.confidence < Decimal("0.85")
+    assert any("image" in reason.lower() or "source" in reason.lower() for reason in res.review_reasons)
 
 
 async def test_AC_extraction_closing_balance_source_2_metric_and_text_layer_reader(tmp_path):
     with patch("src.extraction.extension.service.record_financial_invariant_violation") as record:
         await _parse(tmp_path, content=_statement_pdf("4837.55"), payload=_payload(COMPUTED_CLOSING))
-    assert [c.kwargs["kind"] for c in record.call_args_list] == ["closing_balance_not_in_source"] and "closing_balance_not_in_source" in telemetry_metrics.INVARIANT_VIOLATION_KINDS
+    assert [c.kwargs["kind"] for c in record.call_args_list] == [
+        "closing_balance_not_in_source"
+    ] and "closing_balance_not_in_source" in telemetry_metrics.INVARIANT_VIOLATION_KINDS
 
     doc = fitz.open()
     for text in ("first page 100.00", "second page 200.00"):
@@ -82,4 +119,9 @@ async def test_AC_extraction_closing_balance_source_2_metric_and_text_layer_read
     doc.close()
     uncapped = read_pdf_text_layer(content)
     assert uncapped is not None and "100.00" in uncapped and "200.00" in uncapped
-    assert (read_pdf_text_layer(content, max_pages=2), read_pdf_text_layer(content, max_pages=1), read_pdf_text_layer(None), read_pdf_text_layer(b"not a pdf")) == (uncapped, None, None, None)
+    assert (
+        read_pdf_text_layer(content, max_pages=2),
+        read_pdf_text_layer(content, max_pages=1),
+        read_pdf_text_layer(None),
+        read_pdf_text_layer(b"not a pdf"),
+    ) == (uncapped, None, None, None)

@@ -164,10 +164,20 @@ async def seed_uploaded_document(
 
 
 async def seed_historical_source_evidence(db, statement: StatementSummary) -> None:
+    import fitz
+
     from tests.extraction.test_source_ingestion_integrity import _parse, _payload, _store_result
 
     document = await seed_uploaded_document(db, statement)
-    source = DocumentSource.resolve(path=Path("synthetic-history.pdf"), content=statement.file_hash.encode())
+    doc = fitz.open()
+    page = doc.new_page()
+    for idx, line in enumerate(
+        (statement.file_hash, "Opening Balance 100.00", "Synthetic deposit 10.00", "Closing Balance 110.00")
+    ):
+        page.insert_text((72, 72 + 16 * idx), line)
+    pdf_bytes = doc.tobytes()
+    doc.close()
+    source = DocumentSource.resolve(path=Path("synthetic-history.pdf"), content=pdf_bytes)
     document.file_hash = statement.file_hash = source.content_hash
     result = await _parse(
         _payload(institution=statement.institution, account_last4=statement.account_last4, currency=statement.currency),

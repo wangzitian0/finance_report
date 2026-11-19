@@ -1,7 +1,7 @@
 """``extraction.base`` — pure extraction values and validation calculus.
 
 Pure functions over parsed payloads (dicts/Decimals): per-currency balance
-closure, balance-chain continuity, confidence scoring and threshold routing.
+closure, balance-chain continuity, and confidence breakdown scoring.
 No ORM, no network, no LLM — the extension pipeline calls DOWN into these.
 """
 
