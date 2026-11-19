@@ -59,6 +59,8 @@ async def opening_balance_currencies(
 
 
 async def create_account(db: AsyncSession, user_id: UUID, account_data: AccountCreate) -> Account:
+    if account_data.parent_id is not None:
+        await get_account(db, user_id, account_data.parent_id)
     account = Account(
         user_id=user_id,
         name=account_data.name,
@@ -262,6 +264,10 @@ async def update_account(db: AsyncSession, user_id: UUID, account_id: UUID, acco
     if account.is_system:
         raise ValidationError("System accounts cannot be modified or deleted")
     update_data = account_data.model_dump(exclude_unset=True)
+    if "parent_id" in update_data and update_data["parent_id"] is not None:
+        if update_data["parent_id"] == account_id:
+            raise ValidationError("Account cannot be its own parent")
+        await get_account(db, user_id, update_data["parent_id"])
 
     for field, value in update_data.items():
         if hasattr(account, field):

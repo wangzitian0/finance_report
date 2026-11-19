@@ -72,6 +72,42 @@ export function NetWorthTimeSeriesChart({
     : null;
 
   const points = useMemo(() => data?.points ?? [], [data?.points]);
+  const fxWarningItems = useMemo(() => {
+    const items: string[] = [];
+    const seen = new Set<string>();
+    const addItem = (text: string) => {
+      if (!seen.has(text)) {
+        seen.add(text);
+        items.push(text);
+      }
+    };
+    for (const warning of normalizeFxWarningRows(data?.fx_warnings)) {
+      if (warning.message) {
+        addItem(warning.message);
+        continue;
+      }
+      const from = warning.base_currency ?? warning.from_currency;
+      const to = warning.quote_currency ?? warning.to_currency ?? data?.currency;
+      const when = warning.rate_date ?? warning.date;
+      if (from && to && when) addItem(`${from} to ${to} on ${when}`);
+      else if (from && to) addItem(`${from} to ${to}`);
+      else if (when) addItem(`Missing FX rate on ${when}`);
+    }
+    for (const point of points) {
+      if (!point.incomplete) continue;
+      const currencies = point.missing_fx_currencies ?? [];
+      const quote = data?.currency ?? "SGD";
+      if (currencies.length === 0) {
+        addItem(`Missing FX rate on ${point.date}`);
+        continue;
+      }
+      for (const base of currencies) {
+        addItem(`${base} to ${quote} on ${point.date}`);
+      }
+    }
+    return items;
+  }, [data?.currency, data?.fx_warnings, points]);
+
   const option = useMemo(() => {
     const labels = points.map((point) =>
       data?.granularity === "monthly"
@@ -83,8 +119,15 @@ export function NetWorthTimeSeriesChart({
       grid: { left: 48, right: 18, top: 24, bottom: 32 },
       tooltip: {
         trigger: "axis",
-        valueFormatter: (value: number) =>
-          formatCurrencyLocale(value, data?.currency ?? "SGD"),
+        valueFormatter: (value: number, dataIndex?: number) => {
+          const formatted = formatCurrencyLocale(value, data?.currency ?? "SGD");
+          const point = dataIndex !== undefined ? points[dataIndex] : undefined;
+          if (!point?.incomplete) return formatted;
+          const missing = point.missing_fx_currencies?.length
+            ? `: ${point.missing_fx_currencies.join(", ")} FX missing`
+            : "";
+          return `${formatted} (incomplete${missing})`;
+        },
       },
       xAxis: { type: "category", data: labels, boundaryGap: false },
       yAxis: { type: "value" },
@@ -112,6 +155,24 @@ export function NetWorthTimeSeriesChart({
           <h3 className="font-semibold mt-1">{granularity === "daily" ? "Daily net worth" : "Monthly net worth"}</h3>
         </div>
       </div>
+      {!loading && !error && fxWarningItems.length > 0 && (
+        <div
+          role="alert"
+          className="mb-4 rounded-md border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-3 text-sm"
+        >
+          <p className="font-medium text-[var(--warning)]">
+            Incomplete FX rates — foreign-currency balances omitted
+          </p>
+          <p className="mt-1 text-muted">
+            Foreign-currency balances without an exchange rate were omitted on the affected dates:
+          </p>
+          <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted">
+            {fxWarningItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {loading ? (
         <p className="text-sm text-muted">Loading net worth history...</p>
       ) : error ? (

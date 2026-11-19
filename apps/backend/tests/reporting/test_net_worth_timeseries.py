@@ -131,3 +131,112 @@ async def test_net_worth_timeseries_monthly_series_and_router(client, db, test_u
             params={"from": "2026-02-01", "to": "2026-01-01", "granularity": "monthly", "currency": "SGD"},
         )
     ).status_code == 400
+
+
+async def test_net_worth_timeseries_marks_incomplete_points_and_fx_warnings_for_missing_rates(
+    client, db, test_user
+) -> None:
+    """Emit fx_warnings and incomplete point markers only for non-zero unconvertible balances."""
+    sgd_cash, eq, usd_cash, usd_eq, eur_cash, eur_eq = await seed_accounts(
+        db,
+        test_user.id,
+        ("Cash", AccountType.ASSET),
+        ("Owner Equity", AccountType.EQUITY),
+        ("USD Cash", AccountType.ASSET, "USD"),
+        ("USD Equity", AccountType.EQUITY, "USD"),
+        ("EUR Cash", AccountType.ASSET, "EUR"),
+        ("EUR Equity", AccountType.EQUITY, "EUR"),
+    )
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 1, 1),
+        "SGD init",
+        [(sgd_cash, Direction.DEBIT, "1000.00", "SGD"), (eq, Direction.CREDIT, "1000.00", "SGD")],
+    )
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 1, 1),
+        "USD init",
+        [
+            (usd_cash, Direction.DEBIT, "100.00", "USD", Decimal("1.30")),
+            (usd_eq, Direction.CREDIT, "100.00", "USD", Decimal("1.30")),
+        ],
+    )
+    # Zero-balance EUR account: debit and credit cancel to 0.00 with no EUR FX rate.
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 1, 1),
+        "EUR zero",
+        [
+            (eur_cash, Direction.DEBIT, "50.00", "EUR", Decimal("1.45")),
+            (eur_cash, Direction.CREDIT, "50.00", "EUR", Decimal("1.45")),
+            (eur_eq, Direction.CREDIT, "0.01", "EUR", Decimal("1.45")),
+            (eur_eq, Direction.DEBIT, "0.01", "EUR", Decimal("1.45")),
+        ],
+    )
+    await seed_fx_rates(db, ("USD", "SGD", "1.30", date(2026, 1, 2)))
+    await db.commit()
+
+    rep = await get_net_worth_timeseries(
+        db, test_user.id, start_date=date(2026, 1, 1), end_date=date(2026, 1, 2), granularity="daily", currency="SGD"
+    )
+    assert rep["fx_warnings"] == [
+        {
+            "type": "missing_fx_rate_partial_skip",
+            "base_currency": "USD",
+            "quote_currency": "SGD",
+            "rate_date": "2026-01-01",
+        }
+    ]
+    by_date = {p["date"]: p for p in rep["points"]}
+    assert by_date[date(2026, 1, 1)]["incomplete"] is True
+    assert by_date[date(2026, 1, 1)]["missing_fx_currencies"] == ["USD"]
+    assert by_date[date(2026, 1, 1)]["net_worth"] == Decimal("1000.00")
+    assert by_date[date(2026, 1, 2)]["incomplete"] is False
+    assert by_date[date(2026, 1, 2)]["missing_fx_currencies"] == []
+    assert by_date[date(2026, 1, 2)]["net_worth"] == Decimal("1130.00")
+
+    resp = await client.get(
+        "/reports/net-worth/timeseries",
+        params={"from": "2026-01-01", "to": "2026-01-02", "granularity": "daily", "currency": "SGD"},
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["fx_warnings"] == rep["fx_warnings"]
+    assert payload["points"][0]["incomplete"] is True
+    assert payload["points"][0]["missing_fx_currencies"] == ["USD"]
+    assert payload["points"][1]["incomplete"] is False
+    assert payload["points"][1]["missing_fx_currencies"] == []
+
+
+async def test_net_worth_monthly_trim_preserves_incomplete_foreign_only_month(db, test_user) -> None:
+    """Monthly leading-zero trim must retain an incomplete foreign-currency month."""
+    gbp_cash, gbp_eq = await seed_accounts(
+        db, test_user.id, ("GBP Cash", AccountType.ASSET, "GBP"), ("GBP Equity", AccountType.EQUITY, "GBP")
+    )
+    await post_lines(
+        db,
+        test_user.id,
+        date(2026, 2, 1),
+        "GBP init",
+        [
+            (gbp_cash, Direction.DEBIT, "100.00", "GBP", Decimal("1.70")),
+            (gbp_eq, Direction.CREDIT, "100.00", "GBP", Decimal("1.70")),
+        ],
+    )
+    await seed_fx_rates(db, ("GBP", "SGD", "1.70", date(2026, 3, 1)))
+
+    rep = await get_net_worth_timeseries(
+        db, test_user.id, start_date=date(2026, 1, 1), end_date=date(2026, 3, 31), granularity="monthly", currency="SGD"
+    )
+    assert [p["date"] for p in rep["points"]] == [date(2026, 2, 28), date(2026, 3, 31)]
+    assert rep["points"][0]["incomplete"] is True
+    assert rep["points"][0]["missing_fx_currencies"] == ["GBP"]
+    assert rep["points"][1]["incomplete"] is False
+    assert rep["points"][1]["net_worth"] == Decimal("170.00")
+    assert rep["fx_warnings"] == [
+        {"type": "missing_fx_rate_partial_skip", "base_currency": "GBP", "quote_currency": "SGD", "rate_date": "2026-02-28"}
+    ]

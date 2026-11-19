@@ -33,6 +33,7 @@ Every `posted` / `reconciled` journal set must satisfy this equation. Normal bal
 - `JOURNAL_MEMO_MAX_LENGTH` (`500`) is enforced at input schemas and truncated cleanly by `fit_journal_memo` before anchor hashing.
 - All financial writes enter through `submit_anchored_journal_entry` (or batch port `submit_anchored_journal_entries`), which verifies tenant-scoped `TraceRecord` authority (`anchored|legacy_unproven`, joined via `current_anchored_journal_entries`).
 - Journal lines enforce strict tenant ownership (`Account.user_id == JournalEntry.user_id == user_id`).
+- Account `parent_id` enforces tenant ownership (`get_account(db, user_id, parent_id)`) on create/update and rejects self-parenting (`parent_id == account_id`).
 
 ### First-Use Setup
 
