@@ -85,6 +85,14 @@ def test_AC_extraction_closing_balance_source_1_missing_text_layer_is_unusable(t
     assert _verdict(text, "4837.50") is SourceBalanceVerdict.TEXT_UNUSABLE
 
 
+def test_AC_extraction_3112_missing_printed_opening_balance_with_printed_closing():
+    no_opening = PRINTED_STATEMENT.replace("Opening Balance 2000.00\n", "")
+    assert _verdict(no_opening, "4837.55") is SourceBalanceVerdict.OPENING_NOT_IN_TEXT
+    assert _verdict(no_opening, "4837.55", opening=None) is SourceBalanceVerdict.VERIFIED
+    assert _verdict(no_opening, "4837.55", opening=Decimal("0.00")) is SourceBalanceVerdict.VERIFIED
+    assert _verdict(no_opening, "4837.50") is SourceBalanceVerdict.TEXT_UNUSABLE
+
+
 async def test_auto_approve_balance_mismatch_clears_balance_validated_flag(db, test_user):
     custody_account = await create_statement_account(db, test_user.id, "DBS Validation Test Account")
     statement = build_statement(test_user.id, "hash_balance_mismatch_clears_flag", 90)
