@@ -210,11 +210,6 @@ def analyze_statement_balance_payload(extracted: dict[str, Any]) -> BalanceNorma
     )
 
 
-def normalize_statement_balance_payload(extracted: dict[str, Any]) -> dict[str, Any]:
-    """Deterministically normalize printed multi-currency, running-balance, and credit-card balance payloads."""
-    return analyze_statement_balance_payload(extracted).payload
-
-
 class DuplicateCurrencyError(ValueError):
     """The balances of one statement list the same currency twice (usually two accounts in one PDF)."""
 

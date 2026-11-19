@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import time
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 from uuid import UUID
@@ -20,25 +19,6 @@ if TYPE_CHECKING:
     from src.extraction.orm.statement_summary import StatementSummary
 
 logger = get_logger(__name__)
-
-# Simple in-memory cache for few-shot examples per user
-_correction_cache: dict[str, tuple[float, list[dict]]] = {}
-_CACHE_TTL_SECONDS = 3600  # 1 hour
-
-
-def _cache_key(user_id: UUID) -> str:
-    return f"corrections:{user_id}"
-
-
-def invalidate_correction_cache(user_id: UUID) -> None:
-    """Invalidate the correction cache for a user."""
-    key = _cache_key(user_id)
-    _correction_cache.pop(key, None)
-
-
-def clear_all_correction_cache() -> None:
-    """Clear all correction caches (for testing)."""
-    _correction_cache.clear()
 
 
 async def _resolve_statement_for_transaction(
@@ -204,9 +184,6 @@ async def record_correction(
         if repost_approved_statement is not None:
             await repost_approved_statement(db, statement, user_id, [txn])
 
-    # Invalidate cache for this user
-    invalidate_correction_cache(user_id)
-
     logger.info(
         "Correction recorded",
         user_id=str(user_id),
@@ -223,19 +200,10 @@ async def get_few_shot_examples(
     user_id: UUID,
     limit: int = 10,
 ) -> list[dict]:
-    """Get few-shot correction examples for prompt injection.
+    """Get few-shot correction examples directly from the database for prompt injection.
 
     Returns the most common correction patterns formatted for the AI prompt.
-    Uses a per-user cache with 1-hour TTL.
     """
-    key = _cache_key(user_id)
-
-    # Check cache
-    if key in _correction_cache:
-        cached_time, cached_examples = _correction_cache[key]
-        if time.time() - cached_time < _CACHE_TTL_SECONDS:
-            return cached_examples
-
     # Query recent corrections grouped by pattern
     query = (
         select(
@@ -257,7 +225,6 @@ async def get_few_shot_examples(
     rows = result.all()
 
     if not rows:
-        _correction_cache[key] = (time.time(), [])
         return []
 
     # Deduplicate by correction pattern, keep most common examples
@@ -278,8 +245,5 @@ async def get_few_shot_examples(
         examples.append(example)
         if len(examples) >= limit:
             break
-
-    # Cache the result
-    _correction_cache[key] = (time.time(), examples)
 
     return examples

@@ -69,14 +69,8 @@ def _brokerage_payload_from_statement(
     }
 
 
-def _extract_brokerage_payload_from_metadata(metadata: dict[str, Any] | None) -> dict[str, Any] | None:
-    """Return the structured extraction payload stored in Layer 1 metadata."""
-    if not isinstance(metadata, dict):
-        return None
-    payload = metadata.get("statement_extraction_result")
-    if not isinstance(payload, dict):
-        return None
-    result = StatementExtractionResult.from_payload(payload)
+def brokerage_payload_from_extraction_result(result: StatementExtractionResult) -> dict[str, Any]:
+    """Build a structured brokerage import payload directly from a domain extraction result."""
     events = [
         {
             "date": item.transaction_date.isoformat(),
@@ -119,6 +113,16 @@ def _extract_brokerage_payload_from_metadata(metadata: dict[str, Any] | None) ->
     }
 
 
+def _extract_brokerage_payload_from_metadata(metadata: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return the structured extraction payload stored in Layer 1 metadata."""
+    if not isinstance(metadata, dict):
+        return None
+    payload = metadata.get("statement_extraction_result")
+    if not isinstance(payload, dict):
+        return None
+    return brokerage_payload_from_extraction_result(StatementExtractionResult.from_payload(payload))
+
+
 def _enrich_brokerage_payload_from_statement(
     payload: dict[str, Any],
     statement: StatementSummary,
@@ -153,9 +157,7 @@ def _brokerage_payload_from_persisted_extraction(
     _ = uploaded_document
     payload: dict | None = None
     if extraction_result is not None:
-        payload = _extract_brokerage_payload_from_metadata(
-            {"statement_extraction_result": extraction_result.to_payload()}
-        )
+        payload = brokerage_payload_from_extraction_result(extraction_result)
     if payload is None:
         payload = _extract_brokerage_payload_from_metadata(statement.extraction_metadata)
     if payload is None:
