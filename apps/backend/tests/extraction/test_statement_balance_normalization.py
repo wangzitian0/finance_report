@@ -9,12 +9,12 @@ from types import SimpleNamespace
 import pytest
 
 from src.extraction import StatementEvidenceType, StatementSourceType
+from src.extraction.base import validation as validation_mod
 from src.extraction.base.validation import (
     _safe_parse_decimal,
     analyze_statement_balance_payload,
     detect_balance_chain_break,
     evaluate_statement_balance,
-    normalize_statement_balance_payload,
 )
 from src.extraction.extension.result_contract import statement_evidence_type
 from src.reporting.extension.package_document import _is_bank_statement_contribution
@@ -77,10 +77,11 @@ def _directions(payload: dict) -> list[str]:
 
 
 def test_AC_extraction_2987_13_14_card_inversion_and_multicurrency_balances():
-    plain = normalize_statement_balance_payload(_card_payload())
-    listed = normalize_statement_balance_payload(
+    assert not hasattr(validation_mod, "normalize_statement_balance_payload")
+    plain = analyze_statement_balance_payload(_card_payload()).payload
+    listed = analyze_statement_balance_payload(
         _card_payload(balances=[{"currency": "SGD", "opening": "412.16", "closing": "702.10"}])
-    )
+    ).payload
     assert (
         _validate_normalized(plain)["balance_valid"],
         _validate_normalized(listed)["balance_valid"],
@@ -96,7 +97,7 @@ def test_AC_extraction_2987_13_14_card_inversion_and_multicurrency_balances():
         ]
     )
     payload["transactions"][2]["currency"] = "USD"
-    assert [b["currency"] for b in normalize_statement_balance_payload(payload)["balances"]] == ["SGD", "USD"]
+    assert [b["currency"] for b in analyze_statement_balance_payload(payload).payload["balances"]] == ["SGD", "USD"]
 
 
 @pytest.mark.parametrize("flipped", [0, 2, 5])
@@ -105,7 +106,7 @@ def test_AC_extraction_2987_15_a_direction_that_the_running_balance_contradicts_
     truth = _directions(payload)
     payload["transactions"][flipped]["direction"] = "OUT" if truth[flipped] == "IN" else "IN"
     assert detect_balance_chain_break(payload["transactions"], opening_balance=Decimal("1000.00")) is not None
-    normalized = normalize_statement_balance_payload(payload)
+    normalized = analyze_statement_balance_payload(payload).payload
     assert (
         _directions(normalized),
         detect_balance_chain_break(normalized["transactions"], opening_balance=Decimal("1000.00")),
@@ -118,18 +119,18 @@ def test_AC_extraction_2987_16_17_18_unrepaired_direction_cases():
     for txn in owed["transactions"]:
         txn["direction"] = "OUT" if txn["direction"] == "IN" else "IN"
     before_owed = _directions(owed)
-    assert _directions(normalize_statement_balance_payload(copy.deepcopy(owed))) == before_owed
+    assert _directions(analyze_statement_balance_payload(copy.deepcopy(owed)).payload) == before_owed
 
     step_mismatch = _running_balance_payload(SPEC, "1000.00")
     step_mismatch["transactions"][2]["balance_after"], step_mismatch["transactions"][2]["direction"] = "1234.56", "OUT"
-    assert normalize_statement_balance_payload(step_mismatch)["transactions"][2]["direction"] == "OUT"
+    assert analyze_statement_balance_payload(step_mismatch).payload["transactions"][2]["direction"] == "OUT"
 
     no_bal = _running_balance_payload(SPEC, "1000.00")
     for txn in no_bal["transactions"]:
         del txn["balance_after"]
     no_bal["transactions"][2]["direction"] = "OUT"
     before_nb = _directions(no_bal)
-    assert _directions(normalize_statement_balance_payload(no_bal)) == before_nb
+    assert _directions(analyze_statement_balance_payload(no_bal).payload) == before_nb
 
 
 def test_running_balance_endpoints_evidence_type_and_chain_break_detector():
@@ -167,7 +168,7 @@ def test_running_balance_endpoints_evidence_type_and_chain_break_detector():
         _safe_parse_decimal(""),
         _safe_parse_decimal("not-a-number"),
         _safe_parse_decimal(True),
-        normalize_statement_balance_payload("not-a-dict"),
+        analyze_statement_balance_payload("not-a-dict").payload,
         model.opening_balance,
         statement_evidence_type(is_brokerage=True, provider_payload={"transactions": valid}, positions=[]),
         _is_bank_statement_contribution(b_ledger),

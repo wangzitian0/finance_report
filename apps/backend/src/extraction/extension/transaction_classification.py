@@ -29,7 +29,6 @@ from src.extraction.base.types import RunHints
 from src.extraction.extension._coerce import scan_balanced_json_candidates
 from src.extraction.extension.ai_settings import auto_accept_enabled, classification_enabled
 from src.extraction.extension.classification import ClassificationService
-from src.extraction.extension.correction_service import invalidate_correction_cache
 from src.extraction.extension.prompts import classification as templates
 from src.extraction.extension.prompts.hints import hints_block
 from src.extraction.orm.ai_feedback import AiFeedback
@@ -1180,7 +1179,6 @@ async def apply_suggestion_feedback(
                 transaction_description=txn.description,
             )
         )
-        invalidate_correction_cache(user_id)
     classification.tags = {
         **{key: value for key, value in previous.items() if key != SUSPENSE_TAG},
         "category": category.value,

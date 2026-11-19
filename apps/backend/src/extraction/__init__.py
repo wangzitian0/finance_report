@@ -123,7 +123,6 @@ from src.extraction.extension.evidence_graph_integration import (
 )
 from src.extraction.extension.evidence_graph_materialization import (
     EvidenceGraphMaterializationService,
-    EvidenceLineageBundle,
     EvidenceLineageQueryError,
     load_evidence_lineage,
 )
@@ -280,7 +279,6 @@ __all__ = [
     "EvidenceEdge",
     "EvidenceGraphIntegrationService",
     "EvidenceGraphMaterializationService",
-    "EvidenceLineageBundle",
     "EvidenceLineageQueryError",
     "EvidenceLineageService",
     "EvidenceNode",

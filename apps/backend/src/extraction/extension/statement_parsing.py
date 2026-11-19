@@ -37,7 +37,7 @@ from src.extraction.extension.prompts.statement import (
     parsing_template_fingerprint,
 )
 from src.extraction.extension.brokerage_positions import looks_like_brokerage_payload
-from src.extraction.extension.brokerage_statement_payload import _extract_brokerage_payload_from_metadata
+from src.extraction.extension.brokerage_statement_payload import brokerage_payload_from_extraction_result
 from src.extraction.extension.extraction_trace import build_extraction_trace_records
 from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result
 from src.extraction.extension.service import ExtractionError, ExtractionService
@@ -743,9 +743,7 @@ async def _execute_statement_ingestion(
                 user_id=job.user_id,
                 filename=job.filename,
                 institution=job.institution,
-                payload=_extract_brokerage_payload_from_metadata(
-                    {"statement_extraction_result": extraction_result.to_payload()}
-                ),
+                payload=brokerage_payload_from_extraction_result(extraction_result),
                 request_id=request_id,
                 model_to_use=job.model,
             )
@@ -846,9 +844,7 @@ async def _execute_statement_ingestion(
                         user_id=job.user_id,
                         filename=job.filename,
                         institution=job.institution,
-                        payload=_extract_brokerage_payload_from_metadata(
-                            {"statement_extraction_result": sib_result.to_payload()}
-                        ),
+                        payload=brokerage_payload_from_extraction_result(sib_result),
                         request_id=request_id,
                         model_to_use=job.model,
                     )
