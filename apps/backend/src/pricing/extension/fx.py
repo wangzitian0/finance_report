@@ -384,13 +384,14 @@ class PrefetchedFxRates:
     async def prefetch(
         self,
         db: AsyncSession,
-        pairs: list[tuple[str, str, date, date | None, date | None]],
+        pairs: Sequence[tuple[str, str, date, date | None, date | None]],
     ) -> None:
         """Fetch multiple rates into the local prefetch cache.
 
-        Sequential on purpose: all fetches share one ``AsyncSession``, which
-        must not be used concurrently. A miss propagates the pricing error
-        family — never a silent partial cache.
+        Average-rate entries run sequentially so ``fx_warnings`` order stays
+        deterministic. Spot-rate entries batch per currency pair via
+        :func:`get_exchange_rate_series`. Missing dates raise
+        :class:`NoObservationError` via :func:`get_exchange_rate`.
         """
         # dict.fromkeys, not set(): order-preserving dedupe keeps fx_warnings
         # append order deterministic across calls with the same pairs.
@@ -398,20 +399,40 @@ class PrefetchedFxRates:
         if not unique_pairs:
             return
 
+        avg_entries: list[tuple[str, str, date, date, date]] = []
+        spot_groups: dict[tuple[str, str], dict[date, None]] = {}
         for base, quote, r_date, a_start, a_end in unique_pairs:
-            if a_start and a_end:
-                rate = await get_average_rate(
-                    db,
-                    base,
-                    quote,
-                    a_start,
-                    a_end,
-                    fx_warnings=self._fx_warnings,
-                    lazy_load=self._lazy_load,
-                )
+            if a_start is not None and a_end is not None:
+                avg_entries.append((base, quote, r_date, a_start, a_end))
             else:
-                rate = await get_exchange_rate(db, base, quote, r_date, lazy_load=self._lazy_load)
+                pair_key = (normalize_currency_code(base), normalize_currency_code(quote))
+                spot_groups.setdefault(pair_key, {})[r_date] = None
+
+        for base, quote, r_date, a_start, a_end in avg_entries:
+            rate = await get_average_rate(
+                db,
+                base,
+                quote,
+                a_start,
+                a_end,
+                fx_warnings=self._fx_warnings,
+                lazy_load=self._lazy_load,
+            )
             self.set_rate(base, quote, r_date, rate, a_start, a_end)
+
+        for (base, quote), date_map in spot_groups.items():
+            dates = list(date_map)
+            if base == quote:
+                for r_date in dates:
+                    self.set_rate(base, quote, r_date, Decimal("1"))
+                continue
+            rates = await get_exchange_rate_series(db, base, quote, dates, lazy_load=self._lazy_load)
+            for r_date in dates:
+                if r_date in rates:
+                    self.set_rate(base, quote, r_date, rates[r_date])
+                else:
+                    rate = await get_exchange_rate(db, base, quote, r_date, lazy_load=self._lazy_load)
+                    self.set_rate(base, quote, r_date, rate)
 
 
 async def list_available_fx_currencies(db: AsyncSession) -> list[str]:

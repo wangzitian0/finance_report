@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import ExchangeRate, Money
@@ -167,3 +167,39 @@ async def test_AC_pricing_fx_4_6_rate_series_lookup_and_inverse_non_shadowing(db
         dict.fromkeys(dates[:2], Decimal("1")),
         (Decimal("5.000000"), Decimal("4.000000"), {date(2025, 1, 15): Decimal("5.000000"), date(2025, 1, 25): Decimal("4.000000"), date(2025, 1, 30): Decimal("2.000000")}),
     )
+
+
+async def test_prefetch_batches_spot_series_with_bounded_sql_and_error_semantics(db: AsyncSession, db_engine):
+    await _add_rates(
+        db,
+        ("USD", "SGD", "1.30", date(2026, 6, 1), "test"),
+        ("USD", "SGD", "1.35", date(2026, 6, 10), "test"),
+    )
+    dates = [date(2026, 6, day) for day in range(1, 21)]
+    pairs = [("USD", "SGD", d, None, None) for d in dates]
+
+    stmts: list[str] = []
+
+    def _capture(_conn, _cursor, statement, _params, _ctx, _many):
+        stmts.append(statement)
+
+    prefetched = PrefetchedFxRates(lazy_load=True)
+    event.listen(db_engine.sync_engine, "before_cursor_execute", _capture)
+    try:
+        await prefetched.prefetch(db, pairs)
+    finally:
+        event.remove(db_engine.sync_engine, "before_cursor_execute", _capture)
+
+    assert len(stmts) <= 2
+    for d in dates:
+        expected = Decimal("1.30") if d < date(2026, 6, 10) else Decimal("1.35")
+        assert prefetched.get_rate("USD", "SGD", d) == expected
+
+    with pytest.raises(NoObservationError, match="No FX rate available for USD/SGD on 2026-05-31"):
+        await prefetched.prefetch(
+            db,
+            [
+                ("USD", "SGD", date(2026, 6, 1), None, None),
+                ("USD", "SGD", date(2026, 5, 31), None, None),
+            ],
+        )
