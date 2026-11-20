@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from typing import Any
 from urllib.parse import urlparse
 
 from infra2_sdk.runtime import (
@@ -121,34 +122,44 @@ class LlmCheck:
 
 
 class RedisCheck:
-    """Redis reachability via a raw TCP ``PING``."""
+    """Redis reachability via authenticated ``redis.asyncio`` ``PING``."""
 
     name = "cache"
 
     def __init__(self, *, url: str | None) -> None:
         self._url = url
 
+    @staticmethod
+    def _redact_url_secret(message: str, url: str) -> str:
+        import re
+
+        redacted = re.sub(r"://([^:@/\s]+:)?[^@/\s]+@", "://***@", message)
+        parsed = urlparse(url)
+        if parsed.password:
+            redacted = redacted.replace(parsed.password, "***")
+        return redacted
+
     async def probe(self) -> ProbeResult:
         if not self._url:
             return _absent(self.name)
+        import redis.asyncio
+
         start = time.perf_counter()
+        client: Any = None
         try:
-            parsed = urlparse(self._url)
-            reader, writer = await asyncio.wait_for(
-                asyncio.open_connection(parsed.hostname, parsed.port or 6379), timeout=5
-            )
-            try:
-                writer.write(b"PING\r\n")
-                await writer.drain()
-                reply = await asyncio.wait_for(reader.readline(), timeout=5)
-            finally:
-                writer.close()
-                await writer.wait_closed()
-            if reply.startswith((b"+PONG", b"-NOAUTH", b"-ERR")):
+            client = redis.asyncio.from_url(self._url, socket_timeout=5.0, socket_connect_timeout=5.0)
+            pong = await asyncio.wait_for(client.ping(), timeout=5.0)
+            if pong:
                 return _ok(self.name, "PING answered", start)
-            return _absent(self.name, f"Unexpected reply {reply[:20]!r}", start)
+            return _absent(self.name, "Unexpected PING response", start)
         except Exception as exc:  # noqa: BLE001
-            return _absent(self.name, str(exc), start)
+            return _absent(self.name, self._redact_url_secret(str(exc), self._url), start)
+        finally:
+            if client is not None:
+                try:
+                    await client.aclose()
+                except Exception:  # noqa: BLE001
+                    pass
 
 
 class WorkflowEngineCheck:

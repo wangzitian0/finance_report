@@ -18,6 +18,7 @@ root (``main.py``) polls it in the always-on dispatcher loop — see ``readme.md
 from __future__ import annotations
 
 import inspect
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import cast
 
@@ -61,43 +62,56 @@ def _to_event(row: OutboxRow) -> DomainEvent:
 class OutboxRelay:
     """Reads committed ``pending`` rows and dispatches them to subscribers."""
 
-    def __init__(self, registry: SubscriberRegistry, *, batch_size: int = 100) -> None:
+    def __init__(
+        self,
+        registry: SubscriberRegistry,
+        *,
+        batch_size: int = 100,
+        max_attempts: int = 5,
+        on_dead_letter: Callable[[str, str], None] | None = None,
+    ) -> None:
         self._registry = registry
         self._batch_size = batch_size
+        self._max_attempts = max(1, max_attempts)
+        self._on_dead_letter = on_dead_letter
 
     async def run_once(self, session: AsyncSession) -> int:
-        """Dispatch one batch of pending rows; return how many were published.
-
-        For each pending row (in id order) every subscribed handler is invoked
-        with the reconstructed event, then the row is marked ``published`` and the
-        batch is committed. A row with no subscribers is still marked published
-        (it has been "delivered" to its — empty — audience), so it is not
-        redelivered forever. The marking commit is what makes a second
-        ``run_once`` skip already-published rows.
-        """
+        """Dispatch pending rows in savepoints; dead-letter exhausted failures."""
         repo = SqlOutboxRepository(session)
         rows = await repo.fetch_pending(limit=self._batch_size)
         published = 0
-        try:
-            for row in rows:
-                outbox_row = cast(OutboxRow, row)
-                event = _to_event(outbox_row)
-                for handler in self._registry.handlers_for(row.event_type):
-                    # Handlers may be sync or async (EventHandler admits both);
-                    # an async handler's work must complete before the row is
-                    # marked published, so its awaitable is awaited here.
-                    result = handler(event)
-                    if inspect.isawaitable(result):
-                        await result
-                await repo.mark_published(row, published_at=datetime.now(UTC))
+        mutated = False
+        dead_letters: list[tuple[str, str]] = []
+        for row in rows:
+            outbox_row = cast(OutboxRow, row)
+            event = _to_event(outbox_row)
+            event_type = row.event_type
+            source_pkg = row.source_pkg
+            try:
+                async with session.begin_nested():
+                    for handler in self._registry.handlers_for(event_type):
+                        # Handlers may be sync or async (EventHandler admits both);
+                        # an async handler's work must complete before the row is
+                        # marked published, so its awaitable is awaited here.
+                        result = handler(event)
+                        if inspect.isawaitable(result):
+                            await result
+                    await repo.mark_published(row, published_at=datetime.now(UTC))
                 published += 1
-        except Exception:
-            # A handler (or a mark) raised mid-batch: abandon the partially
-            # updated transaction so the caller is never left in a failed-txn
-            # state and no half-marked rows can be committed later. The still-
-            # pending rows are redelivered on the next pass (at-least-once).
-            await session.rollback()
-            raise
-        if published:
+                mutated = True
+            except Exception as exc:
+                error_text = f"{type(exc).__name__}: {exc}"
+                moved = await repo.record_failure(
+                    row,
+                    error=error_text,
+                    max_attempts=self._max_attempts,
+                )
+                mutated = True
+                if moved and self._on_dead_letter is not None:
+                    dead_letters.append((event_type, source_pkg))
+        if mutated:
             await session.commit()
+            for event_type, source_pkg in dead_letters:
+                if self._on_dead_letter is not None:
+                    self._on_dead_letter(event_type, source_pkg)
         return published

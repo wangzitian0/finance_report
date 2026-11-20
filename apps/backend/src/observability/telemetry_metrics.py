@@ -41,6 +41,21 @@ _COUNTER_SPECS: tuple[tuple[str, str, str], ...] = (
         "finance.extraction.confidence_tier",
         "Non-retired statements and classification runs counted by confidence tier.",
     ),
+    (
+        "outbox_dead_letter",
+        "finance.outbox.dead_letter",
+        "Outbox events moved to failed dead-letter state after exhausting retries.",
+    ),
+    (
+        "market_data_sync_failure",
+        "finance.market_data.sync_failure",
+        "Scheduled or manual market-data synchronization failures.",
+    ),
+    (
+        "storage_sweep_failure",
+        "finance.storage_sweep.failure",
+        "Orphaned S3 storage sweep failures.",
+    ),
 )
 
 _HISTOGRAM_SPECS: tuple[tuple[str, str, str], ...] = (
@@ -267,6 +282,21 @@ def record_reconciliation_match_outcome(*, outcome: str) -> None:
 def record_rate_limit_rejected(*, scope: str) -> None:
     if (counter := _instruments.get("rate_limit_rejected")) is not None:
         counter.add(1, {"scope": scope})
+
+
+def record_outbox_dead_letter(*, event_type: str, source_pkg: str) -> None:
+    if (counter := _instruments.get("outbox_dead_letter")) is not None:
+        counter.add(1, {"event_type": event_type, "source_pkg": source_pkg})
+
+
+def record_market_data_sync_failure(*, reason: str) -> None:
+    if (counter := _instruments.get("market_data_sync_failure")) is not None:
+        counter.add(1, {"reason": reason})
+
+
+def record_storage_sweep_failure(*, stage: str) -> None:
+    if (counter := _instruments.get("storage_sweep_failure")) is not None:
+        counter.add(1, {"stage": stage})
 
 
 def record_financial_invariant_violation(*, kind: str, institution_class: str = "unknown") -> None:

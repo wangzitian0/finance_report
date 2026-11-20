@@ -53,10 +53,17 @@ async def get_uploaded_document_filenames(db: AsyncSession, document_ids: Iterab
     return {doc_id: filename for doc_id, filename in rows}
 
 
+KNOWN_STORAGE_PATHS_CHUNK_SIZE = 500
+
+
 async def get_known_storage_paths(db: AsyncSession, candidate_paths: Iterable[str]) -> set[str]:
     """Which of the given storage keys have a corresponding ``UploadedDocument`` row."""
     paths = list(candidate_paths)
     if not paths:
         return set()
-    result = await db.execute(select(UploadedDocument.file_path).where(UploadedDocument.file_path.in_(paths)))
-    return {row[0] for row in result.all()}
+    known: set[str] = set()
+    for start in range(0, len(paths), KNOWN_STORAGE_PATHS_CHUNK_SIZE):
+        batch = paths[start : start + KNOWN_STORAGE_PATHS_CHUNK_SIZE]
+        result = await db.execute(select(UploadedDocument.file_path).where(UploadedDocument.file_path.in_(batch)))
+        known.update(row[0] for row in result.all())
+    return known

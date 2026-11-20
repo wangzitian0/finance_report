@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import src.config
 from src.database import async_session_maker
-from src.observability import get_logger
+from src.observability import get_logger, record_storage_sweep_failure
 from src.runtime.base.tiers import EnvTier, resolve_env_tier
 from src.runtime.extension.storage import StorageError, StorageService
 
@@ -65,6 +65,7 @@ async def sweep_orphaned_storage_objects(
         storage_keys = await run_in_threadpool(_list_storage_keys, storage)
     except StorageError as exc:
         logger.warning("Storage sweep: failed to list objects", error=str(exc))
+        record_storage_sweep_failure(stage="list")
         return 0
     if not storage_keys:
         return 0
@@ -86,6 +87,7 @@ async def sweep_orphaned_storage_objects(
             logger.info("Storage sweep: deleted orphaned object", key=key)
         except StorageError as exc:
             logger.warning("Storage sweep: failed to delete orphaned object", key=key, error=str(exc))
+            record_storage_sweep_failure(stage="delete")
     logger.info("Storage sweep completed", scanned=len(candidate_keys), orphaned=len(orphaned), deleted=deleted)
     return deleted
 
@@ -104,6 +106,7 @@ async def run_storage_sweep(
                 logger.info("Storage sweep removed orphaned objects", count=deleted)
         except Exception:
             logger.exception("Storage sweep encountered an unexpected error")
+            record_storage_sweep_failure(stage="unexpected")
         try:
             await asyncio.wait_for(stop_event.wait(), timeout=settings.storage_sweep_interval_seconds)
         except TimeoutError:

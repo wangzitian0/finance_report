@@ -36,6 +36,7 @@ from src.database import Base
 #: needs no enum migration — the relay only ever queries ``status = 'pending'``.
 STATUS_PENDING = "pending"
 STATUS_PUBLISHED = "published"
+STATUS_FAILED = "failed"
 
 
 class OutboxRecord(Base):
@@ -56,6 +57,8 @@ class OutboxRecord(Base):
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=STATUS_PENDING)
     published_at: Mapped[datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
+    attempt_count: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default="0")
+    last_error: Mapped[str | None] = mapped_column(sa.Text, nullable=True)
 
 
 class SqlOutboxRepository:
@@ -91,6 +94,7 @@ class SqlOutboxRepository:
             aggregate_id=aggregate_id,
             payload=payload,
             status=STATUS_PENDING,
+            attempt_count=0,
         )
         self._session.add(row)
         return row
@@ -98,7 +102,11 @@ class SqlOutboxRepository:
     async def fetch_pending(self, *, limit: int) -> list[OutboxRecord]:
         """Return up to ``limit`` ``pending`` rows in id (enqueue) order."""
         result = await self._session.execute(
-            sa.select(OutboxRecord).where(OutboxRecord.status == STATUS_PENDING).order_by(OutboxRecord.id).limit(limit)
+            sa.select(OutboxRecord)
+            .where(OutboxRecord.status == STATUS_PENDING)
+            .order_by(OutboxRecord.id)
+            .limit(limit)
+            .with_for_update(skip_locked=True)
         )
         return list(result.scalars().all())
 
@@ -107,3 +115,15 @@ class SqlOutboxRepository:
         row.status = STATUS_PUBLISHED
         row.published_at = published_at
         await self._session.flush()
+
+    async def record_failure(self, row: OutboxRecord, *, error: str, max_attempts: int) -> bool:
+        """Increment ``attempt_count`` and move ``row`` to ``failed`` at ``max_attempts``."""
+        await self._session.refresh(row)
+        attempts = (row.attempt_count or 0) + 1
+        row.attempt_count = attempts
+        row.last_error = error[:2000]
+        moved_to_dead_letter = attempts >= max_attempts
+        if moved_to_dead_letter:
+            row.status = STATUS_FAILED
+        await self._session.flush()
+        return moved_to_dead_letter

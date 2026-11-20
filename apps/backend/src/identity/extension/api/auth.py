@@ -47,10 +47,10 @@ COOKIE_SAFE_DEVELOPMENT_ENVS = {"development", "test", "ci"}
 _get_client_ip = get_client_ip
 
 
-def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) -> None:
+async def _check_rate_limit(request: Request, limiter: RateLimiter, error_msg: str) -> None:
     """Check rate limit and raise TooManyRequestsError if exceeded."""
     client_ip = _get_client_ip(request)
-    allowed, retry_after = limiter.is_allowed(client_ip)
+    allowed, retry_after = await limiter.is_allowed_async(client_ip)
     if not allowed:
         record_rate_limit_rejected(scope="auth_route")
         log_security_warning(
@@ -102,7 +102,7 @@ async def register(
 ) -> AuthResponse:
     """Register a new user with email and password."""
     # SECURITY: Rate limit registration to prevent abuse
-    _check_rate_limit(
+    await _check_rate_limit(
         request,
         register_rate_limiter,
         "Too many registration attempts. Please try again later.",
@@ -117,7 +117,7 @@ async def register(
     )
 
     # Reset registration rate limit on success
-    register_rate_limiter.reset(_get_client_ip(request))
+    await register_rate_limiter.reset_async(_get_client_ip(request))
 
     access_token = create_access_token(data={"sub": str(user.id)})
     _set_auth_cookie(response, access_token)
@@ -140,7 +140,7 @@ async def login(
 ) -> AuthResponse:
     """Login with email and password."""
     # SECURITY: Rate limit login attempts to prevent brute-force attacks
-    _check_rate_limit(
+    await _check_rate_limit(
         request,
         auth_rate_limiter,
         "Too many login attempts. Please try again later.",
@@ -166,7 +166,7 @@ async def login(
     )
 
     # Reset rate limit on successful login
-    auth_rate_limiter.reset(_get_client_ip(request))
+    await auth_rate_limiter.reset_async(_get_client_ip(request))
 
     access_token = create_access_token(data={"sub": str(user.id)})
     _set_auth_cookie(response, access_token)

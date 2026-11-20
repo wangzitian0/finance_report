@@ -157,6 +157,7 @@ from src.extraction.extension.statement_parsing import (
     register_statement_source,
 )
 from src.extraction.extension.statement_parsing_supervisor import (
+    reap_stale_parsing_runs,
     run_parsing_supervisor,
 )
 from src.extraction.extension.statement_pipeline import (
@@ -416,6 +417,7 @@ __all__ = [
     "resolve_statement_posting_account",
     "resolve_statement_transactions",
     "effective_statement_transaction_filter",
+    "reap_stale_parsing_runs",
     "run_parsing_supervisor",
     "snapshot_currencies",
     "PENDING_PARSE_TASKS",

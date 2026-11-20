@@ -349,7 +349,6 @@ def test_AC_extraction_2983_migration_sub_account_key_upgrade_and_downgrade():
     try:
         run_alembic(database_url, "upgrade", "0076_txn_classif_live_unique")
         run_alembic(database_url, "upgrade", "0077_stmt_summary_sub_account")
-        run_alembic(database_url, "check")
         with engine.begin() as connection:
             connection.execute(
                 text(
@@ -380,6 +379,8 @@ def test_AC_extraction_2983_migration_sub_account_key_upgrade_and_downgrade():
             connection.execute(text("DELETE FROM statement_summaries WHERE sub_account_key <> ''"))
         run_alembic(database_url, "downgrade", "0076_txn_classif_live_unique")
         run_alembic(database_url, "upgrade", "0077_stmt_summary_sub_account")
+        run_alembic(database_url, "upgrade", "head")
+        run_alembic(database_url, "check")
     finally:
         engine.dispose()
         with admin.connect() as connection:
