@@ -91,17 +91,21 @@ that outlive the router response. Enforcement:
 ### SOP-001: Create Manual Entry
 
 ```python
-def create_manual_entry(user_id, date, memo, lines: list[dict]) -> JournalEntry:
-    # 1. Validate debit/credit balance
-    total_debit = sum(l["amount"] for l in lines if l["direction"] == "DEBIT")
-    total_credit = sum(l["amount"] for l in lines if l["direction"] == "CREDIT")
+from datetime import date, datetime, timezone
+from decimal import Decimal
+import uuid
+
+def create_manual_entry(user_id, entry_date, memo, lines: list[dict]) -> JournalEntry:
+    # 1. Validate debit/credit balance in base currency (amount * fx_rate)
+    total_debit = sum(l["amount"] * l.get("fx_rate", Decimal("1")) for l in lines if l["direction"] == "DEBIT")
+    total_credit = sum(l["amount"] * l.get("fx_rate", Decimal("1")) for l in lines if l["direction"] == "CREDIT")
     if abs(total_debit - total_credit) > Decimal("0.01"):
         raise ValidationError("Debit/credit not balanced")
     
     # 2. Create entry header
     entry = JournalEntry(
         user_id=user_id,
-        entry_date=date,
+        entry_date=entry_date,
         memo=memo,
         source_type="manual",
         status="draft"
@@ -128,7 +132,7 @@ def post_entry(entry: JournalEntry) -> None:
     
     # 3. Update status
     entry.status = "posted"
-    entry.updated_at = datetime.utcnow()
+    entry.updated_at = datetime.now(timezone.utc)
 ```
 
 ### SOP-003: Void Entry
@@ -153,7 +157,8 @@ def void_entry(entry: JournalEntry, reason: str) -> JournalEntry:
             account_id=line.account_id,
             direction="CREDIT" if line.direction == "DEBIT" else "DEBIT",
             amount=line.amount,
-            currency=line.currency
+            currency=line.currency,
+            fx_rate=line.fx_rate,
         ))
     
     # 3. Mark original entry

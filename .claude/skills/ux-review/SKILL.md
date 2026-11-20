@@ -40,7 +40,7 @@ look at (vision Axiom B) — is actually the most visible thing.
 ## Deliverable format (the user's recurring spec)
 
 Item → issue → action → goal → acceptance criteria, **ROI-ranked**. Merge
-like-with-like: ~4-5 issues per round, orthogonal to existing ones (amend,
+like-with-like: ~4-5 issues per round, non-overlapping with existing ones (amend,
 don't duplicate). Screenshots must not contain real financial data (RL-6).
 
 Behavior is proven by tests. **A UI change goes to production only when its before/after `ux-review` finds no core moment worse** (AGENTS.md), and an independent read-only reviewer checks the

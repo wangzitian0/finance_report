@@ -72,11 +72,12 @@ Frontend: `NEXT_PUBLIC_*` values are frozen at build time — they must be
 Check the sources in order:
 
 ```bash
-cat .env | grep <VAR>                                      # 1. local file
+rg -c '^<VAR>=' .env                                      # 1. local file (key presence without echoing value)
 python tools/debug.py status backend --env production      # 2. Dokploy ENV
 # 3. Vault (masked; infra2 repo, bounded token — never the root token):
 invoke env.list-all --project=finance_report --service=app
-docker exec finance-report-backend env | grep <VAR>        # 4. container runtime
+# 4. Container runtime (via SSH to VPS host):
+ssh <vps-host> docker exec finance-report-backend-production env
 ```
 
 | Symptom | Likely cause | Fix |
@@ -109,6 +110,8 @@ invoke env.set KEY=VALUE --project=finance_report --env=production --service=app
 # 3. Redeploy the CURRENT release tag through the infra2 production path (reconcile-iac-inputs.yml, promote_prod=true).
 #    infra2's secret supply — running in the iac-runner under its own bounded
 #    VAULT_TOKEN — copies the changed value into Vault and restarts vault-agent + backend.
+#    Check prod-queue in infra2 first (must exit 0 before dispatch):
+cd "$WS_PATH/infra2" && uv run --locked python -m tools.harness prod-queue
 gh workflow run reconcile-iac-inputs.yml -R wangzitian0/infra2 -f promote_prod=true -f after=vX.Y.Z
 python tools/debug.py logs backend --env production --tail 20   # verify
 ```
@@ -145,6 +148,7 @@ the compose sets `ENV` plus the `decision` values.
 ```bash
 python tools/check_env_keys.py --diff        # layer consistency (CI gate)
 moon run :dev -- --check                     # runtime boot validation
-vault kv get secret/data/finance_report/production/app   # keys present
+# From infra2: verify keys present via masked wrapper (never raw vault kv get):
+cd "$WS_PATH/infra2" && invoke env.list-all --project=finance_report --service=app
 cd apps/frontend && npm run build && grep -r "NEXT_PUBLIC_APP_URL" .next/static
 ```
