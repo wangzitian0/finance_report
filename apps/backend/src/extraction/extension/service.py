@@ -1282,7 +1282,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 allow_multiple_accounts=allow_multiple_accounts,
                 split_single_batch=False,
             )
-            if from_text.get("transactions") or (document_kind == "brokerage" and from_text.get("positions")):
+            if (
+                from_text.get("transactions")
+                or from_text.get("accounts")
+                or (document_kind == "brokerage" and from_text.get("positions"))
+            ):
                 return from_text, text_split_agreed
             logger.warning(
                 "PDF text layer gave no transactions or positions; reading the page images",
@@ -1302,6 +1306,17 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             allow_multiple_accounts=allow_multiple_accounts,
             split_single_batch=split_single_batch,
         )
+
+    @staticmethod
+    def _accounts_payload(row_parts: list[dict[str, Any]], *, metadata: dict[str, Any]) -> dict[str, Any]:
+        """Return the payload of a document whose replies name several accounts: one entry per account of the rows."""
+        accounts = split_paged_extractions_by_account(row_parts, metadata=metadata)
+        if len(accounts) == 1:
+            return accounts[0]
+        return {
+            "institution": next((a.get("institution") for a in accounts if a.get("institution")), None),
+            "accounts": accounts,
+        }
 
     async def _extract_json_from_media_batches(
         self,
@@ -1358,7 +1373,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 rows_only = {
                     k: v for k, v in rows_part.items() if k not in ("opening_balance", "closing_balance", "balances")
                 }
-                merged = merge_paged_extractions([clean_meta, rows_only])
+                try:
+                    merged = merge_paged_extractions([clean_meta, rows_only])
+                except MultipleAccountsError as exc:
+                    logger.info("Multiple accounts in single-batch extraction", parts_by_account=exc.parts_by_account)
+                    return self._accounts_payload([rows_only], metadata=clean_meta), False
                 meta_open = self._safe_decimal(meta_part.get("opening_balance"))
                 meta_close = self._safe_decimal(meta_part.get("closing_balance"))
                 rows_open = self._safe_decimal(rows_part.get("opening_balance"))
@@ -1397,7 +1416,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         del meta_media
         meta_part = await _call(meta_messages, batch_index=0, pages=meta_pages)
         del meta_messages
-        parts.append({k: v for k, v in meta_part.items() if k not in ("transactions", "positions")})
+        clean_meta = {k: v for k, v in meta_part.items() if k not in ("transactions", "positions")}
+        parts.append(clean_meta)
 
         context_page: dict[str, Any] | None = None
         for part_index in range(1, part_count + 1):
@@ -1435,14 +1455,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             merged = merge_paged_extractions(parts, allow_multiple_accounts=allow_multiple_accounts)
         except MultipleAccountsError as exc:
             logger.info("Multiple accounts in paged extraction", parts_by_account=exc.parts_by_account)
-            account_parts = split_paged_extractions_by_account(parts)
-            return (
-                {
-                    "institution": next((p.get("institution") for p in account_parts if p.get("institution")), None),
-                    "accounts": account_parts,
-                },
-                meta_agreed,
-            )
+            # The balances of the metadata part belong to no account of the split, so it proves none.
+            return self._accounts_payload(parts[1:], metadata=clean_meta), None
         logger.info(
             "Merged paged vision extraction",
             part_count=part_count,
