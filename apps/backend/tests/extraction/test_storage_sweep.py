@@ -39,12 +39,28 @@ def _make_db_sessionmaker(db: AsyncSession):
         ("grace_24h", 24, 0, False),
     ],
 )
-async def test_sweep_orphaned_objects_cases(db: AsyncSession, test_user, case, grace_hours, expected_deleted, expect_delete_call):
+async def test_sweep_orphaned_objects_cases(
+    db: AsyncSession, test_user, case, grace_hours, expected_deleted, expect_delete_call
+):
     key = f"statements/user-1/{case}/file.pdf"
     if case == "known":
-        db.add(UploadedDocument(user_id=test_user.id, file_path=key, file_hash="known_hash_sweep_test", original_filename="s.pdf", document_type=DocumentType.BANK_STATEMENT))
+        db.add(
+            UploadedDocument(
+                user_id=test_user.id,
+                file_path=key,
+                file_hash="known_hash_sweep_test",
+                original_filename="s.pdf",
+                document_type=DocumentType.BANK_STATEMENT,
+            )
+        )
         await db.commit()
-    ts = datetime.now(UTC) - timedelta(minutes=5) if case == "recent" else datetime.now(UTC) - timedelta(hours=2, minutes=5) if grace_hours else _old_ts()
+    ts = (
+        datetime.now(UTC) - timedelta(minutes=5)
+        if case == "recent"
+        else datetime.now(UTC) - timedelta(hours=2, minutes=5)
+        if grace_hours
+        else _old_ts()
+    )
     mock_storage = MagicMock()
     if case == "delete_error":
         mock_storage.delete_object.side_effect = StorageError("Delete failed")
@@ -56,13 +72,22 @@ async def test_sweep_orphaned_objects_cases(db: AsyncSession, test_user, case, g
         mock_settings.environment = settings.environment
         mock_settings.s3_bucket = "test-bucket"
         mock_settings.storage_sweep_grace_period_hours = grace_hours or settings.storage_sweep_grace_period_hours
-        assert await sweep_orphaned_storage_objects(sessionmaker=_make_db_sessionmaker(db), known_paths_provider=get_known_storage_paths) == expected_deleted
+        assert (
+            await sweep_orphaned_storage_objects(
+                sessionmaker=_make_db_sessionmaker(db), known_paths_provider=get_known_storage_paths
+            )
+            == expected_deleted
+        )
     assert mock_storage.delete_object.called is expect_delete_call
 
 
 @pytest.mark.parametrize(
     ("bucket", "list_kw"),
-    [(None, {}), ("test-bucket", {"return_value": []}), ("test-bucket", {"side_effect": StorageError("connection error")})],
+    [
+        (None, {}),
+        ("test-bucket", {"return_value": []}),
+        ("test-bucket", {"side_effect": StorageError("connection error")}),
+    ],
 )
 async def test_sweep_short_circuits_and_handles_list_errors(bucket, list_kw):
     with (
@@ -79,17 +104,28 @@ def test_list_storage_keys_pagination_and_error():
     naive = datetime(2026, 5, 29, 9, 30)
     mock_storage, mock_paginator = MagicMock(bucket="test-bucket"), MagicMock()
     mock_storage.client.get_paginator.return_value = mock_paginator
-    mock_paginator.paginate.return_value = [{"Contents": [{"Key": "statements/user-a/file-a.pdf", "LastModified": aware}]}, {}, {"Contents": [{"Key": "statements/user-b/file-b.pdf", "LastModified": naive}]}]
-    assert _list_storage_keys(mock_storage) == [("statements/user-a/file-a.pdf", aware), ("statements/user-b/file-b.pdf", naive.replace(tzinfo=UTC))]
+    mock_paginator.paginate.return_value = [
+        {"Contents": [{"Key": "statements/user-a/file-a.pdf", "LastModified": aware}]},
+        {},
+        {"Contents": [{"Key": "statements/user-b/file-b.pdf", "LastModified": naive}]},
+    ]
+    assert _list_storage_keys(mock_storage) == [
+        ("statements/user-a/file-a.pdf", aware),
+        ("statements/user-b/file-b.pdf", naive.replace(tzinfo=UTC)),
+    ]
     mock_storage.client.get_paginator.assert_called_once_with("list_objects_v2")
     mock_paginator.paginate.assert_called_once_with(Bucket="test-bucket", Prefix="statements/")
 
-    mock_paginator.paginate.side_effect = ClientError({"Error": {"Code": "NoSuchBucket", "Message": "missing"}}, "ListObjectsV2")
+    mock_paginator.paginate.side_effect = ClientError(
+        {"Error": {"Code": "NoSuchBucket", "Message": "missing"}}, "ListObjectsV2"
+    )
     with pytest.raises(StorageError, match="Failed to list storage objects"):
         _list_storage_keys(mock_storage)
 
 
-@pytest.mark.parametrize(("enabled", "fail_first", "deleted_count"), [(True, False, 0), (True, False, 5), (True, True, 0), (False, False, 0)])
+@pytest.mark.parametrize(
+    ("enabled", "fail_first", "deleted_count"), [(True, False, 0), (True, False, 5), (True, True, 0), (False, False, 0)]
+)
 async def test_run_storage_sweep_loop(enabled, fail_first, deleted_count):
     stop_event, calls = asyncio.Event(), [0]
 
@@ -100,7 +136,12 @@ async def test_run_storage_sweep_loop(enabled, fail_first, deleted_count):
         stop_event.set()
         return deleted_count
 
-    with patch("src.runtime.extension.storage_sweep.settings") as mock_settings, patch("src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects", side_effect=fake_sweep) as mock_sweep:
+    with (
+        patch("src.runtime.extension.storage_sweep.settings") as mock_settings,
+        patch(
+            "src.runtime.extension.storage_sweep.sweep_orphaned_storage_objects", side_effect=fake_sweep
+        ) as mock_sweep,
+    ):
         mock_settings.enable_storage_sweep, mock_settings.storage_sweep_interval_seconds = enabled, 0.001
         await run_storage_sweep(stop_event)
     if enabled:
@@ -142,9 +183,59 @@ async def test_storage_sweep_skipped_in_preview_environment(preview_env: str):
         patch("src.runtime.extension.storage_sweep.StorageService") as mock_storage,
         patch("src.runtime.extension.storage_sweep._list_storage_keys") as mock_list,
     ):
-        mock_settings.environment, mock_settings.enable_storage_sweep, mock_settings.s3_bucket = preview_env, True, "finance-report-staging"
+        mock_settings.environment, mock_settings.enable_storage_sweep, mock_settings.s3_bucket = (
+            preview_env,
+            True,
+            "finance-report-staging",
+        )
         assert await sweep_orphaned_storage_objects() == 0
         await run_storage_sweep(stop_event)
     assert not stop_event.is_set()
     mock_storage.assert_not_called()
     mock_list.assert_not_called()
+
+
+async def test_get_known_storage_paths_chunks_large_candidate_batches(db: AsyncSession, db_engine, test_user) -> None:
+    from sqlalchemy import event
+
+    known_a = "statements/chunk/known-0001.pdf"
+    known_b = "statements/chunk/known-1100.pdf"
+    db.add_all(
+        [
+            UploadedDocument(
+                user_id=test_user.id,
+                file_path=known_a,
+                file_hash="hash_chunk_a",
+                original_filename="a.pdf",
+                document_type=DocumentType.BANK_STATEMENT,
+            ),
+            UploadedDocument(
+                user_id=test_user.id,
+                file_path=known_b,
+                file_hash="hash_chunk_b",
+                original_filename="b.pdf",
+                document_type=DocumentType.BANK_STATEMENT,
+            ),
+        ]
+    )
+    await db.commit()
+
+    candidates = [f"statements/chunk/key-{i:04d}.pdf" for i in range(1250)]
+    candidates[1] = known_a
+    candidates[1100] = known_b
+
+    select_count = 0
+
+    def _count_queries(_conn, _cursor, statement, *_args):
+        nonlocal select_count
+        if "uploaded_documents" in statement and statement.strip().upper().startswith("SELECT"):
+            select_count += 1
+
+    event.listen(db_engine.sync_engine, "before_cursor_execute", _count_queries)
+    try:
+        found = await get_known_storage_paths(db, candidates)
+    finally:
+        event.remove(db_engine.sync_engine, "before_cursor_execute", _count_queries)
+
+    assert found == {known_a, known_b}
+    assert select_count == 3

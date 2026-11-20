@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
-from src.observability import get_logger
+from src.observability import get_logger, record_market_data_sync_failure
 from src.pricing.extension.market_data import (
     MarketDataSyncResult,
     fetch_planned_fx_sync,
@@ -130,5 +130,6 @@ async def run_market_data_scheduler(
 
         try:
             await run_daily_market_data_sync(scopes, sessionmaker=sessionmaker)
-        except Exception:
+        except Exception as exc:
             logger.exception("Daily market data sync failed")
+            record_market_data_sync_failure(reason=type(exc).__name__)

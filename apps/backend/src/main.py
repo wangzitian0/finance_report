@@ -7,7 +7,7 @@ import os
 import shutil
 import subprocess
 import traceback
-from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine, Mapping
 from contextlib import asynccontextmanager, suppress
 from datetime import UTC, datetime
 from pathlib import Path
@@ -40,6 +40,7 @@ from src.config import settings
 from src.database import async_session_maker, engine, get_db, get_test_session_maker, init_db
 from src.extraction import (
     get_known_storage_paths,
+    reap_stale_parsing_runs,
     run_parsing_supervisor,
 )
 from src.identity import auth_router
@@ -53,6 +54,8 @@ from src.observability import (
     log_observability_startup,
     log_security_warning,
     mark_fastapi_instrumentation_active,
+    record_market_data_sync_failure,
+    record_outbox_dead_letter,
     record_rate_limit_rejected,
 )
 from src.platform import (
@@ -63,7 +66,11 @@ from src.platform import (
     SubscriberRegistry,
     get_client_ip,
 )
-from src.pricing import run_market_data_scheduler, subscribe_price_ingest
+from src.pricing import (
+    run_daily_market_data_sync,
+    run_market_data_scheduler,
+    subscribe_price_ingest,
+)
 from src.routers import (
     accounts,
     chat,
@@ -77,7 +84,14 @@ from src.routers import (
     workflow,
 )
 from src.routers.reconciliation import router as reconciliation_router
-from src.runtime import DEPENDENCY_MANIFEST, resolve_env_tier, run_storage_sweep
+from src.runtime import (
+    BACKGROUND_JOBS,
+    BACKGROUND_JOBS_BY_CLI,
+    DEPENDENCY_MANIFEST,
+    resolve_env_tier,
+    run_storage_sweep,
+    sweep_orphaned_storage_objects,
+)
 from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, error_code_for_status
 
 logger = get_logger(__name__)
@@ -86,7 +100,13 @@ register_fx_pairs_read(observed_fx_pairs)
 
 outbox_subscribers = SubscriberRegistry()
 subscribe_price_ingest(outbox_subscribers, session_factory=async_session_maker)
-outbox_relay = OutboxRelay(outbox_subscribers)
+outbox_relay = OutboxRelay(
+    outbox_subscribers,
+    on_dead_letter=lambda event_type, source_pkg: record_outbox_dead_letter(
+        event_type=event_type,
+        source_pkg=source_pkg,
+    ),
+)
 OUTBOX_RELAY_POLL_SECONDS = 1.0
 
 
@@ -100,6 +120,54 @@ async def run_outbox_relay(stop_event: asyncio.Event) -> None:
             logger.exception("Outbox relay pass failed")
         with suppress(TimeoutError):
             await asyncio.wait_for(stop_event.wait(), timeout=OUTBOX_RELAY_POLL_SECONDS)
+
+
+async def _run_parsing_reap_once() -> dict[str, int]:
+    return {"reaped": await reap_stale_parsing_runs()}
+
+
+async def _run_market_data_sync_once() -> dict[str, int]:
+    try:
+        await run_daily_market_data_sync(market_data_scopes)
+    except Exception as exc:
+        record_market_data_sync_failure(reason=type(exc).__name__)
+        raise
+    return {"completed": 1}
+
+
+async def _run_storage_sweep_once() -> dict[str, int]:
+    deleted = await sweep_orphaned_storage_objects(known_paths_provider=get_known_storage_paths)
+    return {"deleted": deleted}
+
+
+async def _run_outbox_drain_once() -> dict[str, int]:
+    async with async_session_maker() as session:
+        published = await outbox_relay.run_once(session)
+    return {"published": published}
+
+
+BACKGROUND_JOB_LOOPS: dict[str, Callable[[asyncio.Event], Coroutine[Any, Any, None]]] = {
+    "parsing_supervisor": run_parsing_supervisor,
+    "market_data_scheduler": lambda stop_event: run_market_data_scheduler(stop_event, market_data_scopes),
+    "storage_sweep": lambda stop_event: run_storage_sweep(stop_event, known_paths_provider=get_known_storage_paths),
+    "outbox_relay": run_outbox_relay,
+}
+
+BACKGROUND_JOB_ONCE: dict[str, Callable[[], Awaitable[dict[str, int]]]] = {
+    "parsing_supervisor": _run_parsing_reap_once,
+    "market_data_scheduler": _run_market_data_sync_once,
+    "storage_sweep": _run_storage_sweep_once,
+    "outbox_relay": _run_outbox_drain_once,
+}
+
+
+async def run_background_job_once(cli_name: str) -> dict[str, Any]:
+    """Run one manual pass of a manifest-registered background job by CLI name."""
+    spec = BACKGROUND_JOBS_BY_CLI.get(cli_name)
+    if spec is None:
+        raise ValueError(f"Unknown background job: {cli_name}")
+    result = await BACKGROUND_JOB_ONCE[spec.name]()
+    return {"job": spec.name, "cli_name": spec.cli_name, **result}
 
 
 def _init_otel_instrumentation() -> None:
@@ -119,9 +187,7 @@ def _init_otel_instrumentation() -> None:
 
 
 _PROBE_PATHS = PROBE_PATHS
-_RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset(
-    {"/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"}
-)
+_RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset({"/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"})
 
 
 def _is_probe_scope(scope: Mapping[str, Any]) -> bool:
@@ -173,11 +239,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Bootloader.print_config()
     await init_db()
     stop_event = asyncio.Event()
-    tasks = [
-        asyncio.create_task(run_parsing_supervisor(stop_event)),
-        asyncio.create_task(run_market_data_scheduler(stop_event, market_data_scopes)),
-        asyncio.create_task(run_storage_sweep(stop_event, known_paths_provider=get_known_storage_paths)),
-        asyncio.create_task(run_outbox_relay(stop_event)),
+    tasks: list[asyncio.Task[None]] = [
+        asyncio.create_task(BACKGROUND_JOB_LOOPS[job.name](stop_event)) for job in BACKGROUND_JOBS
     ]
     log_observability_startup(logger)
     logger.info("Application started", version=APP_VERSION)
@@ -340,7 +403,9 @@ api_rate_limiter = RateLimiter(
         max_requests=settings.api_rate_limit_requests,
         window_seconds=settings.api_rate_limit_window,
         block_seconds=60,
-    )
+    ),
+    namespace="global_api",
+    redis_url=settings.redis_url,
 )
 
 
@@ -350,7 +415,7 @@ async def global_rate_limit_middleware(request: Request, call_next: Any) -> Resp
     if path in _RATE_LIMIT_EXEMPT_PATHS or path.startswith(("/docs", "/redoc")):
         return await call_next(request)
     client_ip = get_client_ip(request, trust_proxy=settings.trust_proxy)
-    allowed, retry_after = api_rate_limiter.is_allowed(client_ip)
+    allowed, retry_after = await api_rate_limiter.is_allowed_async(client_ip)
     if not allowed:
         request_id = current_request_id() or request.headers.get("X-Request-ID") or str(uuid4())
         record_rate_limit_rejected(scope="global_api")

@@ -154,7 +154,6 @@ omit = [
     "__init__.py",
     "schemas/__init__.py",
     "routers/__init__.py",
-    "main.py",
     "tests/**",
     "migrations/**",
 ]

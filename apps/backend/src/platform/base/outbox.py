@@ -33,6 +33,8 @@ class Outbox:
     id: int | None = None
     status: str = "pending"
     published_at: datetime | None = None
+    attempt_count: int = 0
+    last_error: str | None = None
 
 
 class OutboxRow(Protocol):
@@ -46,9 +48,12 @@ class OutboxRow(Protocol):
     id: int
     occurred_at: datetime
     event_type: str
+    source_pkg: str
     payload: dict | None
     status: str
     published_at: datetime | None
+    attempt_count: int
+    last_error: str | None
 
 
 class OutboxRepository(Protocol):
@@ -77,4 +82,8 @@ class OutboxRepository(Protocol):
 
     async def mark_published(self, row: OutboxRow, *, published_at: datetime) -> None:
         """Flip a row to ``published`` and stamp ``published_at`` (no commit)."""
+        ...
+
+    async def record_failure(self, row: OutboxRow, *, error: str, max_attempts: int) -> bool:
+        """Increment failure attempts and move the row to ``failed`` at ``max_attempts``."""
         ...

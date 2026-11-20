@@ -919,7 +919,6 @@ jobs:
               apps/backend/src/__init__.py
               apps/backend/src/schemas/__init__.py
               apps/backend/src/routers/__init__.py
-              apps/backend/src/main.py
               apps/backend/tests/**
               apps/backend/migrations/**
           EOF

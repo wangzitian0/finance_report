@@ -92,8 +92,8 @@ async def test_register_integrity_error_race_condition(monkeypatch):
         flush=AsyncMock(side_effect=IntegrityError("x", {}, Exception("dup"))),
         refresh=AsyncMock(),
     )
-    monkeypatch.setattr(auth_router, "_check_rate_limit", lambda *args, **kwargs: None)
-    monkeypatch.setattr(auth_router.register_rate_limiter, "reset", lambda *args, **kwargs: None)
+    monkeypatch.setattr(auth_router, "_check_rate_limit", AsyncMock())
+    monkeypatch.setattr(auth_router.register_rate_limiter, "reset_async", AsyncMock())
     monkeypatch.setattr(auth_router, "hash_password", lambda _password: "hashed")
     request = Request({"type": "http", "headers": [], "client": ("127.0.0.1", 1234)})
     payload = auth_router.RegisterRequest(email="race@example.com", password="password123", name="Race User")

@@ -16,6 +16,12 @@ from src.runtime.base.env_classification import (
     NON_DEPENDENCY_ENV_FIELDS,
     check_env_classification,
 )
+from src.runtime.base.jobs import (
+    BACKGROUND_JOBS,
+    BACKGROUND_JOBS_BY_CLI,
+    BACKGROUND_JOBS_BY_NAME,
+    BackgroundJobSpec,
+)
 from src.runtime.base.kind import DependencyKind
 from src.runtime.base.manifest import (
     DEPENDENCY_MANIFEST,
@@ -34,11 +40,15 @@ from src.runtime.extension.adapters import (
     WorkflowEngineCheck,
 )
 from src.runtime.extension.storage import StorageError, StorageService, redact_presigned_url
-from src.runtime.extension.storage_sweep import run_storage_sweep
+from src.runtime.extension.storage_sweep import run_storage_sweep, sweep_orphaned_storage_objects
 
 __all__ = [
     "APP_OWNED_TIERS",
     "AnalyticsCheck",
+    "BACKGROUND_JOBS",
+    "BACKGROUND_JOBS_BY_CLI",
+    "BACKGROUND_JOBS_BY_NAME",
+    "BackgroundJobSpec",
     "DEPENDENCY_MANIFEST",
     "DatabaseCheck",
     "Dependency",
@@ -59,4 +69,5 @@ __all__ = [
     "redact_presigned_url",
     "resolve_env_tier",
     "run_storage_sweep",
+    "sweep_orphaned_storage_objects",
 ]

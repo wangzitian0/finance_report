@@ -24,7 +24,9 @@ auth_rate_limiter = RateLimiter(
         max_requests=5,  # 5 attempts
         window_seconds=60,  # per minute
         block_seconds=300,  # 5 minute block
-    )
+    ),
+    namespace="auth_login",
+    redis_url=src.config.settings.redis_url,
 )
 
 register_rate_limiter = RateLimiter(
@@ -32,5 +34,7 @@ register_rate_limiter = RateLimiter(
         max_requests=src.config.settings.register_rate_limit_requests,  # default: 10 registrations
         window_seconds=src.config.settings.register_rate_limit_window,  # default: per 600s
         block_seconds=600,  # 10 minute block
-    )
+    ),
+    namespace="auth_register",
+    redis_url=src.config.settings.redis_url,
 )

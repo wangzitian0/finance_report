@@ -22,6 +22,7 @@ from src.platform.extension.rate_limit import (
 )
 from src.platform.extension.relay import OutboxRelay
 from src.platform.extension.sql import (
+    STATUS_FAILED,
     STATUS_PENDING,
     STATUS_PUBLISHED,
     SqlOutboxRepository,
@@ -34,6 +35,7 @@ __all__ = [
     "RateLimitState",
     "RateLimiter",
     "RecordingEventBus",
+    "STATUS_FAILED",
     "STATUS_PENDING",
     "STATUS_PUBLISHED",
     "SqlOutboxRepository",

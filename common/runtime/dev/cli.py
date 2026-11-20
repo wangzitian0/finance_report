@@ -12,9 +12,11 @@ Commands:
     lint    - Code quality checks
     build   - Build projects
     clean   - Clean up resources
+    job     - List or run background jobs
 """
 
 import argparse
+import importlib.util
 import os
 import subprocess
 import sys
@@ -64,7 +66,10 @@ def cmd_dev(args):
         return
 
     if args.backend:
-        run(uv_run("uvicorn", "src.main:app", "--reload", "--port", "8000"), cwd=BACKEND_DIR)
+        run(
+            uv_run("uvicorn", "src.main:app", "--reload", "--port", "8000"),
+            cwd=BACKEND_DIR,
+        )
     elif args.frontend:
         run(["npm", "run", "dev"], cwd=FRONTEND_DIR)
     elif not args.infra:
@@ -119,7 +124,10 @@ def cmd_test(args, extra_args: list[str]):
 
     cov_override = (
         ["--no-cov"]
-        if (args.fast or not any(a.startswith("--cov") or a == "--no-cov" for a in extra_args))
+        if (
+            args.fast
+            or not any(a.startswith("--cov") or a == "--no-cov" for a in extra_args)
+        )
         else []
     )
     run(uv_run("python", "-m", "pytest") + cov_override + extra_args, cwd=BACKEND_DIR)
@@ -176,6 +184,38 @@ def cmd_clean(args):
         elif args.force:
             cmd.append("--force")
         run(cmd)
+
+
+def _load_background_jobs():
+    jobs_path = BACKEND_DIR / "src" / "runtime" / "base" / "jobs.py"
+    spec = importlib.util.spec_from_file_location("runtime_base_jobs", jobs_path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module.BACKGROUND_JOBS
+
+
+def cmd_job(args):
+    """List or manually run a registered backend background job."""
+    if args.list:
+        for job in _load_background_jobs():
+            print(
+                f"{job.cli_name}\t{job.concurrency}\t{job.failure_metric}\t{job.summary}"
+            )
+        return
+
+    python_bin = BACKEND_DIR / ".venv" / "bin" / "python"
+    script = (
+        "import asyncio, json, sys; "
+        "from src.main import run_background_job_once; "
+        "print(json.dumps(asyncio.run(run_background_job_once(sys.argv[1]))))"
+    )
+    if python_bin.exists():
+        cmd = [str(python_bin), "-c", script, args.run_once]
+    else:
+        cmd = uv_run("python", "-c", script, args.run_once)
+    run(cmd, cwd=BACKEND_DIR)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -237,6 +277,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--all", action="store_true", help="Deep clean (including volumes)"
     )
 
+    # job
+    p_job = subparsers.add_parser("job", help="List or manually run background jobs")
+    job_group = p_job.add_mutually_exclusive_group(required=True)
+    job_group.add_argument("--list", action="store_true", help="List background jobs")
+    job_group.add_argument(
+        "--run-once", metavar="CLI_NAME", help="Run one pass of a background job"
+    )
+
     # Use parse_known_args for test command to allow pass-through of pytest args
     args, extra = (
         parser.parse_known_args() if argv is None else parser.parse_known_args(argv)
@@ -251,6 +299,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             "lint": cmd_lint,
             "build": cmd_build,
             "clean": cmd_clean,
+            "job": cmd_job,
         }
         commands[args.command](args)
     return 0
