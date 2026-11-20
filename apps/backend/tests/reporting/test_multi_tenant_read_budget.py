@@ -3,9 +3,24 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
+from sqlalchemy import text
+
 from src.reporting import _aggregate_net_income_sql
 from tests.query_budget import rows_read_by, seed_other_tenants, seed_tenant_rows
 
+_ANALYZE_SQL = text(
+    "ANALYZE accounts, journal_entries, journal_lines, atomic_transactions, "
+    "transaction_classification, classification_rules, reconciliation_matches, "
+    "statement_summaries, uploaded_documents"
+)
+
+
+async def _analyze_budget_tables(db_engine) -> None:
+    async with db_engine.connect() as conn:
+        await (await conn.execution_options(isolation_level="AUTOCOMMIT")).execute(_ANALYZE_SQL)
+
+
+BASELINE_OTHER_TENANTS = 10
 OTHER_TENANTS = 100
 GROWTH_FACTOR = 1.25
 GROWTH_ALLOWANCE_ROWS = 100
@@ -34,8 +49,11 @@ async def test_AC_reporting_2617_1_report_reads_do_not_grow_with_other_tenants(
     db, db_engine, client, test_user
 ) -> None:
     await seed_tenant_rows(db, test_user.id, entries=150, transactions=60)
+    await seed_other_tenants(db, count=BASELINE_OTHER_TENANTS, entries=100, transactions=10)
+    await _analyze_budget_tables(db_engine)
     alone = await _read_all(db, db_engine, client, test_user.id)
     await seed_other_tenants(db, count=OTHER_TENANTS, entries=100, transactions=10)
+    await _analyze_budget_tables(db_engine)
     shared = await _read_all(db, db_engine, client, test_user.id)
     for name, (own_by_table, own_res) in alone.items():
         shared_by_table, shared_res = shared[name]

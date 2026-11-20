@@ -65,7 +65,12 @@ def _fold_and_deduplicate_lines(
     for line in lines:
         amount = Decimal(str(line.get("amount", "0")))
         name = str(line.get("name", "")).strip()
-        key = (name, str(line.get("type", "")), str(line.get("source_currency", "")).upper(), line.get("economic_report_line_id"))
+        key = (
+            name,
+            str(line.get("type", "")),
+            str(line.get("source_currency", "")).upper(),
+            line.get("economic_report_line_id"),
+        )
         if key not in aggregated:
             aggregated[key] = {**line, "name": name, "amount": amount}
         else:
@@ -101,7 +106,9 @@ async def generate_income_statement(
     target_currency = _normalize_currency(require_base_currency(currency or base_currency))
     resolved_base = require_base_currency(base_currency or currency)
     fx_warnings: list[FxWarning] = []
-    account_types: tuple[AccountType, ...] = (account_type,) if account_type else (AccountType.INCOME, AccountType.EXPENSE)
+    account_types: tuple[AccountType, ...] = (
+        (account_type,) if account_type else (AccountType.INCOME, AccountType.EXPENSE)
+    )
 
     accounts = await _load_accounts(db, user_id, account_types)
     balances: dict[UUID, Decimal] = {account.id: Decimal("0") for account in accounts}
@@ -199,8 +206,12 @@ async def generate_income_statement(
             )
 
     provenance_by_account = {aid: _combine_provenance(vals) for aid, vals in provenance_inputs_by_account.items()}
-    income_lines = _build_account_lines(accounts, balances, AccountType.INCOME, provenance_by_account=provenance_by_account)
-    expense_lines = _build_account_lines(accounts, balances, AccountType.EXPENSE, provenance_by_account=provenance_by_account)
+    income_lines = _build_account_lines(
+        accounts, balances, AccountType.INCOME, provenance_by_account=provenance_by_account
+    )
+    expense_lines = _build_account_lines(
+        accounts, balances, AccountType.EXPENSE, provenance_by_account=provenance_by_account
+    )
     if include_economic_categories:
         income_lines = _category_lines(income_lines, category_balances)
         expense_lines = _category_lines(expense_lines, category_balances)
@@ -339,7 +350,11 @@ async def _calculate_unrealized_fx_change(
 ) -> Decimal:
     """Calculate Unrealized FX Gain/Loss change for the period without full balance-sheet assembly."""
     start_fx = await _compute_unrealized_fx_gain_loss(
-        db, user_id, as_of_date=start_date - timedelta(days=1), target_currency=target_currency, base_currency=base_currency
+        db,
+        user_id,
+        as_of_date=start_date - timedelta(days=1),
+        target_currency=target_currency,
+        base_currency=base_currency,
     )
     end_fx = (
         _quantize_money(Decimal(str(ending_unrealized_fx_gain_loss)))
@@ -365,6 +380,18 @@ async def _load_classification_breakdown(
         from src.extraction.orm.layer2 import AtomicTransaction
         from src.extraction.orm.layer3 import TransactionClassification
 
+        user_txns = (
+            select(AtomicTransaction.id.label("txn_id"))
+            .where(
+                AtomicTransaction.user_id == user_id,
+                AtomicTransaction.txn_date >= start_date,
+                AtomicTransaction.txn_date <= end_date,
+            )
+            .offset(
+                0
+            )  # Prevent pull-up so PG drives from tenant-scoped transactions into ix_txn_classification_txn_rule.
+            .subquery("user_txns")
+        )
         cls_stmt = (
             select(
                 Account.name.label("account_name"),
@@ -372,15 +399,13 @@ async def _load_classification_breakdown(
                 func.count(TransactionClassification.id).label("count"),
                 func.avg(TransactionClassification.confidence_score).label("avg_confidence"),
             )
+            .select_from(user_txns)
+            .join(TransactionClassification, TransactionClassification.atomic_txn_id == user_txns.c.txn_id)
             .join(Account, TransactionClassification.account_id == Account.id)
-            .join(AtomicTransaction, TransactionClassification.atomic_txn_id == AtomicTransaction.id)
             .where(
                 TransactionClassification.status == ClassificationStatus.APPLIED,
                 Account.user_id == user_id,
-                AtomicTransaction.user_id == user_id,
                 Account.type.in_(account_types),
-                AtomicTransaction.txn_date >= start_date,
-                AtomicTransaction.txn_date <= end_date,
             )
             .group_by(Account.name, Account.type)
             .order_by(func.count(TransactionClassification.id).desc())

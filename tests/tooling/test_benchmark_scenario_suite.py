@@ -28,9 +28,8 @@ if str(REPO_ROOT / "apps" / "backend") not in sys.path:
 def test_staging_core_e2e_marker_and_benchmark_manifest() -> None:
     assert STAGING_CORE_E2E_MARKER == "(smoke or e2e) and not llm"
     manifest = load_hooks_manifest(REPO_ROOT / "runtime-hooks.manifest.json")
-    assert "common.testing.test_selection --stage staging_core_e2e --run" in hook_text(
-        manifest.slots["staging_gate"]
-    )
+    assert "common.testing.test_selection --stage staging_core_e2e --run" in hook_text(manifest.slots["staging_gate"])
+    assert "tests.benchmarks.run_financial_scenario_benchmark" in hook_text(manifest.slots["scheduled_audit"])
     bench_manifest = yaml.safe_load((REPO_ROOT / "tests/fixtures/benchmarks/manifest.yaml").read_text())
     assert bench_manifest["version"] == "2.2"
     assert len(bench_manifest["fixtures"]) == 20
@@ -62,10 +61,28 @@ def test_benchmark_generators_oracle_and_case_3_smoke() -> None:
     runner.upload_statement.return_value = "stmt-cc"
     runner.wait_for_statement_parsed.return_value = {"opening_balance": "10000.00", "closing_balance": "8800.00"}
     runner.get_balance_sheet.side_effect = [
-        {"total_assets": "8800.00", "total_liabilities": "0.00", "total_equity": "10000.00", "net_income": "-1200.00", "equation_delta": "0.00", "is_balanced": True},
-        {"total_assets": "8800.02", "total_liabilities": "0.00", "total_equity": "10000.00", "net_income": "-1199.98", "equation_delta": "0.00", "is_balanced": True},
+        {
+            "total_assets": "8800.00",
+            "total_liabilities": "0.00",
+            "total_equity": "10000.00",
+            "net_income": "-1200.00",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
+        {
+            "total_assets": "8800.02",
+            "total_liabilities": "0.00",
+            "total_equity": "10000.00",
+            "net_income": "-1199.98",
+            "equation_delta": "0.00",
+            "is_balanced": True,
+        },
     ]
-    runner.get_income_statement.return_value = {"total_income": "0.00", "total_expenses": "1200.00", "net_income": "-1200.00"}
+    runner.get_income_statement.return_value = {
+        "total_income": "0.00",
+        "total_expenses": "1200.00",
+        "net_income": "-1200.00",
+    }
     runner.run_reconciliation.return_value = {"matches_created": 1}
     runner.accept_reconciliation_matches.return_value = 1
     runner.post_reconciliation_adjustment.return_value = {"difference": "0.02", "journal_entry_id": "je-adj-1"}
@@ -73,7 +90,10 @@ def test_benchmark_generators_oracle_and_case_3_smoke() -> None:
     res = case_3.execute_case_3(runner)
     assert res.status == "PASS"
     summary = extract_summary_data(
-        {"summary": {"total": 1, "passed": 1, "failed": 0, "success": True}, "results": [{"case_id": "case_3", "status": "PASS", "details": res.details}]}
+        {
+            "summary": {"total": 1, "passed": 1, "failed": 0, "success": True},
+            "results": [{"case_id": "case_3", "status": "PASS", "details": res.details}],
+        }
     )
     assert summary["cases_passed"] == 1
 
@@ -92,3 +112,21 @@ def test_brokerage_pdf_fixtures_contain_holdings_table() -> None:
 
         expected = json.loads(expected_path.read_text(encoding="utf-8"))
         assert expected.get("positions"), f"{expected_path.name} missing non-empty positions"
+
+
+def test_bench_sdk_version_mismatch_and_unknown_tag_diagnostics(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from tests.benchmarks.run_financial_scenario_benchmark import _check_sdk_version
+    from tests.e2e.deployment_pin import assert_pinned_deployment
+
+    monkeypatch.setattr(
+        "tests.benchmarks.run_financial_scenario_benchmark.read_sdk_pin",
+        lambda _r: ("https://x/infra2_sdk-3.32.0-py3-none-any.whl", "0" * 64, "infra2_sdk-3.32.0-py3-none-any.whl"),
+    )
+    monkeypatch.setattr("importlib.metadata.version", lambda _pkg: "3.8.0")
+    warning = _check_sdk_version()
+    assert warning is not None and "3.32.0" in warning and "3.8.0" in warning and "3.32.0" in capsys.readouterr().err
+
+    with pytest.raises(AssertionError, match=r"unknown to local git.*COMMIT_REF"):
+        assert_pinned_deployment({"version": "024cc16", "git_sha": "024cc16"}, "v0.2.50", None)
