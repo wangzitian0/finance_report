@@ -6,6 +6,7 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import String, bindparam, func, inspect as sa_inspect, select, text, tuple_
@@ -30,7 +31,6 @@ from src.audit import (
     text_digest,
     trace_decision_projection,
 )
-from src.audit.base.trace_repository import TraceRecordRepository
 from src.audit.extension.trace_emitter import TraceEmitter
 from src.audit.extension.trace_repository import SqlTraceRecordRepository
 from src.ledger.base.decision_anchor import DecisionAnchor, DecisionAnchorError, journal_command_target
@@ -521,7 +521,7 @@ async def validate_manual_journal_entry_for_post(
 
 
 async def validate_decision_anchor(
-    repository: TraceRecordRepository,
+    repository: Any,
     *,
     user_id: UUID,
     anchor: DecisionAnchor,
@@ -638,7 +638,7 @@ async def submit_anchored_journal_entry(
     user_id: UUID,
     command: AnchoredJournalCommand,
     base_currency: str,
-    trace_repository: TraceRecordRepository | None = None,
+    trace_repository: Any = None,
 ) -> JournalEntry:
     """Verify one decision and persist its journal fact idempotently by target identity."""
     repository = trace_repository or SqlTraceRecordRepository(db)
@@ -684,7 +684,7 @@ async def submit_anchored_journal_entries(
     user_id: UUID,
     commands: Sequence[AnchoredJournalCommand],
     base_currency: str,
-    trace_repository: TraceRecordRepository | None = None,
+    trace_repository: Any = None,
 ) -> list[JournalEntry]:
     """Verify many decisions and persist their journal facts in bulk unless targets overlap."""
     repository = trace_repository or SqlTraceRecordRepository(db)

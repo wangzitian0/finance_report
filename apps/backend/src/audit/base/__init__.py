@@ -20,7 +20,7 @@ from src.audit.base.trace import (
     VersionedTraceRef,
     current_heads,
 )
-from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
+from src.audit.base.trace_repository import TraceDecisionHead
 
 __all__ = [
     "TerminalAuditSpec",
@@ -34,7 +34,6 @@ __all__ = [
     "TraceDecisionHead",
     "TraceLineage",
     "TraceRecord",
-    "TraceRecordRepository",
     "TraceRecordType",
     "TraceRecordValidationError",
     "TraceResult",

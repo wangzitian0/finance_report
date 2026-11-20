@@ -78,7 +78,6 @@ from src.portfolio import (
     InvestmentTransaction,
     InvestmentTransactionType,
     ManagedPosition,
-    PositionService,
     PositionServiceError,
     active_stock_symbols,
     position_currencies,
@@ -105,10 +104,6 @@ _DEFAULT_BALANCE_SHEET_CODES: dict[AccountType, tuple[str, str]] = {
     AccountType.ASSET: ("Investments (", "1310"),
     AccountType.LIABILITY: ("Loans Payable (", "2210"),
 }
-
-
-async def _load_statement_content(storage_key: str) -> bytes:
-    return await run_in_threadpool(StorageService().get_object, storage_key)
 
 
 def compose_financial_trace_emitter(db: AsyncSession) -> TraceEmitter:
@@ -192,16 +187,6 @@ async def _post_named_transfers_for_user(
     return await _post_and_settle_named_transfers(db, user_id, named, suggestions, default_accepted_by="system")
 
 
-async def _release_reconciliation_for_user(
-    db: AsyncSession, user_id: UUID, transaction_ids: Sequence[UUID], reason: str
-) -> int:
-    return await release_transaction_dispositions(db, user_id=user_id, transaction_ids=transaction_ids, reason=reason)
-
-
-async def _resolve_user_base_currency(db: AsyncSession, user_id: UUID) -> str:
-    return await get_effective_base_currency(db, user_id=user_id)
-
-
 def compose_statement_posting_dependencies() -> StatementPostingDependencies:
     return StatementPostingDependencies(
         transfer_exclusions=accepted_transfer_txn_ids,
@@ -210,8 +195,10 @@ def compose_statement_posting_dependencies() -> StatementPostingDependencies:
         trace_emitter_factory=compose_financial_trace_emitter,
         disposition_mode=DispositionMode(settings.statement_disposition_mode),
         post_named_transfers=_post_named_transfers_for_user,
-        release_reconciliation=_release_reconciliation_for_user,
-        base_currency_resolver=_resolve_user_base_currency,
+        release_reconciliation=lambda db, user_id, transaction_ids, reason: release_transaction_dispositions(
+            db, user_id=user_id, transaction_ids=transaction_ids, reason=reason
+        ),
+        base_currency_resolver=lambda db, user_id: get_effective_base_currency(db, user_id=user_id),
     )
 
 
@@ -475,7 +462,7 @@ def compose_statement_ingestion_use_case(
 ) -> StatementIngestionUseCase:
     return build_statement_ingestion_use_case(
         session_maker=session_maker,
-        content_loader=_load_statement_content,
+        content_loader=lambda storage_key: run_in_threadpool(StorageService().get_object, storage_key),
         posting_dependencies=compose_statement_posting_dependencies(),
         trace_emitter_factory=compose_financial_trace_emitter,
     )
@@ -571,28 +558,18 @@ async def refresh_market_data_for_brokerage_import(
         )
 
 
-async def _repost_approved_statement_for_correction(
-    db: AsyncSession, statement: StatementSummary, user_id: UUID, transactions: list[AtomicTransaction]
-) -> None:
-    deps = replace(compose_statement_posting_dependencies(), disposition_mode=DispositionMode.ENFORCE)
-    await auto_create_posted_entries_for_statement(db, statement, user_id, dependencies=deps, transactions=transactions)
-
-
-async def _supersede_transfer_legs_for_correction(
-    db: AsyncSession, user_id: UUID, transaction_id: UUID, reason: str
-) -> None:
-    await supersede_transaction_transfer_legs(db, user_id=user_id, transaction_id=transaction_id, reason=reason)
-
-
-def compose_brokerage_import_service() -> BrokeragePositionImportService:
-    """Wire portfolio's PositionService reconciler into extraction's brokerage importer."""
-    return BrokeragePositionImportService(position_reconciler=PositionService().reconcile_positions)
-
-
 def compose_correction_callbacks() -> dict[str, Any]:
     return {
-        "supersede_transfer_legs": _supersede_transfer_legs_for_correction,
-        "repost_approved_statement": _repost_approved_statement_for_correction,
+        "supersede_transfer_legs": lambda db, user_id, txn_id, reason: supersede_transaction_transfer_legs(
+            db, user_id=user_id, transaction_id=txn_id, reason=reason
+        ),
+        "repost_approved_statement": lambda db, statement, user_id, txns: auto_create_posted_entries_for_statement(
+            db,
+            statement,
+            user_id,
+            dependencies=replace(compose_statement_posting_dependencies(), disposition_mode=DispositionMode.ENFORCE),
+            transactions=txns,
+        ),
     }
 
 

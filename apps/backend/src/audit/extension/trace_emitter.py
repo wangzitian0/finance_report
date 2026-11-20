@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 from src.audit.base.trace import TraceRecord
-from src.audit.base.trace_repository import TraceRecordRepository
 
 
 @dataclass(frozen=True, slots=True)
 class TraceEmitter:
-    repository: TraceRecordRepository
+    repository: Any
 
     async def emit(self, record: TraceRecord) -> TraceRecord:
         """Return after the repository flushes the append in the caller's UoW."""
@@ -25,7 +25,7 @@ class TraceEmitter:
         """
         append_many = getattr(type(self.repository), "append_many", None)
         if append_many is not None:
-            return tuple(await self.repository.append_many(records))  # type: ignore[attr-defined]
+            return tuple(await self.repository.append_many(records))
         emitted: list[TraceRecord] = []
         for record in records:
             emitted.append(await self.emit(record))

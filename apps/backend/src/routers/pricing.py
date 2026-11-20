@@ -4,7 +4,8 @@ from datetime import date
 
 from fastapi import APIRouter, Query, status
 
-from src.composition import active_stock_symbols, known_user_asset_identifiers, observed_fx_pairs
+from src.composition import known_user_asset_identifiers, observed_fx_pairs
+from src.portfolio import active_stock_symbols
 from src.deps import Ctx, ReadCtx
 from src.observability import get_logger
 from src.platform import InternalServiceError, ValidationFailedError

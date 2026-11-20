@@ -75,32 +75,98 @@ async def _prefetch_fx_rates(
     return fx_rates
 
 
+def _require_prefetched_rate(
+    fx_rates: PrefetchedFxRates,
+    source_currency: str,
+    target_currency: str,
+    rate_date: date,
+    average_start: date | None = None,
+    average_end: date | None = None,
+    *,
+    include_date_in_error: bool = True,
+) -> Decimal:
+    """Return 1 for target currency or resolve a prefetched rate, raising ReportError if missing."""
+    source = source_currency.upper()
+    target = target_currency.upper()
+    if source == target:
+        return Decimal("1")
+    rate = (
+        fx_rates.get_rate(source_currency, target_currency, rate_date)
+        if average_start is None and average_end is None
+        else fx_rates.get_rate(source_currency, target_currency, rate_date, average_start, average_end)
+    )
+    if rate is None:
+        suffix = f" on {rate_date}" if include_date_in_error else ""
+        raise ReportError(f"No FX rate available for {source}/{target}{suffix}")
+    return rate
+
+
 def _base_ledger_lines_filter(
     stmt: Any,
     user_id: UUID,
-    account_types: Sequence[AccountType],
-    as_of_date: date,
+    account_types: Sequence[AccountType] | None,
+    as_of_date: date | None,
     *,
+    account_id: UUID | None = None,
     start_date: date | None = None,
+    start_inclusive: bool = True,
+    as_of_inclusive: bool = True,
+    exclude_fx_revaluation: bool = True,
     excluded_entry_ids: set[UUID] | frozenset[UUID] | None = None,
 ) -> Any:
     """Apply canonical reporting joins and active non-revaluation filters to a JournalLine/Account select."""
-    stmt = (
-        stmt.join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(
-            Account.user_id == user_id,
-            Account.type.in_(account_types),
-            JournalEntry.user_id == user_id,
-            active_journal_entry_filter(JournalEntry),
-            JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION,
-            JournalEntry.entry_date <= as_of_date,
-        )
+    stmt = stmt.join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id).where(
+        JournalEntry.user_id == user_id,
+        active_journal_entry_filter(JournalEntry),
     )
+    if account_types is not None:
+        stmt = stmt.where(Account.user_id == user_id, Account.type.in_(account_types))
+    if account_id is not None:
+        stmt = stmt.where(JournalLine.account_id == account_id)
+    if exclude_fx_revaluation:
+        stmt = stmt.where(JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION)
+    if as_of_date is not None:
+        stmt = stmt.where(
+            JournalEntry.entry_date <= as_of_date if as_of_inclusive else JournalEntry.entry_date < as_of_date
+        )
     if excluded_entry_ids:
         stmt = stmt.where(JournalEntry.id.not_in(excluded_entry_ids))
-    if start_date:
-        stmt = stmt.where(JournalEntry.entry_date >= start_date)
+    if start_date is not None:
+        stmt = stmt.where(
+            JournalEntry.entry_date >= start_date if start_inclusive else JournalEntry.entry_date > start_date
+        )
     return stmt
+
+
+def _ledger_lines_query(
+    *columns: Any,
+    user_id: UUID,
+    account_types: Sequence[AccountType] | None = None,
+    as_of_date: date | None = None,
+    account_id: UUID | None = None,
+    start_date: date | None = None,
+    start_inclusive: bool = True,
+    as_of_inclusive: bool = True,
+    exclude_fx_revaluation: bool = True,
+    excluded_entry_ids: set[UUID] | frozenset[UUID] | None = None,
+    join_account: bool = True,
+) -> Any:
+    """Build a canonical tenant-scoped JournalLine -> (Account) -> JournalEntry select."""
+    stmt = select(*columns)
+    if join_account:
+        stmt = stmt.join(Account, JournalLine.account_id == Account.id).where(Account.user_id == user_id)
+    return _base_ledger_lines_filter(
+        stmt,
+        user_id,
+        account_types,
+        as_of_date,
+        account_id=account_id,
+        start_date=start_date,
+        start_inclusive=start_inclusive,
+        as_of_inclusive=as_of_inclusive,
+        exclude_fx_revaluation=exclude_fx_revaluation,
+        excluded_entry_ids=excluded_entry_ids,
+    )
 
 
 def _build_account_lines(

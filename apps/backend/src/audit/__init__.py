@@ -36,7 +36,7 @@ from src.audit.base.trace import (
     TraceTargetClass,
     VersionedTraceRef,
 )
-from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
+from src.audit.base.trace_repository import TraceDecisionHead
 from src.audit.data import TraceConfidenceProjection
 from src.audit.digest import canonical_json_digest, text_digest
 from src.audit.extension import (
@@ -64,16 +64,15 @@ from src.audit.money.convert import convert
 from src.audit.money.currency import normalize_currency_code
 from src.audit.money.errors import InvalidCurrencyError, MoneyError
 from src.audit.money.rounding import to_money
-from src.audit.promotion import (
+from src.audit.base.promotion import (
     RECONCILIATION_AUTO_ACCEPT_SCORE,
     RECONCILIATION_REVIEW_SCORE,
     STATEMENT_BALANCE_TOLERANCE,
     InvariantResult,
     PromotionDecision,
     PromotionVerdict,
-    evaluate_promotion,
-    tier_rank,
 )
+from src.audit.extension.promotion import evaluate_promotion, tier_rank
 from src.audit.quantity import Quantity, Unit
 from src.audit.ratio import Ratio
 from src.audit.unit_price import UNIT_PRICE_QUANTUM, UnitPrice
@@ -138,7 +137,6 @@ __all__ = [
     "current_authoritative_trace_decisions",
     "shared_current_authority",
     "trace_decision_projection",
-    "TraceRecordRepository",
     "TraceRecordType",
     "TraceRecordValidationError",
     "TraceResult",
