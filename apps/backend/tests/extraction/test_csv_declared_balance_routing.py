@@ -162,3 +162,22 @@ async def test_ai_csv_parsing_variants() -> None:
         pytest.raises(Exception, match="No valid transactions found"),
     ):
         await svc._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+
+
+async def test_e2e_hard_gate_csv_fixture_requires_reviewed_statement_envelope() -> None:
+    """Guard E2E fixture contract: missing period/balances triggers envelope hard gate."""
+    fixture_path = (
+        Path(__file__).resolve().parents[4] / "tests" / "e2e" / "fixtures" / "csv_envelope_hard_gate_statement.csv"
+    )
+    raw = fixture_path.read_bytes()
+    result = await ExtractionService().parse_document(
+        DocumentSource.resolve(path=fixture_path, content=raw, filename=fixture_path.name),
+        "Generic Vision Hard Gate",
+        user_id=uuid4(),
+        file_type="csv",
+        account_id=None,
+        db=None,
+    )
+    assert len(result.transactions) == 6
+    assert result.missing_required_facts == ("period", "balances")
+    assert supports_reviewed_statement_envelope(result) is True
