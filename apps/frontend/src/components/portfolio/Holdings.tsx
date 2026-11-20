@@ -19,6 +19,10 @@ function optionalCurrency(value: string | null | undefined, currency: string): s
   return value == null ? "—" : formatCurrencyLocale(value, currency);
 }
 
+function optionalPercent(value: string | null | undefined): string {
+  return value == null ? "—" : formatSignedPercentFromPercentValue(value);
+}
+
 function optionalPnlClass(value: string | null | undefined): string {
   return value == null ? "text-muted" : pnlColorClass(value);
 }
@@ -154,9 +158,7 @@ export function HoldingsTable({
                     <td
                       className={`hidden md:table-cell px-4 py-2 text-right whitespace-nowrap tabular-nums ${optionalPnlClass(h.unrealized_pnl_percent)}`}
                     >
-                      {formatSignedPercentFromPercentValue(
-                        h.unrealized_pnl_percent,
-                      )}
+                      {optionalPercent(h.unrealized_pnl_percent)}
                     </td>
                     <td className="hidden lg:table-cell px-4 py-2 whitespace-nowrap">
                       <span
@@ -299,7 +301,7 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
                 {optionalCurrency(primary.unrealized_pnl, primary.currency)}
               </p>
               <p className={`text-sm mt-0.5 ${optionalPnlClass(primary.unrealized_pnl_percent)}`}>
-                {formatSignedPercentFromPercentValue(primary.unrealized_pnl_percent)}
+                {optionalPercent(primary.unrealized_pnl_percent)}
               </p>
             </div>
             <div className="card p-5">

@@ -142,7 +142,7 @@ async def test_portfolio_uses_and_quantizes_synced_stock_prices(db: AsyncSession
     ])
     await db.commit()
     by_sym = {h.asset_identifier: h for h in await PortfolioService().get_holdings(db, user_id=test_user.id, as_of_date=date(2026, 1, 6), base_currency="SGD")}
-    assert ((by_sym["AAPL"].market_value, by_sym["AAPL"].unrealized_pnl), (by_sym["IBM"].market_value, by_sym["IBM"].unrealized_pnl)) == ((Decimal("310.00"), Decimal("210.00")), (Decimal("521.94"), Decimal("495.04")))
+    assert ((by_sym["AAPL"].market_value, by_sym["AAPL"].unrealized_pnl), (by_sym["IBM"].market_value, by_sym["IBM"].unrealized_pnl)) == ((Decimal("310.00"), None), (Decimal("521.94"), None))  # no BUY row: no cost at a past date (#2920)
 
 
 async def test_persist_stock_price_and_upsert_sync_state_concurrency(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:

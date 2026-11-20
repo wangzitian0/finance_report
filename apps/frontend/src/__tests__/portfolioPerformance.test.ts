@@ -14,5 +14,7 @@ describe("computeMarketValuePerformance", () => {
     const base = makeSchedule();
     const withoutPurchase = makeSchedule({ unrealized_pnl: null, holdings: [{ ...base.holdings[0], cost_basis: null, unrealized_pnl: null }, ...base.holdings.slice(1)] });
     expect(computeMarketValuePerformance(withoutPurchase)).toEqual({ unrealizedPnl: null, totalCostBasis: null, totalMarketValue: "3300.00", returnOnCostPercent: null });
+    const disposedWithoutCost = makeSchedule({ holdings: [...base.holdings, { ...base.holdings[0], quantity: "0", market_value: "0.00", cost_basis: null, unrealized_pnl: null }] });
+    expect(computeMarketValuePerformance(disposedWithoutCost)).toMatchObject({ unrealizedPnl: "300.00", totalCostBasis: "3000.00", returnOnCostPercent: "10.00" });
   });
 });

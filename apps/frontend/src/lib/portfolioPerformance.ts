@@ -33,8 +33,9 @@ export function computeMarketValuePerformance(
     const totalMarketValue = sumAmounts(holdings.map((holding) => holding.market_value));
     const costs = holdings.map((holding) => holding.cost_basis);
     const unrealizedPnl = schedule.unrealized_pnl;
-    // A total over an unknown cost is unknown: the backend sends null, and no total is built here.
-    if (unrealizedPnl == null || costs.some((cost) => cost == null)) {
+    // The backend owns the rule: it sends a null total when one held position has no recorded purchase.
+    // A disposed row can have a null cost while the total is known; such a row adds nothing to the cost.
+    if (unrealizedPnl == null) {
         return {
             unrealizedPnl: null,
             totalCostBasis: null,

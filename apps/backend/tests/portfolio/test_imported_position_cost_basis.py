@@ -20,8 +20,11 @@ from src.portfolio import (
     TradeOrder,
     build_investment_performance_report_schedule,
 )
-from src.portfolio.orm.portfolio import ManagedPosition
-from src.reporting.extension.portfolio_market import _portfolio_market_basis_by_account
+from src.portfolio.orm.portfolio import InvestmentTransaction, InvestmentTransactionType, ManagedPosition
+from src.reporting.extension.portfolio_market import (
+    _portfolio_market_adjustment_lines_from_basis,
+    _portfolio_market_basis_by_account,
+)
 from tests.extraction._statement_run_helpers import migration_db_url, run_alembic
 
 JUNE = date(2026, 6, 30)
@@ -153,6 +156,135 @@ async def test_recorded_purchase_gives_the_cost_and_a_later_snapshot_keeps_it(db
     )
 
 
+@pytest.mark.parametrize("method", ["FIFO", "LIFO", "AvgCost"])
+async def test_cost_of_today_equals_cost_from_the_trade_rows_after_a_buy_and_a_sale(db, test_user, method):
+    cash = Account(user_id=test_user.id, name="Brokerage Cash", type=AccountType.ASSET, currency="SGD")
+    broker = Account(user_id=test_user.id, name="Moomoo", type=AccountType.ASSET, currency="SGD")
+    pnl = Account(user_id=test_user.id, name="Realized P&L", type=AccountType.INCOME, currency="SGD")
+    db.add_all([cash, broker, pnl])
+    await db.flush()
+    service, accounts = (
+        InvestmentAccountingService(),
+        TradeAccounts(cash=cash.id, investment=broker.id, realized_pnl=pnl.id),
+    )
+    for day, quantity, price in ((1, "6", "100.00"), (2, "4", "150.00")):
+        await service.post_buy(
+            db,
+            user_id=test_user.id,
+            order=TradeOrder.create(
+                transaction_date=date(2026, 6, day),
+                asset_identifier="VWRA",
+                quantity=Decimal(quantity),
+                unit_price=Decimal(price),
+                currency="SGD",
+                cost_basis_method=method,
+            ),
+            accounts=accounts,
+        )
+    sold = await service.post_sell(
+        db,
+        user_id=test_user.id,
+        order=TradeOrder.create(
+            transaction_date=date(2026, 6, 20),
+            asset_identifier="VWRA",
+            quantity=Decimal("5"),
+            unit_price=Decimal("200.00"),
+            currency="SGD",
+            cost_basis_method=method,
+        ),
+        accounts=accounts,
+    )
+    db.add(_snapshot(test_user.id, JUNE, "1000.00"))
+    await db.flush()
+    portfolio = PortfolioService()
+
+    current = (await portfolio.get_holdings(db, test_user.id, base_currency="SGD"))[0]
+    as_of_june = (await portfolio.get_holdings(db, test_user.id, as_of_date=JUNE, base_currency="SGD"))[0]
+
+    expected = {"FIFO": Decimal("700.00"), "LIFO": Decimal("500.00"), "AvgCost": Decimal("600.00")}[method]
+    assert (sold.position.cost_basis, current.cost_basis, as_of_june.cost_basis) == (expected, expected, expected)
+
+
+async def test_a_sale_without_a_recorded_purchase_gives_no_cost_at_a_past_date(db, test_user):
+    position = await _import_two_snapshots(db, test_user.id)
+    db.add(
+        InvestmentTransaction(
+            user_id=test_user.id,
+            position_id=position.id,
+            transaction_date=date(2026, 7, 15),
+            transaction_type=InvestmentTransactionType.SELL,
+            asset_identifier="VWRA",
+            quantity=Decimal("1"),
+            unit_price=Decimal("210.00"),
+            gross_amount=Decimal("210.00"),
+            fees=Decimal("0.00"),
+            currency="SGD",
+            cost_basis=Decimal("50.00"),
+            realized_pnl=Decimal("160.00"),
+        )
+    )
+    await db.flush()
+
+    holding = (await PortfolioService().get_holdings(db, test_user.id, as_of_date=SEPTEMBER, base_currency="SGD"))[0]
+
+    assert (holding.cost_basis, holding.unrealized_pnl) == (None, None)
+
+
+async def test_a_disposed_imported_position_does_not_empty_the_schedule_total(db, test_user):
+    cash = Account(user_id=test_user.id, name="Brokerage Cash", type=AccountType.ASSET, currency="SGD")
+    broker = Account(user_id=test_user.id, name="Moomoo", type=AccountType.ASSET, currency="SGD")
+    db.add_all([cash, broker])
+    await db.flush()
+    await InvestmentAccountingService().post_buy(
+        db,
+        user_id=test_user.id,
+        order=TradeOrder.create(
+            transaction_date=date(2026, 6, 15),
+            asset_identifier="VWRA",
+            quantity=Decimal("10"),
+            unit_price=Decimal("180.00"),
+            currency="SGD",
+        ),
+        accounts=TradeAccounts(cash=cash.id, investment=broker.id),
+    )
+    await _import_two_snapshots(db, test_user.id)
+    for snapshot_date, quantity in ((JUNE, "3"), (SEPTEMBER, "0")):
+        sold_out = _snapshot(test_user.id, snapshot_date, "300.00" if quantity != "0" else "0.00")
+        sold_out.asset_identifier, sold_out.quantity = "ES3", Decimal(quantity)
+        sold_out.dedup_hash = f"es3_2920_{snapshot_date.isoformat()}"
+        db.add(sold_out)
+        await db.flush()
+        await PositionService().reconcile_positions(db, test_user.id)
+
+    schedule = await build_investment_performance_report_schedule(
+        db, test_user.id, period_start=date(2026, 7, 1), period_end=SEPTEMBER, as_of_date=SEPTEMBER, currency="SGD"
+    )
+
+    assert (
+        {row.asset_identifier: (row.cost_basis, row.unrealized_pnl) for row in schedule.holdings},
+        schedule.unrealized_pnl,
+        [note for note in schedule.notes if note.startswith("No purchase is recorded")],
+    ) == ({"VWRA": (Decimal("1800.00"), Decimal("300.00")), "ES3": (None, None)}, Decimal("300.00"), [])
+
+
+async def test_balance_sheet_adds_the_full_market_value_when_the_broker_account_holds_ledger_cash():
+    account_id = uuid4()
+    basis = {
+        account_id: {
+            "account": Account(name="Moomoo", type=AccountType.ASSET, currency="SGD"),
+            "market_value": Decimal("2100.00"),
+            "cost_basis": Decimal("0"),
+            "source_currencies": {"SGD"},
+        }
+    }
+
+    lines = _portfolio_market_adjustment_lines_from_basis(
+        basis, asset_lines=[{"account_id": account_id, "amount": Decimal("5000.00")}], target_currency="SGD"
+    )
+
+    assert [line["amount"] for line in lines] == [Decimal("2100.00")]
+
+
 @pytest.mark.no_db
 def test_migration_0079_clears_the_cost_of_positions_without_a_buy_and_keeps_the_others():
     name = f"fr_2920_cost_{uuid4().hex[:12]}"
@@ -193,17 +325,20 @@ def test_migration_0079_clears_the_cost_of_positions_without_a_buy_and_keeps_the
                 text(
                     "INSERT INTO investment_transactions (id, user_id, position_id, transaction_date, transaction_type, "
                     "asset_identifier, quantity, unit_price, gross_amount, fees, currency, cost_basis, created_at, updated_at) "
-                    "VALUES (:id, :user_id, :position_id, DATE '2026-06-30', 'buy', 'ES3', 10, 210, 2100.00, 0, 'SGD', "
-                    "2100.00, NOW(), NOW())"
+                    "VALUES (:id, :user_id, :position_id, DATE '2026-06-30', 'buy', 'ES3', 10, 180.50, 1805.00, 0, 'SGD', "
+                    "1805.00, NOW(), NOW())"
                 ),
                 {"id": uuid4(), "user_id": user_id, "position_id": bought_id},
             )
 
         run_alembic(database_url, "upgrade", "0079_position_cost_nullable")
         with engine.connect() as connection:
-            upgraded = dict(
-                connection.execute(text("SELECT asset_identifier, cost_basis FROM managed_positions")).tuples().all()
-            )
+            upgraded = {
+                asset: (cost, pnl)
+                for asset, cost, pnl in connection.execute(
+                    text("SELECT asset_identifier, cost_basis, unrealized_pnl FROM managed_positions")
+                )
+            }
         run_alembic(database_url, "check")
         run_alembic(database_url, "downgrade", "0078_outbox_dead_letter")
         with engine.connect() as connection:
@@ -213,8 +348,8 @@ def test_migration_0079_clears_the_cost_of_positions_without_a_buy_and_keeps_the
         run_alembic(database_url, "upgrade", "head")
 
         assert (upgraded, downgraded) == (
-            {"VWRA": None, "ES3": Decimal("2100.00")},
-            {"VWRA": Decimal("0.00"), "ES3": Decimal("2100.00")},
+            {"VWRA": (None, None), "ES3": (Decimal("1805.00"), Decimal("0.00"))},
+            {"VWRA": Decimal("0.00"), "ES3": Decimal("1805.00")},
         )
     finally:
         engine.dispose()

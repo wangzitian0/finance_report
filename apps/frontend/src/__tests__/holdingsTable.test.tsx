@@ -32,6 +32,6 @@ describe("HoldingsTable", () => {
     const row = screen.getByText("No purchase recorded").closest("tr");
     expect(row).not.toBeNull();
     expect(row?.textContent).not.toMatch(/0\.00%/);
-    expect(row?.querySelectorAll("td")[4]?.textContent).toBe("—");
+    expect([4, 5].map((cell) => row?.querySelectorAll("td")[cell]?.textContent)).toEqual(["—", "—"]);
   });
 }); // AC-portfolio.fe-ia-portfolio.1

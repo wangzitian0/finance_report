@@ -6,7 +6,9 @@ Create Date: 2026-11-20
 
 ``reconcile_positions`` stored the snapshot market value as the cost basis. Such a
 value is not a cost. This migration sets it to NULL for each position that has no
-BUY row in ``investment_transactions``. A position with a BUY row keeps its value.
+BUY row in ``investment_transactions``. A position with a BUY row gets the cost of
+its BUY rows less the cost of its SELL rows, because its stored value can also be
+a market value.
 """
 
 from __future__ import annotations
@@ -39,6 +41,21 @@ def upgrade() -> None:
             SELECT 1 FROM investment_transactions AS t
             WHERE t.position_id = p.id AND t.transaction_type::text = 'buy'
         )
+        """
+    )
+    op.execute(
+        """
+        UPDATE managed_positions AS p
+        SET cost_basis = recorded.cost
+        FROM (
+            SELECT position_id,
+                   SUM(CASE WHEN transaction_type::text = 'buy' THEN cost_basis ELSE -cost_basis END) AS cost
+            FROM investment_transactions
+            WHERE transaction_type::text IN ('buy', 'sell') AND position_id IS NOT NULL
+            GROUP BY position_id
+            HAVING COUNT(*) FILTER (WHERE transaction_type::text = 'buy') > 0
+        ) AS recorded
+        WHERE recorded.position_id = p.id
         """
     )
 

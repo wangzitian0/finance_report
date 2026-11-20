@@ -227,7 +227,7 @@ async def build_investment_performance_report_schedule(
     for holding in holdings:
         # The holdings loader already converts value and cost to the schedule currency.
         market_value = to_money(holding.market_value)
-        if holding.cost_basis is None:
+        if holding.cost_basis is None and holding.status == PositionStatus.ACTIVE:
             notes.append(
                 f"No purchase is recorded for {holding.asset_identifier}; "
                 "cost basis and unrealized profit are not available."
@@ -392,7 +392,12 @@ async def build_investment_performance_report_schedule(
         realized_pnl=to_money(sum(realized_by_asset.values(), Decimal("0.00"))),
         unrealized_pnl=(
             to_money(sum((row.unrealized_pnl or Decimal("0.00") for row in holding_rows), Decimal("0.00")))
-            if all(row.unrealized_pnl is not None for row in holding_rows)
+            # A disposed row holds nothing: only the held rows decide if the total is known.
+            if all(
+                row.unrealized_pnl is not None
+                for row, holding in zip(holding_rows, holdings, strict=True)
+                if holding.status == PositionStatus.ACTIVE
+            )
             else None
         ),
         dividend_income=to_money(sum(dividend_by_asset.values(), Decimal("0.00"))),
