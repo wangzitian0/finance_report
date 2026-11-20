@@ -1055,7 +1055,7 @@ async def get_review_conflicts(statement_id: UUID, ctx: ReadCtx) -> ReviewConfli
 async def resolve_review_conflicts(
     statement_id: UUID,
     ctx: Ctx,
-    request: ResolveConflictsRequest | None = None,
+    request: Annotated[ResolveConflictsRequest | None, Body()] = None,
 ) -> ReviewConflictsResolveResponse:
     """Record that the reviewer saw the Stage-1 candidates and confirms different transactions (#962, #2958)."""
     db, user_id = ctx.db, ctx.user_id

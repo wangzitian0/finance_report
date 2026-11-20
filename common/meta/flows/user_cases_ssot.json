@@ -303,7 +303,7 @@
           "ui_surface": "/statements/{id}",
           "component": "ConflictResolutionDialog",
           "backend_endpoint": "POST /reconciliation/consistency-checks/runs",
-          "invariant": "Duplicate transactions flagged and linked without double-counting in ledger",
+          "invariant": "Duplicate candidates are flagged for one reviewer confirmation; transfer pairs link in reconciliation without double-counting in ledger",
           "backend_test_ref": "apps/backend/tests/extraction/test_deduplication.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/ConflictResolutionDialog.test.tsx",
           "e2e_test_ref": null,

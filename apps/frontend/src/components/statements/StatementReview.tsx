@@ -118,7 +118,7 @@ export function ReviewActionBar({ onApprove, onReject, actionLoading, balanceVal
       {isBlocked && (
         <div role="status" className="flex w-full flex-col gap-2 rounded-md border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-3 text-sm sm:max-w-sm">
           <p className="text-[var(--foreground)]">{reason}</p>
-          {blockedByConflicts && onResolveConflicts && <button type="button" onClick={onResolveConflicts} className="btn-secondary btn-sm self-start">Resolve conflicts</button>}
+          {blockedByConflicts && onResolveConflicts && <button type="button" onClick={onResolveConflicts} className="btn-secondary btn-sm self-start">Review possible duplicates</button>}
           {blockedByBalance && onReparse && <button type="button" onClick={onReparse} disabled={reparsePending} className="btn-secondary btn-sm self-start disabled:opacity-50">{reparsePending ? "Re-parsing…" : "Re-parse statement"}</button>}
         </div>
       )}
