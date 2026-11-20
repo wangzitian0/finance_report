@@ -298,6 +298,10 @@ _REVIEW_ENDED_STATUSES = frozenset({BankStatementStatus.APPROVED, BankStatementS
 
 
 def _apply_envelope_to_statement(statement: StatementSummary, envelope: ReviewedStatementEnvelope) -> None:
+    # An approved statement has posted entries. A rejected statement waits for a rerun. Neither returns to PARSED
+    # through an envelope that was confirmed earlier (#3029 item 9).
+    if statement.status in _REVIEW_ENDED_STATUSES:
+        return
     statement.account_id = envelope.account_id
     statement.currency = envelope.currency
     statement.period_start, statement.period_end = envelope.period_start, envelope.period_end
@@ -386,16 +390,14 @@ async def confirm_reviewed_statement_envelope(
         )
     ).scalar_one_or_none()
     if existing is not None:
-        # The replay of a command that was already applied answers with its envelope. On a statement that a review
-        # ended (approved, with posted entries, or rejected) it writes nothing: PARSED over posted entries would
-        # show a statement that waits for a review although its entries are in the ledger (#3029 item 9).
-        if statement.status not in _REVIEW_ENDED_STATUSES:
-            _apply_envelope_to_statement(statement, existing)
-            await db.flush()
+        # The replay of an applied command returns its envelope. The apply step skips a statement whose review ended.
+        _apply_envelope_to_statement(statement, existing)
+        await db.flush()
         return existing
-    if statement.status is BankStatementStatus.APPROVED:
-        raise ValidationFailedError(
-            "Approved statement cannot receive a new source confirmation. Reject it before you confirm its source."
+    if statement.status in _REVIEW_ENDED_STATUSES:
+        raise ReviewedStatementEnvelopeConflict(
+            "The review of this statement ended. Reject it if it is approved, then reparse it, "
+            "before you confirm its source."
         )
 
     if (await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)) is not None:
