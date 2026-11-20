@@ -30,6 +30,7 @@ from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, 
 from src.extraction.base.source_balance_check import (
     SourceBalanceVerdict,
     check_closing_balance_against_text,
+    rows_missing_from_text,
     text_prints_money,
 )
 from src.extraction.base.source_capability import SOURCE_CAPABILITIES
@@ -85,6 +86,10 @@ from src.ledger import AccountType
 from src.observability import record_financial_invariant_violation
 
 settings = src.config.settings
+
+
+# A review reason names at most this many rows; the log line holds every row number.
+MAX_ROWS_NAMED_IN_REVIEW_REASON = 20
 
 
 def _ai_stream_error() -> type[Exception]:
@@ -465,6 +470,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             )
 
             source_verified: bool | None = None
+            rows_not_in_text_reason: str | None = None
             closing_not_in_source = False
             opening_not_in_source = False
             if file_type == "csv":
@@ -514,6 +520,27 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     source_verified = bool(pdf_text and text_prints_money(pdf_text))
                     if not source_verified and source_review_reason is None:
                         source_review_reason = "PDF text layer is unusable; source review required before approval"
+                rows_not_in_text = rows_missing_from_text(pdf_text, [(t.amount, t.balance_after) for t in transactions])
+                if rows_not_in_text:
+                    source_verified = False
+                    rows_not_in_text_reason = "Rows not found in the document text: " + ", ".join(
+                        str(number) for number in rows_not_in_text[:MAX_ROWS_NAMED_IN_REVIEW_REASON]
+                    )
+                    if len(rows_not_in_text) > MAX_ROWS_NAMED_IN_REVIEW_REASON:
+                        rows_not_in_text_reason += (
+                            f" and {len(rows_not_in_text) - MAX_ROWS_NAMED_IN_REVIEW_REASON} more"
+                        )
+                    source_review_reason = (
+                        f"{source_review_reason}; {rows_not_in_text_reason}"
+                        if source_review_reason
+                        else rows_not_in_text_reason
+                    )
+                    logger.warning(
+                        "statement.extraction.rows_not_in_text",
+                        row_count=len(transactions),
+                        missing_count=len(rows_not_in_text),
+                        rows=rows_not_in_text,
+                    )
             elif file_type in {"png", "jpg", "jpeg"} and not is_position_snapshot:
                 source_verified = False
                 if source_review_reason is None:
@@ -604,7 +631,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 statement.status = status
                 statement.balance_validated = False
                 statement.stage1_status = Stage1Status.REJECTED
-                statement.validation_error = f"{reason.value}: {llm_led_gate.message}"
+                statement.validation_error = f"{reason.value}: {llm_led_gate.message}" + (
+                    f"; {rows_not_in_text_reason}" if rows_not_in_text_reason else ""
+                )
                 record_financial_invariant_violation(kind=metric_kind, institution_class=institution_class)
                 balance_gap = balance_result["difference"]
                 logger.warning(
