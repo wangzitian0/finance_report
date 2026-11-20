@@ -26,16 +26,22 @@ interface SSoTRegistry {
   domains: Array<{ id: number; name: string; user_cases: UserCaseDefinition[] }>;
 }
 
-function deriveProofTier(uc: UserCaseDefinition): ProofTier {
-  if (uc.gap_issue) {
-    return uc.gap_kind === "gap" ? "L0_GAP" : "L1_PARTIAL";
-  }
+// Evidence tier reads test references only; the deletion ratchet counts it.
+function deriveEvidenceTier(uc: UserCaseDefinition): ProofTier {
   const hasE2e = Boolean(uc.e2e_test_ref?.trim());
   const hasBench = uc.benchmark_cases.length > 0;
   if (hasE2e && hasBench) return "L4_FULL";
   if (hasE2e) return "L3_E2E";
   if (hasBench) return "L3_BENCH";
   return "L2_SURFACE";
+}
+
+// Board tier: an open gap issue overrides the test evidence.
+function deriveProofTier(uc: UserCaseDefinition): ProofTier {
+  if (uc.gap_issue) {
+    return uc.gap_kind === "gap" ? "L0_GAP" : "L1_PARTIAL";
+  }
+  return deriveEvidenceTier(uc);
 }
 
 function assertRealTestFile(repoRoot: string, ref: string, ucId: string): void {
@@ -81,7 +87,7 @@ describe("Unified 47-User-Case Frontend Consistency & SSOT Compliance Suite", ()
       expect(uc.invariant.trim()).toBeTruthy();
 
       if (uc.gap_issue) {
-        expect(uc.gap_issue.trim()).toBeTruthy();
+        expect(uc.gap_issue).toMatch(/^#\d+(?:, #\d+)*$/);
         expect(["partial", "gap"]).toContain(uc.gap_kind);
       } else {
         expect(uc.gap_issue).toBeNull();
@@ -124,12 +130,14 @@ describe("Unified 47-User-Case Frontend Consistency & SSOT Compliance Suite", ()
       L3_E2E: 0,
       L4_FULL: 0,
     };
+    const evidence: Record<ProofTier, number> = { ...counts };
     for (const uc of allCases) {
       counts[deriveProofTier(uc)] += 1;
+      evidence[deriveEvidenceTier(uc)] += 1;
     }
-    expect(counts.L4_FULL).toBeGreaterThanOrEqual(14);
-    expect(counts.L4_FULL + counts.L3_E2E).toBeGreaterThanOrEqual(21);
-    expect(counts.L4_FULL + counts.L3_BENCH).toBeGreaterThanOrEqual(30);
+    expect(evidence.L4_FULL).toBeGreaterThanOrEqual(14);
+    expect(evidence.L4_FULL + evidence.L3_E2E).toBeGreaterThanOrEqual(21);
+    expect(evidence.L4_FULL + evidence.L3_BENCH).toBeGreaterThanOrEqual(30);
     expect(counts.L0_GAP).toBe(0);
 
     const byId = (id: string) => allCases.find((u) => u.id === id);
@@ -140,5 +148,7 @@ describe("Unified 47-User-Case Frontend Consistency & SSOT Compliance Suite", ()
     expect(byId("UC-44")?.backend_endpoint).toBe("GET /reports/package/snapshots/{snapshot_id}/exports");
     expect(byId("UC-32")).toMatchObject({ gap_issue: "#2922", gap_kind: "partial" });
     expect(deriveProofTier(byId("UC-32")!)).toBe("L1_PARTIAL");
+    expect(byId("UC-38")).toMatchObject({ gap_issue: "#2923", gap_kind: "partial" });
+    expect(deriveProofTier(byId("UC-38")!)).toBe("L1_PARTIAL");
   });
 });

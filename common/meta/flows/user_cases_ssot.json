@@ -22,7 +22,8 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/loginPage.test.tsx",
           "e2e_test_ref": "tests/e2e/test_auth_flows.py",
           "benchmark_cases": [],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2978"
         },
         {
           "id": "UC-02",
@@ -41,7 +42,8 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/generalSettingsPage.test.tsx",
           "e2e_test_ref": null,
           "benchmark_cases": [],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#3156"
         },
         {
           "id": "UC-03",
@@ -59,7 +61,8 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/llmSettingsPage.test.tsx",
           "e2e_test_ref": "tests/e2e/test_ai_provider_connectivity.py",
           "benchmark_cases": [],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2953"
         },
         {
           "id": "UC-04",
@@ -77,7 +80,8 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/accountsPage.test.tsx",
           "e2e_test_ref": null,
           "benchmark_cases": [],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2957"
         },
         {
           "id": "UC-05",
@@ -121,7 +125,8 @@
           "benchmark_cases": [
             "1"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2987, #3039"
         },
         {
           "id": "UC-07",
@@ -179,7 +184,8 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx",
           "e2e_test_ref": null,
           "benchmark_cases": [],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2983"
         },
         {
           "id": "UC-10",
@@ -197,7 +203,8 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx",
           "e2e_test_ref": null,
           "benchmark_cases": [],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2917"
         },
         {
           "id": "UC-11",
@@ -215,7 +222,8 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/statementRuns.test.tsx",
           "e2e_test_ref": null,
           "benchmark_cases": [],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#3029"
         },
         {
           "id": "UC-12",
@@ -260,7 +268,8 @@
           "benchmark_cases": [
             "1"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#3025, #2984"
         },
         {
           "id": "UC-14",
@@ -280,7 +289,8 @@
           "benchmark_cases": [
             "1"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#3112"
         },
         {
           "id": "UC-15",
@@ -300,7 +310,8 @@
           "benchmark_cases": [
             "2"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2958"
         },
         {
           "id": "UC-16",
@@ -421,7 +432,8 @@
           "benchmark_cases": [
             "2"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#3055"
         },
         {
           "id": "UC-22",
@@ -530,7 +542,8 @@
           "benchmark_cases": [
             "3"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2928, #2890"
         },
         {
           "id": "UC-27",
@@ -637,7 +650,8 @@
           "benchmark_cases": [
             "5"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2920"
         },
         {
           "id": "UC-32",
@@ -778,7 +792,8 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/investmentPerformanceSchedule.test.tsx",
           "e2e_test_ref": null,
           "benchmark_cases": [],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2923"
         }
       ]
     },
@@ -807,7 +822,8 @@
             "4",
             "6"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2955"
         },
         {
           "id": "UC-40",
@@ -868,7 +884,8 @@
           "benchmark_cases": [
             "1"
           ],
-          "gap_issue": null
+          "gap_kind": "partial",
+          "gap_issue": "#2977"
         },
         {
           "id": "UC-43",
