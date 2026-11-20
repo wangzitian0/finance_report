@@ -7,7 +7,7 @@
 - API title: `Finance Report API`
 - API version: `contract`
 - Endpoint count: `112`
-- Schema count: `262`
+- Schema count: `263`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 

@@ -56,6 +56,7 @@ from src.extraction import (
     current_reviewed_statement_envelope,
     effective_statement_transaction_filter,
     fail_run,
+    find_other_account_statement_matches,
     find_statement_review_conflicts,
     get_account_statement_coverage,
     get_current_statement_extraction_result,
@@ -121,6 +122,7 @@ from src.schemas.extraction import (
     CorrectionLoopReplayResponse,
     CorrectionRequest,
     CorrectionResponse,
+    OtherStatementMatchResponse,
     ResolveConflictsRequest,
     ReviewConflictCandidate,
     ReviewedStatementEnvelopeRequest,
@@ -1047,6 +1049,15 @@ async def get_review_conflicts(statement_id: UUID, ctx: ReadCtx) -> ReviewConfli
     return ReviewConflictsResponse(
         duplicates=[_candidate(txn) for txn in duplicates],
         transfer_pairs=[_candidate(txn) for txn in transfer_pairs],
+        other_statement_matches=[
+            OtherStatementMatchResponse(
+                statement_id=match.statement_id,
+                account_name=match.account_name,
+                matched_rows=match.matched_rows,
+                total_rows=match.total_rows,
+            )
+            for match in await find_other_account_statement_matches(db, statement, transactions)
+        ],
         resolved=statement.stage1_conflicts_resolved_at is not None,
     )
 

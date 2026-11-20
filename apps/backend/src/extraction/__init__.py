@@ -201,6 +201,7 @@ from src.extraction.extension.statement_summary import (
     resolve_custody_account_id,
 )
 from src.extraction.extension.statement_validation import (
+    find_other_account_statement_matches,
     find_statement_review_conflicts,
     pending_stage1_review_filter,
     resolve_statement_conflicts,
@@ -379,6 +380,7 @@ __all__ = [
     "extraction_artifact_dependency_digest",
     "extraction_trace_policy_registry",
     "fail_run",
+    "find_other_account_statement_matches",
     "find_statement_review_conflicts",
     "finish_run",
     "get_account_statement_coverage",

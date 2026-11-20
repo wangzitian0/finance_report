@@ -106,7 +106,7 @@ export function ReviewActionBar({ onApprove, onReject, actionLoading, balanceVal
   const blockedByBalance = !isParsing && !blockedByReview && !balanceValid;
   const isBlocked = isParsing || blockedByReview || blockedByBalance;
   const reason = isParsing ? "Approve is paused — extraction is in progress."
-    : blockedByConflicts ? "Approve is paused — we found possible duplicate or transfer-pair transactions. Review them before approving."
+    : blockedByConflicts ? "Approve is paused — we found possible duplicates, transfer pairs, or equal rows on another account. Review them before approving."
     : blockedByReview ? (approvalBlockedReason || "Approve is paused until the required review is complete.")
     : blockedByBalance ? "Approve is paused — this statement's closing balance doesn't match its transactions. Re-parsing usually fixes this." : "";
   return (
@@ -127,15 +127,17 @@ export function ReviewActionBar({ onApprove, onReject, actionLoading, balanceVal
 }
 
 type ConflictCandidate = { id: string; description: string; txn_date: string; amount: MoneyValue };
+type OtherStatementMatch = { statement_id: string; account_name: string; matched_rows: number; total_rows: number };
 
 /**
  * Lists the Stage-1 candidates of one statement and offers one confirmation for all of them (#2958).
  * The confirmation links no rows: transfer pairs come from reconciliation.
+ * A match with an approved statement of another account (#2917) is listed first: the reviewer confirms that this is a different account.
  */
-export function ConflictResolutionDialog({ isOpen, onClose, duplicateCandidates, transferPairCandidates, onResolve, isResolving = false }: {
-  isOpen: boolean; onClose: () => void; duplicateCandidates: ConflictCandidate[]; transferPairCandidates: ConflictCandidate[]; onResolve?: () => void; isResolving?: boolean;
+export function ConflictResolutionDialog({ isOpen, onClose, duplicateCandidates, transferPairCandidates, otherStatementMatches = [], onResolve, isResolving = false }: {
+  isOpen: boolean; onClose: () => void; duplicateCandidates: ConflictCandidate[]; transferPairCandidates: ConflictCandidate[]; otherStatementMatches?: OtherStatementMatch[]; onResolve?: () => void; isResolving?: boolean;
 }) {
-  const empty = duplicateCandidates.length === 0 && transferPairCandidates.length === 0;
+  const empty = duplicateCandidates.length === 0 && transferPairCandidates.length === 0 && otherStatementMatches.length === 0;
   const rows = (kind: string, candidates: ConflictCandidate[]) => (
     <div className="space-y-2">{candidates.map((c, i) => (
       <div key={`${kind}-${c.id}-${i}`} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 text-sm"><div className="font-medium">{c.description}</div><div className="text-xs text-muted">{c.txn_date} • {c.amount}</div></div>
@@ -147,6 +149,16 @@ export function ConflictResolutionDialog({ isOpen, onClose, duplicateCandidates,
         <div className="text-center py-8 text-muted"><p>No conflicts detected for this statement.</p></div>
       ) : (
         <div className="space-y-6">
+          {otherStatementMatches.length > 0 && (
+            <div>
+              <h3 className="text-sm font-medium mb-2 flex items-center gap-2"><span className="w-2 h-2 bg-[var(--error)] rounded-full" />Same rows on another account</h3>
+              <div className="space-y-2">{otherStatementMatches.map((m) => (
+                <div key={m.statement_id} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 text-sm">
+                  {m.matched_rows} of {m.total_rows} rows equal an approved statement of <span className="font-medium">{m.account_name}</span>. If this is the same account, reject this statement. <Link href={`/statements/${m.statement_id}`} className="underline">Open that statement</Link>
+                </div>
+              ))}</div>
+            </div>
+          )}
           {duplicateCandidates.length > 0 && (
             <div>
               <h3 className="text-sm font-medium mb-2 flex items-center gap-2"><span className="w-2 h-2 bg-[var(--warning)] rounded-full" />Duplicate Candidates</h3>

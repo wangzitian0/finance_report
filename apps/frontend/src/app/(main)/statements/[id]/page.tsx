@@ -227,6 +227,8 @@ export default function StatementDetailPage() {
   const pendingStatements = pendingStatementsData?.items || [];
   const duplicateCandidates = conflicts?.duplicates || [];
   const transferPairCandidates = conflicts?.transfer_pairs || [];
+  const otherStatementMatches = conflicts?.other_statement_matches || [];
+  const conflictCount = duplicateCandidates.length + transferPairCandidates.length + otherStatementMatches.length;
   const sourceMissingFacts = review?.source_missing_facts || [];
   const sourceEnvelopeReviewable = Boolean(review?.source_envelope_reviewable);
   const requiresEnvelopeConfirmation = isParsed && sourceEnvelopeReviewable && !review?.reviewed_envelope;
@@ -421,8 +423,8 @@ export default function StatementDetailPage() {
   });
 
   useEffect(() => {
-    if (!conflicts?.resolved && (duplicateCandidates.length || transferPairCandidates.length)) setConflictDialogOpen(true);
-  }, [duplicateCandidates.length, transferPairCandidates.length, conflicts?.resolved]);
+    if (!conflicts?.resolved && conflictCount) setConflictDialogOpen(true);
+  }, [conflictCount, conflicts?.resolved]);
 
   useEffect(() => {
     if (!review || !requiresEnvelopeConfirmation) return;
@@ -543,7 +545,7 @@ export default function StatementDetailPage() {
   const canImport = !importResult && (statement.status === "parsed" || statement.status === "approved") && canImportBrokerageStatement(statement);
   const validationResult = review?.balance_validation_result ?? null;
   const balanceValid = Boolean(validationResult?.closing_match);
-  const hasUnresolvedConflicts = !(conflictsResolved || conflicts?.resolved) && (duplicateCandidates.length > 0 || transferPairCandidates.length > 0);
+  const hasUnresolvedConflicts = !(conflictsResolved || conflicts?.resolved) && conflictCount > 0;
   const approvalBlockedReason = hasActiveRun ? "Wait for the active run to end before approving this statement."
     : requiresEnvelopeConfirmation ? "Confirm the source facts before approving this statement."
     : requiresOtherSourceReview ? "This source has facts that a cash statement check cannot confirm."
@@ -668,7 +670,7 @@ export default function StatementDetailPage() {
         <div className={`order-1 min-w-0 lg:order-2 ${showPreview ? "lg:col-span-7 lg:min-h-[540px] lg:h-[600px]" : "lg:col-span-12"}`}><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
       </div>
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
-      <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={() => resolveConflictsMutation.mutate()} isResolving={resolveConflictsMutation.isPending} />
+      <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} otherStatementMatches={otherStatementMatches} onResolve={() => resolveConflictsMutation.mutate()} isResolving={resolveConflictsMutation.isPending} />
       <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate(hasUnclassifiedPendingTxns ? { autoFill: true } : undefined)} title="Approve Statement" message={(hasUnclassifiedPendingTxns ? "Transactions without a category will be filed under default categories. " : "") + (review?.account_id || envelopeDraft.accountId ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?")} confirmLabel="Approve" loading={approveMutation.isPending} />
       <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={handleReject} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement with a reason. The reason guides the next parse, or run it again with hints on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection...", maxLength: 500 }} loading={rejectMutation.isPending} />
       <ConfirmDialog isOpen={deleteDialogOpen} title="Delete Statement" message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors." confirmLabel="Delete" confirmVariant="danger" loading={deleteLoading} onConfirm={handleDeleteStatement} onCancel={() => setDeleteDialogOpen(false)} />

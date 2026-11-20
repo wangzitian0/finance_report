@@ -1197,6 +1197,12 @@ export interface components {
       entry_date: string;
       memo: string;
     };
+    OtherStatementMatchResponse: {
+      account_name: string;
+      matched_rows: number;
+      statement_id: string;
+      total_rows: number;
+    };
     PackageSnapshotExportFormat: "json" | "csv" | "zip";
     PersonalDataQualityHealthResponse: {
       action_items: _S["QualityActionItem"][];
@@ -1691,6 +1697,7 @@ export interface components {
     };
     ReviewConflictsResponse: {
       duplicates?: _S["ReviewConflictCandidate"][];
+      other_statement_matches?: _S["OtherStatementMatchResponse"][];
       resolved: boolean;
       transfer_pairs?: _S["ReviewConflictCandidate"][];
     };

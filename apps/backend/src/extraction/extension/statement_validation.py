@@ -1,11 +1,13 @@
 """Stage 1 statement review and balance-chain validation on StatementSummary."""
 
+from collections import Counter
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import and_, desc, or_, select
+from sqlalchemy import and_, desc, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_BALANCE_TOLERANCE, InvariantResult, evaluate_promotion
@@ -24,7 +26,7 @@ from src.extraction.extension.transaction_identity import (
 )
 from src.extraction.orm.layer2 import AtomicTransaction, AtomicTransactionIdentity
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import account_service
+from src.ledger import Account, account_service
 from src.platform import ConflictError, ResourceNotFoundError, ValidationFailedError
 
 BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
@@ -440,14 +442,92 @@ def _has_unresolved_statement_conflicts(transactions: list[AtomicTransaction]) -
     return False
 
 
-def _raise_if_statement_conflicts_unresolved(
-    statement: StatementSummary, transactions: list[AtomicTransaction]
+# A month that is approved on one account and uploaded again on another account of the user posts each row twice:
+# the row identity holds the account, so no unique key sees it (#2917). These two numbers define "the same month".
+OTHER_STATEMENT_MIN_MATCHED_ROWS = 3
+OTHER_STATEMENT_MIN_MATCHED_SHARE = Decimal("0.8")
+
+
+@dataclass(frozen=True)
+class OtherStatementMatch:
+    """An approved statement of another account whose rows equal the rows of this statement."""
+
+    statement_id: UUID
+    account_name: str
+    matched_rows: int
+    total_rows: int
+
+
+def _row_key(txn: AtomicTransaction) -> tuple:
+    return (txn.txn_date, txn.amount.copy_abs(), _direction_val(txn.direction))
+
+
+async def find_other_account_statement_matches(
+    db: AsyncSession, statement: StatementSummary, transactions: list[AtomicTransaction]
+) -> list[OtherStatementMatch]:
+    """Return each approved statement of another account that holds the rows of this statement.
+
+    Rows are equal when date, absolute amount and direction are equal. The description is not compared: a PDF and
+    a CSV of one month print different descriptions.
+    """
+    currency = (statement.currency or "").strip().upper()
+    if (
+        len(transactions) < OTHER_STATEMENT_MIN_MATCHED_ROWS
+        or statement.account_id is None
+        or not currency
+        or statement.period_start is None
+        or statement.period_end is None
+    ):
+        return []
+    others = (
+        await db.execute(
+            select(StatementSummary, Account.name)
+            .join(Account, Account.id == StatementSummary.account_id)
+            .where(
+                StatementSummary.user_id == statement.user_id,
+                StatementSummary.id != statement.id,
+                StatementSummary.account_id != statement.account_id,
+                StatementSummary.status == BankStatementStatus.APPROVED,
+                func.upper(StatementSummary.currency) == currency,
+                StatementSummary.period_start <= statement.period_end,
+                StatementSummary.period_end >= statement.period_start,
+            )
+            .order_by(StatementSummary.created_at)
+        )
+    ).all()
+    mine = Counter(_row_key(txn) for txn in transactions)
+    matches: list[OtherStatementMatch] = []
+    for other, account_name in others:
+        theirs = Counter(_row_key(txn) for txn in await resolve_statement_transactions(db, other))
+        matched = sum((mine & theirs).values())
+        if (
+            matched >= OTHER_STATEMENT_MIN_MATCHED_ROWS
+            and matched >= OTHER_STATEMENT_MIN_MATCHED_SHARE * len(transactions)
+        ):
+            matches.append(
+                OtherStatementMatch(
+                    statement_id=other.id,
+                    account_name=account_name,
+                    matched_rows=matched,
+                    total_rows=len(transactions),
+                )
+            )
+    return matches
+
+
+async def _raise_if_statement_conflicts_unresolved(
+    db: AsyncSession, statement: StatementSummary, transactions: list[AtomicTransaction]
 ) -> None:
     if statement.stage1_conflicts_resolved_at is not None:
         return
     if _has_unresolved_statement_conflicts(transactions):
         raise ValidationFailedError(
             "Cannot approve statement while unresolved duplicate or transfer-pair candidates remain"
+        )
+    for match in await find_other_account_statement_matches(db, statement, transactions):
+        raise ValidationFailedError(
+            f"{match.matched_rows} of {match.total_rows} rows equal the rows of an approved statement of account "
+            f"{match.account_name}. Confirm that this statement is a different account before posting."
         )
 
 
@@ -517,7 +597,7 @@ async def approve_statement_with_transactions(
     )
 
     _raise_if_balance_chain_invalid(validation_result)
-    _raise_if_statement_conflicts_unresolved(statement, transactions)
+    await _raise_if_statement_conflicts_unresolved(db, statement, transactions)
 
     statement.stage1_status = Stage1Status.APPROVED
     statement.stage1_reviewed_at = datetime.now(UTC)

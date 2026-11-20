@@ -203,8 +203,7 @@
           "frontend_test_ref": "apps/frontend/src/__tests__/StatementUploader.test.tsx",
           "e2e_test_ref": null,
           "benchmark_cases": [],
-          "gap_kind": "partial",
-          "gap_issue": "#2917"
+          "gap_issue": null
         },
         {
           "id": "UC-11",
