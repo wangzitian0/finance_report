@@ -307,19 +307,14 @@ async def test_a_disposed_imported_position_does_not_empty_the_schedule_total(db
     ) == ({"VWRA": (Decimal("1800.00"), Decimal("300.00")), "ES3": (None, None)}, Decimal("300.00"), [])
 
 
-async def test_balance_sheet_adds_the_full_market_value_when_the_broker_account_holds_ledger_cash():
-    account_id = uuid4()
-    basis = {
-        account_id: {
-            "account": Account(name="Moomoo", type=AccountType.ASSET, currency="SGD"),
-            "market_value": Decimal("2100.00"),
-            "cost_basis": Decimal("0"),
-            "source_currencies": {"SGD"},
-        }
-    }
+async def test_balance_sheet_adds_the_full_market_value_when_the_broker_account_holds_ledger_cash(db, test_user):
+    position = await _import_two_snapshots(db, test_user.id)
+    basis = await _portfolio_market_basis_by_account(db, test_user.id, as_of_date=SEPTEMBER, target_currency="SGD")
 
     lines = _portfolio_market_adjustment_lines_from_basis(
-        basis, asset_lines=[{"account_id": account_id, "amount": Decimal("5000.00")}], target_currency="SGD"
+        basis,
+        asset_lines=[{"account_id": position.account_id, "amount": Decimal("5000.00")}],
+        target_currency="SGD",
     )
 
     assert [line["amount"] for line in lines] == [Decimal("2100.00")]
