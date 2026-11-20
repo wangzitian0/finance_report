@@ -16,7 +16,7 @@ import { BankStatement, BrokerageImportResponse, StatementRunHints, StatementRun
 import { PARSING_POLL_MS, canImportBrokerageStatement, currencyCodeOrDash } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
-import { INVALID_HINTS_MESSAGE, ParsingAttempts, RunAgainPanel, isRunActive, noteProblem, normalizeNote } from "@/components/statements/StatementRuns";
+import { INVALID_HINTS_MESSAGE, ParsingAttempts, RunAgainPanel, activeRunConflictMessage, isRunActive, noteProblem, normalizeNote } from "@/components/statements/StatementRuns";
 import {
   PdfPreviewPane,
   hasInlinePreview,
@@ -209,9 +209,10 @@ export default function StatementDetailPage() {
   // The attempts load as soon as the statement has loaded, also while it parses: a statement that stays in
   // parsing shows the attempt that explains it. They refresh while a run is requested or running.
   const runsEnabled = Boolean(statement);
+  const fetchRuns = () => apiOperationAllPages("list_statement_runs_statements__statement_id__runs_get", { path: { statement_id: statementId } });
   const { data: runsData } = useQuery({
     queryKey: ["statement-runs", statementId],
-    queryFn: () => apiOperationAllPages("list_statement_runs_statements__statement_id__runs_get", { path: { statement_id: statementId } }),
+    queryFn: fetchRuns,
     enabled: runsEnabled,
     refetchInterval: (query) =>
       (query.state.data?.items ?? []).some(isRunActive) || statement?.status === "parsing"
@@ -462,22 +463,30 @@ export default function StatementDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
       return fetchStatement({ supersede: true });
     },
-    onError: (err) => {
+    onError: async (err) => {
       const conflict = err instanceof ApiError && err.status === 409;
       // Only a 409 with an `active_run_id` means that a run is in progress. Any other 409 says that the statement changed.
       const activeRunId = conflict ? (err.body as { active_run_id?: string } | null)?.active_run_id : undefined;
+      // The 409 body holds the id of the run, not its kind. The page may not know the run yet: load the runs again.
+      const activeRunKind = activeRunId
+        ? await queryClient.fetchQuery({ queryKey: ["statement-runs", statementId], queryFn: fetchRuns, staleTime: 0 }).then(
+            (fresh) => fresh.items.find((run) => run.id === activeRunId)?.kind,
+            () => undefined,
+          )
+        : undefined;
       // A 422 body echoes the hints that the user typed. The page shows one fixed sentence, never that body.
       const invalid = err instanceof ApiError && err.status === 422;
       const message = conflict
         ? activeRunId
-          ? "A run is already in progress for this statement. Wait for it to end, then run again."
+          ? activeRunConflictMessage(activeRunKind)
           : "The statement changed. Reload the page."
         : invalid
           ? INVALID_HINTS_MESSAGE
           : err instanceof Error ? err.message : "Failed to start the run";
       setRunAgainError(message);
       showToast(message, "error");
-      if (conflict) void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
+      // The load above already refreshed the runs when it found the run.
+      if (conflict && activeRunKind === undefined) void queryClient.invalidateQueries({ queryKey: ["statement-runs", statementId] });
     },
   });
   const runAgain = async (kind: StatementRunKind, hints: StatementRunHints): Promise<boolean> => {
