@@ -1868,8 +1868,9 @@ async def verify_gated_auto_approve(client, db, test_user, monkeypatch) -> None:
             0,
         )
         review = await client.get(f"/statements/{statement_id}/review")
+        body = {"expected_source_result_digest": review.json()["source_result_digest"]}
         started = time.perf_counter()
-        refused = await approve_reviewed(client, statement_id, {})
+        refused = await client.post(f"/statements/{statement_id}/approvals", json=body)
         assert (
             review.status_code,
             len(review.json()["transactions"]),

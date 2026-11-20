@@ -372,7 +372,7 @@ class ScenarioBenchmarkRunner:
     def assert_approval_blocked_by_balance_mismatch(self, client: httpx.Client, statement_id: str) -> dict[str, Any]:
         # The body names the reviewed result, so the block below comes from the balance check and not from a missing digest.
         resp = client.post(f"/api/statements/{statement_id}/approvals", json=self._approval_body(client, statement_id, {}))
-        if resp.status_code not in (400, 422):
+        if resp.status_code not in (400, 422) or "expected_source_result_digest" in resp.text:
             raise RuntimeError(
                 f"Expected balance mismatch approval block (400/422) for {statement_id}, got {resp.status_code}: {resp.text}"
             )

@@ -163,3 +163,17 @@ def test_benchmark_approvals_name_the_reviewed_extraction_result(monkeypatch: py
     sent_without_result: list[dict] = []
     runner.approve_statement(_approval_api(None, sent_without_result), "stmt-3")
     assert sent_without_result == [{"create_account_if_missing": True}]
+
+
+def test_benchmark_block_check_rejects_a_missing_digest_refusal() -> None:
+    """A 422 that asks for the digest is not a balance block (#3025)."""
+    from tests.benchmarks.run_financial_scenario_benchmark import ScenarioBenchmarkRunner
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/review"):
+            return httpx.Response(200, json={"source_result_digest": None})
+        return httpx.Response(422, json={"detail": "Send expected_source_result_digest."})
+
+    client = httpx.Client(base_url="http://api.test", transport=httpx.MockTransport(handler))
+    with pytest.raises(RuntimeError, match="Expected balance mismatch approval block"):
+        ScenarioBenchmarkRunner("http://api.test").assert_approval_blocked_by_balance_mismatch(client, "stmt-1")
