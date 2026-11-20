@@ -1942,7 +1942,8 @@ async def verify_approve_active_or_failed_classify_run(client, db, test_user, mo
 
     before_entries, before_answers = await _count(db, JournalEntry), await count_user_answers(db, test_user)
     failing = install_proposer(monkeypatch, Proposer(error=RuntimeError("provider down")))
-    seeded_fail = await seed_classify_statement(db, test_user)
+    # Another month: the same rows on a second account stop at the duplicate-month check (#2917).
+    seeded_fail = await seed_classify_statement(db, test_user, make_rows(first_day=date(2026, 2, 1)))
     assert (await get_run(db, await classify_statement(db, seeded_fail.id))).state is RunState.FAILED
     fail_resp = await approve_reviewed(client, seeded_fail.id, {"create_account_if_missing": True})
     assert (

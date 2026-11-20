@@ -409,9 +409,19 @@ class ReviewConflictCandidate(BaseModel):
     direction: str
 
 
+class OtherStatementMatchResponse(BaseModel):
+    """An approved statement of another account whose rows equal the rows of this statement (#2917)."""
+
+    statement_id: UUID
+    account_name: str
+    matched_rows: int
+    total_rows: int
+
+
 class ReviewConflictsResponse(BaseModel):
     duplicates: list[ReviewConflictCandidate] = default_list()
     transfer_pairs: list[ReviewConflictCandidate] = default_list()
+    other_statement_matches: list[OtherStatementMatchResponse] = default_list()
     resolved: bool = False
 
 

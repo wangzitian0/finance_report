@@ -35,4 +35,16 @@ describe("ConflictResolutionDialog", () => {
     fireEvent.click(pending);
     expect(onResolve).toHaveBeenCalledTimes(1);
   });
+
+  it("lists a match with an approved statement of another account and keeps one confirmation (#2917)", () => {
+    const onResolve = vi.fn();
+    const other = [{ statement_id: "s9", account_name: "DBS From PDF", matched_rows: 3, total_rows: 3 }];
+    render(<ConflictResolutionDialog isOpen onClose={onClose} duplicateCandidates={[]} transferPairCandidates={[]} otherStatementMatches={other} onResolve={onResolve} />);
+    has(["Same rows on another account", "DBS From PDF"]);
+    expect(screen.getByRole("dialog")).toHaveTextContent("3 of 3 rows equal an approved statement of DBS From PDF");
+    expect(screen.queryByText("No conflicts detected for this statement.")).toBeNull();
+    expect(screen.getByRole("link", { name: "Open that statement" })).toHaveAttribute("href", "/statements/s9");
+    fireEvent.click(screen.getByText("These rows are different transactions. Continue."));
+    expect(onResolve).toHaveBeenCalledTimes(1);
+  });
 });

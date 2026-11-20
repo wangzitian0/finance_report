@@ -71,7 +71,8 @@ async def test_post_statement_approve_and_batch_accept_sql_budgets(client: Async
     assert (await client.get(f"/statements/{seeded.id}/review")).status_code == 200
     with _capture_sql(db_engine) as stmts:
         resp = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
-    assert resp.status_code == 200 and len(stmts) <= 98, (resp.text, len(stmts))
+    # 98 + 1: the check for the same month on another account of the user is one query (#2917).
+    assert resp.status_code == 200 and len(stmts) <= 99, (resp.text, len(stmts))
 
     async def _run_batch(count: int, tag: str) -> int:
         match_ids = []

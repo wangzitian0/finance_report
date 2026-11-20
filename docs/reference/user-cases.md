@@ -36,19 +36,19 @@ Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`). 
 | Domain | Total | `L4_FULL` | `L3_E2E` | `L3_BENCH` | `L2_SURFACE` | `L1_PARTIAL` | `L0_GAP` |
 |---|---:|---:|---:|---:|---:|---:|---:|
 | **D1: Setup, Identity & Chart of Accounts** | 5 | 0 | 1 | 0 | 0 | 4 | 0 |
-| **D2: Ingestion & Multimodal Extraction** | 7 | 2 | 0 | 0 | 1 | 4 | 0 |
+| **D2: Ingestion & Multimodal Extraction** | 7 | 2 | 0 | 0 | 2 | 3 | 0 |
 | **D3: Fact Review & Human-in-the-Loop** | 8 | 0 | 2 | 3 | 1 | 2 | 0 |
 | **D4: Economic Intent & Categorization** | 5 | 1 | 0 | 3 | 0 | 1 | 0 |
 | **D5: Cross-Source Reconciliation & Transfers** | 5 | 0 | 1 | 3 | 0 | 1 | 0 |
 | **D6: Investments & Multi-Asset Valuation** | 8 | 2 | 0 | 2 | 1 | 3 | 0 |
 | **D7: Financial Reporting & Accounting Equation Governance** | 7 | 1 | 1 | 3 | 0 | 2 | 0 |
 | **D8: Anomaly Monitoring & Explainable AI Financial Advisor** | 2 | 1 | 0 | 1 | 0 | 0 | 0 |
-| **Total** | **47** | **7** | **5** | **15** | **3** | **17** | **0** |
+| **Total** | **47** | **7** | **5** | **15** | **4** | **16** | **0** |
 
 ### Incremental Proof Upgrade Queue
 
-- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-10 (#2917), UC-11 (#3029), UC-13 (#2984), UC-14 (#3112), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923), UC-39 (#2955), UC-42 (#2977)
-- **Surface-only (`L2_SURFACE` — add E2E or benchmark)**: UC-12, UC-18, UC-37
+- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-11 (#3029), UC-13 (#2984), UC-14 (#3112), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923), UC-39 (#2955), UC-42 (#2977)
+- **Surface-only (`L2_SURFACE` — add E2E or benchmark)**: UC-10, UC-12, UC-18, UC-37
 - **Bench without E2E (`L3_BENCH` -> `L4_FULL`)**: UC-15, UC-16, UC-17, UC-22, UC-23, UC-25, UC-28, UC-29, UC-30, UC-33, UC-35, UC-40, UC-41, UC-44, UC-46
 - **E2E without Bench (`L3_E2E` -> `L4_FULL`)**: UC-05, UC-19, UC-20, UC-27, UC-43
 
@@ -80,7 +80,7 @@ Focuses on multi-source ingestion (PDF statements, CSV, multi-currency balances,
 | **UC-07** | Batch Multi-Month Ingestion & Continuity Gap Detection<br>*(多月份账单批量连续导入与断流预警)* | `/upload` | `StatementUploader` | `POST /statements` | `Statement[M].closing_balance == Statement[M+1].opening_balance` | `L4_FULL` | [`apps/backend/tests/accounting/test_account_statement_coverage.py`](../../apps/backend/tests/accounting/test_account_statement_coverage.py) |
 | **UC-08** | Custom Non-Standard CSV Column Mapping<br>*(非标机构 CSV 流水导入与表头映射)* | `/upload` | `StatementUploader` | `POST /statements` | `All mapped rows have valid txn_date, description, and Decimal amount` | `L4_FULL` | [`apps/backend/tests/extraction/test_csv_parsing.py`](../../apps/backend/tests/extraction/test_csv_parsing.py) |
 | **UC-09** | Multi-Currency Combined Bank Statement Extraction<br>*(多币种综合月结单拆解)* | `/upload` | `StatementUploader` | `POST /statements` | `Each currency sub-ledger validates opening + sum(IN) - sum(OUT) == closing independently` | `L1_PARTIAL (#2983)` | [`apps/backend/tests/extraction/test_source_ingestion_integrity.py`](../../apps/backend/tests/extraction/test_source_ingestion_integrity.py) |
-| **UC-10** | Duplicate Statement Upload Idempotency<br>*(重复上传同一账单幂等拦截)* | `/upload` | `StatementUploader` | `POST /statements` | `Re-uploading an identical document digest/period never duplicates parsed transactions or ledger postings` | `L1_PARTIAL (#2917)` | [`apps/backend/tests/extraction/test_source_ingestion_integrity.py`](../../apps/backend/tests/extraction/test_source_ingestion_integrity.py) |
+| **UC-10** | Duplicate Statement Upload Idempotency<br>*(重复上传同一账单幂等拦截)* | `/upload` | `StatementUploader` | `POST /statements` | `Re-uploading an identical document digest/period never duplicates parsed transactions or ledger postings` | `L2_SURFACE` | [`apps/backend/tests/extraction/test_source_ingestion_integrity.py`](../../apps/backend/tests/extraction/test_source_ingestion_integrity.py) |
 | **UC-11** | Hint-Guided Statement Re-Parse & Re-Classification Run<br>*(带用户提示词发起重析与重分类运行)* | `/statements/{id}` | `RunAgainPanel` | `POST /statements/{statement_id}/runs` | `New StatementRun supersedes prior drafts append-only without overwriting posted journal entries` | `L1_PARTIAL (#3029)` | [`apps/backend/tests/api/test_statement_run_api.py`](../../apps/backend/tests/api/test_statement_run_api.py) |
 | **UC-12** | Upload-to-Report Workflow Status & Event Tracking<br>*(实时跟踪上传到报表工作流状态)* | `/upload` | `WorkflowNotificationCenter` | `GET /workflow/status` | `WorkflowSession and WorkflowEvent reflect deterministic readiness and surface actionable blockers` | `L2_SURFACE` | [`apps/backend/tests/api/test_workflow_router.py`](../../apps/backend/tests/api/test_workflow_router.py) |
 
