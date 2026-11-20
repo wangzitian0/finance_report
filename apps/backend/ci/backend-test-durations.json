@@ -1856,7 +1856,6 @@
   "tests/portfolio/test_portfolio_router.py::test_AC17_10_6_investment_performance_schedule_converts_mixed_currency_amounts": 0.378,
   "tests/portfolio/test_portfolio_router.py::test_AC17_30_4_5_6_dividends_realized_allocation_pagination": 0.05,
   "tests/portfolio/test_portfolio_router.py::test_AC17_30_holdings_pagination_and_cap": 0.05,
-  "tests/portfolio/test_portfolio_router.py::test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency": 0.293,
   "tests/portfolio/test_portfolio_router.py::test_AC_portfolio_2673_1_create_holding_dividend_posts_balanced_journal_entry": 0.756,
   "tests/portfolio/test_portfolio_router.py::test_AC_portfolio_holdings_6_unreconciled_snapshot_disclosed_in_warnings": 0.199,
   "tests/portfolio/test_portfolio_router.py::test_allocation_endpoints_empty_and_with_data[asset-class]": 0.05,

@@ -10,10 +10,10 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import Currency, Money, to_money
+from src.audit.money import Currency, to_money
 from src.audit.ratio import Ratio
 from src.extraction.orm.layer2 import AtomicPosition
-from src.portfolio.orm.portfolio import ManagedPosition, PositionStatus
+from src.portfolio.orm.portfolio import PositionStatus
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     InsufficientDataError,
@@ -22,7 +22,7 @@ from src.portfolio.base.errors import (
 )
 from src.portfolio.extension import allocation, performance
 from src.portfolio.extension.holdings import portfolio_service
-from src.pricing import MarketDataOverride, PriceSource, StockPrice, convert_money
+from src.pricing import MarketDataOverride, PriceSource, StockPrice
 
 if TYPE_CHECKING:
     from src.schemas.portfolio import (
@@ -183,21 +183,6 @@ async def build_investment_performance_report_schedule(
         )
 
     asset_identifiers = [holding.asset_identifier for holding in holdings]
-    position_by_asset: dict[str, ManagedPosition] = (
-        {
-            p.asset_identifier: p
-            for p in (
-                await db.scalars(
-                    select(ManagedPosition).where(
-                        ManagedPosition.user_id == user_id,
-                        ManagedPosition.asset_identifier.in_(asset_identifiers),
-                    )
-                )
-            ).all()
-        }
-        if asset_identifiers
-        else {}
-    )
 
     async def _metric_or_note(metric_name: str, calculation):
         try:
@@ -240,21 +225,20 @@ async def build_investment_performance_report_schedule(
     schemas = _portfolio_schemas()
     holding_rows: list[InvestmentPerformanceHoldingRow] = []
     for holding in holdings:
-        position = position_by_asset.get(holding.asset_identifier)
-        base_money, acq_date = (
-            (Money(holding.cost_basis, Currency.of(holding.currency)), holding.acquisition_date)
-            if position is None
-            else (position.cost_basis_money, position.acquisition_date)
-        )
-        cost_basis = (await convert_money(db, base_money, schedule_currency, acq_date, lazy_load=True)).quantize()
+        # The holdings loader already converts value and cost to the schedule currency.
         market_value = to_money(holding.market_value)
+        if holding.cost_basis is None and holding.status == PositionStatus.ACTIVE:
+            notes.append(
+                f"No purchase is recorded for {holding.asset_identifier}; "
+                "cost basis and unrealized profit are not available."
+            )
         holding_rows.append(
             schemas.InvestmentPerformanceHoldingRow(
                 asset_identifier=holding.asset_identifier,
                 quantity=holding.quantity,
-                cost_basis=cost_basis.amount,
+                cost_basis=holding.cost_basis,
                 market_value=market_value,
-                unrealized_pnl=to_money(market_value - cost_basis.amount),
+                unrealized_pnl=holding.unrealized_pnl,
                 realized_pnl=to_money(realized_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
                 dividend_income=to_money(dividend_by_asset.get(holding.asset_identifier, Decimal("0.00"))),
                 currency=schedule_currency,
@@ -406,7 +390,16 @@ async def build_investment_performance_report_schedule(
         time_weighted_return=_percent(twr),
         money_weighted_return=_percent(mwr),
         realized_pnl=to_money(sum(realized_by_asset.values(), Decimal("0.00"))),
-        unrealized_pnl=to_money(sum((row.unrealized_pnl for row in holding_rows), Decimal("0.00"))),
+        unrealized_pnl=(
+            to_money(sum((row.unrealized_pnl or Decimal("0.00") for row in holding_rows), Decimal("0.00")))
+            # A disposed row holds nothing: only the held rows decide if the total is known.
+            if all(
+                row.unrealized_pnl is not None
+                for row, holding in zip(holding_rows, holdings, strict=True)
+                if holding.status == PositionStatus.ACTIVE
+            )
+            else None
+        ),
         dividend_income=to_money(sum(dividend_by_asset.values(), Decimal("0.00"))),
         dividend_yield=_percent(dividend_yield),
         holdings=holding_rows,

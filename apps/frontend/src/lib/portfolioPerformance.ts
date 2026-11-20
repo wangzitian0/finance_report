@@ -2,6 +2,9 @@ import { compareAmounts, sumAmounts } from "./audit/money";
 import { formatPercentValueFromParts } from "@/lib/audit/ratio/format";
 import type { InvestmentPerformanceReportSchedule } from "./types";
 
+/** The label for a cost or a profit that no recorded purchase supports (#2920). */
+export const NO_PURCHASE_RECORDED = "No purchase recorded";
+
 /**
  * Market-value performance figures derived from the investment performance
  * report schedule. This is the honest "asset-dashboard answer" for #914:
@@ -10,10 +13,10 @@ import type { InvestmentPerformanceReportSchedule } from "./types";
  * reporting side as analytical measures rather than the headline answer.
  */
 export interface MarketValuePerformance {
-    /** Total unrealized market-value gain/loss in the schedule currency. */
-    unrealizedPnl: string;
-    /** Sum of per-holding cost basis in the schedule currency. */
-    totalCostBasis: string;
+    /** Total unrealized market-value gain/loss, or null when a holding has no recorded purchase. */
+    unrealizedPnl: string | null;
+    /** Sum of per-holding cost basis, or null when a holding has no recorded purchase. */
+    totalCostBasis: string | null;
     /** Sum of per-holding market value in the schedule currency. */
     totalMarketValue: string;
     /**
@@ -27,16 +30,28 @@ export function computeMarketValuePerformance(
     schedule: InvestmentPerformanceReportSchedule,
 ): MarketValuePerformance {
     const holdings = schedule.holdings ?? [];
-    const totalCostBasis = sumAmounts(holdings.map((holding) => holding.cost_basis));
     const totalMarketValue = sumAmounts(holdings.map((holding) => holding.market_value));
+    const costs = holdings.map((holding) => holding.cost_basis);
+    const unrealizedPnl = schedule.unrealized_pnl;
+    // The backend owns the rule: it sends a null total when one held position has no recorded purchase.
+    // A disposed row can have a null cost while the total is known; such a row adds nothing to the cost.
+    if (unrealizedPnl == null) {
+        return {
+            unrealizedPnl: null,
+            totalCostBasis: null,
+            totalMarketValue: totalMarketValue.toFixed(2),
+            returnOnCostPercent: null,
+        };
+    }
+    const totalCostBasis = sumAmounts(costs.filter((cost): cost is string => cost != null));
 
     let returnOnCostPercent: string | null = null;
     if (compareAmounts(totalCostBasis, "0") !== 0) {
-        returnOnCostPercent = formatPercentValueFromParts(schedule.unrealized_pnl, totalCostBasis.toString());
+        returnOnCostPercent = formatPercentValueFromParts(unrealizedPnl, totalCostBasis.toString());
     }
 
     return {
-        unrealizedPnl: schedule.unrealized_pnl,
+        unrealizedPnl,
         totalCostBasis: totalCostBasis.toFixed(2),
         totalMarketValue: totalMarketValue.toFixed(2),
         returnOnCostPercent,

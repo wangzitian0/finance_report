@@ -171,7 +171,7 @@ async def test_AC17_34_1_brokerage_import_persists_short_positions_with_negative
     atomic_rows = (await db.execute(select(AtomicPosition).where(AtomicPosition.user_id == test_user.id))).scalars().all()
     short_atomic = next(r for r in atomic_rows if r.asset_identifier == "NIO270115P7000")
     short_managed = next(p for p in (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == test_user.id))).scalars().all() if p.asset_identifier == "NIO270115P7000")
-    assert (result.parsed_positions, result.created_atomic_positions, result.skipped, {r.asset_identifier for r in atomic_rows}, short_atomic.quantity < 0, short_atomic.market_value < 0, short_managed.quantity < 0, short_managed.cost_basis < 0) == (2, 2, 0, {"AAPL", "NIO270115P7000"}, True, True, True, True)
+    assert (result.parsed_positions, result.created_atomic_positions, result.skipped, {r.asset_identifier for r in atomic_rows}, short_atomic.quantity < 0, short_atomic.market_value < 0, short_managed.quantity < 0, short_managed.cost_basis) == (2, 2, 0, {"AAPL", "NIO270115P7000"}, True, True, True, None)
 
 
 async def test_AC17_4_8_brokerage_import_survives_concurrent_auto_and_manual_import(db_engine, test_user):

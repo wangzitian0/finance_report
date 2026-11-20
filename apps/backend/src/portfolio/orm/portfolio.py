@@ -71,7 +71,11 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     asset_identifier: Mapped[str] = mapped_column(String(100), nullable=False)
 
     quantity: Mapped[Decimal] = mapped_column(Numeric(18, 6), nullable=False)
-    cost_basis: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False, comment="Total cost basis")
+    cost_basis: Mapped[Decimal | None] = mapped_column(
+        Numeric(18, 2),
+        nullable=True,
+        comment="Total cost of the recorded purchases; NULL when no purchase is recorded",
+    )
 
     # Portfolio management fields (EPIC-017)
     cost_basis_method: Mapped[CostBasisMethod | None] = mapped_column(
@@ -116,7 +120,10 @@ class ManagedPosition(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     # account_id via an explicit query (see portfolio/extension/holdings.py).
 
     @property
-    def cost_basis_money(self) -> audit.Money:
+    def cost_basis_money(self) -> audit.Money | None:
+        """Return the cost of the recorded purchases, or None when no purchase is recorded (#2920)."""
+        if self.cost_basis is None:
+            return None
         return audit.Money(self.cost_basis, audit.Currency.of(self.currency))
 
     @property

@@ -136,10 +136,10 @@ async def test_get_holdings_explicit_as_of_historical_fx_fallback_and_filters(db
         (closed.status, closed.disposal_date, closed.unrealized_pnl_percent),
     ) == (
         {"VWRA", "MSFT", "FALLBACK"},
-        (Decimal("10"), Decimal("1200.00"), Decimal("1200.00"), "Global", "etf"),
-        (Decimal("135.00000000"), Decimal("135.00000000"), "SGD"),
+        (Decimal("10"), Decimal("1200.00"), None, "Global", "etf"),
+        (Decimal("135.00000000"), None, "SGD"),
         Decimal("30.00"),
-        (PositionStatus.DISPOSED, hist, Decimal("0.00")),
+        (PositionStatus.DISPOSED, hist, None),
     )
 
 
@@ -319,5 +319,5 @@ async def test_get_holdings_sql_count_is_constant_across_portfolio_size(db, db_e
     assert (curr_by_asset["ASSET_17"].market_value, curr_by_asset["ASSET_17"].cost_basis, curr_by_asset["ASSET_17"].unrealized_pnl, curr_by_asset["ASSET_17"].provenance) == (Decimal("1200.00"), Decimal("1000.00"), Decimal("200.00"), None)
 
     # Historical as_of snapshot valuations
-    assert (snap_by_asset["ASSET_00"].market_value, snap_by_asset["ASSET_00"].cost_basis, snap_by_asset["ASSET_00"].unrealized_pnl, snap_by_asset["ASSET_00"].provenance) == (Decimal("1584.00"), Decimal("1584.00"), Decimal("0.00"), "imported")
-    assert (snap_by_asset["ASSET_06"].market_value, snap_by_asset["ASSET_06"].cost_basis, snap_by_asset["ASSET_06"].unrealized_pnl, snap_by_asset["ASSET_06"].provenance) == (Decimal("1716.00"), Decimal("1300.00"), Decimal("416.00"), "imported")
+    assert (snap_by_asset["ASSET_00"].market_value, snap_by_asset["ASSET_00"].cost_basis, snap_by_asset["ASSET_00"].unrealized_pnl, snap_by_asset["ASSET_00"].provenance) == (Decimal("1584.00"), None, None, "imported")
+    assert (snap_by_asset["ASSET_06"].market_value, snap_by_asset["ASSET_06"].cost_basis, snap_by_asset["ASSET_06"].unrealized_pnl, snap_by_asset["ASSET_06"].provenance) == (Decimal("1716.00"), None, None, "imported")

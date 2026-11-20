@@ -3,7 +3,7 @@
 import { FileText, Link2 } from "lucide-react";
 
 import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
-import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
+import { computeMarketValuePerformance, NO_PURCHASE_RECORDED } from "@/lib/portfolioPerformance";
 import { formatSignedPercentFromPercentValue } from "@/lib/audit/ratio/format";
 import { humanizeIdentifier } from "@/lib/statusLabels";
 import type { InvestmentPerformanceReportSchedule } from "@/lib/types";
@@ -185,14 +185,15 @@ export function InvestmentPerformanceSchedule({
           <p
             className={`mt-1 text-lg font-semibold ${metricClass(performance.unrealizedPnl)}`}
           >
-            {formatCurrencyLocale(performance.unrealizedPnl, schedule.currency)}
+            {performance.unrealizedPnl == null
+              ? NO_PURCHASE_RECORDED
+              : formatCurrencyLocale(performance.unrealizedPnl, schedule.currency)}
           </p>
           <p className="mt-1 text-xs text-muted">
             vs cost{" "}
-            {formatCurrencyLocale(
-              performance.totalCostBasis,
-              schedule.currency,
-            )}
+            {performance.totalCostBasis == null
+              ? "not available"
+              : formatCurrencyLocale(performance.totalCostBasis, schedule.currency)}
           </p>
         </div>
         <div className="rounded border border-[var(--border)] p-3">

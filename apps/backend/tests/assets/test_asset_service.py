@@ -56,7 +56,7 @@ class TestPositionService:
         _, reactivated, _ = await _reconcile(db, test_user.id, _snap(test_user.id, qty="5.0", mv="800.00", snap_date=date(2024, 1, 18)))
         assert ((empty, total0, r0.created), created_state, updated_state, disposed_state, (len(reactivated), reactivated[0].status, reactivated[0].quantity, reactivated[0].disposal_date)) == (([], 0, 0), (1, 1, "AAPL", Decimal("10.0"), PositionStatus.ACTIVE, "Moomoo"), (1, Decimal("15.0")), (1, 0, 0, 0, PositionStatus.DISPOSED, date(2024, 1, 17)), (1, PositionStatus.ACTIVE, Decimal("5.0"), None))
 
-    async def test_reconcile_cost_basis_multi_asset_multi_broker_null_broker_and_short(self, db, test_user):
+    async def test_reconcile_multi_asset_multi_broker_null_broker_and_short_stores_no_cost(self, db, test_user):
         _, positions, _ = await _reconcile(
             db,
             test_user.id,
@@ -74,7 +74,7 @@ class TestPositionService:
             {name for asset, name in by_key if asset == "AAPL"},
             by_key[("BTC", "Unknown Broker")].quantity,
             (by_key[("SHORT", "Moomoo")].quantity, by_key[("SHORT", "Moomoo")].status),
-        ) == (6, Decimal("1250.00"), {"Moomoo", "Interactive Brokers"}, Decimal("0.5"), (Decimal("-10.0"), PositionStatus.ACTIVE))
+        ) == (6, None, {"Moomoo", "Interactive Brokers"}, Decimal("0.5"), (Decimal("-10.0"), PositionStatus.ACTIVE))
 
     async def test_reconcile_positions_skips_snapshot_with_null_fields(self, test_user):
         broken = SimpleNamespace(id=uuid4(), asset_identifier="BROKEN-ASSET", quantity=None, market_value=Decimal("100.00"), broker="Moomoo", currency="USD", snapshot_date=date(2024, 1, 1))

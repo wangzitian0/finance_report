@@ -11,7 +11,7 @@ from uuid import UUID
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import Currency
+from src.audit.money import Currency, Money
 from src.audit.quantity import Unit
 from src.audit.unit_price import UnitPrice
 from src.ledger import Account, AccountType
@@ -146,7 +146,8 @@ async def _portfolio_basis_for_positions(
             )
             * position_quantity
         )
-        cost_basis = position.cost_basis_money
+        # A position without a recorded purchase has no cost in the ledger: its ledger cost is zero (#2920).
+        cost_basis = position.cost_basis_money or Money.zero(Currency.of(source_currency))
         if source_currency != target_currency.upper():
             try:
                 market_value = await convert_money(

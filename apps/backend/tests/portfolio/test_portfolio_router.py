@@ -46,6 +46,25 @@ def _make_managed_position(
     )
 
 
+def _make_buy(position: ManagedPosition, *, quantity: Decimal, cost: Decimal) -> InvestmentTransaction:
+    """Return the BUY row that supports the cost of ``position`` at a past date (#2920)."""
+    return InvestmentTransaction(
+        user_id=position.user_id,
+        position_id=position.id,
+        transaction_date=position.acquisition_date,
+        transaction_type=InvestmentTransactionType.BUY,
+        asset_identifier=position.asset_identifier,
+        quantity=quantity,
+        unit_price=cost / quantity,
+        gross_amount=cost,
+        fees=Decimal("0.00"),
+        currency=position.currency,
+        cost_basis=cost,
+        realized_pnl=Decimal("0.00"),
+        cost_basis_method=CostBasisMethod.FIFO,
+    )
+
+
 def _make_atomic_position(
     user_id,
     asset_identifier: str = "AAPL",
@@ -267,6 +286,7 @@ async def test_AC17_10_1_AC17_10_2_get_investment_performance_report_schedule(cl
     await _commit(
         db,
         DividendIncome(user_id=test_user.id, position_id=pos.id, payment_date=date.today() - timedelta(days=10), amount=Decimal("42.50"), currency="SGD"),
+        _make_buy(pos, quantity=Decimal("105"), cost=Decimal("10500.00")),
         InvestmentTransaction(
             user_id=test_user.id,
             position_id=pos.id,
@@ -338,6 +358,7 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
         db,
         *[FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.500000"), rate_date=d, source="test") for d in (p_start, sell_d, div_d, as_of)],
         _make_atomic_position(test_user.id, "USD-STOCK", broker="Test Broker", quantity=Decimal("10"), market_value=Decimal("1200.00"), currency="USD", snapshot_date=as_of, dedup_hash="usd_stock_schedule_snapshot"),
+        _make_buy(pos, quantity=Decimal("11"), cost=Decimal("1020.00")),
         InvestmentTransaction(user_id=test_user.id, position_id=pos.id, transaction_date=sell_d, transaction_type=InvestmentTransactionType.SELL, asset_identifier="USD-STOCK", quantity=Decimal("1"), unit_price=Decimal("120.00"), gross_amount=Decimal("120.00"), fees=Decimal("0.00"), currency="USD", cost_basis=Decimal("20.00"), realized_pnl=Decimal("100.00"), cost_basis_method=CostBasisMethod.FIFO),
         DividendIncome(user_id=test_user.id, position_id=pos.id, payment_date=div_d, amount=Decimal("10.00"), currency="USD"),
     )
@@ -352,19 +373,6 @@ async def test_AC17_10_6_investment_performance_schedule_converts_mixed_currency
         "300.00",
         ("SGD", "1500.00", "1800.00", "300.00", "150.00"),
     )
-
-
-async def test_AC19_8_8_investment_schedule_fallback_holding_cost_basis_converts_currency(client: AsyncClient, db: AsyncSession, test_user, investment_account, monkeypatch: pytest.MonkeyPatch):
-    p_start, as_of = date(2026, 1, 1), date(2026, 5, 20)
-    await _commit(db, FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.500000"), rate_date=p_start, source="test"))
-
-    async def fake_holdings(*_args, **_kwargs):
-        return [HoldingResponse(id=uuid4(), user_id=test_user.id, account_id=investment_account.id, asset_identifier="UNRECONCILED-USD", quantity=Decimal("10"), cost_basis=Decimal("1000.00"), market_value=Decimal("1800.00"), unrealized_pnl=Decimal("800.00"), unrealized_pnl_percent=Decimal("80.00"), currency="USD", native_cost_basis=Decimal("1000.00"), native_currency="USD", acquisition_date=p_start, status=PositionStatus.ACTIVE)]
-
-    monkeypatch.setattr(portfolio_router.portfolio_service, "get_holdings", fake_holdings)
-    resp = await client.get(f"/portfolio/performance/report-schedule?period_start={p_start}&period_end={as_of}&as_of_date={as_of}&currency=SGD")
-    h = resp.json()["holdings"][0]
-    assert (resp.status_code, h["cost_basis"], h["market_value"], h["unrealized_pnl"]) == (200, "1500.00", "1800.00", "300.00")
 
 
 async def test_AC17_10_4_report_schedule_marks_stale_when_any_holding_price_is_stale(client: AsyncClient, db: AsyncSession, test_user, investment_account, portfolio_with_data):

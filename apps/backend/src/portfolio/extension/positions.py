@@ -12,7 +12,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit.money import Currency, InvalidCurrencyError, Money
+from src.audit.money import Currency, InvalidCurrencyError
 from src.audit.money.currency import normalize_currency_code
 from src.audit.quantity import Quantity, Unit
 from src.extraction.orm.layer2 import AtomicPosition
@@ -78,7 +78,8 @@ class PositionService:
         """Reconcile managed positions from latest atomic snapshots.
 
         Uses a window function to get the latest snapshot per (asset, broker) pair.
-        Cost basis uses market_value as proxy (true lot tracking is future work).
+        A snapshot has a market value and no purchase cost, so this function never
+        writes ``cost_basis``. Only a recorded purchase writes it (#2920).
 
         Returns:
             ReconcileResult with counts of created, updated, and disposed positions.
@@ -154,9 +155,11 @@ class PositionService:
                     position.currency, asset_identifier=position.asset_identifier
                 ).code
                 quantity_changed = position.quantity != quantity
-                # Money inequality compares amount AND currency in one go.
-                valuation_changed = position.cost_basis_money != Money(snap.market_value, snapshot_currency)
-                if quantity_changed or valuation_changed:
+                snapshot_date = snap.snapshot_date.isoformat()
+                snapshot_changed = (position.position_metadata or {}).get(
+                    "latest_snapshot_date"
+                ) != snapshot_date or position.currency != snapshot_currency.code
+                if quantity_changed or snapshot_changed:
                     logger.info(
                         "Updating managed position from latest atomic snapshot",
                         asset=snap.asset_identifier,
@@ -164,12 +167,11 @@ class PositionService:
                         new_qty=str(quantity),
                     )
                     position.quantity = quantity
-                    position.cost_basis = snap.market_value
                     position.currency = snapshot_currency.code
                     position.position_metadata = {
                         **(position.position_metadata or {}),
                         "broker": snap.broker,
-                        "latest_snapshot_date": snap.snapshot_date.isoformat(),
+                        "latest_snapshot_date": snapshot_date,
                     }
 
                 if snapshot_quantity.is_zero():
@@ -179,7 +181,7 @@ class PositionService:
                 else:
                     position.status = PositionStatus.ACTIVE
                     position.disposal_date = None
-                    if quantity_changed or valuation_changed:
+                    if quantity_changed or snapshot_changed:
                         result.updated += 1
 
             else:
@@ -191,7 +193,7 @@ class PositionService:
                         account_id=account.id,
                         asset_identifier=snap.asset_identifier,
                         quantity=quantity,
-                        cost_basis=snap.market_value,
+                        cost_basis=None,
                         acquisition_date=snap.snapshot_date,
                         status=PositionStatus.ACTIVE,
                         currency=snapshot_currency.code,

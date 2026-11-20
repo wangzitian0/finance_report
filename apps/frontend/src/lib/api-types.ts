@@ -837,23 +837,23 @@ export interface components {
       acquisition_date: string;
       asset_identifier: string;
       asset_type?: string | null;
-      cost_basis: string;
+      cost_basis: string | null;
       cost_basis_method?: _S["CostBasisMethod"] | null;
       currency: string;
       disposal_date?: string | null;
       geography?: string | null;
       id: string;
       market_value: string;
-      native_cost_basis: string;
+      native_cost_basis: string | null;
       native_currency: string;
       provenance?: ("imported" | "manual" | "derived") | null;
       quantity: string;
-      readonly reporting_cost_basis: string;
+      readonly reporting_cost_basis: string | null;
       readonly reporting_currency: string;
       sector?: string | null;
       status: _S["PositionStatus"];
-      unrealized_pnl: string;
-      unrealized_pnl_percent: string;
+      unrealized_pnl: string | null;
+      unrealized_pnl_percent: string | null;
       user_id: string;
     };
     HoldingsListResponse: {
@@ -907,13 +907,13 @@ export interface components {
     };
     InvestmentPerformanceHoldingRow: {
       asset_identifier: string;
-      cost_basis: string;
+      cost_basis: string | null;
       currency: string;
       dividend_income: string;
       market_value: string;
       quantity: string;
       realized_pnl: string;
-      unrealized_pnl: string;
+      unrealized_pnl: string | null;
     };
     InvestmentPerformanceMarketValuationSelection: {
       asset_identifier: string;
@@ -936,7 +936,7 @@ export interface components {
       realized_pnl: string;
       source_links: string[];
       time_weighted_return: string | null;
-      unrealized_pnl: string;
+      unrealized_pnl: string | null;
       xirr: string | null;
     };
     JournalEntryAuthorityState: "anchored" | "legacy_unproven";
@@ -1487,15 +1487,16 @@ export interface components {
       disposed_positions_count: number;
       dividend_income_ytd: string;
       holdings_count: number;
-      net_pnl: string;
-      net_pnl_percent: string;
+      net_pnl: string | null;
+      net_pnl_percent: string | null;
+      positions_without_cost_count: number;
       realized_pnl_ytd: string;
-      total_cost_basis: string;
+      total_cost_basis: string | null;
       total_market_value: string;
       total_realized_pnl: string;
       total_realized_pnl_percent: string;
-      total_unrealized_pnl: string;
-      total_unrealized_pnl_percent: string;
+      total_unrealized_pnl: string | null;
+      total_unrealized_pnl_percent: string | null;
     };
     PositionStatus: "active" | "disposed";
     PriceUpdateBatchRequest: {

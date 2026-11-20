@@ -10,7 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.extraction.orm.layer2 import AtomicPosition
 from src.ledger import Account, AccountType
 from src.portfolio import build_investment_performance_report_schedule
-from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
+from src.portfolio.orm.portfolio import (
+    CostBasisMethod,
+    InvestmentTransaction,
+    InvestmentTransactionType,
+    ManagedPosition,
+    PositionStatus,
+)
 from src.pricing.orm.market_data import FxRate
 
 
@@ -48,10 +54,27 @@ async def _seed_usd_position_with_sgd_fx(db: AsyncSession, user_id: object) -> t
         dedup_hash="voo_2923_snapshot",
         source_documents={},
     )
+    db.add(position)
+    await db.flush()
     db.add_all(
         [
-            position,
             atomic,
+            # The BUY row is the source of the cost at a past date (#2920).
+            InvestmentTransaction(
+                user_id=user_id,
+                position_id=position.id,
+                transaction_date=acq_date,
+                transaction_type=InvestmentTransactionType.BUY,
+                asset_identifier="VOO",
+                quantity=Decimal("1"),
+                unit_price=Decimal("100.00"),
+                gross_amount=Decimal("100.00"),
+                fees=Decimal("0.00"),
+                currency="USD",
+                cost_basis=Decimal("100.00"),
+                realized_pnl=Decimal("0.00"),
+                cost_basis_method=CostBasisMethod.FIFO,
+            ),
             FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=acq_date, source="test"),
             FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=as_of_date, source="test"),
         ]

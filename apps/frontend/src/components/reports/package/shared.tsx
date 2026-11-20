@@ -450,11 +450,11 @@ export function PackageFrameworkPolicySection({
   );
 }
 
-function PackageMetric({ label, value, currency }: { label: string; value: string; currency: string }) {
+function PackageMetric({ label, value, currency }: { label: string; value: string | null; currency: string }) {
   return (
     <div>
       <dt className="text-xs text-muted">{label}</dt>
-      <dd className="mt-1 font-semibold">{formatScheduleCurrency(value, currency)}</dd>
+      <dd className="mt-1 font-semibold">{value == null ? "Not available" : formatScheduleCurrency(value, currency)}</dd>
     </div>
   );
 }
