@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
+from decimal import Decimal
 
 import pytest
 from sqlalchemy import select, update
@@ -17,12 +18,17 @@ from src.extraction import (
     RunKind,
     RunState,
     RunTrigger,
+    Stage1Status,
     StatementSummary,
     claim_run,
     create_run,
     finish_run,
 )
-from src.extraction.extension.reviewed_statement_envelope import current_reviewed_statement_envelope
+from src.extraction.extension.reviewed_statement_envelope import (
+    ReviewedStatementEnvelopeConflict,
+    current_reviewed_statement_envelope,
+    persist_statement_extraction_result,
+)
 from src.extraction.orm.statement_run import StatementRun
 from tests.extraction.test_reviewed_statement_envelope import _command, _confirm, _seed_statement_source_and_account
 
@@ -107,6 +113,85 @@ async def test_AC_extraction_2994_110_the_replay_of_a_confirmed_envelope_passes_
     replay = await _confirm(db, user_id=user_id, statement_id=statement_id, command=command)
     await db.commit()
     assert replay.id == first_id
+
+
+_ENDED = [BankStatementStatus.APPROVED, BankStatementStatus.REJECTED]
+
+
+async def _confirmed_then_ended(db, test_user, ended, digest_char):
+    """Confirm the envelope on a statement, then end its review with `ended`. Return ids, the command and its result."""
+    statement, account, result, source_record = await _seed_statement_source_and_account(
+        db, test_user, source_digest=digest_char * 64
+    )
+    statement_id, user_id = statement.id, test_user.id
+    command = _command(account_id=account.id, source_result_digest=result.content_digest)
+    first_id = (await _confirm(db, user_id=user_id, statement_id=statement_id, command=command)).id
+    stage1 = Stage1Status.APPROVED if ended is BankStatementStatus.APPROVED else Stage1Status.REJECTED
+    statement.status, statement.stage1_status, statement.validation_error = ended, stage1, "kept"
+    statement.manual_opening_balance, statement.balance_validated = Decimal("5.00"), False
+    await db.commit()
+    return statement_id, user_id, command, first_id, result, source_record, stage1
+
+
+async def _stored(db, statement_id) -> StatementSummary:
+    return await db.scalar(
+        select(StatementSummary).where(StatementSummary.id == statement_id).execution_options(populate_existing=True)
+    )
+
+
+def _projection(stored: StatementSummary) -> tuple:
+    return (
+        stored.status,
+        stored.stage1_status,
+        stored.validation_error,
+        stored.manual_opening_balance,
+        stored.balance_validated,
+    )
+
+
+@pytest.mark.parametrize("ended", _ENDED)
+async def test_the_replay_of_a_confirmation_writes_nothing_after_the_review_ended(db, test_user, ended):
+    """#3029 item 9: a second tab replays the same command after the statement was approved or rejected."""
+    statement_id, user_id, command, first_id, _result, _record, stage1 = await _confirmed_then_ended(
+        db, test_user, ended, "7" if ended is BankStatementStatus.APPROVED else "8"
+    )
+    replay = await _confirm(db, user_id=user_id, statement_id=statement_id, command=command)
+    await db.commit()
+    assert (replay.id, _projection(await _stored(db, statement_id))) == (
+        first_id,
+        (ended, stage1, "kept", Decimal("5.00"), False),
+    )
+
+
+@pytest.mark.parametrize("ended", _ENDED)
+async def test_a_new_confirmation_is_refused_after_the_review_ended(db, test_user, ended):
+    """#3029 item 9: a different confirmation answers 409 and keeps the ended state and the first envelope."""
+    statement_id, user_id, command, first_id, _result, _record, stage1 = await _confirmed_then_ended(
+        db, test_user, ended, "9" if ended is BankStatementStatus.APPROVED else "a"
+    )
+    other = replace(command, rationale="A second tab gives another rationale for the same facts.")
+    with pytest.raises(ReviewedStatementEnvelopeConflict, match="The review of this statement ended"):
+        await _confirm(db, user_id=user_id, statement_id=statement_id, command=other)
+    await db.rollback()
+    current = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement_id)
+    assert (current.id, _projection(await _stored(db, statement_id))) == (
+        first_id,
+        (ended, stage1, "kept", Decimal("5.00"), False),
+    )
+
+
+@pytest.mark.parametrize("ended", _ENDED)
+async def test_persisting_the_same_result_again_writes_nothing_after_the_review_ended(db, test_user, ended):
+    """#3029 item 9: a reparse of the same file persists the same result on a sibling statement whose review ended."""
+    statement_id, _user_id, _command_unused, _first_id, result, record, stage1 = await _confirmed_then_ended(
+        db, test_user, ended, "b" if ended is BankStatementStatus.APPROVED else "c"
+    )
+    statement = await _stored(db, statement_id)
+    await persist_statement_extraction_result(
+        db, statement=statement, result=result, source_trace_record_id=record.source_trace_record_id
+    )
+    await db.commit()
+    assert _projection(await _stored(db, statement_id)) == (ended, stage1, "kept", Decimal("5.00"), False)
 
 
 async def test_AC_extraction_2994_110_the_route_answers_200_during_a_classify_run_and_409_during_an_extract_run(client, db, test_user):
