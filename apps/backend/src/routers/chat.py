@@ -200,7 +200,7 @@ async def chat_history(
         await db.execute(
             select(ChatSession, count_sq, last_msg_sq)
             .where(ChatSession.user_id == user_id, ChatSession.status == ChatSessionStatus.ACTIVE)
-            .order_by(ChatSession.last_active_at.desc(), ChatSession.created_at.desc())
+            .order_by(ChatSession.last_active_at.desc(), ChatSession.created_at.desc(), ChatSession.id.desc())
             .offset(offset)
             .limit(limit)
         )

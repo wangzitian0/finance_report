@@ -19,7 +19,6 @@ _UNAUTHENTICATED_DB_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
         ("auth.py", "register"),
         ("auth.py", "login"),
-        ("reports.py", "get_available_currencies"),
     }
 )
 _STATELESS_AUTH_ROUTES: frozenset[tuple[str, str]] = frozenset(

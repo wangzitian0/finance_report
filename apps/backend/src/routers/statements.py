@@ -292,7 +292,7 @@ async def _list_statements_by_where(
         select(StatementSummary).where(*clauses),
         limit=limit,
         offset=offset,
-        order_by=(StatementSummary.created_at.desc(),),
+        order_by=(StatementSummary.created_at.desc(), StatementSummary.id.desc()),
     )
     documents = await _resolve_uploaded_documents(db, statements, user_id)
     return BankStatementListResponse(

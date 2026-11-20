@@ -6,9 +6,11 @@ import {
 
 import {
   apiOperation,
+  type ApiOperationArgs,
   type ApiOperationRequest,
   type ApiOperationResponse,
 } from "@/lib/api";
+import { apiOperationAllPages, type PagedOperationId } from "@/lib/apiPages";
 import type { ApiOperationId } from "@/lib/api-operations";
 
 type ApiQueryOptions<TQueryData, TData = TQueryData> = Omit<
@@ -28,6 +30,23 @@ export function useApiQuery<
   return useQuery<ApiOperationResponse<Id>, Error, TData>({
     queryKey,
     queryFn: () => apiOperation(operationId, request),
+    ...options,
+  });
+}
+
+/** `useApiQuery` for a paginated list where the screen needs every row: it reads all pages. */
+export function useApiQueryAllPages<
+  Id extends PagedOperationId,
+  TData = ApiOperationResponse<Id>,
+>(
+  queryKey: QueryKey,
+  operationId: Id,
+  request: ApiOperationRequest<Id>,
+  options: ApiQueryOptions<ApiOperationResponse<Id>, TData> = {},
+) {
+  return useQuery<ApiOperationResponse<Id>, Error, TData>({
+    queryKey,
+    queryFn: () => apiOperationAllPages(operationId, ...([request] as unknown as ApiOperationArgs<Id>)),
     ...options,
   });
 }

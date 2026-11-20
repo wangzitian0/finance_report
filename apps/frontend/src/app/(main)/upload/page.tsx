@@ -17,6 +17,7 @@ import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { useToast } from "@/components/ui/Toast";
 import { Alert, Badge, Button, EmptyState, IconButton, LoadingState, PageHeader, type BadgeVariant } from "@/components/ui";
 import { apiOperation } from "@/lib/api";
+import { apiOperationAllPages } from "@/lib/apiPages";
 import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/lib/queryClient";
 import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
 import { BankStatement, normalizeBankStatement } from "@/lib/types";
@@ -64,7 +65,7 @@ export default function UploadPage() {
 
   const statementsQuery = useQuery({
     queryKey: STATEMENTS_LIST_QUERY_KEY,
-    queryFn: ({ signal }) => apiOperation("list_statements_statements_get", { signal }),
+    queryFn: ({ signal }) => apiOperationAllPages("list_statements_statements_get", { signal }),
     staleTime: SHARED_STALE_MS,
     refetchOnMount: "always",
     refetchInterval: (query) => (query.state.data?.items?.some((s) => s.status === "parsing") ? PARSING_POLL_MS : false),

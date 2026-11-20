@@ -190,7 +190,7 @@ async def get_journal_entry_audit(
     result = await ctx.db.execute(
         select(JournalAuditLog)
         .where(JournalAuditLog.entry_id == entry_id)
-        .order_by(JournalAuditLog.created_at.asc())
+        .order_by(JournalAuditLog.created_at.asc(), JournalAuditLog.id.asc())
         .offset(pagination.offset)
         .limit(pagination.limit)
     )

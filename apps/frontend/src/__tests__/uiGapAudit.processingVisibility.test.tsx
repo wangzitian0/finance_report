@@ -17,7 +17,7 @@ describe("ProcessingTransfers", () => {
     mockedApi.mockResolvedValueOnce({ items: [xf("e1", "Bank A", "Bank B", "500.00", 2), xf("e2", "Bank C", "Bank D", "1000.00", 12)], total: 2 } as never);
     const v1 = render(<ProcessingTransfers />);
     await waitFor(() => {
-      expect(mockedApi).toHaveBeenCalledWith(OP.XFER_PEND, {});
+      expect(mockedApi).toHaveBeenCalledWith(OP.XFER_PEND, { query: { limit: 500, offset: 0 } });
       has(["Bank A", "Bank B", /500\.00/, "Bank C", "Bank D", /1,000\.00/]);
       expect(screen.getByLabelText(/warning/i)).toHaveTextContent("12d");
     });

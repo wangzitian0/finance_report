@@ -3,7 +3,7 @@
 import { AlertTriangle } from "lucide-react";
 
 import { Alert } from "@/components/ui";
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQueryAllPages } from "@/hooks/useApiQuery";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatDateDisplay } from "@/lib/date";
 import { PROCESSING_PENDING_QUERY_KEY, SHARED_STALE_MS } from "@/lib/sharedQueries";
@@ -15,7 +15,7 @@ const OVERDUE_DAYS = 7;
  * The card shows nothing when no transfer is waiting.
  */
 export function ProcessingTransfers() {
-  const pending = useApiQuery(
+  const pending = useApiQueryAllPages(
     PROCESSING_PENDING_QUERY_KEY,
     "list_processing_pending_reconciliation_transfers_pending_get",
     {},
