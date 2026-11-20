@@ -5,7 +5,7 @@ from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from src.deps import Ctx, ReadCtx
+from src.deps import Ctx, Pagination, ReadCtx
 from src.ledger import (
     JournalAuditLog,
     JournalEntry,
@@ -181,7 +181,9 @@ async def delete_journal_entry(
 @router.get("/{entry_id}/audit", response_model=AuditTrailResponse)
 async def get_journal_entry_audit(
     entry_id: UUID,
+    *,
     ctx: ReadCtx,
+    pagination: Pagination,
 ) -> AuditTrailResponse:
     """Return chronological audit trail entries for a journal entry."""
     await get_owned_or_raise(ctx.db, JournalEntry, entry_id, ctx.user_id, name="Journal entry")
@@ -189,6 +191,8 @@ async def get_journal_entry_audit(
         select(JournalAuditLog)
         .where(JournalAuditLog.entry_id == entry_id)
         .order_by(JournalAuditLog.created_at.asc())
+        .offset(pagination.offset)
+        .limit(pagination.limit)
     )
     logs = result.scalars().all()
     return AuditTrailResponse(items=[AuditTrailItem.model_validate(log) for log in logs])

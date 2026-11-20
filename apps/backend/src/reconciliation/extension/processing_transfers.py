@@ -78,3 +78,16 @@ async def list_pending_processing_transfers(
         for leg in await list_processing_transfer_legs(db, user_id, currency=currency)
         if leg["entry_id"] not in paired_ids
     ]
+
+
+async def list_pending_processing_transfers_page(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    default_currency: str,
+    limit: int,
+    offset: int,
+) -> tuple[list[dict[str, Any]], int]:
+    """Return one paginated slice of pending unpaired transfer legs and total count."""
+    legs = await list_pending_processing_transfers(db, user_id, default_currency=default_currency)
+    return legs[offset : offset + limit], len(legs)

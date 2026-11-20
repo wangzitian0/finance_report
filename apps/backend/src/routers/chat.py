@@ -19,7 +19,9 @@ from src.advisor import (
     ChatSessionStatus,
     detect_language,
 )
-from src.deps import Ctx, ReadCtx
+from src.config_app import get_effective_base_currency
+from src.database import get_session_maker
+from src.deps import Ctx, CurrentUserId, ReadCtx
 from src.llm import LLMError
 from src.observability import get_logger
 from src.platform import (
@@ -87,17 +89,21 @@ def _session_dto(
     response_class=StreamingResponse,
     responses={200: {"description": "SSE stream of assistant response chunks.", "content": {"text/event-stream": {}}}},
 )
-async def chat_message(payload: ChatRequest, *, ctx: Ctx) -> StreamingResponse:
+async def chat_message(payload: ChatRequest, *, user_id: CurrentUserId) -> StreamingResponse:
     """Send a chat message and stream the AI response."""
-    db, user_id = ctx.db, ctx.user_id
     service = AIAdvisorService()
-    stream = await service.chat_stream(
-        db,
-        user_id,
-        payload.message,
-        payload.session_id,
-        base_currency=await ctx.get_base_currency(),
-    )
+    maker = get_session_maker()
+    async with maker() as setup_db:
+        base_currency = await get_effective_base_currency(setup_db, user_id=user_id)
+        stream = await service.chat_stream(
+            setup_db,
+            user_id,
+            payload.message,
+            payload.session_id,
+            base_currency=base_currency,
+            session_maker=maker,
+        )
+        await setup_db.commit()
     stream_iter = aiter(stream.stream)
     try:
         first_chunk = await anext(stream_iter, None)
@@ -110,8 +116,6 @@ async def chat_message(payload: ChatRequest, *, ctx: Ctx) -> StreamingResponse:
         if hasattr(stream_iter, "aclose"):
             await stream_iter.aclose()
         raise ServiceUnavailableError("AI service temporarily unavailable.")
-
-    await db.flush()
 
     async def primed_stream() -> AsyncIterator[str]:
         try:
@@ -145,6 +149,7 @@ async def chat_message(payload: ChatRequest, *, ctx: Ctx) -> StreamingResponse:
 async def chat_history(
     session_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=200),
+    offset: Annotated[int, Query(ge=0)] = 0,
     *,
     ctx: ReadCtx,
 ) -> ChatHistoryResponse:
@@ -162,6 +167,8 @@ async def chat_history(
         ).scalar_one_or_none()
         if not session:
             raise ResourceNotFoundError("Chat session not found")
+        if offset > 0:
+            return ChatHistoryResponse(sessions=[])
         messages = (
             (
                 await db.execute(
@@ -194,6 +201,7 @@ async def chat_history(
             select(ChatSession, count_sq, last_msg_sq)
             .where(ChatSession.user_id == user_id, ChatSession.status == ChatSessionStatus.ACTIVE)
             .order_by(ChatSession.last_active_at.desc(), ChatSession.created_at.desc())
+            .offset(offset)
             .limit(limit)
         )
     ).all()

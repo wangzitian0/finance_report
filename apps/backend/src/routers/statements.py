@@ -24,7 +24,7 @@ from src.composition import (
     submit_classify_run,
     submit_parse_pipeline,
 )
-from src.deps import Ctx, ReadCtx
+from src.deps import Ctx, Pagination, ReadCtx
 from src.extraction import (
     DEFAULT_MAX_DEPTH,
     DEFAULT_STALE_AFTER_DAYS,
@@ -60,6 +60,7 @@ from src.extraction import (
     get_account_statement_coverage,
     get_current_statement_extraction_result,
     list_runs,
+    list_runs_page,
     load_evidence_lineage,
     pending_stage1_review_filter,
     record_classification_feedback,
@@ -88,6 +89,7 @@ from src.platform import (
     ResourceNotFoundError,
     ServiceUnavailableError,
     ValidationFailedError,
+    paginate,
 )
 from src.runtime import StorageError, StorageService
 from src.schemas import (
@@ -278,13 +280,20 @@ async def _get_statement_or_404(db: AsyncSession, statement_id: UUID, user_id: U
     return stmt
 
 
-async def _list_statements_by_where(db: AsyncSession, user_id: UUID, *clauses) -> BankStatementListResponse:
-    statements = (
-        (await db.execute(select(StatementSummary).where(*clauses).order_by(StatementSummary.created_at.desc())))
-        .scalars()
-        .all()
+async def _list_statements_by_where(
+    db: AsyncSession,
+    user_id: UUID,
+    *clauses,
+    limit: int,
+    offset: int,
+) -> BankStatementListResponse:
+    statements, total = await paginate(
+        db,
+        select(StatementSummary).where(*clauses),
+        limit=limit,
+        offset=offset,
+        order_by=(StatementSummary.created_at.desc(),),
     )
-    total = (await db.execute(select(func.count()).select_from(StatementSummary).where(*clauses))).scalar() or 0
     documents = await _resolve_uploaded_documents(db, statements, user_id)
     return BankStatementListResponse(
         items=[compose_statement_list_item_response(s, documents[s.id]) for s in statements],
@@ -613,26 +622,34 @@ async def create_statement_run(
 
 
 @router.get("/{statement_id}/runs", response_model=StatementRunListResponse)
-async def list_statement_runs(statement_id: UUID, ctx: ReadCtx) -> StatementRunListResponse:
+async def list_statement_runs(statement_id: UUID, *, ctx: ReadCtx, pagination: Pagination) -> StatementRunListResponse:
     """List the runs of a statement by attempt number, with their hints, actor, state and error."""
     await _get_statement_or_404(ctx.db, statement_id, ctx.user_id)
-    runs = await list_runs(ctx.db, statement_id, ctx.user_id)
-    return StatementRunListResponse(items=runs, total=len(runs))
+    runs, total = await list_runs_page(
+        ctx.db,
+        statement_id,
+        ctx.user_id,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
+    return StatementRunListResponse(items=runs, total=total)
 
 
 @router.get("", response_model=BankStatementListResponse)
-async def list_statements(ctx: ReadCtx) -> BankStatementListResponse:
+async def list_statements(*, ctx: ReadCtx, pagination: Pagination) -> BankStatementListResponse:
     """List non-retired statements for the current user."""
     return await _list_statements_by_where(
         ctx.db,
         ctx.user_id,
         StatementSummary.user_id == ctx.user_id,
         StatementSummary.status != BankStatementStatus.RETIRED,
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
 
 
 @router.get("/pending-review", response_model=BankStatementListResponse)
-async def list_pending_review(ctx: ReadCtx) -> BankStatementListResponse:
+async def list_pending_review(*, ctx: ReadCtx, pagination: Pagination) -> BankStatementListResponse:
     """List statements pending Stage 1 human review."""
     return await _list_statements_by_where(
         ctx.db,
@@ -640,6 +657,8 @@ async def list_pending_review(ctx: ReadCtx) -> BankStatementListResponse:
         StatementSummary.user_id == ctx.user_id,
         StatementSummary.status == BankStatementStatus.PARSED,
         pending_stage1_review_filter(),
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
 
 

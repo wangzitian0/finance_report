@@ -46,14 +46,27 @@ def test_AC6_33_export_envelope_rejects_invalid_inputs(media_type, filename: str
 async def test_AC6_33_7_chat_router_uses_envelope_media_type_and_headers() -> None:
     from src.routers.chat import chat_message
 
-    mock_db, session_id = MagicMock(flush=AsyncMock()), uuid4()
+    session_id = uuid4()
 
     async def mock_stream():
         yield "Hello"
 
+    fake_db = MagicMock(commit=AsyncMock(), flush=AsyncMock())
+
+    class _MakerCtx:
+        async def __aenter__(self):
+            return fake_db
+
+        async def __aexit__(self, *_args):
+            return False
+
     stream_obj = MagicMock(session_id=session_id, stream=mock_stream(), model_name="gpt-4", metadata={"citations": [{"label": "Balance Sheet", "source_ref": "balance_sheet.total_equity", "confidence_tier": "TRUSTED", "href": "/reports?tab=balance-sheet"}], "actions": []})
-    with patch("src.routers.chat.AIAdvisorService", return_value=MagicMock(chat_stream=AsyncMock(return_value=stream_obj))):
-        response = await chat_message(MagicMock(message="What is my net worth?", session_id=None), ctx=RequestContext(mock_db, uuid4()))
+    with (
+        patch("src.routers.chat.get_session_maker", return_value=(lambda: _MakerCtx())),
+        patch("src.routers.chat.get_effective_base_currency", AsyncMock(return_value="SGD")),
+        patch("src.routers.chat.AIAdvisorService", return_value=MagicMock(chat_stream=AsyncMock(return_value=stream_obj))),
+    ):
+        response = await chat_message(MagicMock(message="What is my net worth?", session_id=None), user_id=uuid4())
     parsed = ChatResponseMetadata.model_validate(json.loads(response.headers[ADVISOR_METADATA_HEADER]))
     assert (response.media_type, response.headers["X-Session-Id"], response.headers["X-Model-Name"], parsed.citations[0].label, response.headers[EXPOSE_HEADERS_HEADER]) == (
         ChatStreamMediaType.TEXT_PLAIN.value, str(session_id), "gpt-4", "Balance Sheet", "X-Session-Id, X-Model-Name, X-Advisor-Metadata",

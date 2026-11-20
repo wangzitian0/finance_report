@@ -28,7 +28,7 @@ from sqlalchemy import ColumnElement, and_, case, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.platform import ConflictError, ValidationFailedError
+from src.platform import ConflictError, ValidationFailedError, paginate
 from src.audit import (
     SqlTraceRecordRepository,
     TraceAuthorityProfile,
@@ -299,6 +299,15 @@ class StatementRunRecord:
     finished_at: datetime | None
 
 
+def _to_run_record(run: StatementRun) -> StatementRunRecord:
+    names = [field.name for field in fields(StatementRunRecord) if field.name != "hints"]
+    return StatementRunRecord(
+        **{name: getattr(run, name) for name in names},
+        # A stored row that the current rules reject must not break the audit list: no validation here.
+        hints=RunHints.model_construct(keywords=list(run.hints.get("keywords", [])), note=run.hints.get("note")),
+    )
+
+
 async def list_runs(db: AsyncSession, statement_id: UUID, user_id: UUID) -> list[StatementRunRecord]:
     """Return the runs of one statement of one user, ordered by attempt number."""
     rows = await db.execute(
@@ -307,15 +316,23 @@ async def list_runs(db: AsyncSession, statement_id: UUID, user_id: UUID) -> list
         .order_by(StatementRun.seq)
         .execution_options(populate_existing=True)
     )
-    names = [field.name for field in fields(StatementRunRecord) if field.name != "hints"]
-    return [
-        StatementRunRecord(
-            **{name: getattr(run, name) for name in names},
-            # A stored row that the current rules reject must not break the audit list: no validation here.
-            hints=RunHints.model_construct(keywords=list(run.hints.get("keywords", [])), note=run.hints.get("note")),
-        )
-        for run in rows.scalars()
-    ]
+    return [_to_run_record(run) for run in rows.scalars()]
+
+
+async def list_runs_page(
+    db: AsyncSession, statement_id: UUID, user_id: UUID, *, limit: int, offset: int
+) -> tuple[list[StatementRunRecord], int]:
+    """Return one paginated slice of statement runs and total count in SQL."""
+    rows, total = await paginate(
+        db,
+        select(StatementRun)
+        .where(StatementRun.statement_id == statement_id, StatementRun.user_id == user_id)
+        .execution_options(populate_existing=True),
+        limit=limit,
+        offset=offset,
+        order_by=(StatementRun.seq,),
+    )
+    return [_to_run_record(run) for run in rows], total
 
 
 async def create_run(
@@ -593,6 +610,7 @@ __all__ = [
     "get_latest_run",
     "heartbeat_run",
     "list_runs",
+    "list_runs_page",
     "lock_statement_for_run",
     "reap_stale_runs",
     "start_user_classify_run",

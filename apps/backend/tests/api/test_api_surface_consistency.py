@@ -87,8 +87,20 @@ def test_AC12_29_6_verb_in_path_urls_renamed_to_resources(openapi_schema: dict[s
     )
 
 
+FINITE_COLLECTION_GET_PATHS = frozenset(
+    {
+        "/reports/currencies",
+        "/pricing/market-data/status",
+        "/pricing/valuation-components",
+        "/statements/coverage",
+        "/reports/account-lineage",
+    }
+)
+
+
 def test_AC12_29_2_and_AC_platform_29_7_bounded_limits(openapi_schema: dict[str, Any]) -> None:
     paths = openapi_schema["paths"]
+    schemas = openapi_schema.get("components", {}).get("schemas", {})
     for path in ("/reconciliation/transactions/{txn_id}/anomalies", "/reports/package/snapshots"):
         params = {p["name"]: p for p in paths[path]["get"].get("parameters", [])}
         assert (
@@ -96,15 +108,85 @@ def test_AC12_29_2_and_AC_platform_29_7_bounded_limits(openapi_schema: dict[str,
             params["limit"]["schema"].get("minimum"),
             params["offset"]["schema"].get("minimum"),
         ) == (MAX_PAGE_LIMIT, 1, 0)
-    assert not [
-        path
-        for path, item in paths.items()
-        if item.get("get")
-        for p in item["get"].get("parameters", [])
-        if p.get("in") == "query"
-        and p.get("name") == "limit"
-        and not isinstance(p.get("schema", {}).get("maximum"), int | float)
-    ]
+
+    unbounded: list[str] = []
+    for path, item in sorted(paths.items()):
+        get_op = item.get("get")
+        if not get_op:
+            continue
+        params = {p["name"]: p for p in get_op.get("parameters", []) if p.get("in") == "query"}
+        if "limit" in params:
+            limit_schema = params["limit"].get("schema", {})
+            if not isinstance(limit_schema.get("maximum"), int | float) or (limit_schema.get("minimum") or 0) < 1:
+                unbounded.append(f"{path}: invalid limit bounds")
+        resp_schema = (
+            get_op.get("responses", {}).get("200", {}).get("content", {}).get("application/json", {}).get("schema", {})
+        )
+        ref_name = resp_schema.get("$ref", "").rsplit("/", 1)[-1] if "$ref" in resp_schema else ""
+        props = set(schemas.get(ref_name, {}).get("properties", {}).keys()) if ref_name in schemas else set()
+        is_collection = resp_schema.get("type") == "array" or bool(props & {"items", "sessions"})
+        if is_collection and path not in FINITE_COLLECTION_GET_PATHS:
+            if "limit" not in params or "offset" not in params:
+                unbounded.append(f"{path}: missing limit/offset ({sorted(params)})")
+            elif (params["offset"].get("schema", {}).get("minimum") is None) or (
+                params["offset"]["schema"]["minimum"] < 0
+            ):
+                unbounded.append(f"{path}: missing offset minimum >= 0")
+
+    assert unbounded == [], f"Unbounded or unpaginated collection GET endpoints: {unbounded}"
+
+    slice_offenders: list[str] = []
+    for py in sorted(_ROUTER_DIR.glob("*.py")):
+        src_text = py.read_text(encoding="utf-8")
+        tree = ast.parse(src_text, filename=str(py))
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in {
+                "_page_fields",
+                "_paged_allocation",
+            }:
+                slice_offenders.append(f"{py.name}:{node.lineno} defines {node.name}")
+            elif isinstance(node, ast.Subscript) and isinstance(node.slice, ast.Slice):
+                slice_src = ast.unparse(node.slice)
+                if "offset" in slice_src or "limit" in slice_src:
+                    slice_offenders.append(f"{py.name}:{node.lineno} slices by {slice_src}")
+    assert slice_offenders == [], f"In-memory pagination helpers/slices forbidden in routers: {slice_offenders}"
+
+
+async def test_collection_get_endpoints_push_limit_offset_to_sql(client: AsyncClient, db_engine) -> None:
+    from sqlalchemy import event
+
+    recorded: list[str] = []
+
+    def _capture(_conn, _cursor, statement: str, *_args) -> None:
+        recorded.append(statement)
+
+    endpoints = (
+        "/accounts?limit=2&offset=1",
+        "/journal-entries?limit=2&offset=1",
+        "/statements?limit=2&offset=1",
+        "/statements/pending-review?limit=2&offset=1",
+        "/reconciliation/matches?limit=2&offset=1",
+        "/reconciliation/unmatched?limit=2&offset=1",
+        "/reconciliation/consistency-checks?limit=2&offset=1",
+        "/reports/package/snapshots?limit=2&offset=1",
+        "/pricing/manual-valuations?limit=2&offset=1",
+        "/chat/history?limit=2&offset=1",
+    )
+    event.listen(db_engine.sync_engine, "before_cursor_execute", _capture)
+    try:
+        missing_sql_pagination: list[str] = []
+        for url in endpoints:
+            recorded.clear()
+            resp = await client.get(url)
+            assert resp.status_code == 200, (url, resp.text)
+            has_limit = any(re.search(r"\bLIMIT\b", sql, re.IGNORECASE) for sql in recorded)
+            has_offset = any(re.search(r"\bOFFSET\b", sql, re.IGNORECASE) for sql in recorded)
+            if not (has_limit and has_offset):
+                missing_sql_pagination.append(f"{url}: limit={has_limit}, offset={has_offset}")
+    finally:
+        event.remove(db_engine.sync_engine, "before_cursor_execute", _capture)
+
+    assert missing_sql_pagination == [], f"Collection endpoints missing SQL LIMIT/OFFSET: {missing_sql_pagination}"
 
 
 _top_models = lambda path: {

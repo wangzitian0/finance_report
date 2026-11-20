@@ -64,7 +64,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
 | `POST` | `/chat` | yes | - | `ChatRequest` | `200` - | Chat Message |
-| `GET` | `/chat/history` | yes | `session_id` (query), `limit` (query) | - | `200` `ChatHistoryResponse` | Chat History |
+| `GET` | `/chat/history` | yes | `session_id` (query), `limit` (query), `offset` (query) | - | `200` `ChatHistoryResponse` | Chat History |
 | `DELETE` | `/chat/sessions/{session_id}` | yes | `session_id`* (path) | - | `204` - | Delete Session |
 | `GET` | `/chat/suggestions` | yes | `language` (query), `message` (query), `include_structured` (query) | - | `200` `ChatSuggestionsResponse` | Suggestions |
 
@@ -76,7 +76,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/journal-entries` | yes | - | `JournalEntryCreate` | `201` `JournalEntryResponse` | Create Entry |
 | `GET` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Get Journal Entry |
 | `DELETE` | `/journal-entries/{entry_id}` | yes | `entry_id`* (path) | - | `204` - | Delete Journal Entry |
-| `GET` | `/journal-entries/{entry_id}/audit` | yes | `entry_id`* (path) | - | `200` `AuditTrailResponse` | Get Journal Entry Audit |
+| `GET` | `/journal-entries/{entry_id}/audit` | yes | `entry_id`* (path), `limit` (query), `offset` (query) | - | `200` `AuditTrailResponse` | Get Journal Entry Audit |
 | `POST` | `/journal-entries/{entry_id}/postings` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Post Entry |
 | `POST` | `/journal-entries/{entry_id}/voidings` | yes | `entry_id`* (path) | `VoidJournalEntryRequest` | `200` `JournalEntryResponse` | Void Entry |
 
@@ -136,7 +136,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/reconciliation/runs` | yes | - | `ReconciliationRunRequest` | `200` `ReconciliationRunResponse` | Run Reconciliation |
 | `GET` | `/reconciliation/stats` | yes | - | - | `200` `ReconciliationStatsResponse` | Reconciliation Stats |
 | `GET` | `/reconciliation/transactions/{txn_id}/anomalies` | yes | `txn_id`* (path), `limit` (query), `offset` (query) | - | `200` array[`AnomalyResponse`] | List Anomalies |
-| `GET` | `/reconciliation/transfers/pending` | yes | - | - | `200` `ListResponse_ProcessingPendingItem_` | List Processing Pending |
+| `GET` | `/reconciliation/transfers/pending` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_ProcessingPendingItem_` | List Processing Pending |
 | `GET` | `/reconciliation/transfers/summary` | yes | - | - | `200` `ProcessingSummaryResponse` | Get Processing Summary |
 | `GET` | `/reconciliation/unmatched` | yes | `statement_id` (query), `limit` (query), `offset` (query) | - | `200` `ListResponse_BankTransactionSummary_` | List Unmatched |
 | `POST` | `/reconciliation/unmatched/{txn_id}/reviewed-dispositions` | yes | `txn_id`* (path) | `ReviewedDispositionRequest` | `200` `JournalEntrySummary` | Submit Unmatched Reviewed Disposition |
@@ -151,7 +151,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/reports/cash-flow` | yes | `start_date` (query), `end_date` (query), `currency` (query) | - | `200` `CashFlowPreview` | Cash Flow |
 | `GET` | `/reports/cash-flow/line-events` | yes | `line_id`* (query), `start_date` (query), `end_date` (query), `currency` (query), `limit` (query), `offset` (query) | - | `200` `CashFlowLineEventsPage` | List Cash Flow Line Events |
 | `GET` | `/reports/coverage` | yes | `as_of_date` (query) | - | `200` `ReportCoverageResponse` | Report Coverage |
-| `GET` | `/reports/currencies` | no | - | - | `200` array[string] | Get Available Currencies |
+| `GET` | `/reports/currencies` | yes | - | - | `200` array[string] | Get Available Currencies |
 | `GET` | `/reports/data-quality` | yes | `as_of_date` (query), `currency` (query) | - | `200` `PersonalDataQualityHealthResponse` | Get Data Quality Health |
 | `GET` | `/reports/exports` | yes | `report_type`* (query), `format` (query), `as_of_date` (query), `start_date` (query), `end_date` (query), `currency` (query), `include_restricted` (query), `framework_id` (query) | - | `200` - | Export Report |
 | `GET` | `/reports/income-statement` | yes | `start_date` (query), `end_date` (query), `currency` (query), `tags` (query), `account_type` (query) | - | `200` `IncomeStatementResponse` | Income Statement |
@@ -170,7 +170,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/statements` | yes | - | - | `200` `ListResponse_BankStatementListItemResponse_` | List Statements |
+| `GET` | `/statements` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_BankStatementListItemResponse_` | List Statements |
 | `POST` | `/statements` | yes | - | `Body_upload_statement_statements_post` | `202` `BankStatementResponse` | Upload Statement |
 | `POST` | `/statements/classification-feedback` | yes | - | `AiFeedbackRequest` | `201` `AiFeedbackResponse` | Create Classification Feedback |
 | `GET` | `/statements/classification-suggestions` | yes | `limit` (query), `offset` (query), `statement_id` (query) | - | `200` `AiSuggestionListResponse` | List Classification Suggestions |
@@ -178,7 +178,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/statements/corrections` | yes | - | `CorrectionRequest` | `201` `CorrectionResponse` | Create Correction |
 | `GET` | `/statements/coverage` | yes | `as_of` (query), `stale_after_days` (query) | - | `200` `AccountCoverageListResponse` | List Statement Coverage |
 | `GET` | `/statements/evidence-lineage` | yes | `entity_type`* (query), `entity_id`* (query), `node_kind` (query), `direction` (query), `max_depth` (query) | - | `200` `EvidenceLineageResponse` | Get Evidence Lineage |
-| `GET` | `/statements/pending-review` | yes | - | - | `200` `ListResponse_BankStatementListItemResponse_` | List Pending Review |
+| `GET` | `/statements/pending-review` | yes | `limit` (query), `offset` (query) | - | `200` `ListResponse_BankStatementListItemResponse_` | List Pending Review |
 | `GET` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `200` `BankStatementResponse` | Get Statement |
 | `DELETE` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `204` - | Delete Statement |
 | `POST` | `/statements/{statement_id}/approvals` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
@@ -188,7 +188,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `POST` | `/statements/{statement_id}/rejections` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |
 | `GET` | `/statements/{statement_id}/review` | yes | `statement_id`* (path) | - | `200` `StatementReviewResponse` | Get Statement For Review |
 | `POST` | `/statements/{statement_id}/review-envelopes` | yes | `statement_id`* (path) | `ReviewedStatementEnvelopeRequest` | `200` `ReviewedStatementEnvelopeResponse` | Confirm Statement Review Envelope |
-| `GET` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | - | `200` `ListResponse_StatementRunRecord_` | List Statement Runs |
+| `GET` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path), `limit` (query), `offset` (query) | - | `200` `ListResponse_StatementRunRecord_` | List Statement Runs |
 | `POST` | `/statements/{statement_id}/runs` | yes | `statement_id`* (path) | `StatementRunRequest` | `202` `StatementRunRecord` | Create Statement Run |
 
 ### user-settings
@@ -204,6 +204,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/workflow/events` | yes | `status` (query), `limit` (query) | - | `200` `WorkflowEventListResponse` | List Workflow Events Endpoint |
+| `GET` | `/workflow/events` | yes | `status` (query), `limit` (query), `offset` (query) | - | `200` `WorkflowEventListResponse` | List Workflow Events Endpoint |
 | `PATCH` | `/workflow/events/{event_id}` | yes | `event_id`* (path) | `WorkflowEventStatusUpdate` | `200` `WorkflowEventResponse` | Update Workflow Event Status Endpoint |
 | `GET` | `/workflow/status` | yes | - | - | `200` `WorkflowStatusResponse` | Get Workflow Status Endpoint |

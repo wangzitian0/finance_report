@@ -376,6 +376,33 @@ async def cash_flow_line_events(
     return None if not events and line_id not in _FIXED_LINE_IDS else events
 
 
+async def cash_flow_line_events_page(
+    db: AsyncSession,
+    user_id: UUID,
+    *,
+    line_id: str,
+    start_date: date,
+    end_date: date,
+    currency: str | None = None,
+    cash_account_ids: frozenset[UUID] | None = None,
+    limit: int,
+    offset: int,
+) -> tuple[list[dict[str, object]], int] | None:
+    """Return one page of cash-flow lineage records and total count, or None for unknown line."""
+    events = await cash_flow_line_events(
+        db,
+        user_id,
+        line_id=line_id,
+        start_date=start_date,
+        end_date=end_date,
+        currency=currency,
+        cash_account_ids=cash_account_ids,
+    )
+    if events is None:
+        return None
+    return events[offset : offset + limit], len(events)
+
+
 def cash_flow_preview(document: Mapping[str, Any]) -> dict[str, object]:
     """Project a cash-flow document to its bounded preview (#2583)."""
     preview: dict[str, object] = {

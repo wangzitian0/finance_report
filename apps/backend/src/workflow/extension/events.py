@@ -916,6 +916,7 @@ async def list_workflow_events(
     user_id: UUID,
     status: WorkflowEventStatus | None = None,
     limit: int = 50,
+    offset: int = 0,
     include_archived: bool = False,
 ) -> list[WorkflowEvent]:
     """List user-scoped workflow events for inbox/status consumers."""
@@ -924,7 +925,7 @@ async def list_workflow_events(
         stmt = stmt.where(WorkflowEvent.status == status)
     elif not include_archived:
         stmt = stmt.where(WorkflowEvent.status != WorkflowEventStatus.ARCHIVED)
-    stmt = stmt.order_by(WorkflowEvent.occurred_at.desc(), WorkflowEvent.created_at.desc()).limit(limit)
+    stmt = stmt.order_by(WorkflowEvent.occurred_at.desc(), WorkflowEvent.created_at.desc()).offset(offset).limit(limit)
     return list((await db.scalars(stmt)).all())
 
 
@@ -934,6 +935,7 @@ async def list_workflow_events_response(
     user_id: UUID,
     status: WorkflowEventStatus | None = None,
     limit: int = 50,
+    offset: int = 0,
     base_currency: str | None = None,
 ) -> WorkflowEventListResponse:
     """Return bounded event list plus total count and grouped session summaries write-free (#987)."""
@@ -959,7 +961,7 @@ async def list_workflow_events_response(
             if (e.status == status if status is not None else e.status != WorkflowEventStatus.ARCHIVED)
         ]
         filtered.sort(key=lambda e: (e.occurred_at, e.created_at), reverse=True)
-        sliced = filtered[:limit]
+        sliced = filtered[offset : offset + limit]
         page_session_ids = {e.session_id for e in sliced if e.session_id is not None}
         active_summary = workflow_status.active_session
         sessions: list[WorkflowSessionSummaryResponse] = []
@@ -999,7 +1001,9 @@ async def list_workflow_events_response(
         WorkflowEvent.status == status if status is not None else WorkflowEvent.status != WorkflowEventStatus.ARCHIVED,
     ]
     total = await db.scalar(select(func.count(WorkflowEvent.id)).where(*filters))
-    events = await list_workflow_events(db, user_id=user_id, status=status, limit=limit, include_archived=False)
+    events = await list_workflow_events(
+        db, user_id=user_id, status=status, limit=limit, offset=offset, include_archived=False
+    )
     session_ids = {e.session_id for e in events if e.session_id is not None}
     sessions = []
     if session_ids:

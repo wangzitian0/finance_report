@@ -30,12 +30,22 @@ async def _scalar_str(db: AsyncSession, stmt: Any) -> str | None:
     return val if isinstance(val, str) else None
 
 
-async def get_effective_base_currency(db: AsyncSession, *, user_id: UUID | None = None) -> str:
+async def get_operator_base_currency(db: AsyncSession) -> str:
+    """Return the operator default base currency, else the env default."""
+    operator_default = await _scalar_str(db, select(AppConfig.value).where(AppConfig.key == BASE_CURRENCY_KEY))
+    if operator_default is not None:
+        return Currency(operator_default).code
+    return Currency(settings.base_currency).code
+
+
+async def get_effective_base_currency(db: AsyncSession, *, user_id: UUID) -> str:
     """Return the user's own value, else the operator default, else the env default."""
+    if user_id is None:
+        raise TypeError("user_id is required")
     sync_session = getattr(db, "sync_session", None)
     own: str | None = None
     operator_default: str | None = None
-    if user_id is not None and isinstance(sync_session, Session):
+    if isinstance(sync_session, Session):
         row = (
             await db.execute(
                 select(
@@ -47,12 +57,10 @@ async def get_effective_base_currency(db: AsyncSession, *, user_id: UUID | None 
         if row is not None:
             own = row[0] if isinstance(row[0], str) else None
             operator_default = row[1] if isinstance(row[1], str) else None
-    elif user_id is not None:
+    else:
         own = await _scalar_str(db, select(User.base_currency).where(User.id == user_id))
         if own is None:
             operator_default = await _scalar_str(db, select(AppConfig.value).where(AppConfig.key == BASE_CURRENCY_KEY))
-    else:
-        operator_default = await _scalar_str(db, select(AppConfig.value).where(AppConfig.key == BASE_CURRENCY_KEY))
 
     if own is not None:
         return Currency(own).code

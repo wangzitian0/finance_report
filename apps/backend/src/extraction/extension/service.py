@@ -168,25 +168,20 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         )
         return results[0]
 
-    async def parse_documents(
+    async def extract_document_slices(
         self,
         source: DocumentSource,
         institution: str | None = None,
         *,
         user_id: UUID,
         file_type: str = "pdf",
-        account_id: UUID | None = None,
         force_model: str | None = None,
-        db: AsyncSession | None = None,
         hints: RunHints | None = None,
-    ) -> list[StatementExtractionResult]:
-        """Parse a document into 1..N immutable StatementExtractionResult values (splitting multi-account PDFs)."""
+    ) -> tuple[list[AccountExtractionSlice], bool | None]:
+        """Extract raw document slices via CSV parser or multimodal LLM without touching DB."""
         if not isinstance(source, DocumentSource):
             raise TypeError("parse_documents requires a DocumentSource")
 
-        file_path = source.path
-        original_filename = source.filename
-        display_filename = original_filename or (file_path.name if file_path else None)
         model = force_model or self.multimodal_model
         logger.info(
             "Parsing document",
@@ -199,10 +194,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         try:
             if file_type == "csv":
                 extracted = await self._extract_csv_source(source, institution=institution)
-                slices = split_multi_account_extraction(extracted)
-                split_meta_agreed: bool | None = None
-            elif file_type in PROMPT_FILE_TYPES:
-                slices, split_meta_agreed = await self._extract_vision_source(
+                return split_multi_account_extraction(extracted), None
+            if file_type in PROMPT_FILE_TYPES:
+                return await self._extract_vision_source(
                     source,
                     institution=institution,
                     file_type=file_type,
@@ -210,9 +204,32 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     user_id=user_id,
                     hints=hints,
                 )
-            else:
-                raise ExtractionError(f"Unsupported file type: {file_type}")
+            raise ExtractionError(f"Unsupported file type: {file_type}")
+        except Exception as e:
+            if not isinstance(e, ExtractionError):
+                logger.exception("Failed to parse document")
+                raise ExtractionError(f"Failed to parse document: {e}") from e
+            raise
 
+    async def materialize_extracted_slices(
+        self,
+        source: DocumentSource,
+        slices: list[AccountExtractionSlice],
+        *,
+        split_meta_agreed: bool | None,
+        institution: str | None = None,
+        user_id: UUID,
+        file_type: str = "pdf",
+        account_id: UUID | None = None,
+        force_model: str | None = None,
+        db: AsyncSession | None = None,
+    ) -> list[StatementExtractionResult]:
+        """Validate, score, persist, and build immutable results for extracted slices."""
+        file_path = source.path
+        original_filename = source.filename
+        display_filename = original_filename or (file_path.name if file_path else None)
+        model = force_model or self.multimodal_model
+        try:
             results: list[StatementExtractionResult] = []
             for idx, slice_obj in enumerate(slices):
                 results.append(
@@ -236,6 +253,39 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 logger.exception("Failed to parse document")
                 raise ExtractionError(f"Failed to parse document: {e}") from e
             raise
+
+    async def parse_documents(
+        self,
+        source: DocumentSource,
+        institution: str | None = None,
+        *,
+        user_id: UUID,
+        file_type: str = "pdf",
+        account_id: UUID | None = None,
+        force_model: str | None = None,
+        db: AsyncSession | None = None,
+        hints: RunHints | None = None,
+    ) -> list[StatementExtractionResult]:
+        """Parse a document into 1..N immutable StatementExtractionResult values (splitting multi-account PDFs)."""
+        slices, split_meta_agreed = await self.extract_document_slices(
+            source,
+            institution=institution,
+            user_id=user_id,
+            file_type=file_type,
+            force_model=force_model,
+            hints=hints,
+        )
+        return await self.materialize_extracted_slices(
+            source,
+            slices,
+            split_meta_agreed=split_meta_agreed,
+            institution=institution,
+            user_id=user_id,
+            file_type=file_type,
+            account_id=account_id,
+            force_model=force_model,
+            db=db,
+        )
 
     async def _parse_single_statement_payload(
         self,

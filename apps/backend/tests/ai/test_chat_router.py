@@ -123,6 +123,19 @@ async def test_AC21_3_1_and_AC6_5_1_chat_suggestions_structured_and_timeout() ->
         assert timed_out.suggestions and timed_out.structured_suggestions == []
 
 
+def _fake_chat_maker():
+    fake_db = MagicMock(commit=AsyncMock(), flush=AsyncMock())
+
+    class _MakerCtx:
+        async def __aenter__(self):
+            return fake_db
+
+        async def __aexit__(self, *_args):
+            return False
+
+    return (lambda: _MakerCtx()), fake_db
+
+
 @pytest.mark.parametrize(
     ("error", "expected_status", "expected_substr"),
     [
@@ -132,9 +145,14 @@ async def test_AC21_3_1_and_AC6_5_1_chat_suggestions_structured_and_timeout() ->
     ],
 )
 async def test_chat_error_status_mapping(error: AIAdvisorError, expected_status: int, expected_substr: str) -> None:
-    with patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(side_effect=error)):
+    maker, _ = _fake_chat_maker()
+    with (
+        patch("src.routers.chat.get_session_maker", return_value=maker),
+        patch("src.routers.chat.get_effective_base_currency", AsyncMock(return_value="SGD")),
+        patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(side_effect=error)),
+    ):
         with pytest.raises(BaseAppException) as exc_info:
-            await chat_message(_payload(), ctx=_ctx())
+            await chat_message(_payload(), user_id=uuid4())
     assert exc_info.value.status_code == expected_status
     assert expected_substr in exc_info.value.detail.lower()
 
@@ -161,8 +179,13 @@ async def test_chat_response_headers(model_name, metadata, expected_header, expe
         yield "Hello"
 
     service = _mock_chat_service(stream=mock_stream(), model_name=model_name, metadata=metadata)
-    with patch("src.routers.chat.AIAdvisorService", return_value=service):
-        response = await chat_message(_payload(), ctx=_ctx())
+    maker, _ = _fake_chat_maker()
+    with (
+        patch("src.routers.chat.get_session_maker", return_value=maker),
+        patch("src.routers.chat.get_effective_base_currency", AsyncMock(return_value="SGD")),
+        patch("src.routers.chat.AIAdvisorService", return_value=service),
+    ):
+        response = await chat_message(_payload(), user_id=uuid4())
     header_name, expected_val = expected_header
     actual_val = response.headers.get(header_name)
     assert (actual_val is not None) if expected_val is True else (actual_val == expected_val)
@@ -172,7 +195,8 @@ async def test_chat_response_headers(model_name, metadata, expected_header, expe
 
 @pytest.mark.no_db
 async def test_AC_advisor_2555_1_stream_error_and_interruption_handling() -> None:
-    mock_db, closed = MagicMock(flush=AsyncMock()), False
+    maker, mock_db = _fake_chat_maker()
+    closed = False
 
     async def pre_chunk_fail():
         raise AIAdvisorError("AI service temporarily unavailable.", status_code=503) from AIStreamError(message="AIStreamError: status=429 code=1302", retryable=True)
@@ -193,15 +217,23 @@ async def test_AC_advisor_2555_1_stream_error_and_interruption_handling() -> Non
 
     for stream_gen in (pre_chunk_fail(), empty_stream()):
         mock_db.flush.reset_mock()
-        with patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(stream=stream_gen, model_name="glm-5.2")):
+        with (
+            patch("src.routers.chat.get_session_maker", return_value=maker),
+            patch("src.routers.chat.get_effective_base_currency", AsyncMock(return_value="SGD")),
+            patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(stream=stream_gen, model_name="glm-5.2")),
+        ):
             with pytest.raises(BaseAppException) as exc_info:
-                await chat_message(_payload(), ctx=_ctx(mock_db))
+                await chat_message(_payload(), user_id=uuid4())
         assert exc_info.value.status_code == 503
         mock_db.flush.assert_not_awaited()
     assert closed is True
 
-    with patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(stream=midstream_fail(), model_name="glm-5.2")):
-        response = await chat_message(_payload(), ctx=_ctx(mock_db))
+    with (
+        patch("src.routers.chat.get_session_maker", return_value=maker),
+        patch("src.routers.chat.get_effective_base_currency", AsyncMock(return_value="SGD")),
+        patch("src.routers.chat.AIAdvisorService", return_value=_mock_chat_service(stream=midstream_fail(), model_name="glm-5.2")),
+    ):
+        response = await chat_message(_payload(), user_id=uuid4())
         assert [c async for c in response.body_iterator] == ["Initial token", " second token", "\n\n[Stream interrupted — please retry]"]
 
 

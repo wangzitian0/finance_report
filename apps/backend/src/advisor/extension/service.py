@@ -16,7 +16,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import func, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import src.config
 from src.advisor.base.constants import CHAT_METADATA_SAFE_HREFS, MAX_CONTEXT_MESSAGES
@@ -142,6 +142,7 @@ class AIAdvisorService:
         session_id: UUID | None = None,
         *,
         base_currency: str | None = None,
+        session_maker: async_sessionmaker[AsyncSession] | None = None,
     ) -> ChatStream:
         raw_message = message.strip()
         message = redact_sensitive(raw_message)
@@ -177,9 +178,19 @@ class AIAdvisorService:
         if not self.api_key and not await get_config_source(user_id).is_configured():
             raise AIAdvisorError("AI provider API key not configured", status_code=503)
 
+        stream_kwargs = {"session_maker": session_maker} if session_maker is not None else {}
         return ChatStream(
             session_id=session.id,
-            stream=self._stream_and_store(db, session, messages, language, cache_key, user_id, bound),
+            stream=self._stream_and_store(
+                None if session_maker is not None else db,
+                session.id if session_maker is not None else session,
+                messages,
+                language,
+                cache_key,
+                user_id,
+                bound,
+                **stream_kwargs,
+            ),
             model_name=model_key,
             cached=False,
             metadata=metadata,
@@ -764,13 +775,15 @@ class AIAdvisorService:
 
     async def _stream_and_store(
         self,
-        db: AsyncSession,
-        session: ChatSession,
+        db: AsyncSession | None,
+        session: ChatSession | UUID,
         messages: list[dict[str, str]],
         language: str,
         cache_key: str,
         user_id: UUID | None = None,
         bound: SceneBinding | None = None,
+        *,
+        session_maker: async_sessionmaker[AsyncSession] | None = None,
     ) -> AsyncIterator[str]:
         redactor = StreamRedactor()
         chunks: list[str] = []
@@ -805,10 +818,24 @@ class AIAdvisorService:
             yield extra
 
         _CACHE.set(cache_key, response_text)
-        await self._record_message(
-            db, session, ChatMessageRole.ASSISTANT, response_text, model_name=model_used or self.large_model
-        )
-        await db.commit()
+        target_session_id = session if isinstance(session, UUID) else session.id
+        if session_maker is not None:
+            async with session_maker() as write_db:
+                chat_session = await write_db.get(ChatSession, target_session_id)
+                if chat_session is not None:
+                    await self._record_message(
+                        write_db,
+                        chat_session,
+                        ChatMessageRole.ASSISTANT,
+                        response_text,
+                        model_name=model_used or self.large_model,
+                    )
+                    await write_db.commit()
+        elif db is not None and not isinstance(session, UUID):
+            await self._record_message(
+                db, session, ChatMessageRole.ASSISTANT, response_text, model_name=model_used or self.large_model
+            )
+            await db.commit()
 
     def _cached_stream(
         self,

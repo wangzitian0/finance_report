@@ -39,10 +39,13 @@ async def test_AC12_39_2_effective_accessor_falls_back_to_env_default(db: AsyncS
     assert await get_effective_base_currency(db, user_id=test_user.id) == default
     db.add(AppConfig(key=BASE_CURRENCY_KEY, value=f" {operator_value.lower()} "))
     await db.commit()
+    assert await config_app.get_operator_base_currency(db) == operator_value
     assert await get_effective_base_currency(db, user_id=test_user.id) == operator_value
     test_user.base_currency = own_value
     await db.commit()
     assert await get_effective_base_currency(db, user_id=test_user.id) == own_value
+    with pytest.raises(TypeError):
+        await get_effective_base_currency(db)  # type: ignore[call-arg]
 
 
 async def test_AC12_39_1_get_returns_env_default_when_unset(client: AsyncClient) -> None:

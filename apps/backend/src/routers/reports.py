@@ -13,8 +13,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
-from src.config_app import get_effective_base_currency
-from src.deps import Ctx, Pagination, ReadCtx, ReadDbSession, RequestContext
+from src.deps import Ctx, Pagination, ReadCtx, RequestContext
 from src.extraction import coverage_bank_custody_account_ids
 from src.ledger import AccountType
 from src.observability import get_logger, track as _track_analytics
@@ -31,7 +30,7 @@ from src.reporting import (
     ReportingSnapshotService,
     ReportSnapshot,
     ReportType as SnapshotReportType,
-    cash_flow_line_events,
+    cash_flow_line_events_page,
     cash_flow_period,
     cash_flow_preview,
     compute_personal_data_quality,
@@ -117,21 +116,11 @@ def _stream_envelope_text(content: str, media_type: ExportStreamMediaType, filen
     return StreamingResponse(StringIO(content), media_type=envelope.media_type.value, headers=envelope.to_headers())
 
 
-def _page_fields(items: list[Any], pagination: Pagination, items_key: str, **extra: Any) -> dict[str, Any]:
-    return {
-        **extra,
-        "total": len(items),
-        "limit": pagination.limit,
-        "offset": pagination.offset,
-        items_key: items[pagination.offset : pagination.offset + pagination.limit],
-    }
-
-
 @router.get("/currencies", response_model=list[str])
-async def get_available_currencies(*, db: ReadDbSession) -> list[str]:
+async def get_available_currencies(*, ctx: ReadCtx) -> list[str]:
     """Get list of currencies with FX data available."""
-    currencies = await list_available_fx_currencies(db)
-    base_currency = await get_effective_base_currency(db)
+    base_currency = await ctx.get_base_currency()
+    currencies = await list_available_fx_currencies(ctx.db)
     return currencies if base_currency in currencies else [base_currency, *currencies]
 
 
@@ -199,7 +188,7 @@ async def list_personal_report_package_line_details(
     report_start, report_end, report_as_of, target_currency = await _package_period(
         ctx, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
-    details = await PackageAssembler().line_details(
+    paged = await PackageAssembler().line_details_page(
         ctx.db,
         user_id=ctx.user_id,
         start_date=report_start,
@@ -209,11 +198,21 @@ async def list_personal_report_package_line_details(
         base_currency=await ctx.get_base_currency(),
         line_id=line_id,
         anchor=anchor,
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
-    if details is None:
+    if paged is None:
         raise ResourceNotFoundError("Traceability line not found")
-    return PersonalReportPackageLineDetailsPage(
-        **_page_fields(details, pagination, "details", line_id=line_id, anchor=anchor)
+    details, total = paged
+    return PersonalReportPackageLineDetailsPage.model_validate(
+        {
+            "line_id": line_id,
+            "anchor": anchor,
+            "total": total,
+            "limit": pagination.limit,
+            "offset": pagination.offset,
+            "details": details,
+        }
     )
 
 
@@ -231,16 +230,23 @@ async def list_personal_report_package_manifest_entries(
     report_start, report_end, report_as_of, target_currency = await _package_period(
         ctx, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=currency
     )
-    entries = await PackageAssembler().manifest_entries(
+    entries, total = await PackageAssembler().manifest_entries_page(
         ctx.db,
         user_id=ctx.user_id,
         start_date=report_start,
         end_date=report_end,
         as_of_date=report_as_of,
         currency=target_currency,
+        limit=pagination.limit,
+        offset=pagination.offset,
         base_currency=await ctx.get_base_currency(),
     )
-    return PersonalReportPackageManifestEntriesPage(**_page_fields(entries, pagination, "entries"))
+    return PersonalReportPackageManifestEntriesPage(
+        entries=entries,
+        total=total,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
 
 
 @router.get("/package/policy-decisions", response_model=PersonalReportPackagePolicyDecisionsPage)
@@ -257,15 +263,22 @@ async def list_personal_report_package_policy_decisions(
     report_start, report_end, report_as_of, _ = await _package_period(
         ctx, start_date=start_date, end_date=end_date, as_of_date=as_of_date, currency=None
     )
-    decisions = await PackageAssembler().policy_decisions(
+    decisions, total = await PackageAssembler().policy_decisions_page(
         ctx.db,
         user_id=ctx.user_id,
         framework_id=framework_id,
         start_date=report_start,
         end_date=report_end,
         as_of_date=report_as_of,
+        limit=pagination.limit,
+        offset=pagination.offset,
     )
-    return PersonalReportPackagePolicyDecisionsPage(**_page_fields(decisions, pagination, "decisions"))
+    return PersonalReportPackagePolicyDecisionsPage(
+        decisions=decisions,
+        total=total,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
 
 
 @router.post("/package/snapshots", response_model=PersonalReportPackageSnapshotResponse)
@@ -554,14 +567,31 @@ async def list_cash_flow_line_events(
 
     async def _build(tc: str, _bc: str):
         custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
-        return await cash_flow_line_events(
-            db, user_id, line_id=line_id, start_date=start, end_date=end, currency=tc, cash_account_ids=custody
+        return await cash_flow_line_events_page(
+            db,
+            user_id,
+            line_id=line_id,
+            start_date=start,
+            end_date=end,
+            currency=tc,
+            cash_account_ids=custody,
+            limit=pagination.limit,
+            offset=pagination.offset,
         )
 
-    events = await _run_report(ctx, currency=currency, end_date=end, label="Cash flow line events", build=_build)
-    if events is None:
+    paged = await _run_report(ctx, currency=currency, end_date=end, label="Cash flow line events", build=_build)
+    if paged is None:
         raise ResourceNotFoundError("Cash-flow line not found")
-    return CashFlowLineEventsPage.model_validate(_page_fields(list(events), pagination, "events", line_id=line_id))
+    events, total = paged
+    return CashFlowLineEventsPage.model_validate(
+        {
+            "line_id": line_id,
+            "total": total,
+            "limit": pagination.limit,
+            "offset": pagination.offset,
+            "events": list(events),
+        }
+    )
 
 
 @router.get("/net-worth/timeseries", response_model=NetWorthTimeSeriesResponse)

@@ -331,6 +331,17 @@ async def test_export_report_validation_errors(client, params: dict, status_code
     assert resp.status_code == status_code and (detail is None or detail in resp.json()["detail"])
 
 
+async def test_get_currencies_requires_auth_and_uses_user_base_currency(
+    client, public_client, db: AsyncSession, test_user
+) -> None:
+    assert (await public_client.get("/reports/currencies")).status_code == 401
+    test_user.base_currency = "JPY"
+    await db.commit()
+    resp = await client.get("/reports/currencies")
+    assert resp.status_code == 200
+    assert resp.json()[0] == "JPY"
+
+
 async def test_currencies_diagnostics_lineage_and_statement_custody_cash_flow(
     client, db: AsyncSession, test_user
 ) -> None:

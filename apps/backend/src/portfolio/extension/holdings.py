@@ -25,7 +25,7 @@ from src.audit.unit_price import UnitPrice
 from src.extraction.orm.layer2 import AtomicPosition
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine, active_journal_entry_filter
 from src.observability import get_logger
-from src.platform import require_base_currency
+from src.platform import paginate, require_base_currency
 from src.portfolio.base.errors import (
     AssetNotFoundError,
     PortfolioNotFoundError,
@@ -337,6 +337,13 @@ def _build_holding_response(
 class PortfolioService:
     """Service for managing portfolio holdings and P&L calculations."""
 
+    @staticmethod
+    def _current_positions_query(user_id: UUID, *, include_disposed: bool):
+        query = select(ManagedPosition).where(ManagedPosition.user_id == user_id)
+        if not include_disposed:
+            query = query.where(ManagedPosition.status == PositionStatus.ACTIVE)
+        return query
+
     async def get_holdings(
         self,
         db: AsyncSession,
@@ -359,18 +366,70 @@ class PortfolioService:
             )
 
         eval_date = await self._default_holdings_eval_date(db, user_id)
-        positions_query = (
-            select(ManagedPosition)
-            .where(ManagedPosition.user_id == user_id)
-            .order_by(ManagedPosition.asset_identifier, ManagedPosition.id)
+        positions_query = self._current_positions_query(user_id, include_disposed=include_disposed).order_by(
+            ManagedPosition.asset_identifier, ManagedPosition.id
         )
-        if not include_disposed:
-            positions_query = positions_query.where(ManagedPosition.status == PositionStatus.ACTIVE)
-
         positions = (await db.scalars(positions_query)).all()
         if not positions:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
+        return await self._materialize_current_holdings(
+            db, user_id, positions, eval_date=eval_date, base_currency=base_currency
+        )
 
+    async def get_holdings_page(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        as_of_date: date | None = None,
+        include_disposed: bool = False,
+        warnings: list[dict[str, str]] | None = None,
+        *,
+        limit: int,
+        offset: int,
+        base_currency: str | None = None,
+    ) -> tuple[list[HoldingResponse], int]:
+        """Return one paginated slice of holdings and the total matching count."""
+        if as_of_date is not None:
+            all_holdings = list(
+                await self._get_snapshot_holdings(
+                    db,
+                    user_id=user_id,
+                    as_of_date=as_of_date,
+                    include_disposed=include_disposed,
+                    warnings=warnings,
+                    base_currency=base_currency,
+                )
+            )
+            return all_holdings[offset : offset + limit], len(all_holdings)
+
+        eval_date = await self._default_holdings_eval_date(db, user_id)
+        positions, total = await paginate(
+            db,
+            self._current_positions_query(user_id, include_disposed=include_disposed),
+            limit=limit,
+            offset=offset,
+            order_by=(ManagedPosition.asset_identifier, ManagedPosition.id),
+        )
+        if total == 0:
+            raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
+        if not positions:
+            return [], total
+        return (
+            await self._materialize_current_holdings(
+                db, user_id, positions, eval_date=eval_date, base_currency=base_currency
+            ),
+            total,
+        )
+
+    async def _materialize_current_holdings(
+        self,
+        db: AsyncSession,
+        user_id: UUID,
+        positions: Sequence[ManagedPosition],
+        *,
+        eval_date: date,
+        base_currency: str | None,
+    ) -> list[HoldingResponse]:
         account_names = await _account_names_by_id(db, user_id, {p.account_id for p in positions})
         resolved_base = require_base_currency(base_currency)
         asset_identifiers = {p.asset_identifier for p in positions}

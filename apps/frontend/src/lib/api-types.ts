@@ -2011,6 +2011,7 @@ export interface operations {
     parameters: _QP<{
         session_id?: string | null;
         limit?: number;
+        offset?: number;
       }>;
     requestBody?: never;
     responses: _R<_S["ChatHistoryResponse"]>;
@@ -2066,8 +2067,11 @@ export interface operations {
     responses: _R204;
   };
   get_journal_entry_audit_journal_entries__entry_id__audit_get: {
-    parameters: _PP<{
+    parameters: _PQP<{
         entry_id: string;
+      }, {
+        limit?: number;
+        offset?: number;
       }>;
     requestBody?: never;
     responses: _R<_S["AuditTrailResponse"]>;
@@ -2305,7 +2309,14 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["AnomalyResponse"][]>;
   };
-  list_processing_pending_reconciliation_transfers_pending_get: _OpN<_S["ListResponse_ProcessingPendingItem_"]>;
+  list_processing_pending_reconciliation_transfers_pending_get: {
+    parameters: _QP<{
+        limit?: number;
+        offset?: number;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["ListResponse_ProcessingPendingItem_"]>;
+  };
   get_processing_summary_reconciliation_transfers_summary_get: _OpN<_S["ProcessingSummaryResponse"]>;
   list_unmatched_reconciliation_unmatched_get: {
     parameters: _QP<{
@@ -2541,7 +2552,14 @@ export interface operations {
       500: _E;
     };
   };
-  list_statements_statements_get: _OpN<_S["ListResponse_BankStatementListItemResponse_"]>;
+  list_statements_statements_get: {
+    parameters: _QP<{
+        limit?: number;
+        offset?: number;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["ListResponse_BankStatementListItemResponse_"]>;
+  };
   upload_statement_statements_post: {
     parameters: _NP;
     requestBody: {
@@ -2582,7 +2600,14 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["EvidenceLineageResponse"]>;
   };
-  list_pending_review_statements_pending_review_get: _OpN<_S["ListResponse_BankStatementListItemResponse_"]>;
+  list_pending_review_statements_pending_review_get: {
+    parameters: _QP<{
+        limit?: number;
+        offset?: number;
+      }>;
+    requestBody?: never;
+    responses: _R<_S["ListResponse_BankStatementListItemResponse_"]>;
+  };
   get_statement_statements__statement_id__get: {
     parameters: _PP<{
         statement_id: string;
@@ -2666,8 +2691,11 @@ export interface operations {
     responses: _R<_S["ReviewedStatementEnvelopeResponse"]>;
   };
   list_statement_runs_statements__statement_id__runs_get: {
-    parameters: _PP<{
+    parameters: _PQP<{
         statement_id: string;
+      }, {
+        limit?: number;
+        offset?: number;
       }>;
     requestBody?: never;
     responses: _R<_S["ListResponse_StatementRunRecord_"]>;
@@ -2687,6 +2715,7 @@ export interface operations {
     parameters: _QP<{
         status?: _S["WorkflowEventStatus"] | null;
         limit?: number;
+        offset?: number;
       }>;
     requestBody?: never;
     responses: _R<_S["WorkflowEventListResponse"]>;

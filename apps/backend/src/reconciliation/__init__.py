@@ -88,6 +88,7 @@ from src.reconciliation.extension.named_transfers import NamedTransfer, post_nam
 from src.reconciliation.extension.processing_transfers import (
     get_processing_transfer_summary,
     list_pending_processing_transfers,
+    list_pending_processing_transfers_page,
 )
 from src.reconciliation.extension.review_queue import (
     BatchMatchDecisionResult,
@@ -201,6 +202,7 @@ __all__ = [
     "is_entry_balanced",
     "list_checks",
     "list_pending_processing_transfers",
+    "list_pending_processing_transfers_page",
     "list_reconciliation_matches_page",
     "list_unmatched_transactions_page",
     "load_entry_summaries_for_matches",
