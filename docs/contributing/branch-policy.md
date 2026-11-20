@@ -9,7 +9,7 @@
    - The PR description's checklist is complete, and the PR references the issue it advances (or states `None`). **Protected-file checklist.** Each protected file has its own checklist instead of an owner quote: | File | Checklist |
    |------|-----------|
    | `AGENTS.md`, `GEMINI.md` | These files are generated from dev_env. Do not hand-edit them. Change the dev_env rule source, then re-render. The publish manifest `.ws-publish/manifest.json` records the SHA-256 of each generated file. dev_env `ws-publish --check-files` guards the generated files. This repository has no CI job that compares them with the manifest. |
-   | `README.md`, `vision.md` | The normal review checklist applies: required checks are green on the head SHA, and every actionable review thread is resolved. |
+   | `README.md`, `vision.md` | The normal review checklist applies: required checks are green on the head SHA, and unresolved review threads score below 1.0. |
    A PR that fails a condition is not ready to merge. The agent fixes the cause until every condition holds. Only a production deployment waits for the owner. 5. **One task per branch**: Keep each branch scoped to its requested issue or change set.
 ## 🔧 Pre-commit Hooks (REQUIRED for contributors)
 Before your first commit, install pre-commit hooks to prevent CI failures:

@@ -61,6 +61,11 @@ class TestThreadWeight:
             _thread(author="github-copilot[bot]", body="severity: low")
         ) == ("Low", 0.25)
 
+    def test_legacy_markers_without_severity_use_unlabelled_weight(self) -> None:
+        for body in ("P0 blocker", "P1 regression", "nit: rename var", "P2/P3 polish"):
+            assert gate.thread_weight(_thread(body=body)) == ("Medium (default)", 0.5)
+        assert _run(_payload(_thread(body="P0 blocker without severity tag"))) == 0
+
 
 class TestBlocking:
     def test_single_high_blocks_at_one_point_zero(self) -> None:
@@ -85,10 +90,19 @@ class TestBlocking:
         self, capsys: pytest.CaptureFixture[str]
     ) -> None:
         url = "https://github.com/o/r/pull/1#discussion_r999"
-        assert _run(_payload(_thread(body="severity: high", url=url))) == 1
+        assert (
+            _run(
+                _payload(
+                    _thread(body="severity: high", url=url),
+                    _thread(body="severity: low"),
+                )
+            )
+            == 1
+        )
         captured = capsys.readouterr()
-        assert url in captured.out + captured.err
-        assert "1.0" in captured.out + captured.err
+        assert url in captured.err
+        assert "weighted score 1.25" in captured.out
+        assert "unresolved review score 1.25 >= 1.00" in captured.err
 
 
 class TestNonBlocking:
@@ -242,8 +256,12 @@ class TestFetchPagination:
 def test_AC8_20_3_severity_rule_documented_in_ssot() -> None:
     "AC-testing.review-threads.3 AC8.20.3"
     ci_cd = (_REPO_ROOT / "common" / "testing" / "ci-cd.md").read_text(encoding="utf-8")
-    assert "PR Review Thread Merge Gate" in ci_cd
-    assert "1.0" in ci_cd
-    assert "severity:" in ci_cd
-    assert "outdated" in ci_cd.lower()
-    assert "optional" in ci_cd.lower()
+    section = ci_cd.split("## PR Review Thread Merge Gate", 1)[1].split("\n## ", 1)[0]
+    lower = " ".join(section.lower().replace("`", "").split())
+    assert f"high = {gate.SEVERITY_WEIGHTS['high'][1]}" in lower
+    assert f"middle/medium = {gate.SEVERITY_WEIGHTS['middle'][1]}" in lower
+    assert f"low = {gate.SEVERITY_WEIGHTS['low'][1]}" in lower
+    assert f"unlabelled = {gate.UNLABELLED_WEIGHT[1]}" in lower
+    assert f">= {gate.REVIEW_BLOCK_SCORE}" in lower
+    assert "resolved and outdated threads do not count" in lower
+    assert "copilot review is optional and non-blocking" in lower
