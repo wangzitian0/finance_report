@@ -82,7 +82,14 @@ from src.portfolio import (
     active_stock_symbols,
     position_currencies,
 )
-from src.pricing import MarketDataScopes, PricingError, ensure_market_data_fresh, get_exchange_rate
+from src.pricing import (
+    MarketDataScopes,
+    PricingError,
+    fetch_planned_freshness,
+    get_exchange_rate,
+    persist_fetched_freshness,
+    plan_market_data_freshness,
+)
 from src.reconciliation import (
     NamedTransfer,
     ReconciliationMatch,
@@ -542,13 +549,25 @@ async def refresh_market_data_for_brokerage_import(
         return
     end_date = _brokerage_import_end_date(payload)
     try:
-        async with db.begin_nested():
-            fx_pairs = await observed_fx_pairs(db, user_id)
-            stock_symbols = await active_stock_symbols(db, user_id)
-            await ensure_market_data_fresh(db, fx_pairs=fx_pairs, stock_symbols=stock_symbols, end_date=end_date)
+        fx_pairs = await observed_fx_pairs(db, user_id)
+        stock_symbols = await active_stock_symbols(db, user_id)
+        plan = await plan_market_data_freshness(
+            db,
+            fx_pairs=fx_pairs,
+            stock_symbols=stock_symbols,
+            end_date=end_date,
+        )
+        await db.rollback()
+        if not plan.has_work:
+            return
+        fetched = await fetch_planned_freshness(plan)
+        await persist_fetched_freshness(db, plan, fetched)
+        await db.commit()
     except asyncio.CancelledError:
         raise
     except Exception as exc:  # noqa: BLE001
+        if db.in_transaction():
+            await db.rollback()
         logger.warning(
             "Market-data freshness sync failed during brokerage import; keeping imported positions",
             error=str(exc),
@@ -604,9 +623,7 @@ async def execute_statement_brokerage_import(
         if statement.account_id is None and import_result.account_id is not None:
             statement.account_id = import_result.account_id
         await clear_brokerage_import_failure(db, statement_id=statement_id, user_id=user_id)
-        await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=payload)
         await db.commit()
-        return import_result
     except Exception as exc:
         is_rejected = isinstance(exc, BrokerageImportRejectedError | PositionServiceError)
         (audit_logger.warning if is_rejected else audit_logger.exception)(
@@ -642,6 +659,8 @@ async def execute_statement_brokerage_import(
         if isinstance(exc, PositionServiceError):
             raise PreconditionFailedError(str(exc)) from exc
         raise
+    await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=payload)
+    return import_result
 
 
 async def known_user_asset_identifiers(
@@ -715,12 +734,14 @@ async def import_statement_brokerage_positions(
         extraction_result=current_result,
     ) or _brokerage_payload_from_statement(statement, transactions)
     request_id = ensure_request_id()
-    source_document_id = str(statement.uploaded_document_id or statement.id)
+    captured_statement_id = statement.id
+    initial_account_id = statement.account_id
+    source_document_id = str(statement.uploaded_document_id or captured_statement_id)
     audit_logger.info(
         "statement.brokerage_import.started",
         audit_event="statement.brokerage_import.started",
         request_id=request_id,
-        statement_id=str(statement.id),
+        statement_id=str(captured_statement_id),
         phase="brokerage_import_started",
         model_to_use=None,
         broker=statement.institution,
@@ -741,7 +762,7 @@ async def import_statement_brokerage_positions(
         "statement.brokerage_import.completed",
         audit_event="statement.brokerage_import.completed",
         request_id=request_id,
-        statement_id=str(statement.id),
+        statement_id=str(captured_statement_id),
         phase="brokerage_import_completed",
         model_to_use=None,
         broker=import_result.broker,
@@ -752,4 +773,26 @@ async def import_statement_brokerage_positions(
         reconcile_updated=import_result.reconcile_updated,
         reconcile_disposed=import_result.reconcile_disposed,
     )
-    return {**import_result.__dict__, "account_id": statement.account_id or import_result.account_id}
+    return {**import_result.__dict__, "account_id": initial_account_id or import_result.account_id}
+
+
+async def import_payload_brokerage_positions(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    payload: dict[str, Any],
+    filename: str | None,
+    source_document_id: str | None,
+    import_service: BrokeragePositionImportService,
+) -> dict[str, Any]:
+    """Import brokerage positions from a raw payload, commit, then refresh market data."""
+    result = await import_service.import_positions(
+        db,
+        user_id=user_id,
+        payload=payload,
+        filename=filename,
+        source_document_id=source_document_id,
+    )
+    await db.commit()
+    await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=payload)
+    return dict(result.__dict__)

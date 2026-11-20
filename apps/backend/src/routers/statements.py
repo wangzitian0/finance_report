@@ -13,6 +13,7 @@ from fastapi import APIRouter, Body, File, Form, Query, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.composition import (
@@ -441,12 +442,12 @@ async def upload_statement(
     if extension == "csv" and not institution:
         raise ValidationFailedError("Institution is required for CSV uploads. Please select an institution and retry.")
 
+    content = await _read_bounded_upload(file, max_bytes=MAX_UPLOAD_BYTES)
+    file_hash = hashlib.sha256(content).hexdigest()
+
     if account_id is not None:
         await ensure_owned_account(db, user_id, account_id)
 
-    content = await _read_bounded_upload(file, max_bytes=MAX_UPLOAD_BYTES)
-
-    file_hash = hashlib.sha256(content).hexdigest()
     if (
         await db.execute(
             select(StatementSummary.id)
@@ -456,6 +457,7 @@ async def upload_statement(
     ).scalar_one_or_none():
         raise ConflictError("Duplicate statement upload")
 
+    await db.rollback()
     statement_id = uuid4()
     request_id = ensure_request_id()
     model_to_use = None
@@ -546,6 +548,8 @@ async def upload_statement(
                 error=str(store_exc),
                 error_id=ErrorIds.STORAGE_DELETE_FAILED,
             )
+        if isinstance(exc, IntegrityError):
+            raise ConflictError("Duplicate statement upload") from exc
         if isinstance(exc, DomainError):
             raise
         raise InternalServiceError("Failed to persist statement metadata") from exc

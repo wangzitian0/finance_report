@@ -15,8 +15,8 @@ passes them in here.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Sequence
-from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 
@@ -37,9 +37,16 @@ from src.pricing.extension.market_data._store import (
     _upsert_sync_state,
 )
 from src.pricing.extension.market_data._types import (
+    FetchedFreshnessSync,
+    FetchedMarketSync,
+    FetchedScopeSync,
     MarketDataFreshnessResult,
     MarketDataScopeStatus,
     MarketDataSyncResult,
+    PlannedFreshnessSync,
+    PlannedMarketSync,
+    PlannedScopeSync,
+    ProviderDisagreement,
     _MarketSyncSpec,
 )
 from src.pricing.extension.market_data._util import (
@@ -58,15 +65,17 @@ from src.pricing.extension.market_data._util import (
 settings = src.config.settings
 
 
-async def _sync_market_observation_series(
+async def _plan_market_observation_series(
     db: AsyncSession,
     *,
     raw_scopes: Sequence[str],
     start_date: date | None,
     end_date: date,
     spec: _MarketSyncSpec,
-) -> MarketDataSyncResult:
-    result = MarketDataSyncResult(kind=spec.kind)
+) -> PlannedMarketSync:
+    """Inspect stored dates and return the missing market data scope plan."""
+    skipped = 0
+    items: list[PlannedScopeSync] = []
 
     for raw_scope in raw_scopes:
         scope = spec.parse_scope(raw_scope)
@@ -80,37 +89,101 @@ async def _sync_market_observation_series(
 
         all_dates = set(_iter_dates(sync_start, end_date))
         stored_dates = await spec.stored_dates(db, scope, sync_start, end_date)
-        requested_dates = all_dates - stored_dates
-        result = replace(result, skipped=result.skipped + len(all_dates & stored_dates))
+        requested_dates = frozenset(all_dates - stored_dates)
+        skipped += len(all_dates & stored_dates)
         if not requested_dates:
             continue
 
-        result = replace(result, requested=result.requested + len(requested_dates))
-        validated = await spec.fetch_series(scope, min(requested_dates), max(requested_dates))
-        result.disagreements.extend(validated.disagreements)
+        items.append(
+            PlannedScopeSync(
+                scope=scope,
+                scope_name=spec.scope_name(scope),
+                last_date=last_date,
+                requested_dates=requested_dates,
+            )
+        )
 
-        observed_dates: set[date] = {item.observed_date for item in validated.disagreements}
+    return PlannedMarketSync(
+        kind=spec.kind,
+        end_date=end_date,
+        skipped=skipped,
+        items=tuple(items),
+    )
+
+
+async def _fetch_market_observation_series(
+    plan: PlannedMarketSync,
+    *,
+    spec: _MarketSyncSpec,
+    max_concurrency: int = 4,
+) -> FetchedMarketSync:
+    """Fetch provider series concurrently for a planned sync without DB access."""
+    if not plan.items:
+        return FetchedMarketSync(kind=plan.kind, items=())
+
+    semaphore = asyncio.Semaphore(max(1, max_concurrency))
+
+    async def _fetch_scope(item: PlannedScopeSync) -> FetchedScopeSync:
+        async with semaphore:
+            validated = await spec.fetch_series(
+                item.scope,
+                min(item.requested_dates),
+                max(item.requested_dates),
+            )
+        return FetchedScopeSync(item=item, validated=validated)
+
+    fetched_items = await asyncio.gather(*(_fetch_scope(item) for item in plan.items))
+    return FetchedMarketSync(kind=plan.kind, items=tuple(fetched_items))
+
+
+async def _persist_market_observation_series(
+    db: AsyncSession,
+    plan: PlannedMarketSync,
+    fetched: FetchedMarketSync,
+    *,
+    spec: _MarketSyncSpec,
+) -> MarketDataSyncResult:
+    """Persist fetched market observations and sync-state watermarks without committing."""
+    requested = 0
+    inserted = 0
+    missing = 0
+    disagreements: list[ProviderDisagreement] = []
+
+    for fetched_item in fetched.items:
+        item = fetched_item.item
+        validated = fetched_item.validated
+        requested += len(item.requested_dates)
+        disagreements.extend(validated.disagreements)
+
+        observed_dates: set[date] = {dis.observed_date for dis in validated.disagreements}
         persisted_dates: list[date] = []
         for observation in validated.observations:
             observation_date = spec.observation_date(observation)
-            if not spec.observation_matches_scope(observation, scope) or observation_date not in requested_dates:
+            if not spec.observation_matches_scope(observation, item.scope) or observation_date not in item.requested_dates:
                 continue
             await spec.persist_observation(db, observation)
             persisted_dates.append(observation_date)
             observed_dates.add(observation_date)
-            result = replace(result, inserted=result.inserted + 1)
+            inserted += 1
 
-        result = replace(result, missing=result.missing + len(requested_dates - observed_dates))
+        missing += len(item.requested_dates - observed_dates)
         if validated.provider_success:
             await _upsert_sync_state(
                 db,
                 kind=spec.kind,
-                scope=spec.scope_name(scope),
-                last_success_date=end_date,
-                last_observation_date=max(persisted_dates) if persisted_dates else last_date,
+                scope=item.scope_name,
+                last_success_date=plan.end_date,
+                last_observation_date=max(persisted_dates) if persisted_dates else item.last_date,
             )
 
-    return result
+    return MarketDataSyncResult(
+        kind=spec.kind,
+        requested=requested,
+        inserted=inserted,
+        skipped=plan.skipped,
+        missing=missing,
+        disagreements=disagreements,
+    )
 
 
 async def resolve_missing_fx_rate(
@@ -151,6 +224,51 @@ async def resolve_missing_fx_rate(
     return None
 
 
+async def plan_fx_sync(
+    db: AsyncSession,
+    *,
+    pairs: Sequence[str],
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> PlannedMarketSync:
+    """Plan incremental FX rate sync ranges from database state."""
+    sync_end = end_date or date.today()
+    return await _plan_market_observation_series(
+        db,
+        raw_scopes=list(pairs),
+        start_date=start_date,
+        end_date=sync_end,
+        spec=_FX_SYNC_SPEC,
+    )
+
+
+async def fetch_planned_fx_sync(
+    plan: PlannedMarketSync,
+    *,
+    max_concurrency: int = 4,
+) -> FetchedMarketSync:
+    """Fetch planned FX rate series from providers without database access."""
+    return await _fetch_market_observation_series(
+        plan,
+        spec=_FX_SYNC_SPEC,
+        max_concurrency=max_concurrency,
+    )
+
+
+async def persist_fetched_fx_sync(
+    db: AsyncSession,
+    plan: PlannedMarketSync,
+    fetched: FetchedMarketSync,
+) -> MarketDataSyncResult:
+    """Persist fetched FX rates without committing."""
+    return await _persist_market_observation_series(
+        db,
+        plan,
+        fetched,
+        spec=_FX_SYNC_SPEC,
+    )
+
+
 async def sync_fx_rates(
     db: AsyncSession,
     *,
@@ -159,13 +277,54 @@ async def sync_fx_rates(
     end_date: date | None = None,
 ) -> MarketDataSyncResult:
     """Incrementally fill FX rows for the given ``BASE/QUOTE`` pairs."""
+    plan = await plan_fx_sync(db, pairs=pairs, start_date=start_date, end_date=end_date)
+    fetched = await fetch_planned_fx_sync(plan)
+    return await persist_fetched_fx_sync(db, plan, fetched)
+
+
+async def plan_stock_sync(
+    db: AsyncSession,
+    *,
+    symbols: Sequence[str],
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> PlannedMarketSync:
+    """Plan incremental stock price sync ranges from database state."""
     sync_end = end_date or date.today()
-    return await _sync_market_observation_series(
+    sync_symbols = sorted({_normalize_symbol(symbol) for symbol in symbols})
+    return await _plan_market_observation_series(
         db,
-        raw_scopes=list(pairs),
+        raw_scopes=sync_symbols,
         start_date=start_date,
         end_date=sync_end,
-        spec=_FX_SYNC_SPEC,
+        spec=_STOCK_SYNC_SPEC,
+    )
+
+
+async def fetch_planned_stock_sync(
+    plan: PlannedMarketSync,
+    *,
+    max_concurrency: int = 4,
+) -> FetchedMarketSync:
+    """Fetch planned stock price series from providers without database access."""
+    return await _fetch_market_observation_series(
+        plan,
+        spec=_STOCK_SYNC_SPEC,
+        max_concurrency=max_concurrency,
+    )
+
+
+async def persist_fetched_stock_sync(
+    db: AsyncSession,
+    plan: PlannedMarketSync,
+    fetched: FetchedMarketSync,
+) -> MarketDataSyncResult:
+    """Persist fetched stock prices without committing."""
+    return await _persist_market_observation_series(
+        db,
+        plan,
+        fetched,
+        spec=_STOCK_SYNC_SPEC,
     )
 
 
@@ -177,26 +336,20 @@ async def sync_stock_prices(
     end_date: date | None = None,
 ) -> MarketDataSyncResult:
     """Incrementally fill stock prices for the given symbols."""
-    sync_end = end_date or date.today()
-    sync_symbols = sorted({_normalize_symbol(symbol) for symbol in symbols})
-    return await _sync_market_observation_series(
-        db,
-        raw_scopes=sync_symbols,
-        start_date=start_date,
-        end_date=sync_end,
-        spec=_STOCK_SYNC_SPEC,
-    )
+    plan = await plan_stock_sync(db, symbols=symbols, start_date=start_date, end_date=end_date)
+    fetched = await fetch_planned_stock_sync(plan)
+    return await persist_fetched_stock_sync(db, plan, fetched)
 
 
-async def ensure_market_data_fresh(
+async def plan_market_data_freshness(
     db: AsyncSession,
     *,
     fx_pairs: Sequence[str],
     stock_symbols: Sequence[str],
     end_date: date | None = None,
     now: datetime | None = None,
-) -> MarketDataFreshnessResult:
-    """Refresh the given scopes once when the last successful sync is older than 24h."""
+) -> PlannedFreshnessSync:
+    """Inspect freshness state and plan stale FX and stock syncs."""
     checked_at = _normalize_utc(now or datetime.now(UTC))
     sync_end = end_date or date.today()
     stale_pairs: list[str] = []
@@ -226,26 +379,50 @@ async def ensure_market_data_fresh(
         ):
             stale_symbols.append(scope)
 
-    fx_result = (
-        await sync_fx_rates(
+    fx_plan = (
+        await plan_fx_sync(
             db,
             pairs=stale_pairs,
             start_date=_default_start_date(sync_end),
             end_date=sync_end,
         )
         if stale_pairs
-        else MarketDataSyncResult(kind="fx")
+        else PlannedMarketSync(kind="fx", end_date=sync_end, skipped=0, items=())
     )
-    stock_result = (
-        await sync_stock_prices(
+    stock_plan = (
+        await plan_stock_sync(
             db,
             symbols=stale_symbols,
             start_date=_default_start_date(sync_end),
             end_date=sync_end,
         )
         if stale_symbols
-        else MarketDataSyncResult(kind="stock")
+        else PlannedMarketSync(kind="stock", end_date=sync_end, skipped=0, items=())
     )
+    return PlannedFreshnessSync(checked_at=checked_at, fx=fx_plan, stock=stock_plan)
+
+
+async def fetch_planned_freshness(
+    plan: PlannedFreshnessSync,
+    *,
+    max_concurrency: int = 4,
+) -> FetchedFreshnessSync:
+    """Fetch stale FX and stock scopes concurrently without database access."""
+    fx_fetched, stock_fetched = await asyncio.gather(
+        fetch_planned_fx_sync(plan.fx, max_concurrency=max_concurrency),
+        fetch_planned_stock_sync(plan.stock, max_concurrency=max_concurrency),
+    )
+    return FetchedFreshnessSync(fx=fx_fetched, stock=stock_fetched)
+
+
+async def persist_fetched_freshness(
+    db: AsyncSession,
+    plan: PlannedFreshnessSync,
+    fetched: FetchedFreshnessSync,
+) -> MarketDataFreshnessResult:
+    """Persist fetched freshness series without committing."""
+    fx_result = await persist_fetched_fx_sync(db, plan.fx, fetched.fx)
+    stock_result = await persist_fetched_stock_sync(db, plan.stock, fetched.stock)
     if fx_result.requested or stock_result.requested:
         logger.info(
             "Report-time market data freshness sync completed",
@@ -254,7 +431,27 @@ async def ensure_market_data_fresh(
             fx_inserted=fx_result.inserted,
             stock_inserted=stock_result.inserted,
         )
-    return MarketDataFreshnessResult(checked_at=checked_at, fx=fx_result, stock=stock_result)
+    return MarketDataFreshnessResult(checked_at=plan.checked_at, fx=fx_result, stock=stock_result)
+
+
+async def ensure_market_data_fresh(
+    db: AsyncSession,
+    *,
+    fx_pairs: Sequence[str],
+    stock_symbols: Sequence[str],
+    end_date: date | None = None,
+    now: datetime | None = None,
+) -> MarketDataFreshnessResult:
+    """Refresh the given scopes once when the last successful sync is older than 24h."""
+    plan = await plan_market_data_freshness(
+        db,
+        fx_pairs=fx_pairs,
+        stock_symbols=stock_symbols,
+        end_date=end_date,
+        now=now,
+    )
+    fetched = await fetch_planned_freshness(plan)
+    return await persist_fetched_freshness(db, plan, fetched)
 
 
 async def get_market_data_status(

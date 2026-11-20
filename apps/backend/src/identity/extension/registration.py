@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 
 from sqlalchemy.exc import IntegrityError
@@ -27,10 +28,11 @@ async def register_user(
     if await repo.get_by_normalized_email(normalized_email):
         raise ValidationFailedError("Email already registered")
 
+    hashed_password = await asyncio.to_thread(password_hasher, password)
     user = User(
         email=normalized_email,
         name=name,
-        hashed_password=password_hasher(password),
+        hashed_password=hashed_password,
     )
     try:
         async with db.begin_nested():

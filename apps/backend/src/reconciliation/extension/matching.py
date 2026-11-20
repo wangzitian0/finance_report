@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import date, timedelta
@@ -27,8 +28,14 @@ from src.reconciliation.base.config import (
 )
 from src.reconciliation.base.prompts import build_reconciliation_prompt
 from src.reconciliation.base.repository import ReconciliationRepository
-from src.reconciliation.extension.candidate_policy import _score_rule_candidate
+from src.reconciliation.extension.candidate_policy import (
+    _normal_entry_combinations,
+    _score_rule_candidate,
+    build_many_to_one_groups,
+    prune_candidates,
+)
 from src.reconciliation.extension.config import load_reconciliation_config
+from src.reconciliation.extension.entry_reads import is_entry_balanced
 from src.reconciliation.extension.repository import SqlReconciliationRepository
 from src.reconciliation.extension.scoring import extract_merchant_tokens, score_description, score_pattern
 from src.reconciliation.extension.transfer_pairs import paired_transfer_entry_ids, persist_transfer_pairs
@@ -50,6 +57,26 @@ class MatchingContext:
     entries_by_id: dict[str, JournalEntry]
     get_candidates_for_date: Callable[[date], list[JournalEntry]]
     get_cached_pattern_score: Callable[[AtomicTransaction], Awaitable[float]]
+    semantic_scores: Mapping[str, int] | None = None
+
+
+def _build_candidate_semantic_prompt(
+    transaction: AtomicTransaction,
+    entries: Sequence[JournalEntry],
+    scores: Mapping[str, float | str],
+) -> str | None:
+    """Build the semantic scoring prompt for a candidate match when an entry is present."""
+    primary_entry = entries[0] if entries else None
+    if primary_entry is None:
+        return None
+    date_diff = abs((transaction.txn_date - primary_entry.entry_date).days)
+    amount_pct = float(scores.get("amount", 0.0))
+    return build_reconciliation_prompt(
+        txn_description=transaction.description,
+        entry_memo=primary_entry.memo or "",
+        date_diff_days=date_diff,
+        amount_match_pct=amount_pct,
+    )
 
 
 async def _calculate_candidate_score(
@@ -62,6 +89,7 @@ async def _calculate_candidate_score(
     amount: Decimal,
     is_group: bool,
     history_score: float | None,
+    semantic_scores: Mapping[str, int] | None = None,
 ) -> MatchCandidate:
     """Calculate the common score after the public mode selected semantics."""
     if history_score is None:
@@ -79,23 +107,16 @@ async def _calculate_candidate_score(
 
     # EPIC-018 Phase 3: Hybrid scoring for ambiguous matches (60-84 range)
     if config.enable_ai_reconciliation and 60 <= total <= 84:
-        primary_entry = entries[0] if entries else None
-        if primary_entry:
-            date_diff = abs((transaction.txn_date - primary_entry.entry_date).days)
-            amount_pct = float(scores.get("amount", 0.0))
+        prompt = _build_candidate_semantic_prompt(transaction, entries, scores)
+        if prompt is not None:
             # llm's ai_semantic_score is generic (prompt in, score out); the
             # reconciliation-specific prompt is built here, package-side.
-            prompt = build_reconciliation_prompt(
-                txn_description=transaction.description,
-                entry_memo=primary_entry.memo or "",
-                date_diff_days=date_diff,
-                amount_match_pct=amount_pct,
-            )
-            semantic = await ai_semantic_score(prompt)
-            # Hybrid formula: 70% algorithmic + 30% AI semantic
-            total = int(round(Decimal("0.7") * total + Decimal("0.3") * semantic, 0))
-            scores["ai_semantic"] = float(semantic)
-            scores["hybrid_applied"] = 1.0
+            semantic = semantic_scores.get(prompt) if semantic_scores is not None else await ai_semantic_score(prompt)
+            if semantic is not None:
+                # Hybrid formula: 70% algorithmic + 30% AI semantic
+                total = int(round(Decimal("0.7") * total + Decimal("0.3") * semantic, 0))
+                scores["ai_semantic"] = float(semantic)
+                scores["hybrid_applied"] = 1.0
 
     candidate.score = total
     return candidate
@@ -109,6 +130,7 @@ async def score_single(
     user_id: UUID,
     *,
     history_score: float | None = None,
+    semantic_scores: Mapping[str, int] | None = None,
 ) -> MatchCandidate:
     """Score a normal single- or multi-entry candidate against one transaction."""
     return await _calculate_candidate_score(
@@ -120,6 +142,7 @@ async def score_single(
         amount=transaction.amount,
         is_group=False,
         history_score=history_score,
+        semantic_scores=semantic_scores,
     )
 
 
@@ -132,6 +155,7 @@ async def score_group(
     *,
     group_amount: Decimal,
     history_score: float | None = None,
+    semantic_scores: Mapping[str, int] | None = None,
 ) -> MatchCandidate:
     """Score a many-transactions-to-one-entry candidate with its group total."""
     return await _calculate_candidate_score(
@@ -143,7 +167,111 @@ async def score_group(
         amount=group_amount,
         is_group=True,
         history_score=history_score,
+        semantic_scores=semantic_scores,
     )
+
+
+def _collect_ambiguous_semantic_prompts(
+    *,
+    transactions: Sequence[AtomicTransaction],
+    config: ReconciliationConfig,
+    base_currency: str,
+    get_candidates_for_date: Callable[[date], list[JournalEntry]],
+    history_scores: Mapping[UUID, float],
+) -> list[str]:
+    """Collect unique semantic prompts for candidates scoring in the 60-84 hybrid range."""
+    prompts: list[str] = []
+    seen: set[str] = set()
+
+    def _record_if_ambiguous(
+        transaction: AtomicTransaction,
+        entries: Sequence[JournalEntry],
+        candidate: MatchCandidate,
+    ) -> None:
+        if not (60 <= candidate.score <= 84):
+            return
+        prompt = _build_candidate_semantic_prompt(transaction, entries, candidate.breakdown)
+        if prompt is not None and prompt not in seen:
+            seen.add(prompt)
+            prompts.append(prompt)
+
+    for group in build_many_to_one_groups(transactions):
+        group_total = sum((txn.amount for txn in group), Decimal("0.00"))
+        group_date = max(txn.txn_date for txn in group)
+        candidates = get_candidates_for_date(group_date)
+        if not candidates:
+            continue
+        candidates = prune_candidates(
+            candidates,
+            txn_date=group_date,
+            target_amount=group_total,
+            currency=group[0].currency,
+        )
+        history_score = history_scores.get(group[0].id, 0.0)
+        for entry in candidates:
+            if not is_entry_balanced(entry, base_currency=base_currency):
+                continue
+            candidate = _score_rule_candidate(
+                group[0],
+                [entry],
+                config,
+                amount=group_total,
+                is_group=True,
+                history_score=history_score,
+            )
+            _record_if_ambiguous(group[0], [entry], candidate)
+
+    for txn in transactions:
+        available_entries = [
+            entry
+            for entry in get_candidates_for_date(txn.txn_date)
+            if getattr(entry, "status", None) != JournalEntryStatus.RECONCILED
+        ]
+        candidates = prune_candidates(
+            available_entries,
+            txn_date=txn.txn_date,
+            target_amount=txn.amount,
+            currency=txn.currency,
+        )
+        if not candidates:
+            continue
+        history_score = history_scores.get(txn.id, 0.0)
+        for entries in _normal_entry_combinations(
+            txn,
+            candidates,
+            config,
+            base_currency=base_currency,
+        ):
+            candidate = _score_rule_candidate(
+                txn,
+                entries,
+                config,
+                amount=txn.amount,
+                is_group=False,
+                history_score=history_score,
+            )
+            _record_if_ambiguous(txn, entries, candidate)
+
+    return prompts
+
+
+async def _resolve_semantic_scores(
+    prompts: Sequence[str],
+    *,
+    max_concurrency: int = 5,
+) -> dict[str, int]:
+    """Evaluate unique semantic prompts concurrently outside database transactions."""
+    unique_prompts = list(dict.fromkeys(prompts))
+    if not unique_prompts:
+        return {}
+    semaphore = asyncio.Semaphore(max(1, max_concurrency))
+
+    async def _evaluate(prompt: str) -> tuple[str, int]:
+        async with semaphore:
+            return prompt, await ai_semantic_score(prompt)
+
+    pairs = await asyncio.gather(*(_evaluate(prompt) for prompt in unique_prompts))
+    return dict(pairs)
 
 
 async def accepted_transfer_txn_ids(db: AsyncSession, txn_ids: Sequence[UUID]) -> set[UUID]:
@@ -175,6 +303,7 @@ async def execute_matching(
     currency: str,
     limit: int | None = None,
     repository: ReconciliationRepository | None = None,
+    release_session_for_llm: bool = False,
 ) -> list[ReconciliationMatch]:
     """Execute reconciliation matching for pending transactions."""
     base_config = load_reconciliation_config()
@@ -225,12 +354,49 @@ async def execute_matching(
         pattern_score_cache[token] = score
         return score
 
+    semantic_scores: dict[str, int] | None = None
+    if config.enable_ai_reconciliation:
+        history_scores = {txn.id: await get_cached_pattern_score(txn) for txn in transactions}
+        prompts = _collect_ambiguous_semantic_prompts(
+            transactions=transactions,
+            config=config,
+            base_currency=currency,
+            get_candidates_for_date=get_candidates_for_date,
+            history_scores=history_scores,
+        )
+        if prompts:
+            if (
+                release_session_for_llm
+                and repository is None
+                and not db.new
+                and not db.dirty
+                and not db.deleted
+            ):
+                await db.rollback()
+                semantic_scores = await _resolve_semantic_scores(prompts)
+                transactions = await repo.list_pending_transactions(user_id, limit)
+                if not transactions:
+                    return []
+                min_date = min(txn.txn_date for txn in transactions) - timedelta(days=config.date_days)
+                max_date = max(txn.txn_date for txn in transactions) + timedelta(days=config.date_days)
+                all_candidates = await repo.list_journal_candidates(
+                    user_id=user_id,
+                    start_date=min_date,
+                    end_date=max_date,
+                )
+                entries_by_id = {str(entry.id): entry for entry in all_candidates}
+            else:
+                semantic_scores = await _resolve_semantic_scores(prompts)
+        else:
+            semantic_scores = {}
+
     context = MatchingContext(
         config=config,
         base_currency=currency,
         entries_by_id=entries_by_id,
         get_candidates_for_date=get_candidates_for_date,
         get_cached_pattern_score=get_cached_pattern_score,
+        semantic_scores=semantic_scores,
     )
 
     # Imported after this module's helpers are defined so phase modules can

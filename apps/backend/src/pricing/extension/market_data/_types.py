@@ -162,3 +162,66 @@ class _MarketSyncSpec:
     persist_observation: Callable[[AsyncSession, MarketObservation], Awaitable[Decimal]]
     observation_date: Callable[[MarketObservation], date]
     observation_matches_scope: Callable[[MarketObservation, Any], bool]
+
+
+@dataclass(frozen=True)
+class PlannedScopeSync:
+    """Planned date range sync for one market data scope."""
+
+    scope: Any
+    scope_name: str
+    last_date: date | None
+    requested_dates: frozenset[date]
+
+
+@dataclass(frozen=True)
+class PlannedMarketSync:
+    """Planned market data sync batch for one asset kind."""
+
+    kind: str
+    end_date: date
+    skipped: int
+    items: tuple[PlannedScopeSync, ...]
+
+    @property
+    def has_work(self) -> bool:
+        """Return True if at least one scope has missing dates to fetch."""
+        return any(item.requested_dates for item in self.items)
+
+
+@dataclass(frozen=True)
+class FetchedScopeSync:
+    """Fetched provider series paired with its planned scope."""
+
+    item: PlannedScopeSync
+    validated: ValidatedMarketObservationSeries
+
+
+@dataclass(frozen=True)
+class FetchedMarketSync:
+    """Provider fetch results for one planned market data batch."""
+
+    kind: str
+    items: tuple[FetchedScopeSync, ...]
+
+
+@dataclass(frozen=True)
+class PlannedFreshnessSync:
+    """Planned report-time freshness sync for stale FX and stock scopes."""
+
+    checked_at: datetime
+    fx: PlannedMarketSync
+    stock: PlannedMarketSync
+
+    @property
+    def has_work(self) -> bool:
+        """Return True if FX or stock scopes require provider fetches."""
+        return self.fx.has_work or self.stock.has_work
+
+
+@dataclass(frozen=True)
+class FetchedFreshnessSync:
+    """Fetched FX and stock series for one planned freshness sync."""
+
+    fx: FetchedMarketSync
+    stock: FetchedMarketSync

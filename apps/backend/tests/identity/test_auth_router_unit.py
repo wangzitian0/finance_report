@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from uuid import uuid4
 
 import pytest
@@ -67,3 +68,36 @@ def test_check_rate_limit_enforces_429_and_logs_route_path(monkeypatch) -> None:
         _check_rate_limit(request, limiter, "Rate limited")
     assert exc_info.value.status_code == 429 and "Rate limited" in str(exc_info.value.detail)
     assert "Retry-After" in exc_info.value.headers and calls[-1]["path"] == "/auth/test"
+
+
+async def test_register_and_login_offload_bcrypt_to_worker_thread(db: AsyncSession, monkeypatch) -> None:
+    """Verify password hashing and verification run outside the event-loop thread."""
+    main_thread_id = threading.get_ident()
+    hash_thread_ids: list[int] = []
+    verify_thread_ids: list[int] = []
+    orig_hash = auth_module.hash_password
+    orig_verify = auth_module.verify_password
+
+    def spy_hash(password: str) -> str:
+        hash_thread_ids.append(threading.get_ident())
+        return orig_hash(password)
+
+    def spy_verify(plain: str, hashed: str) -> bool:
+        verify_thread_ids.append(threading.get_ident())
+        return orig_verify(plain, hashed)
+
+    monkeypatch.setattr(auth_module, "hash_password", spy_hash)
+    monkeypatch.setattr(auth_module, "verify_password", spy_verify)
+
+    reg_payload = RegisterRequest(email="thread-check@example.com", password="secret123", name="Worker")
+    registered = await register(_mock_request("192.168.1.150"), Response(), reg_payload, db=db)
+    await db.commit()
+    logged_in = await login(
+        _mock_request("192.168.1.151"),
+        Response(),
+        LoginRequest(email="thread-check@example.com", password="secret123"),
+        db=db,
+    )
+    assert (registered.email, logged_in.email) == ("thread-check@example.com", "thread-check@example.com")
+    assert hash_thread_ids and all(tid != main_thread_id for tid in hash_thread_ids)
+    assert verify_thread_ids and all(tid != main_thread_id for tid in verify_thread_ids)

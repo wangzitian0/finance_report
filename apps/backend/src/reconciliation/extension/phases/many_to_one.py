@@ -64,6 +64,7 @@ async def run_many_to_one_phase(
                 user_id=user_id,
                 group_amount=group_total,
                 history_score=history_score,
+                semantic_scores=context.semantic_scores,
             )
             candidate.breakdown["group_total"] = str(group_total)
             if candidate.score >= context.config.pending_review and _candidate_is_better(

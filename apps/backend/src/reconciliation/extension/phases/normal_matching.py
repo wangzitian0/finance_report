@@ -67,6 +67,7 @@ async def run_normal_matching_phase(
                 context.config,
                 user_id=user_id,
                 history_score=history_score,
+                semantic_scores=context.semantic_scores,
             )
             if len(entries) > 1:
                 candidate.breakdown["multi_entry"] = len(entries) - 1

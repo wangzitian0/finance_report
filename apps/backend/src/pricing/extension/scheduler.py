@@ -28,7 +28,15 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.database import async_session_maker
 from src.observability import get_logger
-from src.pricing.extension.market_data import sync_fx_rates, sync_stock_prices
+from src.pricing.extension.market_data import (
+    MarketDataSyncResult,
+    fetch_planned_fx_sync,
+    fetch_planned_stock_sync,
+    persist_fetched_fx_sync,
+    persist_fetched_stock_sync,
+    plan_fx_sync,
+    plan_stock_sync,
+)
 
 logger = get_logger(__name__)
 
@@ -70,11 +78,23 @@ async def run_daily_market_data_sync(
 ) -> None:
     """Run one daily incremental market data sync for the provided scopes."""
     session_factory = sessionmaker or async_session_maker
-    async with session_factory() as session:
-        run_scopes = await scopes(session)
-        fx_result = await sync_fx_rates(session, pairs=run_scopes.fx_pairs)
-        stock_result = await sync_stock_prices(session, symbols=run_scopes.stock_symbols)
-        await session.commit()
+    async with session_factory() as read_session:
+        run_scopes = await scopes(read_session)
+        fx_plan = await plan_fx_sync(read_session, pairs=run_scopes.fx_pairs)
+        stock_plan = await plan_stock_sync(read_session, symbols=run_scopes.stock_symbols)
+
+    if fx_plan.has_work or stock_plan.has_work:
+        fx_fetched, stock_fetched = await asyncio.gather(
+            fetch_planned_fx_sync(fx_plan),
+            fetch_planned_stock_sync(stock_plan),
+        )
+        async with session_factory() as write_session:
+            fx_result = await persist_fetched_fx_sync(write_session, fx_plan, fx_fetched)
+            stock_result = await persist_fetched_stock_sync(write_session, stock_plan, stock_fetched)
+            await write_session.commit()
+    else:
+        fx_result = MarketDataSyncResult(kind="fx", skipped=fx_plan.skipped)
+        stock_result = MarketDataSyncResult(kind="stock", skipped=stock_plan.skipped)
     logger.info(
         "Daily market data sync completed",
         fx_requested=fx_result.requested,

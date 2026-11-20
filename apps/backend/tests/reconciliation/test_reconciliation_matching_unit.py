@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from datetime import date
 from decimal import Decimal
@@ -400,3 +401,125 @@ async def test_transfer_detection_error_handling(monkeypatch, error_factory, exp
         with pytest.raises(Exception) as raised:
             await transfer_detection.run_transfer_detection_phase(SimpleNamespace(), **kw)
         assert type(raised.value).__name__ == expected_exc
+
+
+async def test_execute_matching_releases_session_before_llm_and_computes_hybrid_score(
+    db: AsyncSession, monkeypatch
+) -> None:
+    """Verify release_session_for_llm drops DB transaction and runs LLM before row locks."""
+    from src.reconciliation.extension import matching as matching_mod
+
+    uid = (await UserFactory.create_async(db)).id
+    exp = await AccountFactory.create_async(db, user_id=uid, name="Ambiguous Exp", type=AccountType.EXPENSE)
+    await _seed_scenario(
+        db,
+        uid,
+        txn_desc="Alpha ZZZ",
+        txn_amount="100.00",
+        txn_date=date(2024, 1, 10),
+        pair_specs=[("100.00", "QQQ")],
+        credit_account=exp,
+    )
+
+    in_tx_during_llm: list[bool] = []
+    claim_called_during_llm: list[bool] = []
+    claim_calls = 0
+    orig_claim = SqlReconciliationRepository.claim_transaction
+
+    async def spy_claim(self, txn_id: UUID):
+        nonlocal claim_calls
+        claim_calls += 1
+        return await orig_claim(self, txn_id)
+
+    async def fake_ai_semantic(prompt: str) -> int:
+        in_tx_during_llm.append(db.in_transaction())
+        claim_called_during_llm.append(claim_calls > 0)
+        return 95
+
+    monkeypatch.setattr(SqlReconciliationRepository, "claim_transaction", spy_claim)
+    monkeypatch.setattr(matching_mod, "ai_semantic_score", fake_ai_semantic)
+    monkeypatch.setattr(matching_mod, "load_reconciliation_config", lambda: _cfg(enable_ai_reconciliation=True))
+
+    matches = await execute_matching(db, user_id=uid, currency="SGD", release_session_for_llm=True)
+    assert len(matches) == 1
+    assert in_tx_during_llm == [False]
+    assert claim_called_during_llm == [False]
+    assert claim_calls >= 1
+    assert matches[0].match_score == 81
+    assert matches[0].score_breakdown["ai_semantic"] == 95.0
+    assert matches[0].score_breakdown["hybrid_applied"] == 1.0
+
+
+async def test_execute_matching_deduplicates_and_runs_ambiguous_prompts_concurrently(
+    db: AsyncSession, monkeypatch
+) -> None:
+    """Verify duplicate ambiguous prompts are deduplicated and distinct prompts run concurrently."""
+    from src.reconciliation.extension import matching as matching_mod
+
+    uid = (await UserFactory.create_async(db)).id
+    exp = await AccountFactory.create_async(db, user_id=uid, name="Concurrent Exp", type=AccountType.EXPENSE)
+    await StatementSummaryFactory.create_async(db, user_id=uid, period_start=date(2024, 1, 1), period_end=date(2024, 5, 1))
+    asset = await AccountFactory.create_async(db, user_id=uid, name="Concurrent Cash", type=AccountType.ASSET)
+
+    specs = [
+        (date(2024, 2, 1), "XXX111", Decimal("101.00"), "AAA999"),
+        (date(2024, 3, 1), "YYY222", Decimal("102.00"), "BBB888"),
+        (date(2024, 4, 1), "ZZZ333", Decimal("103.00"), "CCC777"),
+    ]
+    for d, desc, amt, memo in specs:
+        db.add(_atomic_txn(owner_id=uid, txn_date=d, description=desc, amount=amt, direction="OUT"))
+        db.add(
+            JournalEntry(
+                user_id=uid,
+                entry_date=d,
+                memo=memo,
+                status=JournalEntryStatus.POSTED,
+                lines=[
+                    JournalLine(account_id=exp.id, amount=amt, direction=Direction.DEBIT),
+                    JournalLine(account_id=asset.id, amount=amt, direction=Direction.CREDIT),
+                ],
+            )
+        )
+    # Duplicate prompt candidate (same description, date, amount, and matching memo)
+    db.add(_atomic_txn(owner_id=uid, txn_date=date(2024, 2, 1), description="XXX111", amount=Decimal("101.00"), direction="OUT"))
+    await db.commit()
+
+    seen_prompts: list[str] = []
+    in_flight = 0
+    max_in_flight = 0
+    barrier = asyncio.Event()
+
+    async def fake_ai_semantic(prompt: str) -> int:
+        nonlocal in_flight, max_in_flight
+        seen_prompts.append(prompt)
+        in_flight += 1
+        max_in_flight = max(max_in_flight, in_flight)
+        if len(seen_prompts) >= 3:
+            barrier.set()
+        await asyncio.wait_for(barrier.wait(), timeout=2.0)
+        in_flight -= 1
+        return 90
+
+    monkeypatch.setattr(matching_mod, "ai_semantic_score", fake_ai_semantic)
+    monkeypatch.setattr(matching_mod, "load_reconciliation_config", lambda: _cfg(enable_ai_reconciliation=True))
+
+    matches = await execute_matching(db, user_id=uid, currency="SGD", release_session_for_llm=True)
+    assert len(seen_prompts) == 3
+    assert max_in_flight == 3
+    assert len(matches) >= 3
+
+    # Verify semaphore cap in _resolve_semantic_scores
+    cap_in_flight = 0
+    cap_max = 0
+
+    async def bounded_ai_semantic(_prompt: str) -> int:
+        nonlocal cap_in_flight, cap_max
+        cap_in_flight += 1
+        cap_max = max(cap_max, cap_in_flight)
+        await asyncio.sleep(0.01)
+        cap_in_flight -= 1
+        return 80
+
+    monkeypatch.setattr(matching_mod, "ai_semantic_score", bounded_ai_semantic)
+    resolved = await matching_mod._resolve_semantic_scores(["p1", "p2", "p3", "p4", "p1"], max_concurrency=2)
+    assert len(resolved) == 4 and cap_max <= 2 and cap_max == 2
