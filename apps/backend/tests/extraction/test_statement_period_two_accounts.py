@@ -10,7 +10,7 @@ from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import select
 from src.audit import STATEMENT_SOURCE_TYPES
-from src.extraction import BankStatementStatus
+from src.extraction import BankStatementStatus, resolve_statement_conflicts
 from src.ledger import AccountType, JournalEntry
 from tests.api._statement_router_fixtures import (
     add_reviewed_disposition_rule,
@@ -105,13 +105,19 @@ async def test_two_matching_rows_of_another_account_do_not_block(client: AsyncCl
 
 EXTRA = ((date(2025, 1, 25), "5.00"), (date(2025, 1, 27), "6.00"))
 FOURTH = (date(2025, 1, 22), "40.00")
+SEVEN = (date(2025, 1, 28), "7.00")
+TEN = tuple((date(2025, 1, 10 + day), f"{day + 11}.25") for day in range(7))
+TEN_OTHER = tuple((date(2025, 1, 18 + day), "91.00") for day in range(3))
+TEN_MINE = tuple((date(2025, 1, 18 + day), "92.00") for day in range(3))
 
 
 @pytest.mark.parametrize(
     ("case", "other_rows", "rows", "statement_fields", "other_user", "matches"),
     [
         ("same_rows", ROWS, ROWS, {}, False, True),
-        ("exactly_80_percent", (*ROWS, FOURTH), (*ROWS, FOURTH, EXTRA[0]), {}, False, True),
+        ("all_four_rows_of_the_smaller_statement", (*ROWS, FOURTH), (*ROWS, FOURTH, EXTRA[0]), {}, False, True),
+        ("four_of_five_rows_on_both_sides", (*ROWS, FOURTH, SEVEN), (*ROWS, FOURTH, EXTRA[0]), {}, False, True),
+        ("seven_of_ten_rows_on_both_sides", (*TEN[:7], *TEN_OTHER), (*TEN[:7], *TEN_MINE), {}, False, False),
         ("two_rows_only", ROWS, ROWS[:2], {}, False, False),
         ("all_rows_of_the_smaller_statement", ROWS, (*ROWS, *EXTRA), {}, False, True),
         (
@@ -216,3 +222,67 @@ async def test_a_confirmation_does_not_cover_a_statement_approved_after_it(clien
     assert (await client.get(f"/statements/{csv_month.id}/conflicts")).json()["resolved"] is True
     assert (await client.post(f"/statements/{csv_month.id}/approvals")).status_code == status.HTTP_200_OK
     assert await _entry_count(db, test_user.id) == 6
+
+
+async def test_a_new_extract_run_ends_the_confirmation(db, test_user):
+    """#3178: a new extraction gives new rows, so the confirmation of the earlier rows ends."""
+    from src.extraction import RunHints
+    from src.extraction.extension.statement_runs import start_user_extract_run
+
+    statement = await _month_on_account(db, test_user.id, "hash_3178_rerun", "DBS Rerun", suffix="", last4=None)
+    await db.commit()
+    assert (await resolve_statement_conflicts(db, statement.id, test_user.id)).stage1_conflicts_resolved_at
+
+    async def content() -> bytes:
+        return b"date,amount"
+
+    started = await start_user_extract_run(
+        db,
+        statement_id=statement.id,
+        user_id=test_user.id,
+        file_type="csv",
+        hints=RunHints(),
+        model=None,
+        allowed_statuses=frozenset({BankStatementStatus.PARSED}),
+        strict_hints=False,
+        load_content=content,
+    )
+    assert started.statement.stage1_conflicts_resolved_at is None
+
+
+@pytest.mark.parametrize(
+    ("changed", "kept"),
+    [
+        ({}, True),
+        ({"account_id": "other"}, False),
+        ({"currency": "USD"}, False),
+        ({"period_end": date(2025, 3, 31)}, False),
+    ],
+)
+async def test_an_envelope_that_changes_account_currency_or_period_ends_the_confirmation(db, test_user, changed, kept):
+    """#3178: the confirmation covered one account, currency and period."""
+    from types import SimpleNamespace
+
+    from src.extraction.extension.reviewed_statement_envelope import _apply_envelope_to_statement
+
+    statement = await _month_on_account(
+        db, test_user.id, f"hash_3178_env_{len(changed)}{kept}", "DBS Env", suffix="", last4=None
+    )
+    statement.period_start, statement.period_end = date(2025, 1, 1), date(2025, 1, 31)
+    await db.commit()
+    await resolve_statement_conflicts(db, statement.id, test_user.id)
+    other = await create_statement_account(db, test_user.id, "DBS Env Other")
+    facts = {
+        "account_id": statement.account_id,
+        "currency": statement.currency,
+        "period_start": statement.period_start,
+        "period_end": statement.period_end,
+        "opening_balance": statement.opening_balance,
+        "closing_balance": statement.closing_balance,
+    } | changed
+    if facts["account_id"] == "other":
+        facts["account_id"] = other.id
+
+    _apply_envelope_to_statement(statement, SimpleNamespace(**facts))
+
+    assert (statement.stage1_conflicts_resolved_at is not None) is kept

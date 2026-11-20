@@ -446,6 +446,8 @@ async def start_user_extract_run(
     statement = await while_pending() if while_pending is not None else locked
     statement.status = BankStatementStatus.PARSING
     statement.validation_error = None
+    # A new extraction gives new rows. The reviewer confirmed the rows of the earlier one (#3178).
+    statement.stage1_conflicts_resolved_at = None
     return StartedRun(run_id=run.id, statement=statement, content=content)
 
 

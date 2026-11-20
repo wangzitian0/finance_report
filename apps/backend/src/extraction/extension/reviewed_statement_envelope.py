@@ -302,6 +302,15 @@ def _apply_envelope_to_statement(statement: StatementSummary, envelope: Reviewed
     # through an envelope that was confirmed earlier (#3029 item 9).
     if statement.status in _REVIEW_ENDED_STATUSES:
         return
+    # The reviewer confirmed the conflicts of the earlier account, currency and period. Another account can hold an
+    # approved statement with the same rows, so a change of one of these facts needs a new confirmation (#3178).
+    if (statement.account_id, statement.currency, statement.period_start, statement.period_end) != (
+        envelope.account_id,
+        envelope.currency,
+        envelope.period_start,
+        envelope.period_end,
+    ):
+        statement.stage1_conflicts_resolved_at = None
     statement.account_id = envelope.account_id
     statement.currency = envelope.currency
     statement.period_start, statement.period_end = envelope.period_start, envelope.period_end
