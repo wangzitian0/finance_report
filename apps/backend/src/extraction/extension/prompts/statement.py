@@ -149,6 +149,7 @@ Important Rules:
    IMPORTANT: If the statement contains a 'Cash Movement' or 'Activity' section alongside 'Holdings/Positions', you MUST extract both. If no cash transactions occurred during the period, return transactions: [] and populated positions: [...] without error.
 10. If NO holdings/positions snapshot table is present, omit `positions` or return an EMPTY `positions` array `[]` (do not invent rows) and extract all cash movement / transaction rows into `transactions`.
 11. Auto-detect the broker name from the document header/logo into the "institution" field
+12. A mark "[Debit]" or "[Credit]" after an amount names the column of that amount in the document. Never copy the mark into a field.
 """
 
 # Institution-specific hints
