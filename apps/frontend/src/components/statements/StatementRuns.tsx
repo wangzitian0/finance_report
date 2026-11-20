@@ -12,6 +12,10 @@ export const HINT_NOTE_MAX_LENGTH = 500;
 
 export const isRunActive = (run: StatementRun): boolean => run.state === "requested" || run.state === "running";
 
+/** The message of the page for a 409 that names an active run. The body of the 409 holds the id of the run, not its kind. */
+export const activeRunConflictMessage = (kind: StatementRunKind | undefined): string =>
+  `A ${kind === "classify" ? "classification run" : "run"} is already in progress for this statement. Wait for it to end, then run again.`;
+
 /** The message of the page for a 422: the response body echoes the hints, so the page never shows it. */
 export const INVALID_HINTS_MESSAGE = "The hints are not valid. Check the keywords and the note.";
 
