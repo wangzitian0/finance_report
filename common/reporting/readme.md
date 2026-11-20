@@ -42,7 +42,7 @@ Balance sheet, income statement, cash flow, and net worth read posted/reconciled
 ### Multi-currency consolidation
 
 - Reports convert foreign amounts to the requested `currency` using **period-end spot FX** (balance sheet) or **average FX** (income statement), surfacing fallback/missing-rate items in `fx_warnings` rather than silently assuming `1:1`.
-- Balance sheet combines posted ledger lines, active portfolio market-value adjustments (`market_value - cost_basis`), and manual valuation snapshots.
+- Balance sheet combines posted ledger lines, active portfolio market-value adjustments (`market_value - cost_basis`; a position without a recorded purchase has a ledger cost of zero, so its adjustment is the full market value, #2920), and manual valuation snapshots.
 
 ```python
 from src.audit.money import ExchangeRate, Money, convert, to_money

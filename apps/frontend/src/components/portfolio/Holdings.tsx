@@ -152,6 +152,7 @@ export function HoldingsTable({
                     </td>
                     <td
                       className={`px-3 sm:px-4 py-2 text-right font-medium whitespace-nowrap tabular-nums ${optionalPnlClass(h.unrealized_pnl)}`}
+                      title={h.unrealized_pnl == null ? NO_PURCHASE_RECORDED : undefined}
                     >
                       {optionalCurrency(h.unrealized_pnl, h.currency)}
                     </td>

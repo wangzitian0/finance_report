@@ -156,10 +156,10 @@ class PositionService:
                 ).code
                 quantity_changed = position.quantity != quantity
                 snapshot_date = snap.snapshot_date.isoformat()
-                valuation_changed = (position.position_metadata or {}).get(
+                snapshot_changed = (position.position_metadata or {}).get(
                     "latest_snapshot_date"
                 ) != snapshot_date or position.currency != snapshot_currency.code
-                if quantity_changed or valuation_changed:
+                if quantity_changed or snapshot_changed:
                     logger.info(
                         "Updating managed position from latest atomic snapshot",
                         asset=snap.asset_identifier,
@@ -181,7 +181,7 @@ class PositionService:
                 else:
                     position.status = PositionStatus.ACTIVE
                     position.disposal_date = None
-                    if quantity_changed or valuation_changed:
+                    if quantity_changed or snapshot_changed:
                         result.updated += 1
 
             else:

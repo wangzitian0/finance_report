@@ -88,6 +88,46 @@ async def test_holdings_return_no_cost_and_no_profit_without_a_purchase(db, test
     ) == (Decimal("2100.00"), None, None, None, None, 1)
 
 
+async def test_one_position_without_a_purchase_empties_the_summary_totals_of_two_positions(db, test_user):
+    cash = Account(user_id=test_user.id, name="Brokerage Cash", type=AccountType.ASSET, currency="SGD")
+    broker = Account(user_id=test_user.id, name="Moomoo", type=AccountType.ASSET, currency="SGD")
+    db.add_all([cash, broker])
+    await db.flush()
+    await InvestmentAccountingService().post_buy(
+        db,
+        user_id=test_user.id,
+        order=TradeOrder.create(
+            transaction_date=date(2026, 6, 15),
+            asset_identifier="ES3",
+            quantity=Decimal("10"),
+            unit_price=Decimal("180.00"),
+            currency="SGD",
+        ),
+        accounts=TradeAccounts(cash=cash.id, investment=broker.id),
+    )
+    bought = _snapshot(test_user.id, SEPTEMBER, "2000.00")
+    bought.asset_identifier, bought.dedup_hash = "ES3", "es3_2920_summary"
+    db.add_all([bought, _snapshot(test_user.id, SEPTEMBER, "2100.00")])
+    await db.flush()
+    await PositionService().reconcile_positions(db, test_user.id)
+    service = PortfolioService()
+
+    by_asset = {h.asset_identifier: h for h in await service.get_holdings(db, test_user.id, base_currency="SGD")}
+    summary = await service.get_portfolio_summary(db, test_user.id, base_currency="SGD")
+
+    assert {asset: (h.cost_basis, h.unrealized_pnl) for asset, h in by_asset.items()} == {
+        "ES3": (Decimal("1800.00"), Decimal("200.00")),
+        "VWRA": (None, None),
+    }
+    assert (
+        summary.total_market_value,
+        summary.total_cost_basis,
+        summary.total_unrealized_pnl,
+        summary.net_pnl,
+        summary.positions_without_cost_count,
+    ) == (Decimal("4100.00"), None, None, None, 1)
+
+
 async def test_performance_schedule_row_has_no_cost_and_no_profit_without_a_purchase(db, test_user):
     await _import_two_snapshots(db, test_user.id)
 
@@ -317,26 +357,43 @@ def test_migration_0079_clears_the_cost_of_positions_without_a_buy_and_keeps_the
                         "INSERT INTO managed_positions (id, user_id, account_id, asset_identifier, quantity, cost_basis, "
                         "unrealized_pnl, acquisition_date, status, currency, created_at, updated_at) "
                         "VALUES (:id, :user_id, :account_id, :asset, 10, 2100.00, 0, DATE '2026-06-30', 'active', 'SGD', "
-                        "NOW(), NOW())"
+                        "NOW(), TIMESTAMP '2026-06-30 00:00:00')"
                     ),
                     {"id": position_id, "user_id": user_id, "account_id": account_id, "asset": asset},
                 )
-            connection.execute(
-                text(
-                    "INSERT INTO investment_transactions (id, user_id, position_id, transaction_date, transaction_type, "
-                    "asset_identifier, quantity, unit_price, gross_amount, fees, currency, cost_basis, created_at, updated_at) "
-                    "VALUES (:id, :user_id, :position_id, DATE '2026-06-30', 'buy', 'ES3', 10, 180.50, 1805.00, 0, 'SGD', "
-                    "1805.00, NOW(), NOW())"
-                ),
-                {"id": uuid4(), "user_id": user_id, "position_id": bought_id},
-            )
+            for kind, quantity, unit_price, gross_amount, cost in (
+                ("buy", 10, "180.50", "1805.00", "1805.00"),
+                ("sell", 3, "200.00", "600.00", "500.00"),
+            ):
+                connection.execute(
+                    text(
+                        "INSERT INTO investment_transactions (id, user_id, position_id, transaction_date, "
+                        "transaction_type, asset_identifier, quantity, unit_price, gross_amount, fees, currency, "
+                        "cost_basis, created_at, updated_at) "
+                        "VALUES (:id, :user_id, :position_id, DATE '2026-06-30', :kind, 'ES3', :quantity, :unit_price, "
+                        ":gross_amount, 0, 'SGD', :cost, NOW(), NOW())"
+                    ),
+                    {
+                        "id": uuid4(),
+                        "user_id": user_id,
+                        "position_id": bought_id,
+                        "kind": kind,
+                        "quantity": quantity,
+                        "unit_price": unit_price,
+                        "gross_amount": gross_amount,
+                        "cost": cost,
+                    },
+                )
 
         run_alembic(database_url, "upgrade", "0079_position_cost_nullable")
         with engine.connect() as connection:
             upgraded = {
-                asset: (cost, pnl)
-                for asset, cost, pnl in connection.execute(
-                    text("SELECT asset_identifier, cost_basis, unrealized_pnl FROM managed_positions")
+                asset: (cost, pnl, touched)
+                for asset, cost, pnl, touched in connection.execute(
+                    text(
+                        "SELECT asset_identifier, cost_basis, unrealized_pnl, "
+                        "updated_at > TIMESTAMP '2026-07-01 00:00:00' FROM managed_positions"
+                    )
                 )
             }
         run_alembic(database_url, "check")
@@ -348,8 +405,10 @@ def test_migration_0079_clears_the_cost_of_positions_without_a_buy_and_keeps_the
         run_alembic(database_url, "upgrade", "head")
 
         assert (upgraded, downgraded) == (
-            {"VWRA": (None, None), "ES3": (Decimal("1805.00"), Decimal("0.00"))},
-            {"VWRA": Decimal("0.00"), "ES3": Decimal("1805.00")},
+            # ES3: the cost of its BUY row (1805.00) less the cost of its SELL row (500.00).
+            # Each rewritten row gets a new updated_at, which invalidates the workflow input stamp.
+            {"VWRA": (None, None, True), "ES3": (Decimal("1305.00"), Decimal("0.00"), True)},
+            {"VWRA": Decimal("0.00"), "ES3": Decimal("1305.00")},
         )
     finally:
         engine.dispose()

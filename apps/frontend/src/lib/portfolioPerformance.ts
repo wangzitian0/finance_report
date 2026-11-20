@@ -2,6 +2,9 @@ import { compareAmounts, sumAmounts } from "./audit/money";
 import { formatPercentValueFromParts } from "@/lib/audit/ratio/format";
 import type { InvestmentPerformanceReportSchedule } from "./types";
 
+/** The label for a cost or a profit that no recorded purchase supports (#2920). */
+export const NO_PURCHASE_RECORDED = "No purchase recorded";
+
 /**
  * Market-value performance figures derived from the investment performance
  * report schedule. This is the honest "asset-dashboard answer" for #914:
@@ -9,9 +12,6 @@ import type { InvestmentPerformanceReportSchedule } from "./types";
  * the schedule period. It deliberately excludes TWR/IRR/MWR, which stay on the
  * reporting side as analytical measures rather than the headline answer.
  */
-/** The label for a cost or a profit that no recorded purchase supports (#2920). */
-export const NO_PURCHASE_RECORDED = "No purchase recorded";
-
 export interface MarketValuePerformance {
     /** Total unrealized market-value gain/loss, or null when a holding has no recorded purchase. */
     unrealizedPnl: string | null;

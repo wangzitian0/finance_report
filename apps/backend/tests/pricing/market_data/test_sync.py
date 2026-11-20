@@ -10,7 +10,7 @@ from src.composition import market_data_scopes, observed_fx_pairs
 from src.extraction.orm.layer2 import AtomicPosition
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 from src.portfolio import PortfolioService, active_stock_symbols
-from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
+from src.portfolio.orm.portfolio import CostBasisMethod, InvestmentTransaction, InvestmentTransactionType, ManagedPosition, PositionStatus
 from src.pricing.extension import market_data
 from src.pricing.orm.market_data import FxRate, MarketDataSyncState, StockPrice
 
@@ -29,6 +29,11 @@ def _make_fx_series(base: str, quote: str, dates=None, rate: Decimal = Decimal("
 
 def _pos(user_id, account_id, asset_identifier, quantity=Decimal("2"), cost_basis=Decimal("100.00"), currency="USD", status=PositionStatus.ACTIVE):
     return ManagedPosition(user_id=user_id, account_id=account_id, asset_identifier=asset_identifier, quantity=quantity, cost_basis=cost_basis, currency=currency, acquisition_date=date(2026, 1, 1), status=status, cost_basis_method=CostBasisMethod.FIFO)
+
+
+def _buy_row(user_id, position, cost: Decimal) -> InvestmentTransaction:
+    """A recorded purchase: the only source of a cost basis at a past date (#2920)."""
+    return InvestmentTransaction(user_id=user_id, position_id=position.id, transaction_date=date(2026, 1, 2), transaction_type=InvestmentTransactionType.BUY, asset_identifier=position.asset_identifier, quantity=position.quantity, unit_price=(cost / position.quantity).quantize(Decimal("0.0001")), gross_amount=cost, fees=Decimal("0.00"), currency=position.currency, cost_basis=cost)
 
 
 async def test_sync_stock_prices_idempotent_decade_missing_skip_and_disagreement(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -132,17 +137,20 @@ async def test_portfolio_uses_and_quantizes_synced_stock_prices(db: AsyncSession
     acct = Account(user_id=test_user.id, name="Brokerage", type=AccountType.ASSET, currency="SGD")
     db.add(acct)
     await db.flush()
+    aapl, ibm = _pos(test_user.id, acct.id, "AAPL", quantity=Decimal("2"), currency="SGD"), _pos(test_user.id, acct.id, "IBM", quantity=Decimal("3"), cost_basis=Decimal("26.90"), currency="SGD")
     db.add_all([
-        _pos(test_user.id, acct.id, "AAPL", quantity=Decimal("2"), currency="SGD"),
+        aapl,
         AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 5), asset_identifier="AAPL", broker="Test Broker", quantity=Decimal("2"), market_value=Decimal("100.00"), currency="SGD", dedup_hash="aapl-stale-snapshot", source_documents={}),
         StockPrice(symbol="AAPL", price=Decimal("155.000000"), currency="SGD", price_date=date(2026, 1, 6), source="test_sync"),
-        _pos(test_user.id, acct.id, "IBM", quantity=Decimal("3"), cost_basis=Decimal("26.90"), currency="SGD"),
+        ibm,
         AtomicPosition(user_id=test_user.id, snapshot_date=date(2026, 1, 5), asset_identifier="IBM", broker="Test Broker", quantity=Decimal("3"), market_value=Decimal("300.00"), currency="SGD", dedup_hash="ibm-decimal-snapshot", source_documents={}),
         StockPrice(symbol="IBM", price=Decimal("173.980232"), currency="SGD", price_date=date(2026, 1, 6), source="test_sync"),
     ])
+    await db.flush()
+    db.add_all([_buy_row(test_user.id, aapl, Decimal("100.00")), _buy_row(test_user.id, ibm, Decimal("26.90"))])
     await db.commit()
     by_sym = {h.asset_identifier: h for h in await PortfolioService().get_holdings(db, user_id=test_user.id, as_of_date=date(2026, 1, 6), base_currency="SGD")}
-    assert ((by_sym["AAPL"].market_value, by_sym["AAPL"].unrealized_pnl), (by_sym["IBM"].market_value, by_sym["IBM"].unrealized_pnl)) == ((Decimal("310.00"), None), (Decimal("521.94"), None))  # no BUY row: no cost at a past date (#2920)
+    assert ((by_sym["AAPL"].market_value, by_sym["AAPL"].unrealized_pnl), (by_sym["IBM"].market_value, by_sym["IBM"].unrealized_pnl)) == ((Decimal("310.00"), Decimal("210.00")), (Decimal("521.94"), Decimal("495.04")))  # cost from the recorded BUY rows (#2920)
 
 
 async def test_persist_stock_price_and_upsert_sync_state_concurrency(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:

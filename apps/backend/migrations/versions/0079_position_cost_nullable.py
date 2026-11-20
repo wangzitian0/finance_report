@@ -8,7 +8,8 @@ Create Date: 2026-11-20
 value is not a cost. This migration sets it to NULL for each position that has no
 BUY row in ``investment_transactions``. A position with a BUY row gets the cost of
 its BUY rows less the cost of its SELL rows, because its stored value can also be
-a market value.
+a market value. Both rewrites set ``updated_at``, because ``workflow_input_stamp`` reads
+``max(updated_at)`` of ``managed_positions`` to invalidate cached workflow results.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ def upgrade() -> None:
     op.execute(
         """
         UPDATE managed_positions AS p
-        SET cost_basis = NULL, unrealized_pnl = NULL
+        SET cost_basis = NULL, unrealized_pnl = NULL, updated_at = NOW()
         WHERE NOT EXISTS (
             SELECT 1 FROM investment_transactions AS t
             WHERE t.position_id = p.id AND t.transaction_type::text = 'buy'
@@ -46,7 +47,7 @@ def upgrade() -> None:
     op.execute(
         """
         UPDATE managed_positions AS p
-        SET cost_basis = recorded.cost
+        SET cost_basis = recorded.cost, updated_at = NOW()
         FROM (
             SELECT position_id,
                    SUM(CASE WHEN transaction_type::text = 'buy' THEN cost_basis ELSE -cost_basis END) AS cost
