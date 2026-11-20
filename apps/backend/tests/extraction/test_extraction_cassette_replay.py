@@ -139,3 +139,36 @@ async def test_AC_llm_14_2_3_replay_failure_paths(db, test_user, monkeypatch: py
         (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))).scalars().all()
     )
     assert (summary.status, result.balance_validated, persisted) == (BankStatementStatus.REJECTED, False, [])
+
+
+async def test_AC_extraction_3112_prompt_takes_printed_numbers_and_the_amount_column_via_replay() -> None:
+    """#3112: two amount columns, no printed opening balance, one row without a printed balance.
+
+    The descriptions of rows 1 and 2 name the other direction, as the ICICI sample does. The recorded reply
+    shows that the model follows prompt rules 4, 9 and 12.
+    """
+    service = ExtractionService()
+    service.api_key = service.api_key or "replay"
+    res = await service.extract_financial_data(
+        file_content=(_VISION_DIR / "dual_columns_no_opening.pdf").read_bytes(),
+        institution="ACME",
+        file_type="pdf",
+        filename="dual_columns_no_opening.pdf",
+    )
+    rows = res["transactions"]
+    assert [(row["direction"], _safe_parse_decimal(row["amount"])) for row in rows] == [
+        ("OUT", Decimal("1935.30")),
+        ("IN", Decimal("500.00")),
+        ("OUT", Decimal("164.58")),
+        ("OUT", Decimal("25.00")),
+        ("IN", Decimal("10.00")),
+    ]
+    assert [_safe_parse_decimal(row.get("balance_after")) for row in rows] == [
+        Decimal("6864.58"),
+        Decimal("7364.58"),
+        Decimal("7200.00"),
+        None,
+        Decimal("7185.00"),
+    ]
+    assert _safe_parse_decimal(res.get("opening_balance")) is None
+    assert _safe_parse_decimal(res.get("closing_balance")) == Decimal("7185.00")

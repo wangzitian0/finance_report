@@ -106,7 +106,8 @@ def rows_missing_from_text(
     closing balance treats such a text as unusable too.
 
     The balance_after of a row is checked only when the text prints at least 4 of 5 of the balances. A
-    statement without a balance column (a credit card) prints none, and the model may compute them.
+    statement without a balance column (a credit card) prints none. The prompt forbids a computed balance (rule 9); a model that computes one must not send
+    every row to review.
     """
     if not text or not text_prints_money(text):
         return None

@@ -102,7 +102,14 @@ def test_AC_extraction_3112_later_pages_keep_the_column_layout_of_the_header_pag
     offsets = _amount_offsets(pages[0], "Debit", "Credit", pages[1], ("BOOK STORE", "REFUND"))
     assert offsets == (0, 0), offsets
     # Control: without the document layout, the flat text of the same page is off by more than 2 characters.
-    assert max(_amount_offsets(pages[0], "Debit", "Credit", _flat_pages(_table_pdf("Debit", "Credit"))[1], ("BOOK STORE", "REFUND"))) > 2
+    assert (
+        max(
+            _amount_offsets(
+                pages[0], "Debit", "Credit", _flat_pages(_table_pdf("Debit", "Credit"))[1], ("BOOK STORE", "REFUND")
+            )
+        )
+        > 2
+    )
 
 
 @pytest.mark.no_db
@@ -170,3 +177,56 @@ def test_dr_and_cr_after_an_amount_are_not_headers():
     """A single-amount statement that prints ``990.00 Cr`` on its rows keeps the flat text."""
     content = _row_suffix_pdf()
     assert read_pdf_text_pages(content) == _flat_pages(content)
+
+
+def _row(page: str, description: str) -> str:
+    return next(line for line in page.splitlines() if description in line)
+
+
+@pytest.mark.no_db
+@pytest.mark.parametrize(
+    ("debit_header", "credit_header", "page_two_shift"),
+    [("Debit", "Credit", 0.0), ("Paid out", "Paid in", 0.0), ("Debit Amt", "Credit Amt", 40.0)],
+)
+def test_AC_extraction_3112_an_amount_carries_the_mark_of_its_column(debit_header, credit_header, page_two_shift):
+    """AC-extraction.3112.3: debit and credit amounts carry a column mark on every page; a balance carries none."""
+    pages = read_pdf_text_pages(_table_pdf(debit_header, credit_header, page_two_shift=page_two_shift))
+    assert pages is not None and len(pages) == 2
+    for page, (debit_row, credit_row) in zip(
+        pages, (("COFFEE SHOP", "PAYROLL"), ("BOOK STORE", "REFUND")), strict=True
+    ):
+        assert "10.00 [Debit]" in _row(page, debit_row) and "[Credit]" not in _row(page, debit_row)
+        assert "100.00 [Credit]" in _row(page, credit_row) and "[Debit]" not in _row(page, credit_row)
+        assert _row(page, debit_row).rstrip().endswith("990.00")
+        assert _row(page, credit_row).rstrip().endswith("1090.00")
+
+
+@pytest.mark.no_db
+def test_a_number_above_the_header_line_carries_no_mark():
+    """A summary above the table is not a row: a number under a column carries no mark there."""
+    from reportlab.pdfgen import canvas
+
+    buf = BytesIO()
+    pdf = canvas.Canvas(buf)
+    pdf.drawString(50, 560, "Total")
+    pdf.drawString(280, 560, "77.00")
+    for x, text in ((50, "Date"), (120, "Description"), (280, "Debit"), (380, "Credit")):
+        pdf.drawString(x, 520, text)
+    for x, text in ((50, "01/07"), (120, "COFFEE SHOP"), (280, "10.00")):
+        pdf.drawString(x, 500, text)
+    pdf.save()
+    pages = read_pdf_text_pages(buf.getvalue())
+    assert pages is not None
+    assert _row(pages[0], "Total").split() == ["Total", "77.00"]
+    assert _row(pages[0], "COFFEE SHOP").split() == ["01/07", "COFFEE", "SHOP", "10.00", "[Debit]"]
+
+
+@pytest.mark.no_db
+def test_a_marked_text_keeps_every_printed_number_for_the_source_checks():
+    """The marks add no number and hide none: the money values of the text are those of the flat text."""
+    from src.extraction.base.source_balance_check import text_money_values
+
+    content = _table_pdf("Debit", "Credit")
+    marked = "\n".join(read_pdf_text_pages(content) or [])
+    assert "[Debit]" in marked
+    assert text_money_values(marked) == text_money_values("\n".join(_flat_pages(content)))

@@ -112,7 +112,7 @@ def test_rows_missing_from_text_says_nothing_when_the_text_does_not_cover_the_ro
 
 @pytest.mark.no_db
 def test_rows_missing_from_text_checks_balances_only_when_the_text_prints_a_balance_column():
-    """AC-extraction.2987.4: a credit card prints no balance column, and the model may compute balance_after."""
+    """AC-extraction.2987.4: a credit card prints no balance column; a computed balance_after flags no row."""
     amounts_only = "Grocery 85.40 Phone 23.60 Coffee 55.00 Salary 3000.00 Interest 1.50"
     computed = [
         (Decimal("85.40"), Decimal("4916.10")),

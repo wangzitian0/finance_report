@@ -6,6 +6,7 @@ closing-balance source check compares the stored closing balance with it.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from src.extraction.extension._base import logger
@@ -30,27 +31,43 @@ class _ColumnLayout:
 
     char_width: float
     page_width: float
+    # The left margin of the header page, and the middle of the debit and of the credit header (x, in points).
+    left_margin: float
+    debit_x: float
+    credit_x: float
+
+
+# An amount as a statement prints it: digits with separators, an optional sign or parentheses. Not a date.
+_AMOUNT_TOKEN = re.compile(r"^[-+(]?\d[\d,.' ]*\)?$")
+DEBIT_COLUMN_MARK, CREDIT_COLUMN_MARK = "[Debit]", "[Credit]"
+
+
+def _header_middle(row: list[Word], names: frozenset[str], abbreviation: str | None, phrases: tuple[str, ...]):
+    """Return the middle x of the first header word or phrase of ``row``, or None."""
+    tokens = [w[4].strip().lower().rstrip(":.") for w in row]
+    for index, token in enumerate(tokens):
+        if token in names or (abbreviation is not None and token == abbreviation):
+            return (row[index][0] + row[index][2]) / 2
+        for phrase in phrases:
+            parts = phrase.split()
+            if tokens[index : index + len(parts)] == parts:
+                return (row[index][0] + row[index + len(parts) - 1][2]) / 2
+    return None
+
+
+def _dual_amount_headers(lines: list[list[Word]]) -> tuple[float, float, int] | None:
+    """Return the middle x of the debit and of the credit header, and the number of their line."""
+    for line_number, row in enumerate(lines[:_HEADER_SCAN_LINES]):
+        has_digit = any(char.isdigit() for word in row for char in word[4])
+        debit = _header_middle(row, _DEBIT_HEADERS, None if has_digit else _DEBIT_ABBREVIATION, _DEBIT_PHRASES)
+        credit = _header_middle(row, _CREDIT_HEADERS, None if has_digit else _CREDIT_ABBREVIATION, _CREDIT_PHRASES)
+        if debit is not None and credit is not None and debit != credit:
+            return debit, credit, line_number
+    return None
 
 
 def _has_dual_amount_headers(lines: list[list[Word]]) -> bool:
-    for row in lines[:_HEADER_SCAN_LINES]:
-        tokens = [w[4].strip().lower().rstrip(":.") for w in row]
-        padded = f" {' '.join(tokens)} "
-        has_digit = any(char.isdigit() for token in tokens for char in token)
-        abbreviations = () if has_digit else tokens
-        has_debit = (
-            bool(_DEBIT_HEADERS.intersection(tokens))
-            or _DEBIT_ABBREVIATION in abbreviations
-            or any(f" {phrase} " in padded for phrase in _DEBIT_PHRASES)
-        )
-        has_credit = (
-            bool(_CREDIT_HEADERS.intersection(tokens))
-            or _CREDIT_ABBREVIATION in abbreviations
-            or any(f" {phrase} " in padded for phrase in _CREDIT_PHRASES)
-        )
-        if has_debit and has_credit:
-            return True
-    return False
+    return _dual_amount_headers(lines) is not None
 
 
 def _visual_lines(page) -> list[list[Word]]:
@@ -70,21 +87,45 @@ def _visual_lines(page) -> list[list[Word]]:
     return visual_lines
 
 
-def _column_layout(lines: list[list[Word]], page_width: float) -> _ColumnLayout:
+def _column_layout(lines: list[list[Word]], page_width: float, headers: tuple[float, float, int]) -> _ColumnLayout:
     words = [word for row in lines for word in row]
     total_width = sum(max(0.0, w[2] - w[0]) for w in words)
     total_chars = sum(len(w[4]) for w in words)
     return _ColumnLayout(
         char_width=max(3.5, total_width / total_chars) if total_chars else 5.5,
         page_width=page_width,
+        left_margin=min(word[0] for word in words),
+        debit_x=headers[0],
+        credit_x=headers[1],
     )
 
 
-def _render_columns(lines: list[list[Word]], layout: _ColumnLayout) -> str:
-    """Render each visual line with its words at their columns. The left margin is the one of this page."""
+def _column_mark(x0: float, x1: float, token: str, layout: _ColumnLayout, shift: float) -> str | None:
+    """Name the amount column of ``token``, or None when it is no amount or sits in neither column.
+
+    An amount belongs to the header whose middle is nearer, when it is nearer than half the distance
+    between the two headers. A balance column on the far side of both headers gets no mark.
+    """
+    if not _AMOUNT_TOKEN.match(token) or not any(char.isdigit() for char in token):
+        return None
+    middle = (x0 + x1) / 2 - shift
+    to_debit, to_credit = abs(middle - layout.debit_x), abs(middle - layout.credit_x)
+    if min(to_debit, to_credit) > abs(layout.debit_x - layout.credit_x) / 2:
+        return None
+    return DEBIT_COLUMN_MARK if to_debit < to_credit else CREDIT_COLUMN_MARK
+
+
+def _render_columns(lines: list[list[Word]], layout: _ColumnLayout, first_marked_line: int = 0) -> str:
+    """Render each visual line with its words at their columns. The left margin is the one of this page.
+
+    An amount in the debit or the credit column gets the mark of its column after it (``25.00 [Debit]``), so a
+    reader does not count spaces to find the column (#3112). On the header page the lines up to the header
+    get no mark: a summary above the table is not a row of it.
+    """
     left_margin = min(word[0] for row in lines for word in row)
+    shift = left_margin - layout.left_margin
     rendered_lines: list[str] = []
-    for row in lines:
+    for line_number, row in enumerate(lines):
         buf: list[str] = []
         cursor = 0
         prev_x1: float | None = None
@@ -98,8 +139,10 @@ def _render_columns(lines: list[list[Word]], layout: _ColumnLayout) -> str:
             if target_col > cursor:
                 buf.append(" " * (target_col - cursor))
                 cursor = target_col
-            buf.append(token)
-            cursor += len(token)
+            mark = _column_mark(x0, x1, token, layout, shift) if line_number >= first_marked_line else None
+            text = f"{token} {mark}" if mark else token
+            buf.append(text)
+            cursor += len(text)
             prev_x1 = x1
         rendered_lines.append("".join(buf))
     return "\n".join(rendered_lines)
@@ -118,12 +161,13 @@ def _extract_document_text(document) -> list[str]:
     pages: list[str] = []
     for page in document:
         lines = _visual_lines(page)
-        if layout is None and lines and _has_dual_amount_headers(lines):
-            layout = _column_layout(lines, float(page.rect.width))
+        headers = _dual_amount_headers(lines) if layout is None and lines else None
+        if headers is not None:
+            layout = _column_layout(lines, float(page.rect.width), headers)
         if layout is None or not lines or abs(float(page.rect.width) - layout.page_width) > _PAGE_WIDTH_TOLERANCE:
             pages.append(page.get_text(sort=True) or "")
         else:
-            pages.append(_render_columns(lines, layout))
+            pages.append(_render_columns(lines, layout, headers[2] + 1 if headers is not None else 0))
     return pages
 
 

@@ -57,8 +57,8 @@ Important Rules:
    source uses — e.g. 2025年01月15日 -> 2025-01-15, 15/01/2025 -> 2025-01-15,
    2025/1/5 -> 2025-01-05, 15 Jan 2025 -> 2025-01-15. Do the conversion yourself;
    never echo a non-ISO source format.
-4. direction: "IN" for credits/deposits, "OUT" for debits/withdrawals. When the table prints two amount columns (for example Debit and Credit, Withdrawal and Deposit, Paid out and Paid in), the column that holds the amount decides the direction, not the words of the description.
-5. Include ALL transactions visible in the document
+4. direction: "IN" for credits/deposits, "OUT" for debits/withdrawals. When the table prints two amount columns (for example Debit and Credit, Withdrawal and Deposit, Paid out and Paid in), the column that holds the amount decides the direction, not the words of the description. A mark after an amount names its column: "[Debit]" means OUT, "[Credit]" means IN; never copy the mark into a field.
+5. Include ALL transactions visible in the document. NEVER invent, fabricate, or alter a transaction
 6. If unsure about a field, set it to null but include the transaction
 7. For long statements with 50+ transactions, include all of them - do NOT truncate
 8. For each transaction, include "currency" (ISO 4217 code, e.g. "SGD", "USD")
