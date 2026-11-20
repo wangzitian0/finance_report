@@ -2,13 +2,14 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.extraction.orm.layer2 import AtomicPosition
 from src.ledger import Account, AccountType
 from src.portfolio import AssetNotFoundError, PortfolioNotFoundError, PortfolioService
 from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, PositionStatus
-from src.pricing import MarketDataOverride, PriceSource
+from src.pricing import MarketDataOverride, PriceSource, StockPrice
 from src.pricing.orm.market_data import FxRate
 from tests.factories import UserFactory
 
@@ -234,3 +235,89 @@ async def test_get_latest_price_and_atomic_helpers(db, test_user, svc, active_po
     latest = await svc._get_latest_atomic(db, "TEST", test_user.id)
     missing = await svc._get_latest_atomic(db, "NOPE", test_user.id)
     assert (zero_price, atomic_price, override_price, latest.sector, missing) == (Decimal("999.00"), Decimal("120"), Decimal("200.00"), "New", None)
+
+
+async def test_get_holdings_sql_count_is_constant_across_portfolio_size(db, db_engine, test_user, svc, account):
+    today = date.today()
+    earliest = today - timedelta(days=40)
+    as_of = today - timedelta(days=5)
+    currencies = ["USD", "HKD", "SGD"]
+
+    objs: list[object] = [
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.300000"), rate_date=earliest, source="test"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.320000"), rate_date=as_of, source="test"),
+        FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=today, source="test"),
+        FxRate(base_currency="HKD", quote_currency="SGD", rate=Decimal("0.170000"), rate_date=earliest, source="test"),
+        FxRate(base_currency="HKD", quote_currency="SGD", rate=Decimal("0.175000"), rate_date=as_of, source="test"),
+        FxRate(base_currency="HKD", quote_currency="SGD", rate=Decimal("0.180000"), rate_date=today, source="test"),
+        FxRate(base_currency="USD", quote_currency="HKD", rate=Decimal("7.800000"), rate_date=earliest, source="test"),
+        FxRate(base_currency="USD", quote_currency="HKD", rate=Decimal("7.750000"), rate_date=today, source="test"),
+    ]
+
+    for i in range(25):
+        ccy = currencies[i % 3]
+        asset = f"ASSET_{i:02d}"
+        acq_date = today - timedelta(days=10 + i)
+        docs = {"documents": [{"doc_id": f"00000000-0000-4000-8000-{i:012d}", "doc_type": "brokerage_statement"}]} if i % 2 == 0 else {}
+        objs.append(_pos(test_user.id, account.id, asset, qty=Decimal("10"), cost=Decimal("1000.00"), currency=ccy, acq_date=acq_date))
+        objs.append(
+            _atom(
+                test_user.id,
+                asset,
+                "Test Investment",
+                qty=Decimal("10"),
+                mv=Decimal("1200.00"),
+                currency=ccy,
+                snap_date=as_of,
+                sector=f"Sector{i % 4}",
+                geography="US",
+                asset_type="stock",
+                dedup_hash=f"{asset}_batch_snap",
+                source_documents=docs,
+            )
+        )
+        if i < 5:
+            objs.append(MarketDataOverride(user_id=test_user.id, asset_identifier=asset, price_date=today, price=Decimal("150.00"), currency=ccy, source=PriceSource.MANUAL))
+        elif i < 16:
+            objs.append(StockPrice(symbol=asset, price=Decimal("130.00"), currency=ccy, price_date=as_of, source="yahoo"))
+        elif i == 16:
+            objs.append(StockPrice(symbol=asset, price=Decimal("20.00"), currency="USD", price_date=today, source="yahoo"))
+
+    await _flush(db, *objs)
+
+    async def _count_queries(coro):
+        stmts: list[str] = []
+
+        def _capture(_conn, _cursor, statement, _params, _ctx, _many):
+            stmts.append(statement)
+
+        event.listen(db_engine.sync_engine, "before_cursor_execute", _capture)
+        try:
+            result = await coro
+        finally:
+            event.remove(db_engine.sync_engine, "before_cursor_execute", _capture)
+        return result, stmts
+
+    current_holdings, current_stmts = await _count_queries(svc.get_holdings(db, test_user.id, base_currency="SGD"))
+    snapshot_holdings, snapshot_stmts = await _count_queries(svc.get_holdings(db, test_user.id, as_of_date=as_of, base_currency="SGD"))
+
+    assert len(current_stmts) <= 12, f"Expected <= 12 SQL statements, got {len(current_stmts)}"
+    assert len(snapshot_stmts) <= 12, f"Expected <= 12 SQL statements, got {len(snapshot_stmts)}"
+    assert len(current_holdings) == 25
+    assert len(snapshot_holdings) == 25
+
+    curr_by_asset = {h.asset_identifier: h for h in current_holdings}
+    snap_by_asset = {h.asset_identifier: h for h in snapshot_holdings}
+
+    # Override (USD)
+    assert (curr_by_asset["ASSET_00"].market_value, curr_by_asset["ASSET_00"].cost_basis, curr_by_asset["ASSET_00"].unrealized_pnl, curr_by_asset["ASSET_00"].provenance) == (Decimal("2025.00"), Decimal("1300.00"), Decimal("725.00"), "imported")
+    # Synced stock price same-currency (USD)
+    assert (curr_by_asset["ASSET_06"].market_value, curr_by_asset["ASSET_06"].cost_basis, curr_by_asset["ASSET_06"].unrealized_pnl, curr_by_asset["ASSET_06"].provenance) == (Decimal("1755.00"), Decimal("1300.00"), Decimal("455.00"), "imported")
+    # Cross-currency synced stock price (USD price -> HKD position -> SGD reporting)
+    assert (curr_by_asset["ASSET_16"].market_value, curr_by_asset["ASSET_16"].cost_basis, curr_by_asset["ASSET_16"].unrealized_pnl, curr_by_asset["ASSET_16"].provenance) == (Decimal("279.00"), Decimal("170.00"), Decimal("109.00"), "imported")
+    # Atomic fallback (SGD)
+    assert (curr_by_asset["ASSET_17"].market_value, curr_by_asset["ASSET_17"].cost_basis, curr_by_asset["ASSET_17"].unrealized_pnl, curr_by_asset["ASSET_17"].provenance) == (Decimal("1200.00"), Decimal("1000.00"), Decimal("200.00"), None)
+
+    # Historical as_of snapshot valuations
+    assert (snap_by_asset["ASSET_00"].market_value, snap_by_asset["ASSET_00"].cost_basis, snap_by_asset["ASSET_00"].unrealized_pnl, snap_by_asset["ASSET_00"].provenance) == (Decimal("1584.00"), Decimal("1584.00"), Decimal("0.00"), "imported")
+    assert (snap_by_asset["ASSET_06"].market_value, snap_by_asset["ASSET_06"].cost_basis, snap_by_asset["ASSET_06"].unrealized_pnl, snap_by_asset["ASSET_06"].provenance) == (Decimal("1716.00"), Decimal("1300.00"), Decimal("416.00"), "imported")
