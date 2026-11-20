@@ -13,14 +13,14 @@ SQL adapter (dependency inversion).
 
 from __future__ import annotations
 
-from typing import cast
+from typing import Annotated, cast
 from uuid import UUID
 
 from fastapi import Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.database import get_db
+from src.database import get_session_maker
 from src.identity.base.types import AUTH_COOKIE_NAME
 from src.identity.extension.observability import bind_authenticated_user_context
 from src.identity.extension.security import decode_access_token
@@ -33,10 +33,14 @@ logger = get_logger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login", auto_error=False)
 
 
+def _detached_auth_db() -> AsyncSession | None:
+    return None
+
+
 async def get_current_user_id(
     request: Request = cast(Request, None),
     token: str | None = Depends(oauth2_scheme),
-    db: AsyncSession = Depends(get_db),
+    db: Annotated[AsyncSession | None, Depends(_detached_auth_db)] = None,
 ) -> UUID:
     """Resolve the current user ID from JWT token."""
     resolved_token = token or (request.cookies.get(AUTH_COOKIE_NAME) if request else None)
@@ -60,8 +64,15 @@ async def get_current_user_id(
         log_security_warning(logger, "auth.failure", reason="invalid_subject")
         raise UnauthorizedError("Invalid user ID format in token", headers={"WWW-Authenticate": "Bearer"}) from exc
 
-    # Performance optimization: verify user existence (optional, but safer)
-    if not await SqlUserRepository(db).exists(user_uuid):
+    # Performance optimization: verify user existence in a short self-contained session so
+    # streaming/read endpoints never keep an idle transaction open for the request lifetime.
+    if db is not None:
+        user_exists = await SqlUserRepository(db).exists(user_uuid)
+    else:
+        async with get_session_maker()() as auth_db:
+            user_exists = await SqlUserRepository(auth_db).exists(user_uuid)
+            await auth_db.rollback()
+    if not user_exists:
         log_security_warning(logger, "auth.failure", reason="user_not_found", user_id=user_uuid)
         raise UnauthorizedError("User not found", headers={"WWW-Authenticate": "Bearer"})
 

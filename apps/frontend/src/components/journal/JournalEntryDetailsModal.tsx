@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { DetailDialog } from "@/components/ui/Overlay";
 import { apiOperation } from "@/lib/api";
+import { apiOperationAllPages } from "@/lib/apiPages";
 import { formatAmount, formatCurrencyLocale, multiplyAmount, sumAmounts } from "@/lib/audit/money";
 import { formatDateDisplay, formatDateTimeDisplay } from "@/lib/date";
 import { JournalEntry, JournalLine } from "@/lib/types";
@@ -23,7 +24,7 @@ export function AuditTrailPanel({ transactionId }: { transactionId: string }) {
   const fetchAuditTrail = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiOperation("get_journal_entry_audit_journal_entries__entry_id__audit_get", {
+      const data = await apiOperationAllPages("get_journal_entry_audit_journal_entries__entry_id__audit_get", {
         path: { entry_id: transactionId },
       });
       setRecords(data.items);

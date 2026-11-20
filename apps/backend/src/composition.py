@@ -17,7 +17,7 @@ from sqlalchemy.orm import aliased
 
 from src.audit import SqlTraceRecordRepository, TraceDecisionPolicyRegistry, TraceEmitter
 from src.config import settings
-from src.config_app import get_effective_base_currency
+from src.config_app import get_effective_base_currency, get_operator_base_currency
 from src.database import async_session_maker, create_session_maker_from_db
 from src.extraction import (
     BROKERAGE_IMPORTABLE_STATUSES,
@@ -510,7 +510,14 @@ async def ensure_owned_account(db: AsyncSession, user_id: UUID, account_id: UUID
 async def observed_fx_pairs(
     db: AsyncSession, user_id: UUID | None, *, include_default: bool = True, base_currency: str | None = None
 ) -> list[str]:
-    base = (base_currency or await get_effective_base_currency(db, user_id=user_id)).strip().upper()
+    if base_currency is None:
+        # user_id=None is the all-user scope of the scheduled sync; it quotes against the operator default.
+        base_currency = (
+            await get_operator_base_currency(db)
+            if user_id is None
+            else await get_effective_base_currency(db, user_id=user_id)
+        )
+    base = base_currency.strip().upper()
     currencies: set[str] = {base}
     if include_default:
         currencies.add("USD" if base != "USD" else "SGD")

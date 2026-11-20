@@ -27,6 +27,8 @@ async def detect_anomalies(
     txn: AtomicTransaction,
     *,
     user_id: UUID,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> list[AnomalyResult]:
     """Detect anomalies for a transaction."""
     anomalies: list[AnomalyResult] = []
@@ -106,4 +108,4 @@ async def detect_anomalies(
             )
         )
 
-    return anomalies
+    return anomalies[offset : offset + limit] if limit is not None else anomalies

@@ -1,4 +1,82 @@
-import logging; import os; import re; import sys; from pathlib import Path; from typing import Any; from unittest.mock import patch; from uuid import uuid4; import pytest; import pytest_asyncio; import structlog; from httpx import ASGITransport, AsyncClient; from sqlalchemy import event, text; from sqlalchemy.engine.url import make_url; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine; from sqlalchemy.pool import NullPool; import src.orm_registry; from src.config import settings; from src.observability import get_logger; _REPO_ROOT = str(Path(__file__).resolve().parents[3]); sys.path.insert(0, _REPO_ROOT) if _REPO_ROOT not in sys.path else None; logger = get_logger(__name__)
+import asyncio; import logging; import os; import re; import sys; from pathlib import Path; from typing import Any; from unittest.mock import patch; from uuid import uuid4; from weakref import WeakSet; import pytest; import pytest_asyncio; import structlog; from httpx import ASGITransport, AsyncClient; from sqlalchemy import event, text; from sqlalchemy.engine.url import make_url; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine; from sqlalchemy.orm import Session; from sqlalchemy.pool import NullPool; import src.orm_registry; from src.config import settings; from src.observability import get_logger; _REPO_ROOT = str(Path(__file__).resolve().parents[3]); sys.path.insert(0, _REPO_ROOT) if _REPO_ROOT not in sys.path else None; logger = get_logger(__name__)
+_LIVE_APP_SESSIONS: WeakSet[Session] = WeakSet()
+_LOCAL_TEST_HOSTS = frozenset({"", "test", "testserver", "localhost", "127.0.0.1"})
+
+
+def _current_task_id() -> int | None:
+    try:
+        task = asyncio.current_task()
+    except RuntimeError:
+        return None
+    return id(task) if task is not None else None
+
+
+@event.listens_for(Session, "after_begin")
+def _track_app_transaction(session: Session, _tx: Any, _conn: Any) -> None:
+    if not session.info.get("test_arrange_session"):
+        session.info["owner_task_id"] = _current_task_id()
+        _LIVE_APP_SESSIONS.add(session)
+
+
+def active_guarded_app_transactions(*, task_scoped: bool = True) -> int:
+    current_task_id = _current_task_id()
+    count = 0
+    for session in list(_LIVE_APP_SESSIONS):
+        if session.info.get("test_arrange_session") or not session.in_transaction():
+            continue
+        if task_scoped and current_task_id is not None and session.info.get("owner_task_id") != current_task_id:
+            continue
+        count += 1
+    return count
+
+
+def _assert_no_open_app_txn(operation: str) -> None:
+    if active_guarded_app_transactions(task_scoped=True) > 0:
+        raise RuntimeError(
+            f"External I/O attempted while an application AsyncSession transaction is open ({operation})"
+        )
+
+
+@pytest.fixture(autouse=True)
+def _guard_external_io_during_open_transaction():
+    from functools import wraps
+    from src.llm.extension import client as llm_client
+    from src.runtime.extension.storage import StorageService
+
+    orig_stream_dispatch = llm_client._cassette_stream_dispatch
+    orig_completion = llm_client.cassette_completion
+    orig_run_s3 = StorageService._run_s3
+    orig_httpx_send = AsyncClient.send
+
+    @wraps(orig_stream_dispatch)
+    async def guarded_stream_dispatch(*args, **kwargs):
+        _assert_no_open_app_txn("LLM stream")
+        async for chunk in orig_stream_dispatch(*args, **kwargs):
+            yield chunk
+
+    @wraps(orig_completion)
+    async def guarded_completion(*args, **kwargs):
+        _assert_no_open_app_txn("LLM completion")
+        return await orig_completion(*args, **kwargs)
+
+    @wraps(orig_run_s3)
+    def guarded_run_s3(self, *args, **kwargs):
+        _assert_no_open_app_txn("S3 storage")
+        return orig_run_s3(self, *args, **kwargs)
+
+    @wraps(orig_httpx_send)
+    async def guarded_httpx_send(self, request, *args, **kwargs):
+        if (request.url.host or "") not in _LOCAL_TEST_HOSTS:
+            _assert_no_open_app_txn(f"HTTP {request.method} {request.url.host}")
+        return await orig_httpx_send(self, request, *args, **kwargs)
+
+    with (
+        patch.object(llm_client, "_cassette_stream_dispatch", guarded_stream_dispatch),
+        patch.object(llm_client, "cassette_completion", guarded_completion),
+        patch.object(StorageService, "_run_s3", guarded_run_s3),
+        patch.object(AsyncClient, "send", guarded_httpx_send),
+    ):
+        yield
 def pytest_addoption(parser): parser.addoption('--llm-record', action='store_true', default=False, help='Re-record LLM cassettes (layer refresh knob; real provider call + write cassette).')
 def pytest_configure(config):
     os.environ.setdefault('LLM_CASSETTE_ENGAGE', '1')
@@ -109,7 +187,10 @@ async def patch_database_connection(db_engine):
 @pytest_asyncio.fixture(scope='function')
 async def db(db_engine):
     async_session = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
-    async with async_session() as session: yield session; await session.rollback()
+    async with async_session() as session:
+        session.info['test_arrange_session'] = True
+        yield session
+        await session.rollback()
 @pytest_asyncio.fixture(scope='function')
 async def test_user(db: AsyncSession): from src.identity import User; user = User(id=uuid4(), email=f'test-{uuid4()}@example.com', hashed_password='hashed'); db.add(user); await db.commit(); return user
 @pytest.fixture(scope='function')

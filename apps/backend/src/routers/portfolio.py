@@ -10,7 +10,7 @@ from src.composition import (
     import_payload_brokerage_positions,
     import_statement_brokerage_positions,
 )
-from src.deps import Ctx, ReadCtx, RequestContext
+from src.deps import Ctx, ReadCtx
 from src.extraction import BrokeragePositionImportService
 from src.observability import get_logger
 from src.platform import PreconditionFailedError, ResourceNotFoundError
@@ -64,11 +64,23 @@ def _dividend_response(dividend, *, journal_entry_id: UUID | None = None) -> Div
     )
 
 
-async def _paged_allocation(fn, *, ctx: RequestContext, as_of_date: date | None, limit: int, offset: int):
+async def _allocation_response(
+    fn,
+    *,
+    ctx: ReadCtx,
+    as_of_date: date | None,
+    limit: int,
+    offset: int,
+) -> list[AllocationBreakdownResponse]:
     breakdowns = await fn(
-        db=ctx.db, user_id=ctx.user_id, as_of_date=as_of_date or date.today(), base_currency=await ctx.get_base_currency()
+        db=ctx.db,
+        user_id=ctx.user_id,
+        as_of_date=as_of_date or date.today(),
+        base_currency=await ctx.get_base_currency(),
+        limit=limit,
+        offset=offset,
     )
-    return [AllocationBreakdownResponse(**b.to_dict()) for b in list(breakdowns)[offset : offset + limit]]
+    return [AllocationBreakdownResponse(**b.to_dict()) for b in breakdowns]
 
 
 @router.post("/brokerage-imports", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
@@ -111,19 +123,19 @@ async def get_holdings(
     db, user_id = ctx.db, ctx.user_id
     warnings: list[dict[str, str]] = []
     try:
-        holdings = list(
-            await portfolio_service.get_holdings(
-                db=db,
-                user_id=user_id,
-                as_of_date=as_of_date,
-                include_disposed=include_disposed,
-                warnings=warnings,
-                base_currency=await ctx.get_base_currency(),
-            )
+        items, total = await portfolio_service.get_holdings_page(
+            db=db,
+            user_id=user_id,
+            as_of_date=as_of_date,
+            include_disposed=include_disposed,
+            warnings=warnings,
+            limit=limit,
+            offset=offset,
+            base_currency=await ctx.get_base_currency(),
         )
     except (PortfolioNotFoundError, AssetNotFoundError):
         return HoldingsListResponse(items=[], total=0, warnings=warnings)
-    return HoldingsListResponse(items=holdings[offset : offset + limit], total=len(holdings), warnings=warnings)
+    return HoldingsListResponse(items=items, total=total, warnings=warnings)
 
 
 @router.get("/summary", response_model=PortfolioSummaryDashboardResponse)
@@ -262,7 +274,7 @@ async def get_sector_allocation(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get sector allocation breakdown."""
-    return await _paged_allocation(
+    return await _allocation_response(
         sector_allocation_breakdowns, ctx=ctx, as_of_date=as_of_date, limit=limit, offset=offset
     )
 
@@ -275,7 +287,7 @@ async def get_geography_allocation(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get geography allocation breakdown."""
-    return await _paged_allocation(
+    return await _allocation_response(
         geography_allocation_breakdowns, ctx=ctx, as_of_date=as_of_date, limit=limit, offset=offset
     )
 
@@ -288,6 +300,6 @@ async def get_asset_class_allocation(
     offset: int = Query(0, ge=0, description="Number of items to skip"),
 ) -> list[AllocationBreakdownResponse]:
     """Get asset class allocation breakdown."""
-    return await _paged_allocation(
+    return await _allocation_response(
         asset_class_allocation_breakdowns, ctx=ctx, as_of_date=as_of_date, limit=limit, offset=offset
     )

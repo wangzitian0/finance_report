@@ -109,9 +109,14 @@ def create_session_maker_from_db(db: AsyncSession) -> async_sessionmaker[AsyncSe
     )
 
 
+def get_session_maker() -> async_sessionmaker[AsyncSession]:
+    """Return the active async session maker for short-lived explicit transactions."""
+    return _test_session_maker or async_session_maker
+
+
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for read-write database session (commits on clean exit, rolls back on error)."""
-    maker = _test_session_maker or async_session_maker
+    maker = get_session_maker()
     async with maker() as session:
         try:
             yield session
@@ -127,7 +132,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def get_db_readonly() -> AsyncGenerator[AsyncSession, None]:
     """Dependency for read-only database session (rolls back instead of committing)."""
-    maker = _test_session_maker or async_session_maker
+    maker = get_session_maker()
     async with maker() as session:
         try:
             yield session

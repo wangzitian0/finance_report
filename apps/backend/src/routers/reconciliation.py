@@ -33,7 +33,7 @@ from src.reconciliation import (
     get_reconciliation_stats,
     get_stage2_queue,
     list_checks,
-    list_pending_processing_transfers,
+    list_pending_processing_transfers_page,
     list_reconciliation_matches_page,
     list_unmatched_transactions_page,
     load_entry_summaries_for_matches,
@@ -370,8 +370,10 @@ async def list_anomalies(txn_id: UUID, *, ctx: ReadCtx, pagination: Pagination) 
     """Return reconciliation anomalies."""
     db, user_id = ctx.db, ctx.user_id
     txn = await get_owned_reconciliation_transaction(db, txn_id, user_id)
-    anomalies = await detect_anomalies(db, txn, user_id=user_id)
-    return [AnomalyResponse(**a.__dict__) for a in anomalies[pagination.offset : pagination.offset + pagination.limit]]
+    anomalies = await detect_anomalies(
+        db, txn, user_id=user_id, limit=pagination.limit, offset=pagination.offset
+    )
+    return [AnomalyResponse(**a.__dict__) for a in anomalies]
 
 
 @router.post("/adjustments", response_model=ReconciliationAdjustmentResponse, status_code=status.HTTP_200_OK)
@@ -439,13 +441,21 @@ async def get_processing_summary(
 
 @router.get("/transfers/pending", response_model=ProcessingPendingListResponse)
 async def list_processing_pending(
+    *,
     ctx: ReadCtx,
+    pagination: Pagination,
 ) -> ProcessingPendingListResponse:
     """Return pending unpaired transfer legs in the processing pipeline."""
     default_currency = await ctx.get_base_currency()
-    legs = await list_pending_processing_transfers(ctx.db, ctx.user_id, default_currency=default_currency)
+    legs, total = await list_pending_processing_transfers_page(
+        ctx.db,
+        ctx.user_id,
+        default_currency=default_currency,
+        limit=pagination.limit,
+        offset=pagination.offset,
+    )
     items = [ProcessingPendingItem(**leg) for leg in legs]
-    return ProcessingPendingListResponse(items=items, total=len(items))
+    return ProcessingPendingListResponse(items=items, total=total)
 
 
 @router.get("/review-queue", response_model=Stage2ReviewQueueResponse)

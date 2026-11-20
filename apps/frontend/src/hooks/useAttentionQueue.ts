@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import { useApiQuery } from "@/hooks/useApiQuery";
+import { useApiQuery, useApiQueryAllPages } from "@/hooks/useApiQuery";
 import { buildAttentionItems, type AttentionItem } from "@/lib/attention";
 import {
   PROCESSING_PENDING_QUERY_KEY,
@@ -33,9 +33,9 @@ export interface AttentionQueue {
  * unmatched item. When that row fails to load, the item keeps its count title.
  */
 export function useAttentionQueue(): AttentionQueue {
-  const statements = useApiQuery(STATEMENTS_LIST_QUERY_KEY, "list_statements_statements_get", {}, { staleTime: SHARED_STALE_MS });
+  const statements = useApiQueryAllPages(STATEMENTS_LIST_QUERY_KEY, "list_statements_statements_get", {}, { staleTime: SHARED_STALE_MS });
   const stats = useApiQuery(RECONCILIATION_STATS_QUERY_KEY, "reconciliation_stats_reconciliation_stats_get", {}, { staleTime: SHARED_STALE_MS });
-  const processing = useApiQuery(
+  const processing = useApiQueryAllPages(
     PROCESSING_PENDING_QUERY_KEY,
     "list_processing_pending_reconciliation_transfers_pending_get",
     {},

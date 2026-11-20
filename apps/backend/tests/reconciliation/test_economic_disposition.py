@@ -187,7 +187,7 @@ async def test_AC_reconciliation_economic_disposition_6_retry_and_phase_permutat
         async with maker() as rep:
             repo = SqlReconciliationRepository(rep)
             entries = [e for e in await repo.list_journal_candidates(user_id=test_user.id, start_date=txn.txn_date, end_date=txn.txn_date) if e.id == out_eff.id]
-            ctx = MatchingContext(DEFAULT_CONFIG, "SGD", {str(e.id): e for e in entries}, lambda _: entries, AsyncMock(return_value=0.0))
+            ctx = MatchingContext(DEFAULT_CONFIG, "SGD", {str(e.id): e for e in entries}, lambda _: entries, AsyncMock(return_value=0.0), semantic_scores={})
             for phase in order:
                 kw = {"context": ctx} if phase is run_normal_matching_phase else {"base_currency": "SGD"}
                 assert await phase(rep, transactions=[txn], matched_txn_ids=set(), repository=repo, user_id=test_user.id, **kw) == []

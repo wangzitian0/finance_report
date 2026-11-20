@@ -19,10 +19,15 @@ _UNAUTHENTICATED_DB_ROUTES: frozenset[tuple[str, str]] = frozenset(
     {
         ("auth.py", "register"),
         ("auth.py", "login"),
-        ("reports.py", "get_available_currencies"),
     }
 )
-_STATELESS_AUTH_ROUTES: frozenset[tuple[str, str]] = frozenset({("llm.py", "get_config_status")})
+_STATELESS_AUTH_ROUTES: frozenset[tuple[str, str]] = frozenset(
+    {
+        ("llm.py", "get_config_status"),
+        # chat_message opens short sessions itself, so no request session stays open during the LLM stream (#3156).
+        ("chat.py", "chat_message"),
+    }
+)
 _FORBIDDEN_HELPER_CALLS = frozenset(
     {
         "get_owned_or_404",

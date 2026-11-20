@@ -9,6 +9,7 @@ import { LoadingState } from "@/components/ui";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { FlowStepBanner } from "@/components/workflow/WorkflowNotifications";
 import { ApiError, apiOperation } from "@/lib/api";
+import { apiOperationAllPages } from "@/lib/apiPages";
 import { track, ANALYTICS_EVENTS } from "@/lib/analytics";
 import { ATTENTION_RETURN_HREF, ATTENTION_RETURN_LABEL, NEEDS_YOU_HREF, isAttentionOrigin, withAttentionSource } from "@/lib/attentionNavigation";
 import { BankStatement, BrokerageImportResponse, StatementRunHints, StatementRunKind, normalizeBankStatement } from "@/lib/types";
@@ -196,7 +197,7 @@ export default function StatementDetailPage() {
   }, [review]);
   const { data: pendingStatementsData } = useQuery({
     queryKey: ["pending-statements"],
-    queryFn: () => apiOperation("list_pending_review_statements_pending_review_get"),
+    queryFn: () => apiOperationAllPages("list_pending_review_statements_pending_review_get"),
     enabled: isParsed,
   });
   const { data: conflicts } = useQuery({
@@ -210,7 +211,7 @@ export default function StatementDetailPage() {
   const runsEnabled = Boolean(statement);
   const { data: runsData } = useQuery({
     queryKey: ["statement-runs", statementId],
-    queryFn: () => apiOperation("list_statement_runs_statements__statement_id__runs_get", { path: { statement_id: statementId } }),
+    queryFn: () => apiOperationAllPages("list_statement_runs_statements__statement_id__runs_get", { path: { statement_id: statementId } }),
     enabled: runsEnabled,
     refetchInterval: (query) =>
       (query.state.data?.items ?? []).some(isRunActive) || statement?.status === "parsing"

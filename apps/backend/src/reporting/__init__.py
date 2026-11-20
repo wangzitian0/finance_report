@@ -40,6 +40,7 @@ _MODULES: dict[str, tuple[str, ...]] = {
     "src.reporting.extension.balance_sheet": ("generate_balance_sheet",),
     "src.reporting.extension.cash_flow": (
         "cash_flow_line_events",
+        "cash_flow_line_events_page",
         "cash_flow_period",
         "cash_flow_preview",
     ),
@@ -163,6 +164,7 @@ __all__ = [
     "generate_balance_sheet",
     "generate_annualized_income_schedule",
     "cash_flow_line_events",
+    "cash_flow_line_events_page",
     "cash_flow_period",
     "cash_flow_preview",
     "generate_cash_flow",
@@ -237,6 +239,7 @@ if TYPE_CHECKING:
     from src.reporting.extension.balance_sheet import generate_balance_sheet
     from src.reporting.extension.cash_flow import (
         cash_flow_line_events,
+        cash_flow_line_events_page,
         cash_flow_period,
         cash_flow_preview,
         generate_cash_flow,

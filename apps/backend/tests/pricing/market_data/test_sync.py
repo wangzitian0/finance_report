@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.composition import observed_fx_pairs
+from src.composition import market_data_scopes, observed_fx_pairs
 from src.extraction.orm.layer2 import AtomicPosition
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalLine
 from src.portfolio import PortfolioService, active_stock_symbols
@@ -80,7 +80,7 @@ async def test_sync_fx_rates_incremental_skip_missing_disagreement_and_default_p
         return _make_fx_series(base, quote, (s, e))
 
     monkeypatch.setattr(market_data._providers, "_fetch_validated_fx_rate_series", fake_fx)
-    default_res = await market_data.sync_fx_rates(db, pairs=await observed_fx_pairs(db, None), start_date=d5, end_date=d5)
+    default_res = await market_data.sync_fx_rates(db, pairs=(await market_data_scopes(db)).fx_pairs, start_date=d5, end_date=d5)
     assert (requested, default_res.inserted) == ([("USD", "SGD", d5, d5)], 1)
     requested.clear()
     inc_res = await market_data.sync_fx_rates(db, pairs=["USD/SGD"], start_date=date(2026, 1, 1), end_date=d6)

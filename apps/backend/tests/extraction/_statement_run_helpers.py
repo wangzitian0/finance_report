@@ -211,6 +211,16 @@ class ScriptedService:
     def __init__(self, errors: list[BaseException | None]) -> None:
         self.errors, self.calls, self.real = list(errors), 0, ExtractionService()
 
+    async def extract_document_slices(self, *args, **kwargs):
+        self.calls += 1
+        error = self.errors.pop(0) if self.errors else None
+        if error is not None:
+            raise error
+        return await self.real.extract_document_slices(*args, **kwargs)
+
+    async def materialize_extracted_slices(self, *args, **kwargs):
+        return await self.real.materialize_extracted_slices(*args, **kwargs)
+
     async def parse_documents(self, *args, **kwargs):
         self.calls += 1
         error = self.errors.pop(0) if self.errors else None

@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, Literal, TypeVar, cast
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -64,6 +64,7 @@ from src.reporting.extension.cash_flow import (
     CashCoverage,
     cash_coverage,
     cash_flow_line_events,
+    cash_flow_line_events_page,
     cash_flow_preview,
     cash_flow_proof_reason_text,
     generate_cash_flow,
@@ -117,6 +118,14 @@ _COORD_KEYS = (
     "assertion_version",
     "authority_tier",
 )
+_PageItemT = TypeVar("_PageItemT")
+
+
+def _slice_page(  # noqa: UP047
+    items: list[_PageItemT], *, limit: int, offset: int
+) -> tuple[list[_PageItemT], int]:
+    """Slice an already assembled in-memory report collection inside the reporting boundary."""
+    return items[offset : offset + limit], len(items)
 
 
 def _decision_sections_dump(sections: Any) -> dict[str, Any]:
@@ -1062,6 +1071,108 @@ class PackageAssembler:
             end_date=end_date,
             currency=currency,
             cash_account_ids=_cash_inputs_from_contributions(stmts).account_ids,
+        )
+
+    async def line_details_page(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        line_id: str,
+        anchor: PersonalReportPackageTraceabilityAnchorName,
+        limit: int,
+        offset: int,
+        base_currency: str | None = None,
+    ) -> tuple[list[dict[str, str | Decimal | None]], int] | None:
+        details = await self.line_details(
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            line_id=line_id,
+            anchor=anchor,
+            base_currency=base_currency,
+        )
+        return None if details is None else _slice_page(details, limit=limit, offset=offset)
+
+    async def manifest_entries_page(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        limit: int,
+        offset: int,
+        base_currency: str | None = None,
+    ) -> tuple[list[PersonalReportPackageTraceManifestEntry], int]:
+        entries = await self.manifest_entries(
+            db,
+            user_id=user_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+            currency=currency,
+            base_currency=base_currency,
+        )
+        return _slice_page(entries, limit=limit, offset=offset)
+
+    async def policy_decisions_page(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        framework_id: PersonalReportingFrameworkId,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[FrameworkPolicyDecision], int]:
+        decisions = await self.policy_decisions(
+            db,
+            user_id=user_id,
+            framework_id=framework_id,
+            start_date=start_date,
+            end_date=end_date,
+            as_of_date=as_of_date,
+        )
+        return _slice_page(decisions, limit=limit, offset=offset)
+
+    async def cash_flow_events_page(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        start_date: date,
+        end_date: date,
+        as_of_date: date,
+        currency: str,
+        line_id: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[list[dict[str, object]], int] | None:
+        stmts = await self._statement_contributions(
+            db, user_id=user_id, start_date=start_date, end_date=end_date, as_of_date=as_of_date
+        )
+        return await cash_flow_line_events_page(
+            db,
+            user_id,
+            line_id=line_id,
+            start_date=start_date,
+            end_date=end_date,
+            currency=currency,
+            cash_account_ids=_cash_inputs_from_contributions(stmts).account_ids,
+            limit=limit,
+            offset=offset,
         )
 
     async def _selected_market_contributions(

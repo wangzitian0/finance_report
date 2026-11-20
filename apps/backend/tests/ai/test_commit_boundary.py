@@ -1,10 +1,13 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+import pytest
+from httpx import AsyncClient
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.advisor import AIAdvisorService
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
+from src.config import settings
 
 
 async def test_advisor_session_and_message_use_flush_not_commit(db: AsyncSession, test_user) -> None:
@@ -26,3 +29,31 @@ async def test_advisor_session_and_message_use_flush_not_commit(db: AsyncSession
     assert resumed.id == existing_id and msg_id is not None
     await db.rollback()
     assert (await db.execute(select(ChatSession).where(ChatSession.id == existing_id))).scalar_one() is not None and (await db.execute(select(ChatMessage).where(ChatMessage.id == msg_id))).scalar_one_or_none() is None
+
+
+async def test_post_chat_releases_db_session_during_llm_stream(
+    client: AsyncClient,
+    db: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tests.conftest import active_guarded_app_transactions
+
+    observed_open_during_stream: list[int] = []
+
+    async def fake_stream_openrouter(self, *_args, **_kwargs):
+        observed_open_during_stream.append(active_guarded_app_transactions())
+        yield ("Checking ", "mock-model")
+        observed_open_during_stream.append(active_guarded_app_transactions())
+        yield ("balance.", "mock-model")
+
+    monkeypatch.setattr(settings, "ai_api_key", "test-key", raising=False)
+    monkeypatch.setattr(AIAdvisorService, "_stream_openrouter", fake_stream_openrouter)
+
+    resp = await client.post("/chat", json={"message": "What is my balance?"})
+
+    assert resp.status_code == 200
+    assert "Checking balance." in resp.text
+    assert observed_open_during_stream == [0, 0]
+    msgs = (await db.execute(select(ChatMessage).order_by(ChatMessage.created_at))).scalars().all()
+    assert [m.role for m in msgs] == [ChatMessageRole.USER, ChatMessageRole.ASSISTANT]
+    assert "Checking balance." in msgs[1].content

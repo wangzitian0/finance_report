@@ -108,12 +108,21 @@ def _build_allocation(
     ]
 
 
+def _maybe_slice_allocation(
+    items: list[AllocationBreakdown], *, limit: int | None, offset: int
+) -> list[AllocationBreakdown]:
+    """Apply optional boundary slicing inside the portfolio allocation service."""
+    return items if limit is None else items[offset : offset + limit]
+
+
 async def get_sector_allocation(
     db: AsyncSession,
     user_id: UUID,
     as_of_date: date | None = None,
     *,
     base_currency: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> list[AllocationBreakdown]:
     """
     Calculate sector allocation breakdown.
@@ -130,7 +139,9 @@ async def get_sector_allocation(
         as_of_date = date.today()
 
     enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date, base_currency=base_currency)
-    return _build_allocation(enriched, lambda a: a.sector or "Unknown")
+    return _maybe_slice_allocation(
+        _build_allocation(enriched, lambda a: a.sector or "Unknown"), limit=limit, offset=offset
+    )
 
 
 async def get_geography_allocation(
@@ -139,6 +150,8 @@ async def get_geography_allocation(
     as_of_date: date | None = None,
     *,
     base_currency: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> list[AllocationBreakdown]:
     """
     Calculate geography allocation breakdown.
@@ -155,7 +168,9 @@ async def get_geography_allocation(
         as_of_date = date.today()
 
     enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date, base_currency=base_currency)
-    return _build_allocation(enriched, lambda a: a.geography or "Unknown")
+    return _maybe_slice_allocation(
+        _build_allocation(enriched, lambda a: a.geography or "Unknown"), limit=limit, offset=offset
+    )
 
 
 async def get_asset_class_allocation(
@@ -164,6 +179,8 @@ async def get_asset_class_allocation(
     as_of_date: date | None = None,
     *,
     base_currency: str | None = None,
+    limit: int | None = None,
+    offset: int = 0,
 ) -> list[AllocationBreakdown]:
     """
     Calculate asset class allocation breakdown.
@@ -188,4 +205,4 @@ async def get_asset_class_allocation(
         return val.replace("_", " ").title()
 
     enriched = await _get_active_positions_with_atomics(db, user_id, as_of_date, base_currency=base_currency)
-    return _build_allocation(enriched, _asset_class_key)
+    return _maybe_slice_allocation(_build_allocation(enriched, _asset_class_key), limit=limit, offset=offset)

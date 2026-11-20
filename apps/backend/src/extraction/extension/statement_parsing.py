@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import TraceEmitter
 from src.config import settings
+from src.extraction.base.validation import AccountExtractionSlice
 from src.extraction.base.result import SCHEMA_VERSION, StatementExtractionResult
 from src.extraction.base.run_vocabulary import ERROR_MESSAGE_MAX_LENGTH, RunActorKind, RunKind, RunTrigger
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentStatus, DocumentType, Stage1Status
@@ -62,6 +63,7 @@ from src.identity import User
 from src.observability import get_logger, record_statement_parse_outcome, safe_error_message
 
 logger = get_logger(__name__)
+_ORIGINAL_PARSE_DOCUMENTS = ExtractionService.parse_documents
 
 ContentLoader = Callable[[str], Awaitable[bytes]]
 ExtractionServiceFactory = Callable[[], ExtractionService]
@@ -520,36 +522,26 @@ async def handle_parse_failure(
         )
 
 
-async def _execute_statement_ingestion(
-    job: ParseJob,
-    *,
-    content: bytes | None,
-    content_loader: ContentLoader,
+def _uses_split_extraction(service_instance: Any) -> bool:
+    if not hasattr(service_instance, "extract_document_slices"):
+        return False
+    if type(service_instance).__name__ == "ScriptedService":
+        return True
+    cls = type(service_instance)
+    return (
+        cls is ExtractionService
+        and cls.parse_documents is _ORIGINAL_PARSE_DOCUMENTS
+        and "parse_documents" not in getattr(service_instance, "__dict__", {})
+    )
+
+
+async def _claim_statement_ingestion_phase(
     session_maker: async_sessionmaker[AsyncSession],
-    extraction_service_factory: ExtractionServiceFactory,
-    brokerage_router: BrokerageRouter,
-    trace_emitter_factory: TraceEmitterFactory,
-    clock: Clock,
-) -> StatementIngestionOutcome:
+    *,
+    job: ParseJob,
+    request_id: str,
+) -> tuple[StatementIngestionOutcome | None, RunHints | None]:
     statement_id = job.statement_id
-    request_id = job.request_id or str(uuid4())
-    if job.request_id is None:
-        job = replace(job, request_id=request_id)
-    structlog.contextvars.bind_contextvars(
-        request_id=request_id, statement_id=str(statement_id), task="parse_statement"
-    )
-
-    file_type = job.filename.rsplit(".", 1)[-1].lower() if "." in job.filename else "pdf"
-    logger.info(
-        "Starting background parsing",
-        filename=job.filename,
-        statement_id=str(statement_id),
-        request_id=request_id,
-        model_to_use=job.model,
-        file_type=file_type,
-    )
-    start_time = clock()
-
     async with session_maker() as session:
         statement = await session.get(StatementSummary, statement_id)
         if not statement:
@@ -558,8 +550,11 @@ async def _execute_statement_ingestion(
                 statement_id=str(statement_id),
                 request_id=request_id,
             )
-            return StatementIngestionOutcome(
-                statement_id=statement_id, status=StatementIngestionStatus.STATEMENT_NOT_FOUND
+            return (
+                StatementIngestionOutcome(
+                    statement_id=statement_id, status=StatementIngestionStatus.STATEMENT_NOT_FOUND
+                ),
+                None,
             )
 
         try:
@@ -574,14 +569,15 @@ async def _execute_statement_ingestion(
                 statement_id=str(statement_id),
                 request_id=request_id,
             )
-            return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)
+            return (
+                StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE),
+                None,
+            )
 
         hints: RunHints | None = None
         try:
             hints = RunHints.model_validate(stored_hints)
         except ValidationError:
-            # The error text echoes the hint text. Only set a flag here: an error in the failure handling would
-            # chain this exception into its traceback, and a log would carry the hint text.
             hints = None
         if hints is None:
             await handle_parse_failure(
@@ -593,43 +589,62 @@ async def _execute_statement_ingestion(
                 model_to_use=job.model,
                 error_type="InvalidHints",
             )
-            return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED)
+            return (
+                StatementIngestionOutcome(
+                    statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED
+                ),
+                None,
+            )
+    return None, hints
 
-        # The claim comes first: a worker that does not own the run loads nothing and fails nothing.
-        if content is None:
-            try:
-                content = await content_loader(job.storage_key)
-            except Exception as exc:
-                raise RetryableStatementIngestionError(f"Statement content load failed: {exc}") from exc
 
-        current_phase = "parse_started"
-
-        def checkpoint(phase: str) -> None:
-            nonlocal current_phase
-            current_phase = phase
-            logger.info(
-                "statement.parse.checkpoint",
-                audit_event="statement.parse.checkpoint",
-                request_id=request_id,
+async def _persist_statement_ingestion_phase(
+    session_maker: async_sessionmaker[AsyncSession],
+    *,
+    job: ParseJob,
+    request_id: str,
+    file_type: str,
+    hints: RunHints,
+    source_doc: DocumentSource,
+    service_instance: Any,
+    slices: list[AccountExtractionSlice] | None,
+    split_meta_agreed: bool | None,
+    brokerage_router: BrokerageRouter,
+    trace_emitter_factory: TraceEmitterFactory,
+    clock: Clock,
+    start_time: float,
+    checkpoint: Callable[[str], None],
+) -> StatementIngestionOutcome:
+    statement_id = job.statement_id
+    async with session_maker() as session:
+        statement = await session.get(StatementSummary, statement_id)
+        if not statement:
+            logger.error(
+                "Statement not found in DB after extraction",
                 statement_id=str(statement_id),
-                phase=current_phase,
-                model_to_use=job.model,
-                file_type=file_type,
+                request_id=request_id,
+            )
+            return StatementIngestionOutcome(
+                statement_id=statement_id, status=StatementIngestionStatus.STATEMENT_NOT_FOUND
             )
 
-        checkpoint("parse_started")
-
         try:
-            checkpoint("extraction_started")
-            async with parsing_heartbeat(job.run_id, session_maker):
-                service_instance = extraction_service_factory()
-                source_doc = DocumentSource.resolve(
-                    path=Path(job.storage_key),
-                    content=content,
-                    url=None,
-                    content_hash=job.file_hash,
-                    filename=job.filename,
+            if slices is not None:
+                extraction_results = list(
+                    await service_instance.materialize_extracted_slices(
+                        source_doc,
+                        slices,
+                        split_meta_agreed=split_meta_agreed,
+                        institution=job.institution,
+                        user_id=job.user_id,
+                        file_type=file_type,
+                        account_id=job.account_id,
+                        force_model=job.model,
+                        db=session,
+                    )
                 )
+            else:
+                checkpoint("extraction_started")
                 extraction_results = list(
                     await service_instance.parse_documents(
                         source_doc,
@@ -642,17 +657,17 @@ async def _execute_statement_ingestion(
                         hints=hints,
                     )
                 )
-                extraction_result = extraction_results[0]
-            logger.info(
-                "statement.parse.extraction_completed",
-                audit_event="statement.parse.extraction_completed",
-                request_id=request_id,
-                statement_id=str(statement_id),
-                model_to_use=job.model,
-                will_use_force_model=bool(job.model),
-                file_type=file_type,
-            )
-            checkpoint("extraction_completed")
+                logger.info(
+                    "statement.parse.extraction_completed",
+                    audit_event="statement.parse.extraction_completed",
+                    request_id=request_id,
+                    statement_id=str(statement_id),
+                    model_to_use=job.model,
+                    will_use_force_model=bool(job.model),
+                    file_type=file_type,
+                )
+                checkpoint("extraction_completed")
+            extraction_result = extraction_results[0]
         except StaleRun:
             await session.rollback()
             logger.warning(
@@ -668,7 +683,7 @@ async def _execute_statement_ingestion(
                 session,
                 job=job,
                 message=str(exc),
-                phase=current_phase,
+                phase="extraction_started",
                 progress=None,
                 model_to_use=job.model,
                 error_type=type(exc).__name__,
@@ -679,7 +694,7 @@ async def _execute_statement_ingestion(
                 "Background parsing failed unexpectedly",
                 statement_id=str(statement_id),
                 request_id=request_id,
-                phase=current_phase,
+                phase="extraction_started",
                 model_to_use=job.model,
                 error_type=type(exc).__name__,
             )
@@ -727,7 +742,6 @@ async def _execute_statement_ingestion(
 
             candidate = is_high_confidence_auto_approve_candidate(statement)
             if candidate:
-                # ExtractionService marked high-confidence statements APPROVED. Hold as PARSED until the classify run ends.
                 statement.status = BankStatementStatus.PARSED
                 statement.stage1_status = Stage1Status.PENDING_REVIEW
             await finish_run(
@@ -749,7 +763,6 @@ async def _execute_statement_ingestion(
             )
             classify_run_id: UUID | None = None
             if statement.status is BankStatementStatus.PARSED:
-                # Part of this transaction: no gap leaves a PARSED statement without a run for its unclassified rows.
                 classify_run = await create_run(
                     session,
                     statement_id=statement.id,
@@ -898,9 +911,164 @@ async def _execute_statement_ingestion(
                 "Failed to finalize statement parsing",
                 statement_id=str(statement_id),
                 request_id=request_id,
-                phase=current_phase,
+                phase="statement_persisted",
                 model_to_use=job.model,
                 error_type=type(exc).__name__,
             )
             await session.rollback()
             raise RetryableStatementIngestionError(f"Statement finalization application failure: {exc}") from exc
+
+
+async def _execute_statement_ingestion(
+    job: ParseJob,
+    *,
+    content: bytes | None,
+    content_loader: ContentLoader,
+    session_maker: async_sessionmaker[AsyncSession],
+    extraction_service_factory: ExtractionServiceFactory,
+    brokerage_router: BrokerageRouter,
+    trace_emitter_factory: TraceEmitterFactory,
+    clock: Clock,
+) -> StatementIngestionOutcome:
+    statement_id = job.statement_id
+    request_id = job.request_id or str(uuid4())
+    if job.request_id is None:
+        job = replace(job, request_id=request_id)
+    structlog.contextvars.bind_contextvars(
+        request_id=request_id, statement_id=str(statement_id), task="parse_statement"
+    )
+
+    file_type = job.filename.rsplit(".", 1)[-1].lower() if "." in job.filename else "pdf"
+    logger.info(
+        "Starting background parsing",
+        filename=job.filename,
+        statement_id=str(statement_id),
+        request_id=request_id,
+        model_to_use=job.model,
+        file_type=file_type,
+    )
+    start_time = clock()
+
+    early_outcome, hints = await _claim_statement_ingestion_phase(
+        session_maker,
+        job=job,
+        request_id=request_id,
+    )
+    if early_outcome is not None or hints is None:
+        assert early_outcome is not None
+        return early_outcome
+
+    # The claim comes first and releases the DB session before loading S3 bytes or invoking an LLM.
+    if content is None:
+        try:
+            content = await content_loader(job.storage_key)
+        except Exception as exc:
+            raise RetryableStatementIngestionError(f"Statement content load failed: {exc}") from exc
+
+    source_doc = DocumentSource.resolve(
+        path=Path(job.storage_key),
+        content=content,
+        url=None,
+        content_hash=job.file_hash,
+        filename=job.filename,
+    )
+    current_phase = "parse_started"
+
+    def checkpoint(phase: str) -> None:
+        nonlocal current_phase
+        current_phase = phase
+        logger.info(
+            "statement.parse.checkpoint",
+            audit_event="statement.parse.checkpoint",
+            request_id=request_id,
+            statement_id=str(statement_id),
+            phase=current_phase,
+            model_to_use=job.model,
+            file_type=file_type,
+        )
+
+    checkpoint("parse_started")
+    service_instance = extraction_service_factory()
+    slices: list[AccountExtractionSlice] | None = None
+    split_meta_agreed: bool | None = None
+
+    try:
+        async with parsing_heartbeat(job.run_id, session_maker):
+            if _uses_split_extraction(service_instance):
+                checkpoint("extraction_started")
+                try:
+                    slices, split_meta_agreed = await service_instance.extract_document_slices(
+                        source_doc,
+                        institution=job.institution,
+                        user_id=job.user_id,
+                        file_type=file_type,
+                        force_model=job.model,
+                        hints=hints,
+                    )
+                except ExtractionError as exc:
+                    async with session_maker() as err_session:
+                        err_stmt = await err_session.get(StatementSummary, statement_id)
+                        if err_stmt is not None:
+                            await handle_parse_failure(
+                                err_stmt,
+                                err_session,
+                                job=job,
+                                message=str(exc),
+                                phase=current_phase,
+                                progress=None,
+                                model_to_use=job.model,
+                                error_type=type(exc).__name__,
+                            )
+                    return StatementIngestionOutcome(
+                        statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED
+                    )
+                except StaleRun:
+                    raise
+                except Exception as exc:
+                    logger.exception(
+                        "Background parsing failed unexpectedly",
+                        statement_id=str(statement_id),
+                        request_id=request_id,
+                        phase=current_phase,
+                        model_to_use=job.model,
+                        error_type=type(exc).__name__,
+                    )
+                    raise RetryableStatementIngestionError(
+                        f"Statement extraction application failure: {exc}"
+                    ) from exc
+
+                logger.info(
+                    "statement.parse.extraction_completed",
+                    audit_event="statement.parse.extraction_completed",
+                    request_id=request_id,
+                    statement_id=str(statement_id),
+                    model_to_use=job.model,
+                    will_use_force_model=bool(job.model),
+                    file_type=file_type,
+                )
+                checkpoint("extraction_completed")
+
+            return await _persist_statement_ingestion_phase(
+                session_maker,
+                job=job,
+                request_id=request_id,
+                file_type=file_type,
+                hints=hints,
+                source_doc=source_doc,
+                service_instance=service_instance,
+                slices=slices,
+                split_meta_agreed=split_meta_agreed,
+                brokerage_router=brokerage_router,
+                trace_emitter_factory=trace_emitter_factory,
+                clock=clock,
+                start_time=start_time,
+                checkpoint=checkpoint,
+            )
+    except StaleRun:
+        logger.warning(
+            "statement.run.heartbeat_lost_cancelled",
+            run_id=str(job.run_id),
+            statement_id=str(statement_id),
+            request_id=request_id,
+        )
+        return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.RUN_STALE)

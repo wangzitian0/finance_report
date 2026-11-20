@@ -1,5 +1,6 @@
 """Workflow status and event API router."""
 
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query
@@ -33,6 +34,7 @@ async def list_workflow_events_endpoint(
     ctx: ReadCtx,
     status_filter: WorkflowEventStatus | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=100),
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> WorkflowEventListResponse:
     """Return a bounded user-scoped workflow event list."""
     return await list_workflow_events_response(
@@ -40,6 +42,7 @@ async def list_workflow_events_endpoint(
         user_id=ctx.user_id,
         status=status_filter,
         limit=limit,
+        offset=offset,
         base_currency=await ctx.get_base_currency(),
     )
 
