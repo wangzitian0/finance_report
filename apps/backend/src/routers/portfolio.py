@@ -7,8 +7,8 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from src.audit import to_money
 from src.composition import (
+    import_payload_brokerage_positions,
     import_statement_brokerage_positions,
-    refresh_market_data_for_brokerage_import,
 )
 from src.deps import Ctx, ReadCtx, RequestContext
 from src.extraction import BrokeragePositionImportService
@@ -88,15 +88,15 @@ async def import_brokerage_positions(
         return BrokerageImportResponse(**result_payload)
 
     assert request.payload is not None
-    result = await _brokerage_import_service.import_positions(
+    result_payload = await import_payload_brokerage_positions(
         db,
         user_id=user_id,
         payload=request.payload,
         filename=request.filename,
         source_document_id=request.source_document_id,
+        import_service=_brokerage_import_service,
     )
-    await refresh_market_data_for_brokerage_import(db, user_id=user_id, payload=request.payload)
-    return BrokerageImportResponse(**result.__dict__)
+    return BrokerageImportResponse(**result_payload)
 
 
 @router.get("/holdings", response_model=HoldingsListResponse)

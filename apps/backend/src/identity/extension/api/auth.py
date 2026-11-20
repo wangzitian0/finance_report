@@ -10,6 +10,8 @@ pre-migration ``src/routers/auth.py`` into the package's single home.
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy import select
 
@@ -147,7 +149,7 @@ async def login(
     normalized_email = normalize_email(str(data.email))
     user = await SqlUserRepository(db).get_by_normalized_email(normalized_email)
 
-    if not user or not verify_password(data.password, user.hashed_password):
+    if user is None or not await asyncio.to_thread(verify_password, data.password, user.hashed_password):
         log_security_warning(
             logger,
             "auth.failure",

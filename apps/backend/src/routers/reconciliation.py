@@ -144,7 +144,13 @@ async def run_reconciliation(
     )
     try:
         currency = await ctx.get_base_currency()
-        matches = await execute_matching(db, limit=payload.limit, user_id=user_id, currency=currency)
+        matches = await execute_matching(
+            db,
+            limit=payload.limit,
+            user_id=user_id,
+            currency=currency,
+            release_session_for_llm=True,
+        )
     except Exception as exc:
         logger.exception(
             "reconciliation.run.failed",
@@ -163,6 +169,8 @@ async def run_reconciliation(
     auto_accepted = sum(1 for m in matches if m.status.value == "auto_accepted")
     pending_review = sum(1 for m in matches if m.status.value == "pending_review")
 
+    if payload.statement_id:
+        statement = await get_active_reconciliation_statement(db, payload.statement_id, user_id)
     unmatched_count = await count_unmatched_transactions(db, user_id=user_id, statement=statement)
 
     logger.info(

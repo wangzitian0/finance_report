@@ -721,3 +721,81 @@ async def test_list_and_transactions_flow(
         fetched["transactions"][0]["description"],
         fetched["transactions"][0]["source_row"],
     ) == (1, statement_id, statement_id, 1, "Salary", 1)
+
+
+async def test_upload_statement_releases_db_transaction_during_s3_and_handles_concurrent_duplicate(
+    client: AsyncClient, db, db_engine, monkeypatch, test_user
+):
+    """Verify S3 upload runs outside any DB transaction and concurrent duplicates return 409 with S3 cleanup."""
+    from fastapi.concurrency import run_in_threadpool as orig_run_in_threadpool
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from src.database import get_db
+    from src.main import app
+
+    _patch_parse_document(monkeypatch, test_user.id)
+    account = await create_statement_account(db, test_user.id, "S3 Release Check")
+    await db.commit()
+
+    sessions: list[AsyncSession] = []
+    in_tx_during_s3: list[bool] = []
+    uploaded_keys: list[str] = []
+    deleted_keys: list[str] = []
+    concurrent_dup_hash: str | None = None
+
+    class SpyStorage(DummyStorage):
+        def upload_bytes(self, *, key: str, content: bytes, content_type: str | None = None) -> None:
+            uploaded_keys.append(key)
+
+        def delete_object(self, key: str) -> None:
+            deleted_keys.append(key)
+
+    monkeypatch.setattr("src.routers.statements.StorageService", SpyStorage)
+
+    async def spy_run_in_threadpool(fn, *args, **kwargs):
+        if getattr(fn, "__name__", None) == "upload_bytes":
+            assert sessions, "Expected request DB session to be opened before upload_bytes"
+            in_tx_during_s3.append(sessions[-1].in_transaction())
+            result = await orig_run_in_threadpool(fn, *args, **kwargs)
+            if concurrent_dup_hash is not None:
+                maker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)
+                async with maker() as concurrent_db:
+                    await add_statement(concurrent_db, test_user.id, concurrent_dup_hash, confidence=90)
+                    await concurrent_db.commit()
+            return result
+        return await orig_run_in_threadpool(fn, *args, **kwargs)
+
+    monkeypatch.setattr("src.routers.statements.run_in_threadpool", spy_run_in_threadpool)
+
+    async def override_get_db():
+        async for session in get_db():
+            sessions.append(session)
+            yield session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        ok_resp = await _post_upload(
+            client,
+            "s3-release.pdf",
+            b"release-tx-content",
+            account_id=account.id,
+        )
+        assert ok_resp.status_code == status.HTTP_202_ACCEPTED
+        await statement_pipeline.wait_for_parse_tasks()
+        assert in_tx_during_s3 == [False]
+        assert len(uploaded_keys) == 1 and deleted_keys == []
+
+        dup_bytes = b"concurrent-dup-content"
+        concurrent_dup_hash = hashlib.sha256(dup_bytes).hexdigest()
+        dup_resp = await _post_upload(
+            client,
+            "concurrent-dup.pdf",
+            dup_bytes,
+            account_id=account.id,
+        )
+        assert dup_resp.status_code == status.HTTP_409_CONFLICT
+        assert "duplicate statement upload" in dup_resp.json()["detail"].lower()
+        assert in_tx_during_s3 == [False, False]
+        assert len(uploaded_keys) == 2 and deleted_keys == [uploaded_keys[1]]
+    finally:
+        app.dependency_overrides.pop(get_db, None)
