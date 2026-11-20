@@ -638,6 +638,13 @@ async def test_approve_statement_rejects_stale_source_result_digest(client: Asyn
     )
     await db.commit()
 
+    for body in (None, {}, {"create_account_if_missing": True}):
+        missing_resp = await client.post(f"/statements/{statement.id}/approvals", json=body)
+        assert missing_resp.status_code == status.HTTP_422_UNPROCESSABLE_ENTITY
+        assert "expected_source_result_digest" in missing_resp.json()["detail"]
+    await db.refresh(statement)
+    assert statement.status == BankStatementStatus.PARSED
+
     stale_resp = await client.post(
         f"/statements/{statement.id}/approvals",
         json={"expected_source_result_digest": "0" * 64},

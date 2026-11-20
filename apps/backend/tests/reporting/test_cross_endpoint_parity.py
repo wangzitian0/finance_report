@@ -29,6 +29,7 @@ from src.extraction.extension.custody_binding import resolve_bank_custody_accoun
 from src.extraction.extension.extraction_trace import build_extraction_trace_records
 from src.extraction.extension.review_queue import resolve_secondary_currency_custody_account
 from src.ledger import Account, AccountType, Entry, initialize_opening_positions, post_entry
+from tests.api._statement_router_fixtures import approve_reviewed
 from tests.reporting._report_fixtures import seed_accounts, seed_fx_rates
 
 
@@ -493,7 +494,7 @@ async def test_credit_card_statement_posts_positive_liability_and_excludes_from_
     assert card_account.code == "AUTO-CARD"
     await db.commit()
 
-    approve_resp = await client.post(f"/statements/{stmt.id}/approvals")
+    approve_resp = await approve_reviewed(client, stmt.id)
     assert approve_resp.status_code == 200, approve_resp.text
 
     bs = (await client.get("/reports/balance-sheet", params={"as_of_date": "2025-09-30", "currency": "SGD"})).json()

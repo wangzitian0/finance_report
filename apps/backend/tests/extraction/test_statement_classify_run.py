@@ -36,6 +36,7 @@ from src.extraction.extension.transaction_classification import (
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, JournalEntry
 from src.schemas.extraction import StatementReviewResponse
+from tests.api._statement_router_fixtures import approve_reviewed
 from tests.extraction._statement_run_helpers import (
     ANSWERS,  # noqa: F401
     CSV,
@@ -285,7 +286,7 @@ async def test_AC_extraction_2994_97_the_classify_run_answers_a_keyword_rule_row
             select(ClassificationRule.id).where(ClassificationRule.rule_type == RuleType.KEYWORD_MATCH)
         ),
     )
-    resp = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
+    resp = await approve_reviewed(client, seeded.id, {"create_account_if_missing": True})
     assert (
         (await _run(db, run_id)).state,
         proposer.rows_asked,
@@ -354,7 +355,7 @@ async def test_AC_extraction_2994_99_the_auto_approve_leaves_a_statement_that_a_
     statement_id, run_id = await _parsed_candidate_after_an_extract_run(db, test_user, marked=False)
     maker = create_session_maker_from_db(db)
     await _worker(maker, run_id)
-    assert (await client.post(f"/statements/{statement_id}/approvals", json={})).status_code == 200
+    assert (await approve_reviewed(client, statement_id, {})).status_code == 200
     approved = await _statement(db, statement_id)
     reviewed_at, entries = approved.stage1_reviewed_at, await _count(db, JournalEntry)
     async with maker() as session:
@@ -391,7 +392,7 @@ async def test_AC_extraction_2994_99_candidate_without_full_answers_goes_to_econ
     if not model_off:
         healthy = _install(monkeypatch, Proposer())
         await classify_statement(db, sid)
-        resp = await client.post(f"/statements/{sid}/approvals", json={})
+        resp = await approve_reviewed(client, sid, {})
         assert (healthy.rows_asked, resp.status_code, resp.json()["journal_entries_created"]) == (1, 200, len(rows))
 
 
@@ -403,10 +404,7 @@ async def test_AC_extraction_2994_101_155_one_click_fill_guards_and_posts(client
     with pytest.raises(ActiveRunExists) as caught:
         await auto_fill_default_statement_dispositions(db, seeded_active.statement, uid)
     await db.rollback()
-    resp = await client.post(
-        f"/statements/{active_id}/approvals",
-        json={"create_account_if_missing": True, "auto_fill_default_categories": True},
-    )
+    resp = await approve_reviewed(client, active_id, {"create_account_if_missing": True, "auto_fill_default_categories": True})
     assert (caught.value.active_run_id, resp.status_code, resp.json()["active_run_id"], proposer.calls) == (
         run_id,
         409,

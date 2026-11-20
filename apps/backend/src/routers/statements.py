@@ -86,6 +86,7 @@ from src.platform import (
     ContentTooLargeError,
     DomainError,
     InternalServiceError,
+    PreconditionFailedError,
     ResourceNotFoundError,
     ServiceUnavailableError,
     ValidationFailedError,
@@ -961,6 +962,12 @@ async def approve_statement_stage1(
     """Stage 1: Approve statement with balance validation."""
     db, user_id = ctx.db, ctx.user_id
     statement = await _get_statement_or_404(db, statement_id, user_id)
+    # The approve posts the current extraction result. The request names the result that the reviewer saw, so a
+    # result that a rerun wrote after the page loaded gives 409 below and is not posted unseen (#3025).
+    if statement.current_extraction_result_id is not None and not (request and request.expected_source_result_digest):
+        raise PreconditionFailedError(
+            "Approve must name the extraction result that you reviewed. Send expected_source_result_digest."
+        )
     preloaded_account: Any | None = None
     if request and request.account_id is not None:
         statement.account_id = request.account_id

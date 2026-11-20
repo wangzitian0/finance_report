@@ -269,7 +269,7 @@
             "1"
           ],
           "gap_kind": "partial",
-          "gap_issue": "#3025, #2984"
+          "gap_issue": "#2984"
         },
         {
           "id": "UC-14",

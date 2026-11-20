@@ -157,6 +157,21 @@ def wait_for_statement_runs_sync(client: Any, runs_url: str) -> None:
         blocking_sleep(RUN_POLL_SECONDS)
 
 
+async def _approval_body(
+    client: _Client, get: Getter | None, api_url: Callable[[str], str], statement_id: str
+) -> dict[str, Any]:
+    """Return the approval body that names the extraction result of the current review (#3025)."""
+    review = _require_success(
+        await _send_get(client, get, api_url(f"/statements/{statement_id}/review")),
+        action="review lookup before approval",
+    )
+    body: dict[str, Any] = {"create_account_if_missing": True}
+    digest = review.get("source_result_digest")
+    if digest:
+        body["expected_source_result_digest"] = digest
+    return body
+
+
 async def approve_statement_with_fixture_review(
     client: _Client,
     *,
@@ -169,9 +184,10 @@ async def approve_statement_with_fixture_review(
 ) -> dict[str, Any]:
     """Wait for the runs, approve, resolve ``intent_missing`` from fixture facts, retry.
 
-    The helper first polls the runs list until no run is active (at least 1 GET request). It sends
-    2 more GET requests when the approval needs them: the source review lookup and the unmatched
-    lookup. All of them use ``get`` when the caller passes it, and ``client.get`` otherwise. A POST
+    The helper first polls the runs list until no run is active (at least 1 GET request). It then
+    reads the review (1 GET request) and names its ``source_result_digest`` in each approval, as the
+    review page does (#3025). It sends 2 more GET requests when the approval needs them: the source
+    review lookup of the envelope and the unmatched lookup. All of them use ``get`` when the caller passes it, and ``client.get`` otherwise. A POST
     never uses ``get``.
     """
 
@@ -179,9 +195,8 @@ async def approve_statement_with_fixture_review(
         client, get, api_url(f"/statements/{statement_id}/runs")
     )
     approval_path = api_url(f"/statements/{statement_id}/approvals")
-    approval = await client.post(
-        approval_path, json={"create_account_if_missing": True}
-    )
+    approval_body = await _approval_body(client, get, api_url, statement_id)
+    approval = await client.post(approval_path, json=approval_body)
     if 200 <= approval.status_code < 300:
         return {**approval.json(), "reviewed_dispositions": 0}
 
@@ -198,9 +213,7 @@ async def approve_statement_with_fixture_review(
         await _confirm_fixture_envelope(
             client, api_url, statement_id, envelope, get=get
         )
-        approval = await client.post(
-            approval_path, json={"create_account_if_missing": True}
-        )
+        approval = await client.post(approval_path, json=approval_body)
         if 200 <= approval.status_code < 300:
             return {**approval.json(), "reviewed_dispositions": 0}
         detail = str(approval.json().get("detail", ""))
@@ -274,9 +287,7 @@ async def approve_statement_with_fixture_review(
         _require_success(disposition_response, action="reviewed disposition")
         reviewed += 1
 
-    final_approval = await client.post(
-        approval_path, json={"create_account_if_missing": True}
-    )
+    final_approval = await client.post(approval_path, json=approval_body)
     return {
         **_require_success(final_approval, action="approval after economic review"),
         "reviewed_dispositions": reviewed,

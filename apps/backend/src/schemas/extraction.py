@@ -384,7 +384,10 @@ class Stage1ApprovalRequest(BaseModel):
         default=None,
         min_length=64,
         max_length=64,
-        description="Expected SHA-256 digest of the active source envelope.",
+        description=(
+            "The source_result_digest of the review that the user saw. "
+            "Required when the statement has a current extraction result."
+        ),
     )
 
 

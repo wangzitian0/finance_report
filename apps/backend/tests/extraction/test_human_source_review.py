@@ -21,6 +21,7 @@ from src.extraction import (
 from src.extraction.extension.reviewed_statement_envelope import ReviewedEnvelopeDecisionTracePolicy
 from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
 from src.ledger import JournalEntry, list_opening_positions
+from tests.api._statement_router_fixtures import approve_reviewed
 from tests.extraction._statement_run_helpers import make_account
 from tests.extraction.test_reviewed_statement_envelope import _missing_source_result
 from tests.extraction.test_source_ingestion_integrity import _parse, _payload, _source, _store_result
@@ -73,11 +74,11 @@ async def _dormant(db, user_id, amount=Decimal("1000")):
 async def test_complete_dormant_source_human_confirmation(client, db, test_user, amount):
     account, document, statement, result, record, command = await _dormant(db, test_user.id, amount)
     review = await client.get(f"/statements/{statement.id}/review")
-    before = await client.post(f"/statements/{statement.id}/approvals", json={})
+    before = await approve_reviewed(client, statement.id, {})
     confirmation = await client.post(f"/statements/{statement.id}/review-envelopes", json=command)
     repeated = await client.post(f"/statements/{statement.id}/review-envelopes", json=command)
     contribution = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
-    approved = await client.post(f"/statements/{statement.id}/approvals", json={})
+    approved = await approve_reviewed(client, statement.id, {})
     positions = await list_opening_positions(db, user_id=test_user.id, as_of=date.max)
     lineage = await client.get(
         "/statements/evidence-lineage", params={"entity_type": "opening_position", "entity_id": str(account.id)}
@@ -199,7 +200,7 @@ async def test_revoked_retired_and_stale_reparse_envelope_guards(client, db, tes
     await posting_dependencies().trace_emitter_factory(db).emit_many((obs, revoked))
     await db.commit()
     after_revoke = await resolve_statement_contribution(db, user_id=test_user.id, statement_id=statement.id)
-    approve_revoked = await client.post(f"/statements/{statement.id}/approvals", json={})
+    approve_revoked = await approve_reviewed(client, statement.id, {})
     assert (
         confirmation.status_code,
         after_revoke.state,

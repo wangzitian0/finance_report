@@ -153,6 +153,7 @@ from src.routers.statements import get_review_conflicts
 from src.runtime import StorageError
 from src.runtime.extension import storage_sweep
 from src.schemas.reconciliation import ConsistencyCheckRunRequest, ReconciliationRunRequest
+from tests.api._statement_router_fixtures import approve_reviewed
 from tests.factories import (
     AccountFactory,
     AtomicTransactionFactory,
@@ -680,7 +681,7 @@ async def confirm_csv_envelope(client, db: AsyncSession, user_id: UUID, statemen
 
 async def approve_statement(client, statement_id: UUID):
     assert (await client.get(f"/statements/{statement_id}/review")).status_code == 200
-    return await client.post(f"/statements/{statement_id}/approvals", json={"create_account_if_missing": True})
+    return await approve_reviewed(client, statement_id, {"create_account_if_missing": True})
 
 
 async def user_classification_rows(db_or_maker, user_id: UUID) -> list[TransactionClassification]:
@@ -1867,8 +1868,9 @@ async def verify_gated_auto_approve(client, db, test_user, monkeypatch) -> None:
             0,
         )
         review = await client.get(f"/statements/{statement_id}/review")
+        body = {"expected_source_result_digest": review.json()["source_result_digest"]}
         started = time.perf_counter()
-        refused = await client.post(f"/statements/{statement_id}/approvals", json={})
+        refused = await client.post(f"/statements/{statement_id}/approvals", json=body)
         assert (
             review.status_code,
             len(review.json()["transactions"]),
@@ -1919,8 +1921,13 @@ async def verify_classify_reaper_paths(db, test_user, monkeypatch) -> None:
 
 async def verify_approve_active_or_failed_classify_run(client, db, test_user, monkeypatch) -> None:
     proposer, seeded = install_proposer(monkeypatch, Proposer()), await seed_classify_statement(db, test_user)
-    run_id, started = await classify_run_for(db, seeded.id), time.perf_counter()
-    refused = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
+    run_id = await classify_run_for(db, seeded.id)
+    digest = (await client.get(f"/statements/{seeded.id}/review")).json()["source_result_digest"]
+    started = time.perf_counter()
+    refused = await client.post(
+        f"/statements/{seeded.id}/approvals",
+        json={"create_account_if_missing": True, "expected_source_result_digest": digest},
+    )
     assert (
         refused.status_code,
         refused.json()["active_run_id"],
@@ -1930,14 +1937,14 @@ async def verify_approve_active_or_failed_classify_run(client, db, test_user, mo
         (await _statement(db, seeded.id)).status,
     ) == (409, str(run_id), True, 0, 0, BankStatementStatus.PARSED)
     assert await _worker(create_session_maker_from_db(db), run_id) == 0
-    response = await client.post(f"/statements/{seeded.id}/approvals", json={"create_account_if_missing": True})
+    response = await approve_reviewed(client, seeded.id, {"create_account_if_missing": True})
     assert (response.status_code, response.json()["journal_entries_created"], proposer.rows_asked) == (200, 5, 5)
 
     before_entries, before_answers = await _count(db, JournalEntry), await count_user_answers(db, test_user)
     failing = install_proposer(monkeypatch, Proposer(error=RuntimeError("provider down")))
     seeded_fail = await seed_classify_statement(db, test_user)
     assert (await get_run(db, await classify_statement(db, seeded_fail.id))).state is RunState.FAILED
-    fail_resp = await client.post(f"/statements/{seeded_fail.id}/approvals", json={"create_account_if_missing": True})
+    fail_resp = await approve_reviewed(client, seeded_fail.id, {"create_account_if_missing": True})
     assert (
         fail_resp.status_code,
         fail_resp.json()["detail"].startswith("Economic review required:"),

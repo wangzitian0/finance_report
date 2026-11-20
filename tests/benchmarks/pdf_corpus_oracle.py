@@ -860,16 +860,15 @@ def run_live_pdf_statement_verification(
                 raise RuntimeError(
                     f"Envelope confirmation failed for {spec.fixture_id}: {er.status_code} {er.text}"
                 )
-        ap = client.post(
-            f"/api/statements/{stmt_id}/approvals",
-            json={
-                "account_id": acc_id,
-                "create_account_if_missing": True,
-                "auto_fill_default_categories": True,
-                "auto_fill_defaults": True,
-                "note": "Oracle benchmark auto-fill approval",
-            },
-        )
+        approval_body = {
+            "account_id": acc_id,
+            "create_account_if_missing": True,
+            "auto_fill_default_categories": True,
+        }
+        review = client.get(f"/api/statements/{stmt_id}/review")
+        if review.status_code == 200 and review.json().get("source_result_digest"):
+            approval_body["expected_source_result_digest"] = review.json()["source_result_digest"]
+        ap = client.post(f"/api/statements/{stmt_id}/approvals", json=approval_body)
         if ap.status_code not in (200, 201):
             raise RuntimeError(
                 f"Approve failed for {spec.fixture_id}: {ap.status_code} {ap.text}"

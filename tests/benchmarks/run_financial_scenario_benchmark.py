@@ -331,6 +331,15 @@ class ScenarioBenchmarkRunner:
             },
         )
 
+    @staticmethod
+    def _approval_body(client: httpx.Client, statement_id: str, body: dict[str, Any]) -> dict[str, Any]:
+        """Return ``body`` plus the extraction result that the current review shows (#3025)."""
+        review = _get_json(
+            client, f"/api/statements/{statement_id}/review", f"Review lookup failed for statement {statement_id}"
+        )
+        digest = review.get("source_result_digest")
+        return {**body, "expected_source_result_digest": digest} if digest else body
+
     def approve_statement(self, client: httpx.Client, statement_id: str) -> dict[str, Any]:
         current = client.get(f"/api/statements/{statement_id}")
         if current.status_code == 200 and current.json().get("status") == "approved":
@@ -338,10 +347,10 @@ class ScenarioBenchmarkRunner:
         # The approval answers 409 while the classify run of the statement is active (#2994).
         wait_for_statement_runs_sync(client, f"/api/statements/{statement_id}/runs")
         url = f"/api/statements/{statement_id}/approvals"
-        resp = client.post(url, json={"create_account_if_missing": True})
+        resp = client.post(url, json=self._approval_body(client, statement_id, {"create_account_if_missing": True}))
         if resp.status_code == 400 and "requires explicit human confirmation before posting" in resp.text:
             self.confirm_review_envelope(client, statement_id)
-            resp = client.post(url, json={"create_account_if_missing": True})
+            resp = client.post(url, json=self._approval_body(client, statement_id, {"create_account_if_missing": True}))
         return _check_resp(resp, f"Approval failed for statement {statement_id}").json()
 
     def reject_statement(
@@ -361,8 +370,9 @@ class ScenarioBenchmarkRunner:
         return data
 
     def assert_approval_blocked_by_balance_mismatch(self, client: httpx.Client, statement_id: str) -> dict[str, Any]:
-        resp = client.post(f"/api/statements/{statement_id}/approvals", json={})
-        if resp.status_code not in (400, 422):
+        # The body names the reviewed result, so the block below comes from the balance check and not from a missing digest.
+        resp = client.post(f"/api/statements/{statement_id}/approvals", json=self._approval_body(client, statement_id, {}))
+        if resp.status_code not in (400, 422) or "expected_source_result_digest" in resp.text:
             raise RuntimeError(
                 f"Expected balance mismatch approval block (400/422) for {statement_id}, got {resp.status_code}: {resp.text}"
             )

@@ -427,3 +427,13 @@ async def leg_and_entry_for(db, txn) -> tuple[ReconciliationMatch, JournalEntry]
         )
     ).scalar_one()
     return match, entry
+
+
+async def approve_reviewed(client, statement_id, body: dict | None = None):
+    """Approve as the review page does: name the extraction result that the review shows (#3025)."""
+    review = await client.get(f"/statements/{statement_id}/review")
+    digest = review.json().get("source_result_digest") if review.status_code == 200 else None
+    payload = dict(body or {})
+    if digest:
+        payload.setdefault("expected_source_result_digest", digest)
+    return await client.post(f"/statements/{statement_id}/approvals", json=payload)
