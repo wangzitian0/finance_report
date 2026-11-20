@@ -85,6 +85,13 @@ def text_prints_money(text: str) -> bool:
     return False
 
 
+def _mostly_printed(candidates: Iterable[Decimal | None], printed: frozenset[Decimal]) -> bool:
+    """Return whether the text prints at least 4 of 5 of the non-zero candidates. No candidate counts as printed."""
+    checked = [abs(value) for value in candidates if value is not None and value != 0]
+    matched = sum(1 for value in checked if value in printed)
+    return matched * MIN_AMOUNT_MATCH_DENOMINATOR >= len(checked) * MIN_AMOUNT_MATCH_NUMERATOR
+
+
 def rows_missing_from_text(
     text: str | None,
     rows: Iterable[tuple[Decimal | None, Decimal | None]],
@@ -92,15 +99,26 @@ def rows_missing_from_text(
     """Return the 1-based numbers of the rows whose amount or balance_after the text does not print.
 
     Each row is ``(amount, balance_after)``. Signs are ignored. A zero or missing value is not checked:
-    a layout prints zero as a word or a dash. Return None when the text prints no money, because such a
-    text says nothing about a row.
+    a layout prints zero as a word or a dash.
+
+    Return None when the text says nothing about the rows: it prints no money, or it prints fewer than
+    4 of 5 of the row amounts (a cover page with text, and scanned transaction pages). The check of the
+    closing balance treats such a text as unusable too.
+
+    The balance_after of a row is checked only when the text prints at least 4 of 5 of the balances. A
+    statement without a balance column (a credit card) prints none, and the model may compute them.
     """
     if not text or not text_prints_money(text):
         return None
-    values = text_money_values(text)
+    row_list = list(rows)
+    printed = text_money_values(text)
+    if not _mostly_printed((amount for amount, _balance in row_list), printed):
+        return None
+    check_balances = _mostly_printed((balance for _amount, balance in row_list), printed)
     missing: list[int] = []
-    for number, row in enumerate(rows, start=1):
-        if any(value is not None and value != 0 and abs(value) not in values for value in row):
+    for number, (amount, balance) in enumerate(row_list, start=1):
+        checked = (amount, balance) if check_balances else (amount,)
+        if any(value is not None and value != 0 and abs(value) not in printed for value in checked):
             missing.append(number)
     return missing
 

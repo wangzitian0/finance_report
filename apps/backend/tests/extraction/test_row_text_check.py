@@ -12,7 +12,7 @@ import structlog
 
 from src.extraction import DocumentSource
 from src.extraction.base.source_balance_check import rows_missing_from_text
-from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.service import ExtractionService, rows_not_in_text_review_reason
 
 ROWS = [
     ("2026-05-02", "Salary Acme Pte Ltd", "3000.00", "IN", "5000.00"),
@@ -42,13 +42,13 @@ def _payload(**row_changes: dict) -> dict:
     }
 
 
-def _statement_pdf() -> bytes:
+def _statement_pdf(*, balance_column: bool = True, rows: bool = True) -> bytes:
     lines = [
         "Row Check Bank",
         "Account 5551-234-7702",
         "Statement period 2026-05-01 to 2026-05-31",
         "Opening Balance 2000.00",
-        *(f"{d} {desc} {amt} {bal}" for d, desc, amt, _, bal in ROWS),
+        *(f"{d} {desc} {amt} {bal if balance_column else ''}" for d, desc, amt, _, bal in (ROWS if rows else [])),
         "Closing Balance 4837.50",
     ]
     doc = fitz.open()
@@ -60,9 +60,9 @@ def _statement_pdf() -> bytes:
     return data
 
 
-async def _parse(tmp_path, payload: dict):
+async def _parse(tmp_path, payload: dict, **pdf_options):
     svc = ExtractionService()
-    content = _statement_pdf()
+    content = _statement_pdf(**pdf_options)
     path = tmp_path / "statement.pdf"
     path.write_bytes(content)
     with patch.object(svc, "extract_financial_data", new=AsyncMock(return_value=payload)):
@@ -77,7 +77,10 @@ async def _parse(tmp_path, payload: dict):
 @pytest.mark.no_db
 def test_rows_missing_from_text_names_each_row_by_number():
     """AC-extraction.2987.4: a row whose amount or balance is not printed is named by its 1-based row number."""
-    text = "Opening 2,000.00\nSalary 3,000.00 5 000,00\nInterest 1.5 (5001.50)\nGrocery 85.40 4916.10"
+    text = (
+        "Opening 2,000.00\nSalary 3,000.00 5 000,00\nInterest 1.5 (5001.50)\nGrocery 85.40 4916.10\n"
+        "A 12.00 4904.10\nB 7.00 4897.10\nC 9.00 4888.10"
+    )
     rows = [
         (Decimal("3000.00"), Decimal("5000.00")),
         (Decimal("1.50"), Decimal("-5001.50")),
@@ -85,6 +88,9 @@ def test_rows_missing_from_text_names_each_row_by_number():
         (Decimal("85.40"), Decimal("4916.99")),
         (Decimal("85.40"), None),
         (Decimal("0.00"), Decimal("0")),
+        (Decimal("12.00"), Decimal("4904.10")),
+        (Decimal("7.00"), Decimal("4897.10")),
+        (Decimal("9.00"), Decimal("4888.10")),
     ]
     assert rows_missing_from_text(text, rows) == [3, 4]
     assert rows_missing_from_text(text, rows[:2]) == []
@@ -92,6 +98,43 @@ def test_rows_missing_from_text_names_each_row_by_number():
     assert rows_missing_from_text("Fee 12.50 balance 100.00", zero_rows) == []
     assert rows_missing_from_text("", rows) is None
     assert rows_missing_from_text("page 1 of 2", rows) is None
+
+
+@pytest.mark.no_db
+def test_rows_missing_from_text_says_nothing_when_the_text_does_not_cover_the_rows():
+    """AC-extraction.2987.4: a text that prints fewer than 4 of 5 row amounts is unusable, not 100 misread rows."""
+    rows = [(Decimal(f"{n}0.50"), None) for n in range(1, 11)]
+    cover_page = "Opening 2000.00 Closing 4837.50 10.50 20.50"
+    assert rows_missing_from_text(cover_page, rows) is None
+    four_fifths = " ".join(f"{n}0.50" for n in range(1, 9))
+    assert rows_missing_from_text(four_fifths, rows) == [9, 10]
+
+
+@pytest.mark.no_db
+def test_rows_missing_from_text_checks_balances_only_when_the_text_prints_a_balance_column():
+    """AC-extraction.2987.4: a credit card prints no balance column, and the model may compute balance_after."""
+    amounts_only = "Grocery 85.40 Phone 23.60 Coffee 55.00 Salary 3000.00 Interest 1.50"
+    computed = [
+        (Decimal("85.40"), Decimal("4916.10")),
+        (Decimal("23.60"), Decimal("4892.50")),
+        (Decimal("55.00"), Decimal("4837.50")),
+        (Decimal("3000.00"), Decimal("7837.50")),
+        (Decimal("1.50"), Decimal("7839.00")),
+    ]
+    assert rows_missing_from_text(amounts_only, computed) == []
+    assert rows_missing_from_text(amounts_only, [(Decimal("85.41"), Decimal("4916.10")), *computed[1:]]) == [1]
+    with_column = amounts_only + " 4916.10 4892.50 4837.50 7837.50 7839.00"
+    assert rows_missing_from_text(with_column, [(a, b + 1 if a == Decimal("55.00") else b) for a, b in computed]) == [3]
+
+
+@pytest.mark.no_db
+def test_rows_not_in_text_review_reason_names_at_most_20_rows():
+    """The review reason names at most 20 row numbers; the log line holds all of them."""
+    assert rows_not_in_text_review_reason([3, 7, 9]) == "Rows not found in the document text: 3, 7, 9"
+    named = ", ".join(str(n) for n in range(1, 21))
+    assert rows_not_in_text_review_reason(list(range(1, 21))) == f"Rows not found in the document text: {named}"
+    assert rows_not_in_text_review_reason(list(range(1, 22))).endswith("20 and 1 more")
+    assert rows_not_in_text_review_reason(list(range(1, 26))) == f"Rows not found in the document text: {named} and 5 more"
 
 
 async def test_AC_extraction_2987_4_misread_row_goes_to_review_and_is_not_rejected(tmp_path):
@@ -114,3 +157,15 @@ async def test_AC_extraction_2987_4_misread_amount_is_named_when_the_balance_gat
     rejected = await _parse(tmp_path, _payload(row3={"amount": "28.60"}))
     assert rejected.transactions == () and rejected.balance_validated is False
     assert rejected.review_reasons[0].endswith("Rows not found in the document text: 4")
+
+
+async def test_AC_extraction_2987_4_a_statement_without_a_balance_column_is_not_flagged_for_computed_balances(tmp_path):
+    """AC-extraction.2987.4: the balances that the model computed for a credit card do not send its rows to review."""
+    parsed = await _parse(tmp_path, _payload(), balance_column=False)
+    assert parsed.review_reasons == () and parsed.confidence >= Decimal("0.85") and len(parsed.transactions) == 5
+
+
+async def test_AC_extraction_2987_4_a_text_layer_without_the_rows_does_not_name_100_misread_rows(tmp_path):
+    """AC-extraction.2987.4: a text layer that prints no row is a text layer problem; no row number is named."""
+    parsed = await _parse(tmp_path, _payload(), rows=False)
+    assert not any("Rows not found" in reason for reason in parsed.review_reasons)

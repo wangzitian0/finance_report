@@ -92,6 +92,13 @@ settings = src.config.settings
 MAX_ROWS_NAMED_IN_REVIEW_REASON = 20
 
 
+def rows_not_in_text_review_reason(rows: list[int]) -> str:
+    """Return the review reason that names the rows whose numbers the PDF text does not print."""
+    named = ", ".join(str(number) for number in rows[:MAX_ROWS_NAMED_IN_REVIEW_REASON])
+    more = len(rows) - MAX_ROWS_NAMED_IN_REVIEW_REASON
+    return f"Rows not found in the document text: {named}" + (f" and {more} more" if more > 0 else "")
+
+
 def _ai_stream_error() -> type[Exception]:
     from src.llm import AIStreamError
 
@@ -523,13 +530,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 rows_not_in_text = rows_missing_from_text(pdf_text, [(t.amount, t.balance_after) for t in transactions])
                 if rows_not_in_text:
                     source_verified = False
-                    rows_not_in_text_reason = "Rows not found in the document text: " + ", ".join(
-                        str(number) for number in rows_not_in_text[:MAX_ROWS_NAMED_IN_REVIEW_REASON]
-                    )
-                    if len(rows_not_in_text) > MAX_ROWS_NAMED_IN_REVIEW_REASON:
-                        rows_not_in_text_reason += (
-                            f" and {len(rows_not_in_text) - MAX_ROWS_NAMED_IN_REVIEW_REASON} more"
-                        )
+                    rows_not_in_text_reason = rows_not_in_text_review_reason(rows_not_in_text)
                     source_review_reason = (
                         f"{source_review_reason}; {rows_not_in_text_reason}"
                         if source_review_reason
