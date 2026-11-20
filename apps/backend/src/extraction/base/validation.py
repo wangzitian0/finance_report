@@ -108,6 +108,8 @@ class BalanceNormalizationResult:
     printed_opening_balance: Decimal | None
     printed_closing_balance: Decimal | None
     printed_balances: tuple[dict[str, str], ...]
+    # The number of rows whose direction the printed running balance changed.
+    directions_repaired: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,8 +179,10 @@ def analyze_statement_balance_payload(extracted: dict[str, Any]) -> BalanceNorma
     opening_dec = _safe_parse_decimal(extracted.get("opening_balance"))
     closing_dec = _safe_parse_decimal(extracted.get("closing_balance"))
     single_currency = len(txn_groups) <= 1
-    for group in [transactions] if single_currency else txn_groups.values():
+    directions_repaired = sum(
         repair_directions_from_running_balance(group, opening_balance=opening_dec if single_currency else None)
+        for group in ([transactions] if single_currency else txn_groups.values())
+    )
 
     if not extracted.get("balances") and opening_dec is not None and closing_dec is not None and len(transactions) >= 2:
         parsed_amts = [(_safe_parse_decimal(txn.get("amount")), txn.get("direction")) for txn in transactions]
@@ -207,6 +211,7 @@ def analyze_statement_balance_payload(extracted: dict[str, Any]) -> BalanceNorma
         printed_opening_balance=opening_dec,
         printed_closing_balance=closing_dec,
         printed_balances=tuple(printed_balances_list),
+        directions_repaired=directions_repaired,
     )
 
 

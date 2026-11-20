@@ -134,7 +134,9 @@ def test_rows_not_in_text_review_reason_names_at_most_20_rows():
     named = ", ".join(str(n) for n in range(1, 21))
     assert rows_not_in_text_review_reason(list(range(1, 21))) == f"Rows not found in the document text: {named}"
     assert rows_not_in_text_review_reason(list(range(1, 22))).endswith("20 and 1 more")
-    assert rows_not_in_text_review_reason(list(range(1, 26))) == f"Rows not found in the document text: {named} and 5 more"
+    assert (
+        rows_not_in_text_review_reason(list(range(1, 26))) == f"Rows not found in the document text: {named} and 5 more"
+    )
 
 
 async def test_AC_extraction_2987_4_misread_row_goes_to_review_and_is_not_rejected(tmp_path):
@@ -169,3 +171,26 @@ async def test_AC_extraction_2987_4_a_text_layer_without_the_rows_does_not_name_
     """AC-extraction.2987.4: a text layer that prints no row is a text layer problem; no row number is named."""
     parsed = await _parse(tmp_path, _payload(), rows=False)
     assert not any("Rows not found" in reason for reason in parsed.review_reasons)
+
+
+async def test_AC_extraction_2987_6_a_direction_that_the_balance_contradicts_is_repaired_and_logged(tmp_path):
+    """AC-extraction.2987.6: the row takes the direction of the balance step, and one log line counts the conflict."""
+    with structlog.testing.capture_logs() as clean_logs:
+        clean = await _parse(tmp_path, _payload())
+    assert [e for e in clean_logs if e["event"] == "statement.extraction.directions_repaired"] == []
+
+    with structlog.testing.capture_logs() as logs:
+        repaired = await _parse(tmp_path, _payload(row2={"direction": "IN"}))
+    assert [str(t.direction).rsplit(".", 1)[-1].upper() for t in repaired.transactions] == [
+        str(t.direction).rsplit(".", 1)[-1].upper() for t in clean.transactions
+    ]
+    assert str(repaired.transactions[2].direction).rsplit(".", 1)[-1].upper() == "OUT"
+    entries = [e for e in logs if e["event"] == "statement.extraction.directions_repaired"]
+    assert entries == [
+        {
+            "event": "statement.extraction.directions_repaired",
+            "log_level": "warning",
+            "row_count": 5,
+            "repaired_count": 1,
+        }
+    ]
