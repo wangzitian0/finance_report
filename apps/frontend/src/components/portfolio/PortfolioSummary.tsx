@@ -1,7 +1,7 @@
 "use client";
 
 import { compareAmounts, formatCurrencyLocale } from "@/lib/audit/money";
-import { computeMarketValuePerformance } from "@/lib/portfolioPerformance";
+import { computeMarketValuePerformance, NO_PURCHASE_RECORDED } from "@/lib/portfolioPerformance";
 import {
   formatSignedPercentFromPercentValue,
   formatPercentFromPercentValue,
@@ -88,14 +88,15 @@ export function PerformanceCard({
           <p
             className={`text-xl font-semibold mt-0.5 ${amountClass(performance.unrealizedPnl)}`}
           >
-            {formatCurrencyLocale(performance.unrealizedPnl, schedule.currency)}
+            {performance.unrealizedPnl == null
+              ? NO_PURCHASE_RECORDED
+              : formatCurrencyLocale(performance.unrealizedPnl, schedule.currency)}
           </p>
           <p className="text-xs text-muted mt-0.5">
             vs cost{" "}
-            {formatCurrencyLocale(
-              performance.totalCostBasis,
-              schedule.currency,
-            )}
+            {performance.totalCostBasis == null
+              ? "not available"
+              : formatCurrencyLocale(performance.totalCostBasis, schedule.currency)}
           </p>
         </div>
         <div>

@@ -12,6 +12,16 @@ import { ProvenanceBadge } from "@/components/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { apiOperation } from "@/lib/api";
+import { NO_PURCHASE_RECORDED } from "@/lib/portfolioPerformance";
+
+/** A cost or a profit is null when no purchase is recorded for the position (#2920). */
+function optionalCurrency(value: string | null | undefined, currency: string): string {
+  return value == null ? "—" : formatCurrencyLocale(value, currency);
+}
+
+function optionalPnlClass(value: string | null | undefined): string {
+  return value == null ? "text-muted" : pnlColorClass(value);
+}
 
 interface HoldingsTableProps {
   holdings: PortfolioHolding[];
@@ -125,18 +135,24 @@ export function HoldingsTable({
                       {formatQuantity(h.quantity)}
                     </td>
                     <td className="hidden md:table-cell px-4 py-2 text-right whitespace-nowrap tabular-nums">
-                      {formatCurrencyLocale(h.cost_basis, h.currency)}
+                      {h.cost_basis == null ? (
+                        <span className="text-muted" title="Cost and profit need a recorded purchase">
+                          {NO_PURCHASE_RECORDED}
+                        </span>
+                      ) : (
+                        formatCurrencyLocale(h.cost_basis, h.currency)
+                      )}
                     </td>
                     <td className="px-3 sm:px-4 py-2 text-right font-medium whitespace-nowrap tabular-nums">
                       {formatCurrencyLocale(h.market_value, h.currency)}
                     </td>
                     <td
-                      className={`px-3 sm:px-4 py-2 text-right font-medium whitespace-nowrap tabular-nums ${pnlColorClass(h.unrealized_pnl)}`}
+                      className={`px-3 sm:px-4 py-2 text-right font-medium whitespace-nowrap tabular-nums ${optionalPnlClass(h.unrealized_pnl)}`}
                     >
-                      {formatCurrencyLocale(h.unrealized_pnl, h.currency)}
+                      {optionalCurrency(h.unrealized_pnl, h.currency)}
                     </td>
                     <td
-                      className={`hidden md:table-cell px-4 py-2 text-right whitespace-nowrap tabular-nums ${pnlColorClass(h.unrealized_pnl_percent)}`}
+                      className={`hidden md:table-cell px-4 py-2 text-right whitespace-nowrap tabular-nums ${optionalPnlClass(h.unrealized_pnl_percent)}`}
                     >
                       {formatSignedPercentFromPercentValue(
                         h.unrealized_pnl_percent,
@@ -272,14 +288,17 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
             </div>
             <div className="card p-5">
               <p className="text-xs text-muted uppercase tracking-wide">Cost Basis</p>
-              <p className="text-2xl font-semibold mt-1">{formatCurrencyLocale(primary.cost_basis, primary.currency)}</p>
+              <p className="text-2xl font-semibold mt-1">{optionalCurrency(primary.cost_basis, primary.currency)}</p>
+              {primary.cost_basis == null && (
+                <p className="text-xs text-muted mt-0.5">{NO_PURCHASE_RECORDED}</p>
+              )}
             </div>
             <div className="card p-5">
               <p className="text-xs text-muted uppercase tracking-wide">Unrealized P&L</p>
-              <p className={`text-2xl font-semibold mt-1 ${pnlColorClass(primary.unrealized_pnl)}`}>
-                {formatCurrencyLocale(primary.unrealized_pnl, primary.currency)}
+              <p className={`text-2xl font-semibold mt-1 ${optionalPnlClass(primary.unrealized_pnl)}`}>
+                {optionalCurrency(primary.unrealized_pnl, primary.currency)}
               </p>
-              <p className={`text-sm mt-0.5 ${pnlColorClass(primary.unrealized_pnl_percent)}`}>
+              <p className={`text-sm mt-0.5 ${optionalPnlClass(primary.unrealized_pnl_percent)}`}>
                 {formatSignedPercentFromPercentValue(primary.unrealized_pnl_percent)}
               </p>
             </div>
@@ -310,10 +329,10 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
                       <tr key={h.id} className="hover:bg-[var(--background-muted)]/50">
                         <td className="px-4 py-2">{h.account_name ?? "Unknown"}</td>
                         <td className="px-4 py-2 text-right font-mono">{formatQuantity(h.quantity)}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrencyLocale(h.cost_basis, h.currency)}</td>
+                        <td className="px-4 py-2 text-right">{optionalCurrency(h.cost_basis, h.currency)}</td>
                         <td className="px-4 py-2 text-right font-medium">{formatCurrencyLocale(h.market_value, h.currency)}</td>
-                        <td className={`px-4 py-2 text-right font-medium ${pnlColorClass(h.unrealized_pnl)}`}>
-                          {formatCurrencyLocale(h.unrealized_pnl, h.currency)}
+                        <td className={`px-4 py-2 text-right font-medium ${optionalPnlClass(h.unrealized_pnl)}`}>
+                          {optionalCurrency(h.unrealized_pnl, h.currency)}
                         </td>
                         <td className="px-4 py-2">{formatDateDisplay(h.acquisition_date)}</td>
                       </tr>
@@ -343,7 +362,7 @@ export function HoldingDetail({ ticker }: { ticker: string }) {
                       <tr key={h.id} className="hover:bg-[var(--background-muted)]/50 text-muted">
                         <td className="px-4 py-2">{h.account_name ?? "Unknown"}</td>
                         <td className="px-4 py-2 text-right font-mono">{formatQuantity(h.quantity)}</td>
-                        <td className="px-4 py-2 text-right">{formatCurrencyLocale(h.cost_basis, h.currency)}</td>
+                        <td className="px-4 py-2 text-right">{optionalCurrency(h.cost_basis, h.currency)}</td>
                         <td className="px-4 py-2">{formatDateDisplay(h.acquisition_date)}</td>
                         <td className="px-4 py-2">{h.disposal_date ? formatDateDisplay(h.disposal_date) : "—"}</td>
                       </tr>

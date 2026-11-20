@@ -9,4 +9,10 @@ describe("computeMarketValuePerformance", () => {
     expect(computeMarketValuePerformance(makeSchedule({ unrealized_pnl: "0.00", holdings: [] }))).toMatchObject({ totalCostBasis: "0.00", returnOnCostPercent: null });
     expect(computeMarketValuePerformance(makeSchedule({ holdings: undefined }) as unknown as InvestmentPerformanceReportSchedule)).toMatchObject({ totalCostBasis: "0.00", returnOnCostPercent: null });
   });
+
+  it("#2920 returns no cost total and no profit when a holding has no recorded purchase", () => {
+    const base = makeSchedule();
+    const withoutPurchase = makeSchedule({ unrealized_pnl: null, holdings: [{ ...base.holdings[0], cost_basis: null, unrealized_pnl: null }, ...base.holdings.slice(1)] });
+    expect(computeMarketValuePerformance(withoutPurchase)).toEqual({ unrealizedPnl: null, totalCostBasis: null, totalMarketValue: "3300.00", returnOnCostPercent: null });
+  });
 });

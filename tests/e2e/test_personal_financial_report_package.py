@@ -248,7 +248,12 @@ async def test_personal_financial_report_package_post_merge_journey(
             and money_amount(schedule["holdings"][0]["dividend_income"])
             == expected.dividend_income
         )
-        assert money_amount(schedule["unrealized_pnl"]) >= Decimal("0.00")
+        # The fixture records no purchase: cost and profit are empty, not a number (#2920, #2923).
+        assert (
+            schedule["unrealized_pnl"],
+            {(row["cost_basis"], row["unrealized_pnl"]) for row in schedule["holdings"]},
+            sum(1 for note in schedule["notes"] if note.startswith("No purchase is recorded for ")),
+        ) == (None, {(None, None)}, len(schedule["holdings"]))
         assert (
             schedule["data_freshness"]["manual_override_basis"]
             == f"{primary['asset_identifier']}:{expected.market_price_date.isoformat()}"

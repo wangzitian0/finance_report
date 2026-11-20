@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -138,13 +138,18 @@ def _convert_pnl_with_prefetched(
     *,
     value: Money,
     value_rate_date: date,
-    cost: Money,
+    cost: Money | None,
     cost_rate_date: date,
     target_currency: str,
     fx_rates: PrefetchedFxRates,
-) -> tuple[Money, Money, Money, Ratio]:
-    """Convert a holding's value and cost to target_currency and derive P&L + ratio."""
+) -> tuple[Money, Money | None, Money | None, Ratio | None]:
+    """Convert a holding's value and cost to target_currency and derive P&L + ratio.
+
+    A position without a recorded purchase has no cost (#2920): cost, P&L and ratio are None.
+    """
     converted_value = _convert_money_with_prefetched(value, target_currency, value_rate_date, fx_rates).quantize()
+    if cost is None:
+        return converted_value, None, None, None
     converted_cost = _convert_money_with_prefetched(cost, target_currency, cost_rate_date, fx_rates).quantize()
     pnl = converted_value - converted_cost
     return converted_value, converted_cost, pnl, Ratio.fraction_or_zero(pnl.amount, converted_cost.amount)
@@ -250,6 +255,40 @@ async def _batch_latest_atomic_positions(
     return {ap.asset_identifier: ap for ap in rows}
 
 
+async def _batch_recorded_cost_as_of(
+    db: AsyncSession,
+    user_id: UUID,
+    position_ids: set[UUID],
+    as_of_date: date,
+) -> dict[UUID, Decimal]:
+    """Return the cost of the purchases recorded on or before as_of_date, less the cost of the sales.
+
+    A position without a BUY row on or before as_of_date has no key: its cost is unknown (#2920).
+    """
+    if not position_ids:
+        return {}
+    signed_cost = case(
+        (InvestmentTransaction.transaction_type == InvestmentTransactionType.BUY, InvestmentTransaction.cost_basis),
+        else_=-InvestmentTransaction.cost_basis,
+    )
+    rows = (
+        await db.execute(
+            select(InvestmentTransaction.position_id, func.sum(signed_cost))
+            .where(
+                InvestmentTransaction.user_id == user_id,
+                InvestmentTransaction.position_id.in_(position_ids),
+                InvestmentTransaction.transaction_date <= as_of_date,
+                InvestmentTransaction.transaction_type.in_(
+                    (InvestmentTransactionType.BUY, InvestmentTransactionType.SELL)
+                ),
+            )
+            .group_by(InvestmentTransaction.position_id)
+            .having(func.count().filter(InvestmentTransaction.transaction_type == InvestmentTransactionType.BUY) > 0)
+        )
+    ).all()
+    return {position_id: to_money(total) for position_id, total in rows}
+
+
 async def _batch_managed_positions_by_asset(
     db: AsyncSession,
     user_id: UUID,
@@ -299,10 +338,10 @@ def _build_holding_response(
     asset_identifier: str,
     quantity: Decimal,
     converted_value: Money,
-    converted_cost: Money,
-    unrealized_pnl: Money,
-    unrealized_pnl_ratio: Ratio,
-    cost_money: Money,
+    converted_cost: Money | None,
+    unrealized_pnl: Money | None,
+    unrealized_pnl_ratio: Ratio | None,
+    cost_money: Money | None,
     disposal_date: date | None,
     status: PositionStatus,
     account_names: dict[UUID, str],
@@ -315,13 +354,13 @@ def _build_holding_response(
         account_id=position.account_id,
         asset_identifier=asset_identifier,
         quantity=quantity,
-        cost_basis=converted_cost.amount,
+        cost_basis=converted_cost.amount if converted_cost is not None else None,
         market_value=converted_value.amount,
-        unrealized_pnl=unrealized_pnl.amount,
-        unrealized_pnl_percent=unrealized_pnl_ratio.to_percent(),
+        unrealized_pnl=unrealized_pnl.amount if unrealized_pnl is not None else None,
+        unrealized_pnl_percent=unrealized_pnl_ratio.to_percent() if unrealized_pnl_ratio is not None else None,
         currency=converted_value.currency.code,
-        native_cost_basis=cost_money.amount,
-        native_currency=cost_money.currency.code,
+        native_cost_basis=cost_money.amount if cost_money is not None else None,
+        native_currency=normalize_currency_code(position.currency),
         acquisition_date=position.acquisition_date,
         disposal_date=disposal_date,
         status=status,
@@ -454,7 +493,7 @@ class PortfolioService:
             if normalize_currency_code(position.currency) != resolved_base:
                 fx_pairs.append((position.currency, resolved_base, eval_date, None, None))
             cost_money = position.cost_basis_money
-            if cost_money.currency.code != resolved_base:
+            if cost_money is not None and cost_money.currency.code != resolved_base:
                 fx_pairs.append((cost_money.currency.code, resolved_base, position.acquisition_date, None, None))
 
         fx_rates = PrefetchedFxRates(lazy_load=True)
@@ -609,7 +648,11 @@ class PortfolioService:
             as_of_date,
         )
 
-        valued: list[tuple[AtomicPosition, PositionStatus, ManagedPosition, Money, Money, date]] = []
+        recorded_costs = await _batch_recorded_cost_as_of(
+            db, user_id, {position.id for _, _, _, position in reconciled}, as_of_date
+        )
+
+        valued: list[tuple[AtomicPosition, PositionStatus, ManagedPosition, Money, Money | None, date]] = []
         fx_pairs: list[tuple[str, str, date, date | None, date | None]] = []
         for snapshot, snapshot_quantity, status, position in reconciled:
             synced_price = synced_prices.get(snapshot.asset_identifier.strip().upper())
@@ -618,13 +661,15 @@ class PortfolioService:
                     UnitPrice(synced_price.price, Currency(synced_price.currency), PORTFOLIO_QUANTITY_UNIT)
                     * snapshot_quantity
                 )
-                cost_money, cost_rate_date = position.cost_basis_money, position.acquisition_date
             else:
-                market_money = cost_money = Money(snapshot.market_value, Currency(snapshot.currency))
-                cost_rate_date = as_of_date
+                market_money = Money(snapshot.market_value, Currency(snapshot.currency))
+            # The position row holds the cost of today. A past date takes the cost from the trades up to that date.
+            recorded_cost = recorded_costs.get(position.id)
+            cost_money = Money(recorded_cost, Currency(position.currency)) if recorded_cost is not None else None
+            cost_rate_date = position.acquisition_date
             if market_money.currency.code != resolved_base:
                 fx_pairs.append((market_money.currency.code, resolved_base, as_of_date, None, None))
-            if cost_money.currency.code != resolved_base:
+            if cost_money is not None and cost_money.currency.code != resolved_base:
                 fx_pairs.append((cost_money.currency.code, resolved_base, cost_rate_date, None, None))
             valued.append((snapshot, status, position, market_money, cost_money, cost_rate_date))
 
@@ -676,8 +721,11 @@ class PortfolioService:
         holdings = await self.get_holdings(db, user_id, as_of_date, include_disposed=True, base_currency=base_currency)
         active_holdings = [h for h in holdings if h.status == PositionStatus.ACTIVE]
         total_market_value = sum((h.market_value for h in active_holdings), Decimal("0"))
-        total_cost_basis = sum((h.cost_basis for h in active_holdings), Decimal("0"))
-        total_unrealized_pnl = sum((h.unrealized_pnl for h in active_holdings), Decimal("0"))
+        # A total over an unknown cost is unknown: one position without a recorded purchase empties the totals (#2920).
+        without_cost_count = sum(1 for h in active_holdings if h.cost_basis is None or h.unrealized_pnl is None)
+        cost_known = without_cost_count == 0
+        total_cost_basis = sum((h.cost_basis or Decimal("0") for h in active_holdings), Decimal("0"))
+        total_unrealized_pnl = sum((h.unrealized_pnl or Decimal("0") for h in active_holdings), Decimal("0"))
         active_count = len(active_holdings)
         net_pnl_ratio = Ratio.fraction_or_zero(total_unrealized_pnl, total_cost_basis)
         currency = (
@@ -687,13 +735,14 @@ class PortfolioService:
         )
         return _portfolio_schemas().PortfolioSummaryResponse(
             total_market_value=to_money(total_market_value),
-            total_cost_basis=to_money(total_cost_basis),
-            total_unrealized_pnl=to_money(total_unrealized_pnl),
-            total_unrealized_pnl_percent=net_pnl_ratio.to_percent(),
+            total_cost_basis=to_money(total_cost_basis) if cost_known else None,
+            total_unrealized_pnl=to_money(total_unrealized_pnl) if cost_known else None,
+            total_unrealized_pnl_percent=net_pnl_ratio.to_percent() if cost_known else None,
             total_realized_pnl=Decimal("0"),
             total_realized_pnl_percent=Ratio.zero().to_percent(),
-            net_pnl=to_money(total_unrealized_pnl),
-            net_pnl_percent=net_pnl_ratio.to_percent(),
+            net_pnl=to_money(total_unrealized_pnl) if cost_known else None,
+            net_pnl_percent=net_pnl_ratio.to_percent() if cost_known else None,
+            positions_without_cost_count=without_cost_count,
             holdings_count=len(holdings),
             active_positions_count=active_count,
             disposed_positions_count=len(holdings) - active_count,

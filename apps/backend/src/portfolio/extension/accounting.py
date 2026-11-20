@@ -137,7 +137,7 @@ class InvestmentAccountingService:
         )
 
         position.quantity = (position.quantity_qty + trade_quantity).quantize().value
-        position.cost_basis = (position.cost_basis_money + gross).quantize().amount
+        position.cost_basis = ((position.cost_basis_money or Money.zero(gross.currency)) + gross).quantize().amount
         position.cost_basis_method = cost_basis_method
         position.status = PositionStatus.ACTIVE
         position.disposal_date = None
@@ -213,7 +213,9 @@ class InvestmentAccountingService:
 
         position_quantity = (position.quantity_qty - trade_quantity).quantize()
         position.quantity = position_quantity.value
-        position.cost_basis = (position.cost_basis_money - Money(cost_basis, currency_obj)).quantize().amount
+        position.cost_basis = (
+            (position.cost_basis_money or Money.zero(currency_obj)) - Money(cost_basis, currency_obj)
+        ).quantize().amount
         position.realized_pnl = (position.realized_pnl_money + Money(realized_pnl, currency_obj)).quantize().amount
         position.cost_basis_method = cost_basis_method
         if position_quantity.is_zero():

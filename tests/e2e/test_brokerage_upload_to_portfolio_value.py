@@ -213,6 +213,8 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
             and Decimal(str(h["quantity"])) > Decimal("0")
             for h in holdings
         )
+        # A statement import records no purchase: cost and profit are empty, not the market value (#2920).
+        assert {(h["cost_basis"], h["unrealized_pnl"]) for h in holdings} == {(None, None)}
         _assert_portfolio_market_valuation_covered(
             holdings=holdings,
             imported_positions=imported_positions,

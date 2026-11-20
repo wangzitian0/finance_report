@@ -26,4 +26,12 @@ describe("HoldingsTable", () => {
     noTxt("Unknown");
     expect(txt(/HKD-denominated/)).toBeInTheDocument();
   });
+
+  it("#2920 shows no cost and no profit for a position without a recorded purchase", () => {
+    render(<HoldingsTable holdings={[{ ...HT_PAIR[0], cost_basis: null, native_cost_basis: null, unrealized_pnl: null, unrealized_pnl_percent: null }]} />);
+    const row = screen.getByText("No purchase recorded").closest("tr");
+    expect(row).not.toBeNull();
+    expect(row?.textContent).not.toMatch(/0\.00%/);
+    expect(row?.querySelectorAll("td")[4]?.textContent).toBe("—");
+  });
 }); // AC-portfolio.fe-ia-portfolio.1

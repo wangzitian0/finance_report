@@ -30,12 +30,13 @@ class HoldingResponse(BaseResponse):
     account_id: UUID
     asset_identifier: str
     quantity: Quantity
-    cost_basis: MoneyAmount
+    # None: no purchase is recorded for the position, so cost and profit are unknown (#2920).
+    cost_basis: MoneyAmount | None
     market_value: MoneyAmount
-    unrealized_pnl: MoneyAmount
-    unrealized_pnl_percent: Percent
+    unrealized_pnl: MoneyAmount | None
+    unrealized_pnl_percent: Percent | None
     currency: CurrencyCode
-    native_cost_basis: MoneyAmount
+    native_cost_basis: MoneyAmount | None
     native_currency: CurrencyCode
     acquisition_date: date
     disposal_date: date | None = None
@@ -54,7 +55,7 @@ class HoldingResponse(BaseResponse):
 
     @computed_field  # type: ignore[prop-decorator]
     @property
-    def reporting_cost_basis(self) -> MoneyAmount:
+    def reporting_cost_basis(self) -> MoneyAmount | None:
         return self.cost_basis
 
 
@@ -69,13 +70,15 @@ class CostBasisMethodUpdateResponse(BaseModel):
 
 class PortfolioSummaryResponse(BaseModel):
     total_market_value: MoneyAmount
-    total_cost_basis: MoneyAmount
-    total_unrealized_pnl: MoneyAmount
-    total_unrealized_pnl_percent: Percent
+    # None when one or more active positions have no recorded purchase (#2920).
+    total_cost_basis: MoneyAmount | None
+    total_unrealized_pnl: MoneyAmount | None
+    total_unrealized_pnl_percent: Percent | None
     total_realized_pnl: MoneyAmount
     total_realized_pnl_percent: Percent
-    net_pnl: MoneyAmount
-    net_pnl_percent: Percent
+    net_pnl: MoneyAmount | None
+    net_pnl_percent: Percent | None
+    positions_without_cost_count: int = 0
     holdings_count: int
     active_positions_count: int
     disposed_positions_count: int
@@ -90,9 +93,9 @@ class PortfolioSummaryDashboardResponse(PortfolioSummaryResponse):
 class InvestmentPerformanceHoldingRow(BaseModel):
     asset_identifier: str
     quantity: Quantity
-    cost_basis: MoneyAmount
+    cost_basis: MoneyAmount | None
     market_value: MoneyAmount
-    unrealized_pnl: MoneyAmount
+    unrealized_pnl: MoneyAmount | None
     realized_pnl: MoneyAmount
     dividend_income: MoneyAmount
     currency: CurrencyCode
@@ -129,7 +132,7 @@ class InvestmentPerformanceReportScheduleResponse(BaseModel):
     time_weighted_return: OptionalRate
     money_weighted_return: OptionalRate
     realized_pnl: MoneyAmount
-    unrealized_pnl: MoneyAmount
+    unrealized_pnl: MoneyAmount | None
     dividend_income: MoneyAmount
     dividend_yield: OptionalRate
     holdings: list[InvestmentPerformanceHoldingRow]
