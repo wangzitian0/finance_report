@@ -166,8 +166,8 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     # #962: set when the reviewer explicitly resolves the Stage-1 duplicate /
     # transfer-pair candidates (confirming they are distinct or a real transfer).
     # The approval guard honors this so a legitimately-conflicting statement is
-    # no longer permanently stuck in ``parsed``. Cleared on reject/reparse since
-    # a fresh transaction set must be re-reviewed.
+    # no longer permanently stuck in ``parsed``. Cleared on a reject, on a new extract run, and when a
+    # confirmed envelope changes the account, the currency or the period (#3178).
     stage1_conflicts_resolved_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,

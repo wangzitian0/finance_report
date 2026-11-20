@@ -203,6 +203,7 @@ from src.extraction.extension.statement_summary import (
 from src.extraction.extension.statement_validation import (
     find_other_account_statement_matches,
     find_statement_review_conflicts,
+    other_account_matches_not_confirmed,
     pending_stage1_review_filter,
     resolve_statement_conflicts,
     resolve_statement_transactions,
@@ -398,6 +399,7 @@ __all__ = [
     "lock_statement_for_run",
     "looks_like_brokerage_document",
     "looks_like_brokerage_payload",
+    "other_account_matches_not_confirmed",
     "start_user_classify_run",
     "start_user_extract_run",
     "parse_brokerage_csv_payload",

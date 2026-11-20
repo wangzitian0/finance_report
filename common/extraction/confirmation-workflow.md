@@ -22,7 +22,7 @@ Stage 2: reconciliation_match -> (>= 85 auto_accepted | 60..84 pending_review ->
 
 - Always scope mutations by `user_id`. Reject + re-parse instead of in-place editing (no edit-and-approve endpoint exists).
 - Block Stage 1 approval on `> 0.001 USD` balance-chain error or unresolved duplicate/transfer-pair candidates.
-- Block Stage 1 approval, until the reviewer confirms one different account, when an approved statement of another account of the user holds the same rows: equal date, absolute amount and direction on at least 3 rows and 80 percent of this statement (#2917).
+- Block Stage 1 approval, until the reviewer confirms one different account, when an approved statement of another account of the user holds the same rows: equal date, absolute amount and direction on at least 3 rows and 80 percent of the statement with fewer rows. A confirmation covers the statements approved before it; a statement approved later needs a new confirmation (#2917).
 - Render Stage 1 rows with LOW rows on top, unrated rows marked `Not rated`, wrapped descriptions, and source preview only for PDF/PNG/JPG (`GET /api/statements/pending-review`, `POST /api/statements/{id}/{approvals,rejections}`).
 
 ### <a id="confidence-tier-rollup"></a>Confidence Tier Rollup & Promotion Gate
