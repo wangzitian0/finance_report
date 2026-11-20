@@ -76,7 +76,7 @@ async def test_AC_extraction_2985_1_2_3_model_call_and_merge_log_fields():
         )
     (entry,) = _events(logs3, "Multiple accounts in paged extraction")
     assert entry["parts_by_account"] == {"1234": [0, 3], "5678": [2]}
-    assert [acct["account_last4"] for acct in merged["accounts"]] == ["1234", "5678"]
+    assert [acct["account_last4"] for acct in merged["accounts"]] == ["5678", "1234"]
 
 
 async def test_AC_extraction_2985_4_the_quarantine_log_holds_row_count_gap_directions_and_suspect_rows(tmp_path):

@@ -62,10 +62,10 @@ Important Rules:
 6. If unsure about a field, set it to null but include the transaction
 7. For long statements with 50+ transactions, include all of them - do NOT truncate
 8. For each transaction, include "currency" (ISO 4217 code, e.g. "SGD", "USD")
-9. Include "balance_after" showing the running balance after the transaction (from the balance column if present)
+9. "balance_after": the running balance that the document prints on the row of the transaction (the balance column). Use null when the row prints no running balance. NEVER compute it.
 10. Auto-detect the institution name from the document header/logo and return it in the "institution" field
 11. MULTI-SECTION STATEMENTS: a statement may contain more than one transaction section (e.g. "SAVINGS - TRANSACTION DETAILS" and "INVESTMENTS - TRANSACTION DETAILS"). Extract transactions from EVERY section, but record each cash movement EXACTLY ONCE. A transfer or fund purchase/redemption between the user's own accounts (e.g. "Buy - Mari Invest" / "Sell - Mari Invest") is shown as a cash movement in one section AND mirrored in another - include ONLY the single cash leg that moves THIS statement's balance (a purchase/"Buy" reduces cash -> OUT; a redemption/"Sell" adds cash -> IN), and do NOT also add the mirrored row from the other section as a second transaction. Do NOT skip transfers between the user's own accounts, and do NOT double-count them.
-12. COMPLETENESS SELF-CHECK (do this before returning): reconcile EACH currency separately. For every currency present, opening_balance + sum(IN) - sum(OUT) for that currency MUST equal that currency's closing balance within 0.10. Never add amounts across different currencies. The top-level opening_balance/closing_balance are for the statement's primary currency. If a currency does NOT balance, you have either missed, duplicated, or mis-signed a transaction: use the running balance ("balance_after" / the daily balance column) to locate the day where the balance jumps and correct it using ONLY what the document actually shows. NEVER invent, fabricate, or alter transactions or balances to force a match - if the document genuinely does not reconcile, return exactly what is shown.
+12. opening_balance, closing_balance and each "opening" / "closing" of "balances": report a value ONLY when the document explicitly prints it; otherwise null. NEVER derive, compute, or adjust a balance from the transactions.
 13. FOREIGN-EXCHANGE / CROSS-CURRENCY: if a line converts one currency to another (e.g. "Converted 1,000 SGD to 740 USD"), record the leg in the currency that actually moved on THIS statement and set its "currency" accordingly; preserve the other currency, the exchange rate, and any fee/spread in "description" (and "reference" if shown). List a separately-shown fee as its own transaction.
 14. MULTI-CURRENCY STATEMENTS ("balances" array): if the statement holds balances in MORE THAN ONE currency (e.g. a multi-currency / consolidated account that prints a per-currency or per-account opening & closing, or a "Currency Breakdown"), additionally emit a "balances" array with one {currency, opening, closing} entry PER currency — each currency's own opening and closing as shown, NEVER cross-summed or converted into a single currency. Put each currency's native amounts (do NOT convert to the "base/SGD equivalent" column). The top-level "currency"/"opening_balance"/"closing_balance" remain the PRIMARY currency's values. OMIT "balances" entirely for an ordinary single-currency statement.
 """
@@ -235,7 +235,7 @@ MariBank Singapore statement:
 
 # Raise this version in the same change that edits SYSTEM_PROMPT, BROKERAGE_POSITIONS_PROMPT, an entry of
 # INSTITUTION_HINTS, single-batch meta/rows templates, or the shared hints block (prompts/hints.py). A run stores it, so an audit can tell which prompt text a run used.
-PARSING_PROMPT_TEMPLATE_VERSION = "2"
+PARSING_PROMPT_TEMPLATE_VERSION = "3"
 
 _HINTS_PURPOSE = """It never changes the output schema, the field names, the signs or the amounts.
 Use it only to find rows and fields that the document shows. Never invent data.

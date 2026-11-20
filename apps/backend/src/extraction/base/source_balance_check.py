@@ -5,6 +5,9 @@ closing balance that the document prints. The balance chain then ties out and hi
 mismatch. A PDF text layer holds the printed numbers. A stored closing balance that is
 not one of them did not come from the document.
 
+``rows_missing_from_text`` applies the same idea to each row: a row amount or running balance that
+the text does not print did not come from the document (#2987).
+
 Pure functions. The caller reads the text layer. A text layer that does not hold the
 opening balance and most row amounts says nothing about the closing balance. The check
 then returns ``TEXT_UNUSABLE`` and the caller changes nothing.
@@ -21,6 +24,8 @@ from enum import StrEnum
 MIN_AMOUNT_MATCH_NUMERATOR = 4
 MIN_AMOUNT_MATCH_DENOMINATOR = 5
 
+# A spaced number has at most this many groups (``1 234 567 890,12``).
+_MAX_SPACED_GROUPS = 4
 _GROUP_SEPARATORS = " ,.'\u00a0\u202f\u2009\u2019"
 # A run of digits with the separators that money uses: ``4,837.55`` ``4.837,55`` ``4 837.55``.
 _RUN = re.compile(rf"\d(?:[\d{re.escape(_GROUP_SEPARATORS)}]*\d)?")
@@ -52,7 +57,8 @@ def text_money_values(text: str) -> frozenset[Decimal]:
     """Return every number in ``text`` that a layout could print as money.
 
     A run such as ``85.40 4837.55`` yields both numbers. A run such as ``4 837.55``
-    yields 4837.55 and its parts 4 and 837.55. The set can hold extra values. A superset
+    yields 4837.55 and its parts 4 and 837.55. A run such as ``3,000.00 5 000,00`` yields 3000.00 and
+    5000.00: each window of adjacent pieces is read as one number too. The set can hold extra values. A superset
     only makes a match more likely, so it never raises a false flag. It can verify a
     closing balance that equals a part of a spaced number (a known limit, #2419).
     """
@@ -60,9 +66,10 @@ def text_money_values(text: str) -> frozenset[Decimal]:
     for run in _RUN.findall(text):
         values.update(_piece_values(run))
         pieces = run.split()
-        if len(pieces) > 1:
-            for piece in pieces:
-                values.update(_piece_values(piece))
+        for start in range(len(pieces)):
+            for end in range(start + 1, min(len(pieces), start + _MAX_SPACED_GROUPS) + 1):
+                if (start, end) != (0, len(pieces)):
+                    values.update(_piece_values(" ".join(pieces[start:end])))
     return frozenset(values)
 
 
@@ -76,6 +83,26 @@ def text_prints_money(text: str) -> bool:
         if isinstance(exponent, int) and exponent < 0:
             return True
     return False
+
+
+def rows_missing_from_text(
+    text: str | None,
+    rows: Iterable[tuple[Decimal | None, Decimal | None]],
+) -> list[int] | None:
+    """Return the 1-based numbers of the rows whose amount or balance_after the text does not print.
+
+    Each row is ``(amount, balance_after)``. Signs are ignored. A zero or missing value is not checked:
+    a layout prints zero as a word or a dash. Return None when the text prints no money, because such a
+    text says nothing about a row.
+    """
+    if not text or not text_prints_money(text):
+        return None
+    values = text_money_values(text)
+    missing: list[int] = []
+    for number, row in enumerate(rows, start=1):
+        if any(value is not None and value != 0 and abs(value) not in values for value in row):
+            missing.append(number)
+    return missing
 
 
 def check_closing_balance_against_text(

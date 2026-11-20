@@ -30,6 +30,7 @@ from src.extraction.base.result import ExtractionMethod, StatementEvidenceType, 
 from src.extraction.base.source_balance_check import (
     SourceBalanceVerdict,
     check_closing_balance_against_text,
+    rows_missing_from_text,
     text_prints_money,
 )
 from src.extraction.base.source_capability import SOURCE_CAPABILITIES
@@ -85,6 +86,10 @@ from src.ledger import AccountType
 from src.observability import record_financial_invariant_violation
 
 settings = src.config.settings
+
+
+# A review reason names at most this many rows; the log line holds every row number.
+MAX_ROWS_NAMED_IN_REVIEW_REASON = 20
 
 
 def _ai_stream_error() -> type[Exception]:
@@ -465,6 +470,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             )
 
             source_verified: bool | None = None
+            rows_not_in_text_reason: str | None = None
             closing_not_in_source = False
             opening_not_in_source = False
             if file_type == "csv":
@@ -514,6 +520,27 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     source_verified = bool(pdf_text and text_prints_money(pdf_text))
                     if not source_verified and source_review_reason is None:
                         source_review_reason = "PDF text layer is unusable; source review required before approval"
+                rows_not_in_text = rows_missing_from_text(pdf_text, [(t.amount, t.balance_after) for t in transactions])
+                if rows_not_in_text:
+                    source_verified = False
+                    rows_not_in_text_reason = "Rows not found in the document text: " + ", ".join(
+                        str(number) for number in rows_not_in_text[:MAX_ROWS_NAMED_IN_REVIEW_REASON]
+                    )
+                    if len(rows_not_in_text) > MAX_ROWS_NAMED_IN_REVIEW_REASON:
+                        rows_not_in_text_reason += (
+                            f" and {len(rows_not_in_text) - MAX_ROWS_NAMED_IN_REVIEW_REASON} more"
+                        )
+                    source_review_reason = (
+                        f"{source_review_reason}; {rows_not_in_text_reason}"
+                        if source_review_reason
+                        else rows_not_in_text_reason
+                    )
+                    logger.warning(
+                        "statement.extraction.rows_not_in_text",
+                        row_count=len(transactions),
+                        missing_count=len(rows_not_in_text),
+                        rows=rows_not_in_text,
+                    )
             elif file_type in {"png", "jpg", "jpeg"} and not is_position_snapshot:
                 source_verified = False
                 if source_review_reason is None:
@@ -604,7 +631,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 statement.status = status
                 statement.balance_validated = False
                 statement.stage1_status = Stage1Status.REJECTED
-                statement.validation_error = f"{reason.value}: {llm_led_gate.message}"
+                statement.validation_error = f"{reason.value}: {llm_led_gate.message}" + (
+                    f"; {rows_not_in_text_reason}" if rows_not_in_text_reason else ""
+                )
                 record_financial_invariant_violation(kind=metric_kind, institution_class=institution_class)
                 balance_gap = balance_result["difference"]
                 logger.warning(
@@ -1252,7 +1281,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 allow_multiple_accounts=allow_multiple_accounts,
                 split_single_batch=False,
             )
-            if from_text.get("transactions") or (document_kind == "brokerage" and from_text.get("positions")):
+            if (
+                from_text.get("transactions")
+                or from_text.get("accounts")
+                or (document_kind == "brokerage" and from_text.get("positions"))
+            ):
                 return from_text, text_split_agreed
             logger.warning(
                 "PDF text layer gave no transactions or positions; reading the page images",
@@ -1272,6 +1305,17 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             allow_multiple_accounts=allow_multiple_accounts,
             split_single_batch=split_single_batch,
         )
+
+    @staticmethod
+    def _accounts_payload(row_parts: list[dict[str, Any]], *, metadata: dict[str, Any]) -> dict[str, Any]:
+        """Return the payload of a document whose replies name several accounts: one entry per account of the rows."""
+        accounts = split_paged_extractions_by_account(row_parts, metadata=metadata)
+        if len(accounts) == 1:
+            return accounts[0]
+        return {
+            "institution": next((a.get("institution") for a in accounts if a.get("institution")), None),
+            "accounts": accounts,
+        }
 
     async def _extract_json_from_media_batches(
         self,
@@ -1328,7 +1372,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 rows_only = {
                     k: v for k, v in rows_part.items() if k not in ("opening_balance", "closing_balance", "balances")
                 }
-                merged = merge_paged_extractions([clean_meta, rows_only])
+                try:
+                    merged = merge_paged_extractions([clean_meta, rows_only])
+                except MultipleAccountsError as exc:
+                    logger.info("Multiple accounts in single-batch extraction", parts_by_account=exc.parts_by_account)
+                    return self._accounts_payload([rows_only], metadata=clean_meta), False
                 meta_open = self._safe_decimal(meta_part.get("opening_balance"))
                 meta_close = self._safe_decimal(meta_part.get("closing_balance"))
                 rows_open = self._safe_decimal(rows_part.get("opening_balance"))
@@ -1367,7 +1415,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         del meta_media
         meta_part = await _call(meta_messages, batch_index=0, pages=meta_pages)
         del meta_messages
-        parts.append({k: v for k, v in meta_part.items() if k not in ("transactions", "positions")})
+        clean_meta = {k: v for k, v in meta_part.items() if k not in ("transactions", "positions")}
+        parts.append(clean_meta)
 
         context_page: dict[str, Any] | None = None
         for part_index in range(1, part_count + 1):
@@ -1405,14 +1454,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             merged = merge_paged_extractions(parts, allow_multiple_accounts=allow_multiple_accounts)
         except MultipleAccountsError as exc:
             logger.info("Multiple accounts in paged extraction", parts_by_account=exc.parts_by_account)
-            account_parts = split_paged_extractions_by_account(parts)
-            return (
-                {
-                    "institution": next((p.get("institution") for p in account_parts if p.get("institution")), None),
-                    "accounts": account_parts,
-                },
-                meta_agreed,
-            )
+            # The balances of the metadata part belong to no account of the split, so it proves none.
+            return self._accounts_payload(parts[1:], metadata=clean_meta), None
         logger.info(
             "Merged paged vision extraction",
             part_count=part_count,

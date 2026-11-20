@@ -236,42 +236,52 @@ def merge_paged_extractions(
     return merged
 
 
-def split_paged_extractions_by_account(parts: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Group multi-account batch parts into one merged payload per distinct account (#2983)."""
-    dict_parts = [part for part in parts if isinstance(part, dict)]
+_SHARED_METADATA_FIELDS = ("institution", "period_start", "period_end")
+
+
+def split_paged_extractions_by_account(
+    row_parts: list[dict[str, Any]],
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    """Group the row parts of a multi-account document into one merged payload per account (#2983).
+
+    ``metadata`` is the reply of the metadata call. It sees pages of several accounts, so it gives the
+    institution and the period only. Its account suffix names no account and its balances go to no
+    account: the balances of an account come from the row parts of that account.
+
+    A row part without a suffix continues the account of the part before it. Row parts before the
+    first suffix belong to the first account.
+    """
+    dict_parts = [part for part in row_parts if isinstance(part, dict)]
     if not dict_parts:
         raise ValueError("split_paged_extractions_by_account needs at least one dict payload")
 
     grouped: dict[str, list[dict[str, Any]]] = {}
-    unassigned: list[dict[str, Any]] = []
-    shared_institution: object = None
+    leading: list[dict[str, Any]] = []
     last_suffix: str | None = None
     for part in dict_parts:
-        if shared_institution is None and not _is_empty(part.get("institution")):
-            shared_institution = part.get("institution")
         suffix = sanitize_account_last4(str(part["account_last4"])) if part.get("account_last4") else None
         if suffix:
+            if not grouped:
+                grouped[suffix] = leading
             grouped.setdefault(suffix, []).append(part)
             last_suffix = suffix
         elif last_suffix is not None:
             grouped[last_suffix].append(part)
         else:
-            unassigned.append(part)
+            leading.append(part)
+    if not grouped:
+        grouped[""] = leading
 
-    if len(grouped) <= 1:
-        return [merge_paged_extractions(dict_parts)]
-
+    shared = {key: value for key in _SHARED_METADATA_FIELDS if not _is_empty(value := (metadata or {}).get(key))}
     merged_accounts: list[dict[str, Any]] = []
-    for index, (suffix, account_parts) in enumerate(grouped.items()):
-        parts_to_merge = list(account_parts)
-        if index == 0 and unassigned:
-            parts_to_merge = [
-                {k: v for k, v in p.items() if k in ("institution", "period_start", "period_end") and not _is_empty(v)}
-                for p in unassigned
-            ] + parts_to_merge
-        merged = merge_paged_extractions([p for p in parts_to_merge if p])
-        if _is_empty(merged.get("institution")) and shared_institution is not None:
-            merged["institution"] = shared_institution
-        merged["account_last4"] = suffix
+    for suffix, account_parts in grouped.items():
+        merged = dict(merge_paged_extractions(account_parts))
+        for key, value in shared.items():
+            if _is_empty(merged.get(key)):
+                merged[key] = value
+        if suffix:
+            merged["account_last4"] = suffix
         merged_accounts.append(merged)
     return merged_accounts

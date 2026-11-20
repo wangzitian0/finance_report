@@ -132,7 +132,9 @@ def _pdf_for_payload(payload: dict, tag: str) -> bytes:
     import fitz
 
     lines = [tag, f"Opening Balance {payload['opening_balance']}"]
-    lines.extend(f"{t['description']} {t['amount']}" for t in payload.get("transactions") or [])
+    lines.extend(
+        f"{t['description']} {t['amount']} {t.get('balance_after') or ''}" for t in payload.get("transactions") or []
+    )
     lines.append(f"Closing Balance {payload['closing_balance']}")
     doc = fitz.open()
     page = doc.new_page()
