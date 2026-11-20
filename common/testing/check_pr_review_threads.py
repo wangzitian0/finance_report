@@ -41,7 +41,6 @@ query($owner: String!, $name: String!, $number: Int!, $after: String) {
             nodes {
               body
               url
-              author { login }
             }
           }
         }
