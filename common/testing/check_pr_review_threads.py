@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Merge-time gate blocking unresolved P0/P1 or unmarked Copilot PR review threads."""
+"""Merge-time gate blocking PRs when unresolved review threads weigh >= 1.0."""
 
 from __future__ import annotations
 
 import argparse
-import enum
 import json
 import os
 import re
@@ -15,16 +14,15 @@ from typing import Any
 
 from common.meta.base.gate_cli import run_cli_command
 
-COPILOT_AUTHORS: frozenset[str] = frozenset(
-    {
-        "copilot",
-        "github-copilot[bot]",
-        "copilot-pull-request-reviewer",
-        "copilot-pull-request-reviewer[bot]",
-    }
-)
-BLOCKING_MARKER = re.compile(r"\b(P0|P1)\b", re.IGNORECASE)
-LOWER_MARKER = re.compile(r"\b(P2|P3|nit)\b", re.IGNORECASE)
+SEVERITY_TAG = re.compile(r"\bseverity:\s*(high|middle|medium|low)\b", re.IGNORECASE)
+SEVERITY_WEIGHTS: dict[str, tuple[str, float]] = {
+    "high": ("High", 1.0),
+    "middle": ("Medium", 0.5),
+    "medium": ("Medium", 0.5),
+    "low": ("Low", 0.25),
+}
+UNLABELLED_WEIGHT: tuple[str, float] = ("Medium (default)", 0.5)
+REVIEW_BLOCK_SCORE = 1.0
 FetchThreads = Callable[[int, str], dict[str, Any]]
 
 _GRAPHQL_QUERY = """
@@ -58,39 +56,18 @@ query($owner: String!, $name: String!, $number: Int!, $after: String) {
 _MAX_PAGES = 100
 
 
-class Severity(enum.Enum):
-    """Severity classes for a review thread."""
-
-    BLOCKING = "blocking"  # P0/P1 (or Copilot default)
-    LOWER = "lower"  # P2/P3/nit/plain comment
-
-
 def _first_comment(thread: dict[str, Any]) -> dict[str, Any]:
     """Return the first comment node of a thread, or an empty dict."""
     nodes = (thread.get("comments") or {}).get("nodes") or []
     return nodes[0] if nodes else {}
 
 
-def _comment_author(comment: dict[str, Any]) -> str:
-    return ((comment.get("author") or {}).get("login") or "").strip()
-
-
-def classify_thread(thread: dict[str, Any]) -> Severity:
-    """Classify a review thread's severity from its first comment.
-
-    See module docstring for the exact, documented rule.
-    """
-    comment = _first_comment(thread)
-    body = comment.get("body") or ""
-    author = _comment_author(comment).lower()
-
-    if BLOCKING_MARKER.search(body):
-        return Severity.BLOCKING
-
-    if author in COPILOT_AUTHORS and not LOWER_MARKER.search(body):
-        return Severity.BLOCKING
-
-    return Severity.LOWER
+def thread_weight(thread: dict[str, Any]) -> tuple[str, float]:
+    """Return (label, weight) from the first comment's literal severity tag."""
+    body = _first_comment(thread).get("body") or ""
+    if match := SEVERITY_TAG.search(body):
+        return SEVERITY_WEIGHTS[match.group(1).lower()]
+    return UNLABELLED_WEIGHT
 
 
 def _thread_url(thread: dict[str, Any]) -> str:
@@ -144,14 +121,7 @@ def _graphql_page(
 
 
 def fetch_threads(pr_number: int, repo: str) -> dict[str, Any]:
-    """Fetch ALL review threads via `gh api graphql` (the real, network seam).
-
-    Paginates through `reviewThreads` until `pageInfo.hasNextPage` is false, so
-    a PR with more than 100 review threads cannot let unresolved blocking
-    threads beyond the first page slip past the merge gate. Returns a single
-    merged JSON envelope. This function is patched/replaced in tests so no
-    network call is made there.
-    """
+    """Fetch ALL review threads via `gh api graphql` (the real, network seam)."""
     owner, _, name = repo.partition("/")
     all_nodes: list[dict[str, Any]] = []
     after: str | None = None
@@ -164,8 +134,6 @@ def fetch_threads(pr_number: int, repo: str) -> dict[str, Any]:
             return _wrap_nodes(all_nodes)
         after = page_info.get("endCursor")
         if not after:
-            # hasNextPage is true but no cursor: cannot safely continue. Fail
-            # closed rather than silently dropping later pages.
             raise RuntimeError(
                 "PR review thread gate: GraphQL reported more pages but no "
                 "endCursor; cannot guarantee all threads were read."
@@ -180,11 +148,7 @@ def run(
     repo: str,
     fetch_threads: FetchThreads = fetch_threads,
 ) -> int:
-    """Evaluate the gate. Return 0 (pass/skip) or 1 (block).
-
-    Skips cleanly (exit 0, no fetch) when ``pr_number`` is None — e.g. a
-    non-pull_request workflow event.
-    """
+    """Evaluate the weighted review gate. Return 0 (pass/skip) or 1 (block)."""
     if pr_number is None:
         print(
             "PR review thread gate: no PR number (non-PR event); skipping.",
@@ -195,50 +159,43 @@ def run(
     payload = fetch_threads(pr_number, repo)
     nodes = _thread_nodes(payload)
 
-    blocking: list[dict[str, Any]] = []
-    lower_unresolved: list[dict[str, Any]] = []
-
+    unresolved: list[tuple[dict[str, Any], str, float]] = []
     for thread in nodes:
-        if thread.get("isResolved"):
-            continue  # resolved threads never block
-        if thread.get("isOutdated"):
-            continue  # outdated threads never block
-        severity = classify_thread(thread)
-        if severity is Severity.BLOCKING:
-            blocking.append(thread)
-        else:
-            lower_unresolved.append(thread)
+        if thread.get("isResolved") or thread.get("isOutdated"):
+            continue
+        label, weight = thread_weight(thread)
+        unresolved.append((thread, label, weight))
 
+    score = sum(weight for _, _, weight in unresolved)
     total = len(nodes)
     print(
         f"PR review thread gate (PR #{pr_number}, {repo}): "
-        f"{total} thread(s); {len(blocking)} unresolved blocking (P0/P1), "
-        f"{len(lower_unresolved)} unresolved lower-severity (reported, "
-        f"non-blocking)."
+        f"{total} thread(s); {len(unresolved)} unresolved, weighted score {score:.2f} "
+        f"(blocks at >= {REVIEW_BLOCK_SCORE:.2f})."
     )
 
-    for thread in lower_unresolved:
-        body = (_first_comment(thread).get("body") or "").strip().splitlines()
-        snippet = body[0] if body else ""
+    if score >= REVIEW_BLOCK_SCORE:
         print(
-            f"  [report] lower-severity unresolved: {_thread_url(thread)} :: {snippet}"
-        )
-
-    if blocking:
-        print(
-            "BLOCKED: unresolved P0/P1 (or Copilot) review thread(s) must be resolved before merge:",
+            f"BLOCKED: unresolved review score {score:.2f} >= {REVIEW_BLOCK_SCORE:.2f}; resolve threads before merge:",
             file=sys.stderr,
         )
-        for thread in blocking:
+        for thread, label, weight in unresolved:
             body = (_first_comment(thread).get("body") or "").strip().splitlines()
             snippet = body[0] if body else ""
             print(
-                f"  - {_thread_url(thread)} :: {snippet}",
+                f"  - [{label} {weight:.2f}] {_thread_url(thread)} :: {snippet}",
                 file=sys.stderr,
             )
         return 1
 
-    print("PR review thread gate OK: no unresolved P0/P1 review threads.")
+    for thread, label, weight in unresolved:
+        body = (_first_comment(thread).get("body") or "").strip().splitlines()
+        snippet = body[0] if body else ""
+        print(
+            f"  [report] non-blocking unresolved [{label} {weight:.2f}]: {_thread_url(thread)} :: {snippet}"
+        )
+
+    print(f"PR review thread gate OK: score {score:.2f} < {REVIEW_BLOCK_SCORE:.2f}.")
     return 0
 
 
@@ -279,9 +236,6 @@ def _main(argv: Sequence[str] | None = None) -> int:
     repo = _resolve_repo(args.repo)
 
     if pr_number is not None and not repo:
-        # A PR number is present but the repo cannot be resolved — almost
-        # certainly a CI misconfiguration (e.g. a typo'd env var). Fail closed
-        # rather than silently disabling a merge-blocking contract.
         print(
             "PR review thread gate: a PR number was supplied but the repo could "
             "not be resolved (--repo / $GITHUB_REPOSITORY); failing closed.",
@@ -289,7 +243,6 @@ def _main(argv: Sequence[str] | None = None) -> int:
         )
         return 1
 
-    # Bind through the module attribute so tests can monkeypatch fetch_threads.
     return run(pr_number, repo, fetch_threads=fetch_threads)
 
 

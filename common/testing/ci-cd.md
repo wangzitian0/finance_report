@@ -47,7 +47,7 @@ Default local verification uses `moon run :test -- --smart` or focused Vitest/to
 
 ## PR Review Thread Merge Gate
 
-`tools/check_pr_review_threads.py` (run in `lint` on PRs) exits 1 if any unresolved review thread matches `\b(P0|P1)\b` or is authored by `copilot`, `github-copilot[bot]`, `copilot-pull-request-reviewer`, or `copilot-pull-request-reviewer[bot]` without `P2`/`P3`/`nit`. Resolved and outdated threads, plus lower-severity unresolved threads, do not block.
+`tools/check_pr_review_threads.py` (run in `lint` on PRs) scores unresolved, non-outdated review threads by literal `severity:` label (`high = 1.0`, `middle`/`medium = 0.5`, `low = 0.25`, unlabelled = `0.5`) and exits 1 when the total score is `>= 1.0`. Resolved and outdated threads do not count, and Copilot review is optional and non-blocking (no special author rule).
 
 ## Test Optimization
 
