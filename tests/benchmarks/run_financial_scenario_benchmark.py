@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import io
 import json
 import sys
@@ -22,6 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from common.runtime.sdk_pin import read_sdk_pin  # noqa: E402
 from tests.benchmarks.benchmark_summary import (  # noqa: E402
     extract_summary_data,
     sanitize_for_json,
@@ -110,12 +112,8 @@ class ScenarioBenchmarkRunner:
         self.last_auth_context: dict[str, Any] | None = None
         self._counter_accounts_cache: dict[tuple[str, str, str], str] = {}
 
-    def create_ephemeral_client(
-        self, prefix: str = "qa_bench"
-    ) -> tuple[httpx.Client, str, dict[str, Any]]:
-        client = httpx.Client(
-            base_url=self.base_url, verify=self.verify, timeout=self.timeout
-        )
+    def create_ephemeral_client(self, prefix: str = "qa_bench") -> tuple[httpx.Client, str, dict[str, Any]]:
+        client = httpx.Client(base_url=self.base_url, verify=self.verify, timeout=self.timeout)
         user_email = f"{prefix}_{uuid.uuid4().hex[:8]}@test.example.com"
         user_data = _post_json(
             client,
@@ -171,26 +169,16 @@ class ScenarioBenchmarkRunner:
             institution = "Operating"
         if filename.endswith(".csv") and not account_id:
             account_name = f"{institution} Cash Account"
-            cache: dict[tuple[int, str, str], str] = getattr(
-                self, "_client_account_cache", {}
-            )
+            cache: dict[tuple[int, str, str], str] = getattr(self, "_client_account_cache", {})
             self._client_account_cache = cache
             cache_key = (id(client), account_name, currency)
             account_id = cache.get(cache_key)
             if account_id is None:
-                account_id = str(
-                    self.create_account(
-                        client, name=account_name, type="ASSET", currency=currency
-                    )["id"]
-                )
+                account_id = str(self.create_account(client, name=account_name, type="ASSET", currency=currency)["id"])
                 cache[cache_key] = account_id
 
         content_type = "text/csv" if filename.endswith(".csv") else "application/pdf"
-        data = {
-            k: str(v)
-            for k, v in (("account_id", account_id), ("institution", institution))
-            if v
-        }
+        data = {k: str(v) for k, v in (("account_id", account_id), ("institution", institution)) if v}
         body = _post_json(
             client,
             "/api/statements",
@@ -235,9 +223,7 @@ class ScenarioBenchmarkRunner:
                     )
                     start = time.time()
                     continue
-                raise RuntimeError(
-                    f"Statement {statement_id} entered terminal failure state '{status}': {err}"
-                )
+                raise RuntimeError(f"Statement {statement_id} entered terminal failure state '{status}': {err}")
             time.sleep(poll_interval)
         raise TimeoutError(
             f"Statement {statement_id} did not reach parsed or approved status within {max_wait_seconds}s"
@@ -262,11 +248,7 @@ class ScenarioBenchmarkRunner:
             return 0
         if not currency:
             stmt_resp = client.get(f"/api/statements/{statement_id}")
-            currency = (
-                stmt_resp.json().get("currency", "SGD")
-                if stmt_resp.status_code == 200
-                else "SGD"
-            )
+            currency = stmt_resp.json().get("currency", "SGD") if stmt_resp.status_code == 200 else "SGD"
 
         def counter_account(acc_type: str, curr: str) -> str:
             scope = str(client.headers.get("Authorization") or id(client))
@@ -307,12 +289,8 @@ class ScenarioBenchmarkRunner:
                 is_in = item.get("direction", "OUT") == "IN"
                 payload = {
                     "intent": "income" if is_in else "expense",
-                    "counter_account_id": counter_account(
-                        "INCOME" if is_in else "EXPENSE", txn_curr
-                    ),
-                    "category": (
-                        default_income_category if is_in else default_expense_category
-                    ),
+                    "counter_account_id": counter_account("INCOME" if is_in else "EXPENSE", txn_curr),
+                    "category": (default_income_category if is_in else default_expense_category),
                     "rationale": f"Benchmark disposition for {desc}",
                 }
             _post_json(
@@ -353,9 +331,7 @@ class ScenarioBenchmarkRunner:
             },
         )
 
-    def approve_statement(
-        self, client: httpx.Client, statement_id: str
-    ) -> dict[str, Any]:
+    def approve_statement(self, client: httpx.Client, statement_id: str) -> dict[str, Any]:
         current = client.get(f"/api/statements/{statement_id}")
         if current.status_code == 200 and current.json().get("status") == "approved":
             return current.json()
@@ -363,10 +339,7 @@ class ScenarioBenchmarkRunner:
         wait_for_statement_runs_sync(client, f"/api/statements/{statement_id}/runs")
         url = f"/api/statements/{statement_id}/approvals"
         resp = client.post(url, json={"create_account_if_missing": True})
-        if (
-            resp.status_code == 400
-            and "requires explicit human confirmation before posting" in resp.text
-        ):
+        if resp.status_code == 400 and "requires explicit human confirmation before posting" in resp.text:
             self.confirm_review_envelope(client, statement_id)
             resp = client.post(url, json={"create_account_if_missing": True})
         return _check_resp(resp, f"Approval failed for statement {statement_id}").json()
@@ -384,14 +357,10 @@ class ScenarioBenchmarkRunner:
             json={"notes": notes},
         )
         if data.get("status") != "rejected":
-            raise RuntimeError(
-                f"Expected rejected status for statement {statement_id}, got: {data}"
-            )
+            raise RuntimeError(f"Expected rejected status for statement {statement_id}, got: {data}")
         return data
 
-    def assert_approval_blocked_by_balance_mismatch(
-        self, client: httpx.Client, statement_id: str
-    ) -> dict[str, Any]:
+    def assert_approval_blocked_by_balance_mismatch(self, client: httpx.Client, statement_id: str) -> dict[str, Any]:
         resp = client.post(f"/api/statements/{statement_id}/approvals", json={})
         if resp.status_code not in (400, 422):
             raise RuntimeError(
@@ -400,14 +369,10 @@ class ScenarioBenchmarkRunner:
         body = resp.json()
         return {
             "status_code": resp.status_code,
-            "detail": body.get("detail", resp.text)
-            if isinstance(body, dict)
-            else resp.text,
+            "detail": body.get("detail", resp.text) if isinstance(body, dict) else resp.text,
         }
 
-    def assert_brokerage_import_requires_snapshot_date(
-        self, client: httpx.Client, statement_id: str
-    ) -> dict[str, Any]:
+    def assert_brokerage_import_requires_snapshot_date(self, client: httpx.Client, statement_id: str) -> dict[str, Any]:
         resp = client.post("/api/portfolio/brokerage-imports", json={"statement_id": statement_id})
         if resp.status_code != 422:
             raise RuntimeError(
@@ -416,14 +381,9 @@ class ScenarioBenchmarkRunner:
         body = resp.json()
         if not (
             isinstance(body, dict)
-            and (
-                body.get("error_id") == "brokerage_snapshot_date_missing"
-                or "snapshot" in str(body).lower()
-            )
+            and (body.get("error_id") == "brokerage_snapshot_date_missing" or "snapshot" in str(body).lower())
         ):
-            raise RuntimeError(
-                f"Expected brokerage_snapshot_date_missing error for {statement_id}, got: {body}"
-            )
+            raise RuntimeError(f"Expected brokerage_snapshot_date_missing error for {statement_id}, got: {body}")
         return body
 
     def get_data_quality_health(
@@ -432,9 +392,7 @@ class ScenarioBenchmarkRunner:
         as_of_date: str | None = None,
         currency: str | None = None,
     ) -> dict[str, Any]:
-        params = {
-            k: v for k, v in (("as_of_date", as_of_date), ("currency", currency)) if v
-        }
+        params = {k: v for k, v in (("as_of_date", as_of_date), ("currency", currency)) if v}
         return _get_json(
             client,
             "/api/reports/data-quality",
@@ -442,9 +400,7 @@ class ScenarioBenchmarkRunner:
             params=params,
         )
 
-    def run_stage2_consistency_checks(
-        self, client: httpx.Client, statement_id: str
-    ) -> dict[str, Any]:
+    def run_stage2_consistency_checks(self, client: httpx.Client, statement_id: str) -> dict[str, Any]:
         return _post_json(
             client,
             "/api/reconciliation/consistency-checks/runs",
@@ -452,9 +408,7 @@ class ScenarioBenchmarkRunner:
             json={"statement_id": statement_id},
         )
 
-    def batch_approve_matches(
-        self, client: httpx.Client, match_ids: list[str] | None = None
-    ) -> dict[str, Any]:
+    def batch_approve_matches(self, client: httpx.Client, match_ids: list[str] | None = None) -> dict[str, Any]:
         return _post_json(
             client,
             "/api/reconciliation/matches",
@@ -462,9 +416,7 @@ class ScenarioBenchmarkRunner:
             json={"action": "accept", "match_ids": match_ids or []},
         )
 
-    def run_reconciliation(
-        self, client: httpx.Client, statement_id: str | None = None
-    ) -> dict[str, Any]:
+    def run_reconciliation(self, client: httpx.Client, statement_id: str | None = None) -> dict[str, Any]:
         payload = {"statement_id": statement_id} if statement_id else {}
         return _post_json(
             client,
@@ -489,9 +441,7 @@ class ScenarioBenchmarkRunner:
             )
         return len(items)
 
-    def list_transaction_anomalies(
-        self, client: httpx.Client, txn_id: str
-    ) -> list[dict[str, Any]]:
+    def list_transaction_anomalies(self, client: httpx.Client, txn_id: str) -> list[dict[str, Any]]:
         return _get_json(
             client,
             f"/api/reconciliation/transactions/{txn_id}/anomalies",
@@ -518,9 +468,7 @@ class ScenarioBenchmarkRunner:
             },
         )
 
-    def get_report_coverage(
-        self, client: httpx.Client, as_of_date: str | None = None
-    ) -> dict[str, Any]:
+    def get_report_coverage(self, client: httpx.Client, as_of_date: str | None = None) -> dict[str, Any]:
         return _get_json(
             client,
             f"/api/reports/coverage{_qs(('as_of_date', as_of_date))}",
@@ -599,32 +547,22 @@ class ScenarioBenchmarkRunner:
         currency: str | None = None,
         include_restricted: bool | None = None,
     ) -> dict[str, Any]:
-        inc = (
-            None
-            if include_restricted is None
-            else ("true" if include_restricted else "false")
-        )
+        inc = None if include_restricted is None else ("true" if include_restricted else "false")
         q = _qs(
             ("as_of_date", as_of_date),
             ("currency", currency),
             ("include_restricted", inc),
         )
-        return _get_json(
-            client, f"/api/reports/balance-sheet{q}", "Balance sheet request failed"
-        )
+        return _get_json(client, f"/api/reports/balance-sheet{q}", "Balance sheet request failed")
 
-    def get_income_statement(
-        self, client: httpx.Client, start_date: str, end_date: str
-    ) -> dict[str, Any]:
+    def get_income_statement(self, client: httpx.Client, start_date: str, end_date: str) -> dict[str, Any]:
         return _get_json(
             client,
             f"/api/reports/income-statement?start_date={start_date}&end_date={end_date}",
             "Income statement request failed",
         )
 
-    def get_cash_flow(
-        self, client: httpx.Client, start_date: str, end_date: str
-    ) -> dict[str, Any]:
+    def get_cash_flow(self, client: httpx.Client, start_date: str, end_date: str) -> dict[str, Any]:
         return _get_json(
             client,
             f"/api/reports/cash-flow?start_date={start_date}&end_date={end_date}",
@@ -648,18 +586,14 @@ class ScenarioBenchmarkRunner:
             json=body,
         )
 
-    def get_holdings(
-        self, client: httpx.Client, as_of_date: str | None = None
-    ) -> dict[str, Any]:
+    def get_holdings(self, client: httpx.Client, as_of_date: str | None = None) -> dict[str, Any]:
         return _get_json(
             client,
             f"/api/portfolio/holdings{_qs(('as_of_date', as_of_date))}",
             "Holdings request failed",
         )
 
-    def update_market_prices(
-        self, client: httpx.Client, updates: list[dict[str, Any]]
-    ) -> dict[str, Any]:
+    def update_market_prices(self, client: httpx.Client, updates: list[dict[str, Any]]) -> dict[str, Any]:
         return _post_json(
             client,
             "/api/pricing/price-overrides",
@@ -741,9 +675,7 @@ class ScenarioBenchmarkRunner:
             json=payload,
         )
 
-    def get_valuation_components(
-        self, client: httpx.Client, as_of_date: str | None = None
-    ) -> dict[str, Any]:
+    def get_valuation_components(self, client: httpx.Client, as_of_date: str | None = None) -> dict[str, Any]:
         return _get_json(
             client,
             f"/api/pricing/valuation-components{_qs(('as_of_date', as_of_date))}",
@@ -796,15 +728,11 @@ def execute_case_ui(runner: ScenarioBenchmarkRunner) -> CaseResult:
 
 
 def _parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Financial Reporting Multi-Scenario Benchmark Suite."
-    )
+    parser = argparse.ArgumentParser(description="Financial Reporting Multi-Scenario Benchmark Suite.")
     parser.add_argument("--app-url", default="https://report-staging.zitian.party")
     parser.add_argument("--case", default=None)
     parser.add_argument("--version-ref", default="v2.0")
-    parser.add_argument(
-        "--json-report", type=Path, default=REPO_ROOT / "tmp/benchmark_run_report.json"
-    )
+    parser.add_argument("--json-report", type=Path, default=REPO_ROOT / "tmp/benchmark_run_report.json")
     parser.add_argument("--output-summary", type=Path, default=None)
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--insecure", action="store_true", default=False)
@@ -841,9 +769,7 @@ def _dispatch_cases(
     requested = {_normalize_case_id(c) for c in case_arg.split(",") if c.strip()}
     unknown_cases = sorted(requested - set(executors) - {"all", "ui"})
     if unknown_cases:
-        raise ValueError(
-            f"Unknown benchmark case id(s) {unknown_cases}; valid ids are 1 to 6, ui, all"
-        )
+        raise ValueError(f"Unknown benchmark case id(s) {unknown_cases}; valid ids are 1 to 6, ui, all")
 
     for ids, label, mapping in (
         (domain_arg, "domain", DOMAIN_TO_CASES),
@@ -867,19 +793,13 @@ def _dispatch_cases(
             raise ValueError(f"Unknown {label} id(s) {unknown_ids}")
 
     run_all = "all" in requested
-    results = [
-        executors[cid](runner)
-        for cid in sorted(executors)
-        if run_all or cid in requested
-    ]
+    results = [executors[cid](runner) for cid in sorted(executors) if run_all or cid in requested]
     if run_all or "ui" in requested or getattr(runner, "verify_ui", False):
         results.append(execute_case_ui(runner))
     return results
 
 
-def _build_report_data(
-    args: argparse.Namespace, results: list[CaseResult], all_passed: bool
-) -> dict[str, Any]:
+def _build_report_data(args: argparse.Namespace, results: list[CaseResult], all_passed: bool) -> dict[str, Any]:
     return {
         "suite": "financial_reporting_temporal_scenarios",
         "version_ref": args.version_ref,
@@ -912,15 +832,11 @@ def _print_summary(
     json_report_path: Path | None,
 ) -> None:
     for r in results:
-        print(
-            f"{r.status} | {r.case_id.upper()}: {r.case_name} ({r.duration_seconds:.2f}s)"
-        )
+        print(f"{r.status} | {r.case_id.upper()}: {r.case_name} ({r.duration_seconds:.2f}s)")
         if r.error_message:
             print(f"  Error: {r.error_message}")
     s = report_data["summary"]
-    print(
-        f"Total: {len(results)} | Passed: {s['passed']} | Skipped: {s['skipped']} | Failed: {s['failed']}"
-    )
+    print(f"Total: {len(results)} | Passed: {s['passed']} | Skipped: {s['skipped']} | Failed: {s['failed']}")
     if json_report_path:
         print(f"Report saved to: {json_report_path}")
 
@@ -933,13 +849,31 @@ def _run_succeeded(results: list[CaseResult], allow_skip: bool) -> bool:
     return any(r.status == "PASS" for r in results)
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    args = _parse_args(argv)
-    case_arg = (
-        args.case
-        if args.case is not None
-        else ("" if (args.domain or args.flow) else "all")
+def _check_sdk_version(repo_root: Path = REPO_ROOT) -> str | None:
+    """Warn if installed infra2-sdk differs from the locked backend pin (#2885)."""
+    try:
+        _, _, filename = read_sdk_pin(repo_root)
+    except (FileNotFoundError, OSError, ValueError):
+        return None
+    pinned = filename.removeprefix("infra2_sdk-").removesuffix("-py3-none-any.whl")
+    try:
+        installed = importlib.metadata.version("infra2-sdk")
+    except importlib.metadata.PackageNotFoundError:
+        installed = "not installed"
+    if installed == pinned:
+        return None
+    message = (
+        f"Warning: infra2-sdk version mismatch: pinned={pinned}, installed={installed}. "
+        "Run 'cd apps/backend && uv sync --frozen'."
     )
+    print(message, file=sys.stderr)
+    return message
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    _check_sdk_version()
+    args = _parse_args(argv)
+    case_arg = args.case if args.case is not None else ("" if (args.domain or args.flow) else "all")
     runner = ScenarioBenchmarkRunner(
         base_url=args.app_url,
         timeout=args.timeout,
@@ -948,9 +882,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     runner.verify_ui = args.verify_ui
     try:
-        results = _dispatch_cases(
-            runner, case_arg, domain_arg=args.domain, flow_arg=args.flow
-        )
+        results = _dispatch_cases(runner, case_arg, domain_arg=args.domain, flow_arg=args.flow)
     except ValueError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 2

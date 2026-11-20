@@ -48,7 +48,7 @@ def verify_release_images(
     """Inspect the backend/frontend images, retrying on a not-yet-visible digest.
 
     A registry inspect immediately after a push can race the registry's own
-    propagation (seconds, not minutes) — most callers (release.yml's dry-run/
+    propagation (seconds, not minutes) — most callers (infra2 release promotion's dry-run/
     deploy against an already-published release tag) never hit this in
     practice, but the freshest caller (CI's verify-sha-image-published, which
     inspects the :<sha> tag right after container-images pushes it on every

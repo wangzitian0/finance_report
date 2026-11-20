@@ -3,8 +3,8 @@
 # Usage: bash tools/smoke_test.sh [BASE_URL] [MODE]
 #
 # Ownership: this script's RESPONSIBILITY (deployment connectivity smoke) is
-# infra's, not app's — it physically lives here only because deploy.yml/
-# release.yml invoke the thin `tools/smoke_test.sh` wrapper,
+# infra's, not app's — it physically lives here only because runtime-hooks.manifest.json slots
+# invoke the thin `tools/smoke_test.sh` wrapper (deploy.yml/release.yml deleted in #2831),
 # which execs into this file (#1535, surfaced by the #876 app/infra
 # boundary work). Do not add app-domain logic here; behavioral changes to
 # what "smoke" means belong in infra2's deploy contract, not a local edit.

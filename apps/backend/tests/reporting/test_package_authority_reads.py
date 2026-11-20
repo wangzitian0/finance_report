@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import date
+from uuid import UUID
 
 import pytest
 from sqlalchemy import event, select
@@ -18,16 +19,21 @@ PROJECTION_RUN_BUDGET = 2
 
 
 @contextmanager
-def _projection_reads(db_engine) -> Iterator[list[int]]:
+def _projection_reads(db_engine, user_id: UUID) -> Iterator[tuple[list[int], list[tuple[int, str]]]]:
     rows: list[int] = []
+    captured: list[tuple[int, str]] = []
+    user_token = str(user_id)
 
     def _record(conn, cursor, statement, parameters, context, executemany):
         if PROJECTION_MARKER in statement:
-            rows.append(cursor.rowcount)
+            param_text = repr(parameters)
+            captured.append((cursor.rowcount, param_text[:160]))
+            if user_token in param_text:
+                rows.append(cursor.rowcount)
 
     event.listen(db_engine.sync_engine, "after_cursor_execute", _record)
     try:
-        yield rows
+        yield rows, captured
     finally:
         event.remove(db_engine.sync_engine, "after_cursor_execute", _record)
 
@@ -36,7 +42,7 @@ async def test_AC_reporting_package_document_15_one_evaluation_reads_the_authori
     client, db: AsyncSession, db_engine, test_user, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     await seed_reviewed_statement(db, test_user.id, monkeypatch)
-    reads: dict[str, list[int]] = {}
+    reads: dict[str, tuple[list[int], list[tuple[int, str]]]] = {}
     for label, path, extra in (
         ("GET /reports/package", "/reports/package", {}),
         (
@@ -46,20 +52,20 @@ async def test_AC_reporting_package_document_15_one_evaluation_reads_the_authori
         ),
         ("GET /reports/package/manifest-entries", "/reports/package/manifest-entries", {}),
     ):
-        with _projection_reads(db_engine) as rows:
+        with _projection_reads(db_engine, test_user.id) as pair:
             resp = await client.get(path, params={**JUNE_PERIOD, **extra})
         assert resp.status_code == 200, (label, resp.text)
-        reads[label] = rows
-    with _projection_reads(db_engine) as rows:
+        reads[label] = pair
+    with _projection_reads(db_engine, test_user.id) as pair:
         readiness = await current_package_readiness(
             db, user_id=test_user.id, as_of_date=date(2026, 6, 30), base_currency="SGD"
         )
-    reads["current_package_readiness"] = rows
+    reads["current_package_readiness"] = pair
     proj = current_authoritative_trace_decision_projection(TraceScope.tenant(test_user.id)).subquery()
     dec_cnt = len((await db.execute(select(proj.c.decision_id))).all())
     assert readiness.input_coverage.manifest_decision_count > 0
-    for label, rows in reads.items():
-        assert 1 <= len(rows) <= PROJECTION_RUN_BUDGET and max(rows) <= dec_cnt, (label, rows)
+    for label, (rows, captured) in reads.items():
+        assert 1 <= len(rows) <= PROJECTION_RUN_BUDGET and max(rows) <= dec_cnt, (label, rows, captured)
 
 
 async def test_AC_reporting_package_document_15_first_evaluation_sees_the_decisions_it_writes(

@@ -9,7 +9,7 @@ Agents deliver a mergeable branch/PR (never commit directly to `main`):
 - All CI required checks green (`finish` passes; watch runs to completion).
 - Every review comment fixed or justified and replied on the thread before resolving. (Escalate for a fresh review pass after resolving >=1 High or >=3 Medium findings.)
 - Code, commits, and PR descriptions written in English.
-- Only production deployments (`release.yml` / `infra2 deploy` with `type=prod`) require owner approval and presence.
+- Only production deployments (`infra2` `reconcile-iac-inputs.yml` with `promote_prod=true` or `infra2 deploy` with `type=prod`) require owner approval and presence.
 
 ## Development Work Order (TDD-First)
 

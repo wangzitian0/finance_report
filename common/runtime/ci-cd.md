@@ -9,5 +9,5 @@
 - **Fail-closed release coordinates**: `infra2-sdk` release coordinates pin exact `version_ref` tags; `tools/verify_release_images.py` checks backend/frontend digests; `boot.py` and `verify_effective_config_hash` prevent stale config deploys.
 - **AI/OCR Canary vs Audit Replay**:
   - `AI/OCR Canary` (`corpus: canary` in `staging_gate`): runs `tests/e2e/test_brokerage_upload_to_portfolio_value.py` against the deployed VPS (`glm-5.3-flash`) after `Staging Provider Gate` passes (4xx fails hard; 5xx/timeout degrades).
-  - `Audit Replay` (`corpus: audit_replay` / `core_journey` in `audit-replay.yml`): runs heavy LLM journeys (`test_statement_full_journey.py`, `test_four_asset_net_worth_golden_path.py`, `test_personal_financial_report_package.py`) asynchronously without blocking production promotion.
+  - `Audit Replay` (`corpus: audit_replay` / `core_journey` in the `scheduled_audit` hook slot; `audit-replay.yml` deleted in #2831): runs heavy LLM journeys (`test_statement_full_journey.py`, `test_four_asset_net_worth_golden_path.py`, `test_personal_financial_report_package.py`) asynchronously without blocking production promotion.
 - **Incident triage**: Owned by [runtime-incident-response.md](./runtime-incident-response.md). See [DELIVERY_ENGINE_RECOMMENDATIONS.md](../../docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md).
