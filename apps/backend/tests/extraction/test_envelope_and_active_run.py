@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 import pytest
 from sqlalchemy import select, update
@@ -17,6 +17,7 @@ from src.extraction import (
     RunKind,
     RunState,
     RunTrigger,
+    Stage1Status,
     StatementSummary,
     claim_run,
     create_run,
@@ -24,6 +25,7 @@ from src.extraction import (
 )
 from src.extraction.extension.reviewed_statement_envelope import current_reviewed_statement_envelope
 from src.extraction.orm.statement_run import StatementRun
+from src.platform import ValidationFailedError
 from tests.extraction.test_reviewed_statement_envelope import _command, _confirm, _seed_statement_source_and_account
 
 pytestmark = pytest.mark.asyncio
@@ -107,6 +109,40 @@ async def test_AC_extraction_2994_110_the_replay_of_a_confirmed_envelope_passes_
     replay = await _confirm(db, user_id=user_id, statement_id=statement_id, command=command)
     await db.commit()
     assert replay.id == first_id
+
+
+@pytest.mark.parametrize("ended", [BankStatementStatus.APPROVED, BankStatementStatus.REJECTED])
+async def test_the_replay_of_a_confirmation_writes_nothing_after_the_review_ended(db, test_user, ended):
+    """#3029 item 9: a second tab replays the same command after the statement was approved or rejected."""
+    digest = ("7" if ended is BankStatementStatus.APPROVED else "8") * 64
+    statement, account, result, _ = await _seed_statement_source_and_account(db, test_user, source_digest=digest)
+    statement_id, user_id = statement.id, test_user.id
+    command = _command(account_id=account.id, source_result_digest=result.content_digest)
+    first_id = (await _confirm(db, user_id=user_id, statement_id=statement_id, command=command)).id
+    stage1 = Stage1Status.APPROVED if ended is BankStatementStatus.APPROVED else Stage1Status.REJECTED
+    statement.status, statement.stage1_status, statement.validation_error = ended, stage1, "kept"
+    await db.commit()
+
+    replay = await _confirm(db, user_id=user_id, statement_id=statement_id, command=command)
+    await db.commit()
+    stored = await db.scalar(select(StatementSummary).where(StatementSummary.id == statement_id).execution_options(populate_existing=True))
+    assert (replay.id, stored.status, stored.stage1_status, stored.validation_error) == (first_id, ended, stage1, "kept")
+
+
+async def test_a_new_confirmation_is_refused_on_an_approved_statement(db, test_user):
+    """#3029 item 9: a different confirmation on an approved statement answers 400 and keeps the approved state."""
+    statement, account, result, _ = await _seed_statement_source_and_account(db, test_user, source_digest="9" * 64)
+    statement_id, user_id = statement.id, test_user.id
+    command = _command(account_id=account.id, source_result_digest=result.content_digest)
+    first = await _confirm(db, user_id=user_id, statement_id=statement_id, command=command)
+    statement.status, statement.stage1_status = BankStatementStatus.APPROVED, Stage1Status.APPROVED
+    await db.commit()
+    other = replace(command, rationale="A second tab gives another rationale for the same facts.")
+    with pytest.raises(ValidationFailedError, match="Approved statement cannot receive a new source confirmation"):
+        await _confirm(db, user_id=user_id, statement_id=statement_id, command=other)
+    await db.rollback()
+    current = await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement_id)
+    assert (await _status(db, statement_id), current.id) == (BankStatementStatus.APPROVED, first.id)
 
 
 async def test_AC_extraction_2994_110_the_route_answers_200_during_a_classify_run_and_409_during_an_extract_run(client, db, test_user):

@@ -294,6 +294,9 @@ def _require_projection_matches_source(statement: StatementSummary, source_resul
         raise ValidationFailedError("Statement projection diverges from its current source result")
 
 
+_REVIEW_ENDED_STATUSES = frozenset({BankStatementStatus.APPROVED, BankStatementStatus.REJECTED})
+
+
 def _apply_envelope_to_statement(statement: StatementSummary, envelope: ReviewedStatementEnvelope) -> None:
     statement.account_id = envelope.account_id
     statement.currency = envelope.currency
@@ -383,9 +386,17 @@ async def confirm_reviewed_statement_envelope(
         )
     ).scalar_one_or_none()
     if existing is not None:
-        _apply_envelope_to_statement(statement, existing)
-        await db.flush()
+        # The replay of a command that was already applied answers with its envelope. On a statement that a review
+        # ended (approved, with posted entries, or rejected) it writes nothing: PARSED over posted entries would
+        # show a statement that waits for a review although its entries are in the ledger (#3029 item 9).
+        if statement.status not in _REVIEW_ENDED_STATUSES:
+            _apply_envelope_to_statement(statement, existing)
+            await db.flush()
         return existing
+    if statement.status is BankStatementStatus.APPROVED:
+        raise ValidationFailedError(
+            "Approved statement cannot receive a new source confirmation. Reject it before you confirm its source."
+        )
 
     if (await current_reviewed_statement_envelope(db, user_id=user_id, statement_id=statement.id)) is not None:
         raise ReviewedStatementEnvelopeConflict(
