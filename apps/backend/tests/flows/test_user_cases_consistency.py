@@ -11,6 +11,15 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.meta.base.layering import PACKAGE_LAYER
+from common.meta.base.user_case_proof import (
+    PROOF_FLOOR_BENCH_TOTAL,
+    PROOF_FLOOR_E2E_TOTAL,
+    PROOF_FLOOR_L4_FULL,
+    ProofTier,
+    derive_proof_tier,
+    format_proof_tier_cell,
+    summarize_registry_totals,
+)
 from src.audit import JournalEntrySourceType, Money, canonical_json_digest, text_digest
 from src.extraction import TransactionDirection
 from src.extraction.base.validation import (
@@ -152,11 +161,9 @@ def test_ssot_registry_completeness() -> None:
             assert md_row[field] == ssot_uc[field], (
                 f"{uc_id} markdown field '{field}' drifted: md={md_row[field]!r} vs ssot={ssot_uc[field]!r}"
             )
-        expected_status_cell = (
-            f"{ssot_uc['status']} ({ssot_uc['gap_issue']})" if ssot_uc.get("gap_issue") else ssot_uc["status"]
-        )
-        assert md_row["status_cell"] == expected_status_cell, (
-            f"{uc_id} markdown status drifted: md={md_row['status_cell']!r} vs expected={expected_status_cell!r}"
+        expected_tier_cell = format_proof_tier_cell(ssot_uc)
+        assert md_row["status_cell"] == expected_tier_cell, (
+            f"{uc_id} markdown proof tier drifted: md={md_row['status_cell']!r} vs expected={expected_tier_cell!r}"
         )
 
     extracted = {
@@ -287,10 +294,64 @@ def test_ssot_registry_completeness() -> None:
     assert canonical_json_digest(tampered) != manifest_digest
 
 
+def _assert_real_test_file(repo_root: Path, rel_path: str, label: str) -> None:
+    target = repo_root / rel_path
+    assert target.exists(), f"{label} missing: {rel_path}"
+    content = target.read_text(encoding="utf-8")
+    if rel_path.endswith(".py"):
+        assert re.search(r"^\s*(?:async\s+)?def\s+test_", content, re.MULTILINE), (
+            f"{label} contains no Python test definition: {rel_path}"
+        )
+    else:
+        assert re.search(r"\b(?:it|test)\s*\(", content), (
+            f"{label} contains no frontend test case: {rel_path}"
+        )
+
+
+def test_user_case_proof_tier_ratchet_and_board() -> None:
+    repo_root = _repo_root()
+    data = _load_ssot_registry()
+    domains = data.get("domains", [])
+    totals = summarize_registry_totals(domains)
+    assert totals["total"] == 47
+    assert totals[ProofTier.L4_FULL_PROOF.value] >= PROOF_FLOOR_L4_FULL
+    assert (
+        totals[ProofTier.L4_FULL_PROOF.value] + totals[ProofTier.L3_E2E_PROVEN.value]
+        >= PROOF_FLOOR_E2E_TOTAL
+    )
+    assert (
+        totals[ProofTier.L4_FULL_PROOF.value] + totals[ProofTier.L3_BENCH_PROVEN.value]
+        >= PROOF_FLOOR_BENCH_TOTAL
+    )
+    assert totals[ProofTier.L0_GAP.value] == 0
+
+    # Synthetic mutation proof for derive_proof_tier across all 6 tiers.
+    assert derive_proof_tier({"gap_issue": "#1", "gap_kind": "gap"}) == ProofTier.L0_GAP
+    assert derive_proof_tier({"gap_issue": "#1", "gap_kind": "partial"}) == ProofTier.L1_PARTIAL
+    assert derive_proof_tier({"e2e_test_ref": None, "benchmark_cases": []}) == ProofTier.L2_SURFACE_CONTRACT
+    assert derive_proof_tier({"e2e_test_ref": None, "benchmark_cases": ["1"]}) == ProofTier.L3_BENCH_PROVEN
+    assert derive_proof_tier({"e2e_test_ref": "tests/e2e/x.py", "benchmark_cases": []}) == ProofTier.L3_E2E_PROVEN
+    assert derive_proof_tier({"e2e_test_ref": "tests/e2e/x.py", "benchmark_cases": ["1"]}) == ProofTier.L4_FULL_PROOF
+
+    md_text = (repo_root / "docs" / "reference" / "user-cases.md").read_text(encoding="utf-8")
+    assert "## 2. Derived Proof-Tier Coverage Matrix" in md_text
+    expected_total_row = (
+        f"| **Total** | **{totals['total']}** "
+        f"| **{totals[ProofTier.L4_FULL_PROOF.value]}** "
+        f"| **{totals[ProofTier.L3_E2E_PROVEN.value]}** "
+        f"| **{totals[ProofTier.L3_BENCH_PROVEN.value]}** "
+        f"| **{totals[ProofTier.L2_SURFACE_CONTRACT.value]}** "
+        f"| **{totals[ProofTier.L1_PARTIAL.value]}** "
+        f"| **{totals[ProofTier.L0_GAP.value]}** |"
+    )
+    assert expected_total_row in md_text
+
+
 @pytest.mark.parametrize("uc", _all_user_cases(), ids=lambda c: f"{c['id']}_{c['name'][:20]}")
 def test_each_user_case_has_valid_contracts_and_test_evidence(uc: dict) -> None:
     repo_root = _repo_root()
     assert "test_ref" not in uc, f"{uc['id']} must not carry redundant test_ref key"
+    assert "status" not in uc, f"{uc['id']} must not carry hand-authored status key; tier is derived"
     assert uc["name"].strip(), f"{uc['id']} missing name"
     assert uc["title"].strip(), f"{uc['id']} missing title"
     assert uc["ui_surface"].startswith("/"), f"{uc['id']} invalid ui_surface"
@@ -298,11 +359,15 @@ def test_each_user_case_has_valid_contracts_and_test_evidence(uc: dict) -> None:
     assert uc["invariant"].strip(), f"{uc['id']} missing invariant"
     assert uc["owning_packages"], f"{uc['id']} missing owning_packages"
     assert set(uc["owning_packages"]).issubset(PACKAGE_LAYER), f"{uc['id']} unknown owning_packages"
-    assert uc["status"] in {"verified", "partial", "gap"}
-    if uc["status"] == "verified":
-        assert uc.get("gap_issue") is None, f"{uc['id']} verified case must not set gap_issue"
+
+    gap_issue = uc.get("gap_issue")
+    if gap_issue is not None:
+        assert isinstance(gap_issue, str) and gap_issue.strip(), f"{uc['id']} invalid gap_issue"
+        assert uc.get("gap_kind") in {"partial", "gap"}, f"{uc['id']} gap_issue requires gap_kind"
+        assert derive_proof_tier(uc) in {ProofTier.L0_GAP, ProofTier.L1_PARTIAL}
     else:
-        assert uc.get("gap_issue"), f"{uc['id']} non-verified status requires gap_issue"
+        assert "gap_kind" not in uc, f"{uc['id']} must not set gap_kind without gap_issue"
+        assert derive_proof_tier(uc) not in {ProofTier.L0_GAP, ProofTier.L1_PARTIAL}
 
     method, raw_path = uc["backend_endpoint"].split(" ", 1)
     norm_path = _normalize_openapi_path(raw_path)
@@ -322,11 +387,16 @@ def test_each_user_case_has_valid_contracts_and_test_evidence(uc: dict) -> None:
     for ref_key in ("backend_test_ref", "frontend_test_ref"):
         ref_val = uc.get(ref_key)
         assert ref_val and ref_val.strip(), f"{uc['id']} missing {ref_key}"
-        assert (repo_root / ref_val).exists(), f"{uc['id']} {ref_key} missing: {ref_val}"
+        _assert_real_test_file(repo_root, ref_val, f"{uc['id']} {ref_key}")
 
     e2e_ref = uc.get("e2e_test_ref")
     if e2e_ref:
-        assert (repo_root / e2e_ref).exists(), f"{uc['id']} e2e_test_ref missing: {e2e_ref}"
+        _assert_real_test_file(repo_root, e2e_ref, f"{uc['id']} e2e_test_ref")
+
+    for bench_case in uc.get("benchmark_cases", []):
+        assert isinstance(bench_case, str) and bench_case.strip(), f"{uc['id']} invalid benchmark_cases entry"
+        bench_file = repo_root / "tests" / "benchmarks" / "cases" / f"case_{bench_case}.py"
+        assert bench_file.exists(), f"{uc['id']} benchmark case file missing: {bench_file}"
 
 
 async def test_uc_26_transfer_pairing(db: AsyncSession, test_user: User) -> None:

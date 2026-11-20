@@ -16,7 +16,7 @@ These invariants must hold at **all times**:
 | Rule | Detail |
 |------|--------|
 | **Explicit Enum naming** | All `sa.Enum` MUST have `name="..._enum"` in SQLAlchemy. | | **Frontend env vars** | `NEXT_PUBLIC_` vars MUST be defined as `ARG`/`ENV` in `apps/frontend/Dockerfile`. | | **Backend env vars** | All vars MUST have type + default in `apps/backend/src/config.py` and be in `.env.example`. | | **Cross-repo sync** | Production config changes (Vault/Compose) REQUIRE a separate PR in [`infra2`](https://github.com/wangzitian0/infra2); never reintroduce an infra source checkout. |
-| **Async transaction boundary** | Routers call `commit()`; Services call `flush()` only. |
+| **Async transaction boundary** | Pure-DB requests commit once in the router `Ctx`; workflows crossing external I/O (LLM, S3, HTTP, SSE) MUST split into short claim/read DB session -> session-free external I/O -> short persist/commit DB session. |
 ## 🔒 Agent Deliverable Scope
 - ✅ Agent **MUST** ensure CI passes before reporting completion. - Merge authority is scoped by [branch-policy.md](../contributing/branch-policy.md) §4 — that section is the only source, not this one. For the full agent workflow, see [orchestration.md](./orchestration.md).
 ## Concept Ownership

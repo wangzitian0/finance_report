@@ -141,9 +141,8 @@ moon run :dev -- --frontend # Frontend only
 moon run :lint             # Lint all workspaces
 moon run :lint -- --fix    # Lint and auto-fix where supported
 
-moon run :test -- --smart  # Default local loop: changed-file/affected coverage mode
-moon run :test -- --fast   # Fast TDD loop without coverage
-moon run :test             # Full local confidence gate with coverage
+moon run :test -- --fast   # Fast local TDD loop without coverage
+moon run :test             # Full local backend/frontend suite
 moon run :test -- --e2e    # Root deployment E2E tests
 
 moon run :build            # Build frontend

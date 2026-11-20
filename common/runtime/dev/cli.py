@@ -199,9 +199,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_test = subparsers.add_parser("test", help="Run tests")
     p_test.add_argument("--fast", action="store_true", help="No coverage, fast")
     p_test.add_argument(
-        "--smart", action="store_true", help="Coverage on changed files"
-    )
-    p_test.add_argument(
         "--ephemeral",
         action="store_true",
         help="Ephemeral mode: destroy all infra after run",
