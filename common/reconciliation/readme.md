@@ -74,7 +74,7 @@ Two `TransferLeg` candidates pair via `pair_fx_legs` / `discover_fx_conversions`
 | `POST` | `/statements/{id}/approvals` | Stage 1 approve with balance validation |
 | `POST` | `/statements/{id}/rejections` | Stage 1 reject + extract rerun |
 | `GET` | `/statements/{statement_id}/conflicts` | Duplicate and transfer-pair conflicts |
-| `POST` | `/statements/{statement_id}/conflict-resolutions` | Resolve duplicate and transfer-pair conflicts |
+| `POST` | `/statements/{statement_id}/conflict-resolutions` | Confirm that the listed duplicate and transfer-pair candidates are different transactions; links no rows |
 | `GET` | `/reconciliation/review-queue` | Stage 2 queue (`optional run_id`) |
 | `POST` | `/reconciliation/consistency-checks/runs` | Run consistency checks |
 | `POST` | `/reconciliation/consistency-checks/{id}/resolutions` | Resolve consistency check |

@@ -182,7 +182,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `200` `BankStatementResponse` | Get Statement |
 | `DELETE` | `/statements/{statement_id}` | yes | `statement_id`* (path) | - | `204` - | Delete Statement |
 | `POST` | `/statements/{statement_id}/approvals` | yes | `statement_id`* (path) | `Stage1ApprovalRequest` \| null | `200` `Stage1ApprovalResponse` | Approve Statement Stage1 |
-| `POST` | `/statements/{statement_id}/conflict-resolutions` | yes | `statement_id`* (path) | `ResolveConflictsRequest` | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
+| `POST` | `/statements/{statement_id}/conflict-resolutions` | yes | `statement_id`* (path) | `ResolveConflictsRequest` \| null | `200` `ReviewConflictsResolveResponse` | Resolve Review Conflicts |
 | `GET` | `/statements/{statement_id}/conflicts` | yes | `statement_id`* (path) | - | `200` `ReviewConflictsResponse` | Get Review Conflicts |
 | `GET` | `/statements/{statement_id}/document` | yes | `statement_id`* (path) | - | `200` - | Get Statement Document |
 | `POST` | `/statements/{statement_id}/rejections` | yes | `statement_id`* (path) | `StatementDecisionRequest` | `200` `BankStatementResponse` | Reject Statement Stage1 |

@@ -37,19 +37,19 @@ Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`). 
 |---|---:|---:|---:|---:|---:|---:|---:|
 | **D1: Setup, Identity & Chart of Accounts** | 5 | 0 | 1 | 0 | 0 | 4 | 0 |
 | **D2: Ingestion & Multimodal Extraction** | 7 | 2 | 0 | 0 | 1 | 4 | 0 |
-| **D3: Fact Review & Human-in-the-Loop** | 8 | 0 | 2 | 2 | 1 | 3 | 0 |
+| **D3: Fact Review & Human-in-the-Loop** | 8 | 0 | 2 | 3 | 1 | 2 | 0 |
 | **D4: Economic Intent & Categorization** | 5 | 1 | 0 | 3 | 0 | 1 | 0 |
 | **D5: Cross-Source Reconciliation & Transfers** | 5 | 0 | 1 | 3 | 0 | 1 | 0 |
 | **D6: Investments & Multi-Asset Valuation** | 8 | 2 | 0 | 2 | 1 | 3 | 0 |
 | **D7: Financial Reporting & Accounting Equation Governance** | 7 | 1 | 1 | 3 | 0 | 2 | 0 |
 | **D8: Anomaly Monitoring & Explainable AI Financial Advisor** | 2 | 1 | 0 | 1 | 0 | 0 | 0 |
-| **Total** | **47** | **7** | **5** | **14** | **3** | **18** | **0** |
+| **Total** | **47** | **7** | **5** | **15** | **3** | **17** | **0** |
 
 ### Incremental Proof Upgrade Queue
 
-- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-10 (#2917), UC-11 (#3029), UC-13 (#2984), UC-14 (#3112), UC-15 (#2958), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923), UC-39 (#2955), UC-42 (#2977)
+- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-10 (#2917), UC-11 (#3029), UC-13 (#2984), UC-14 (#3112), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923), UC-39 (#2955), UC-42 (#2977)
 - **Surface-only (`L2_SURFACE` — add E2E or benchmark)**: UC-12, UC-18, UC-37
-- **Bench without E2E (`L3_BENCH` -> `L4_FULL`)**: UC-16, UC-17, UC-22, UC-23, UC-25, UC-28, UC-29, UC-30, UC-33, UC-35, UC-40, UC-41, UC-44, UC-46
+- **Bench without E2E (`L3_BENCH` -> `L4_FULL`)**: UC-15, UC-16, UC-17, UC-22, UC-23, UC-25, UC-28, UC-29, UC-30, UC-33, UC-35, UC-40, UC-41, UC-44, UC-46
 - **E2E without Bench (`L3_E2E` -> `L4_FULL`)**: UC-05, UC-19, UC-20, UC-27, UC-43
 
 ---
@@ -94,7 +94,7 @@ Governs Stage-1 fact validation, mismatch defense, deduplication, rejection tria
 |---|---|---|---|---|---|---|---|
 | **UC-13** | Stage-1 Review Quick Human Approval<br>*(事实核对快速批准)* | `/statements/{id}` | `ReviewActionBar` | `POST /statements/{id}/approvals` | `Approved statements create posted journal entries with matching custody account` | `L1_PARTIAL (#2984)` | [`apps/backend/tests/api/test_statements_router.py`](../../apps/backend/tests/api/test_statements_router.py) |
 | **UC-14** | Stage-1 Balance Mismatch Defense & Rejection Guidance<br>*(链断裂防御与驳回重析引导)* | `/statements/{id}` | `LowConfidenceReviewModal` | `POST /statements/{id}/rejections` | `Mismatch prevents silent corruption; rejects in-place mutation and routes to re-parse` | `L1_PARTIAL (#3112)` | [`apps/backend/tests/api/test_statements_router.py`](../../apps/backend/tests/api/test_statements_router.py) |
-| **UC-15** | Cross-Statement Overlapping Transaction Deduplication<br>*(跨账单重叠交易去重)* | `/statements/{id}` | `ConflictResolutionDialog` | `POST /reconciliation/consistency-checks/runs` | `Duplicate transactions flagged and linked without double-counting in ledger` | `L1_PARTIAL (#2958)` | [`apps/backend/tests/extraction/test_deduplication.py`](../../apps/backend/tests/extraction/test_deduplication.py) |
+| **UC-15** | Cross-Statement Overlapping Transaction Deduplication<br>*(跨账单重叠交易去重)* | `/statements/{id}` | `ConflictResolutionDialog` | `POST /reconciliation/consistency-checks/runs` | `Duplicate candidates are flagged for one reviewer confirmation; transfer pairs link in reconciliation without double-counting in ledger` | `L3_BENCH` | [`apps/backend/tests/extraction/test_deduplication.py`](../../apps/backend/tests/extraction/test_deduplication.py) |
 | **UC-16** | Low Quality Document Triage and Rejection Recovery<br>*(劣质文档排查与废弃)* | `/statements/{id}` | `ConfirmDialog` | `POST /statements/{id}/rejections` | `Rejected statements excluded from general ledger and marked with taxonomy reason` | `L3_BENCH` | [`apps/backend/tests/api/test_statements_router.py`](../../apps/backend/tests/api/test_statements_router.py) |
 | **UC-17** | Contextual In-Page AI Assistant & Recovery<br>*(页内伴随式 AI 问答与容错)* | `/statements/{id}` | `StatementDetailPage` | `POST /chat` | `Metadata-preserving navigation: Chat prompt carries immutable statement metadata and gracefully recovers from SSE disconnects` | `L3_BENCH` | [`apps/backend/tests/api/test_statements_router.py`](../../apps/backend/tests/api/test_statements_router.py) |
 | **UC-18** | Manual Category Correction & AI Feedback Logging<br>*(人工修改交易分类并沉淀纠偏样本)* | `/audit?tab=needs-you` | `AiSuggestionsQueue` | `POST /statements/classification-feedback` | `User category overrides persist CorrectionLog and AiFeedback entries for downstream confidence improvement` | `L2_SURFACE` | [`apps/backend/tests/extraction/test_classification_feedback_router.py`](../../apps/backend/tests/extraction/test_classification_feedback_router.py) |

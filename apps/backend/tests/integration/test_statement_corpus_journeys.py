@@ -169,7 +169,7 @@ async def _seed_and_accept_case(client, db, user_id, case: CorpusCase, prefix: s
         assert (
             await client.post(
                 f"/statements/{stmt_id}/conflict-resolutions",
-                json={"action": "confirm_distinct", "note": f"corpus {case.short_id}: source rows verified"},
+                json={"note": f"corpus {case.short_id}: source rows verified"},
             )
         ).status_code == 200
     approve_resp = await approve_reviewed(client, stmt_id, {"create_account_if_missing": True})

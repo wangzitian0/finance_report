@@ -416,7 +416,8 @@ class ReviewConflictsResponse(BaseModel):
 
 
 class ResolveConflictsRequest(BaseModel):
-    action: Literal["confirm_distinct", "link_transfer"] = "confirm_distinct"
+    """The reviewer confirms that the listed candidates are different transactions. The call links no rows."""
+
     note: Annotated[str, Field(max_length=500)] | None = None
 
 

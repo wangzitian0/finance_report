@@ -118,7 +118,7 @@ export function ReviewActionBar({ onApprove, onReject, actionLoading, balanceVal
       {isBlocked && (
         <div role="status" className="flex w-full flex-col gap-2 rounded-md border border-[var(--warning)]/30 bg-[var(--warning-muted)] p-3 text-sm sm:max-w-sm">
           <p className="text-[var(--foreground)]">{reason}</p>
-          {blockedByConflicts && onResolveConflicts && <button type="button" onClick={onResolveConflicts} className="btn-secondary btn-sm self-start">Resolve conflicts</button>}
+          {blockedByConflicts && onResolveConflicts && <button type="button" onClick={onResolveConflicts} className="btn-secondary btn-sm self-start">Review possible duplicates</button>}
           {blockedByBalance && onReparse && <button type="button" onClick={onReparse} disabled={reparsePending} className="btn-secondary btn-sm self-start disabled:opacity-50">{reparsePending ? "Re-parsing…" : "Re-parse statement"}</button>}
         </div>
       )}
@@ -126,40 +126,46 @@ export function ReviewActionBar({ onApprove, onReject, actionLoading, balanceVal
   );
 }
 
+type ConflictCandidate = { id: string; description: string; txn_date: string; amount: MoneyValue };
+
+/**
+ * Lists the Stage-1 candidates of one statement and offers one confirmation for all of them (#2958).
+ * The confirmation links no rows: transfer pairs come from reconciliation.
+ */
 export function ConflictResolutionDialog({ isOpen, onClose, duplicateCandidates, transferPairCandidates, onResolve, isResolving = false }: {
-  isOpen: boolean; onClose: () => void; duplicateCandidates: { id: string; description: string; txn_date: string; amount: MoneyValue }[]; transferPairCandidates: { id: string; description: string; txn_date: string; amount: MoneyValue }[]; onResolve?: (action: "confirm_distinct" | "link_transfer") => void; isResolving?: boolean;
+  isOpen: boolean; onClose: () => void; duplicateCandidates: ConflictCandidate[]; transferPairCandidates: ConflictCandidate[]; onResolve?: () => void; isResolving?: boolean;
 }) {
+  const empty = duplicateCandidates.length === 0 && transferPairCandidates.length === 0;
+  const rows = (kind: string, candidates: ConflictCandidate[]) => (
+    <div className="space-y-2">{candidates.map((c, i) => (
+      <div key={`${kind}-${c.id}-${i}`} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 text-sm"><div className="font-medium">{c.description}</div><div className="text-xs text-muted">{c.txn_date} • {c.amount}</div></div>
+    ))}</div>
+  );
   return (
-    <DetailDialog isOpen={isOpen} onClose={onClose} title="Resolve Conflicts" maxWidth="max-w-2xl">
-      {duplicateCandidates.length === 0 && transferPairCandidates.length === 0 ? (
+    <DetailDialog isOpen={isOpen} onClose={onClose} title="Review possible duplicates" maxWidth="max-w-2xl">
+      {empty ? (
         <div className="text-center py-8 text-muted"><p>No conflicts detected for this statement.</p></div>
       ) : (
         <div className="space-y-6">
           {duplicateCandidates.length > 0 && (
             <div>
               <h3 className="text-sm font-medium mb-2 flex items-center gap-2"><span className="w-2 h-2 bg-[var(--warning)] rounded-full" />Duplicate Candidates</h3>
-              <div className="space-y-2">{duplicateCandidates.map((c, i) => (
-                <div key={`duplicate-${c.id}-${i}`} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
-                  <div className="text-sm"><div className="font-medium">{c.description}</div><div className="text-xs text-muted">{c.txn_date} • {c.amount}</div></div>
-                  <button type="button" className="btn-primary btn-sm" disabled={isResolving || !onResolve} onClick={() => onResolve?.("confirm_distinct")}>{isResolving ? "Resolving…" : "Resolve"}</button>
-                </div>
-              ))}</div>
+              {rows("duplicate", duplicateCandidates)}
             </div>
           )}
           {transferPairCandidates.length > 0 && (
             <div>
               <h3 className="text-sm font-medium mb-2 flex items-center gap-2"><span className="w-2 h-2 bg-[var(--accent)] rounded-full" />Transfer Pair Candidates</h3>
-              <div className="space-y-2">{transferPairCandidates.map((c, i) => (
-                <div key={`transfer-${c.id}-${i}`} className="p-3 border border-[var(--border)] rounded bg-[var(--background-muted)]/30 flex items-center justify-between">
-                  <div className="text-sm"><div className="font-medium">{c.description}</div><div className="text-xs text-muted">{c.txn_date} • {c.amount}</div></div>
-                  <button type="button" className="btn-primary btn-sm" disabled={isResolving || !onResolve} onClick={() => onResolve?.("link_transfer")}>{isResolving ? "Resolving…" : "Link Pair"}</button>
-                </div>
-              ))}</div>
+              {rows("transfer", transferPairCandidates)}
             </div>
           )}
+          <p className="text-xs text-muted">This confirmation links no rows. Transfer pairs are matched in reconciliation.</p>
         </div>
       )}
-      <div className="mt-6 flex justify-end border-t border-[var(--border)] pt-4"><button type="button" onClick={onClose} className="btn-secondary">Close</button></div>
+      <div className="mt-6 flex justify-end gap-2 border-t border-[var(--border)] pt-4">
+        <button type="button" onClick={onClose} className="btn-secondary">Close</button>
+        {!empty && <button type="button" className="btn-primary" disabled={isResolving || !onResolve} onClick={() => onResolve?.()}>{isResolving ? "Confirming…" : "These rows are different transactions. Continue."}</button>}
+      </div>
     </DetailDialog>
   );
 }

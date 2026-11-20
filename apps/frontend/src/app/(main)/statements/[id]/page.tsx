@@ -410,14 +410,14 @@ export default function StatementDetailPage() {
   };
 
   const resolveConflictsMutation = useMutation({
-    mutationFn: (action: "confirm_distinct" | "link_transfer") => apiOperation("resolve_review_conflicts_statements__statement_id__conflict_resolutions_post", { path: { statement_id: statementId }, body: { action } }),
+    mutationFn: () => apiOperation("resolve_review_conflicts_statements__statement_id__conflict_resolutions_post", { path: { statement_id: statementId }, body: {} }),
     onSuccess: () => {
-      showToast("Conflicts resolved", "success");
+      showToast("Confirmed as different transactions", "success");
       setConflictsResolved(true);
       setConflictDialogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["statement-conflicts", statementId] });
     },
-    onError: (err) => showToast(err instanceof Error ? err.message : "Failed to resolve conflicts", "error"),
+    onError: (err) => showToast(err instanceof Error ? err.message : "Failed to save the confirmation", "error"),
   });
 
   useEffect(() => {
@@ -547,7 +547,7 @@ export default function StatementDetailPage() {
   const approvalBlockedReason = hasActiveRun ? "Wait for the active run to end before approving this statement."
     : requiresEnvelopeConfirmation ? "Confirm the source facts before approving this statement."
     : requiresOtherSourceReview ? "This source has facts that a cash statement check cannot confirm."
-    : hasUnresolvedConflicts ? "Resolve duplicate and transfer-pair candidates before approval" : null;
+    : hasUnresolvedConflicts ? "Review the possible duplicates before approval" : null;
   const currentIndex = pendingStatements.findIndex((s) => s.id === statementId);
   const prevId = currentIndex > 0 ? pendingStatements[currentIndex - 1].id : null;
   const nextId = currentIndex >= 0 && currentIndex < pendingStatements.length - 1 ? pendingStatements[currentIndex + 1].id : null;
@@ -668,7 +668,7 @@ export default function StatementDetailPage() {
         <div className={`order-1 min-w-0 lg:order-2 ${showPreview ? "lg:col-span-7 lg:min-h-[540px] lg:h-[600px]" : "lg:col-span-12"}`}><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
       </div>
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
-      <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={(action) => resolveConflictsMutation.mutate(action)} isResolving={resolveConflictsMutation.isPending} />
+      <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} onResolve={() => resolveConflictsMutation.mutate()} isResolving={resolveConflictsMutation.isPending} />
       <ConfirmDialog isOpen={approveDialogOpen} onCancel={() => !approveMutation.isPending && setApproveDialogOpen(false)} onConfirm={() => approveMutation.mutate(hasUnclassifiedPendingTxns ? { autoFill: true } : undefined)} title="Approve Statement" message={(hasUnclassifiedPendingTxns ? "Transactions without a category will be filed under default categories. " : "") + (review?.account_id || envelopeDraft.accountId ? "This will approve the statement with balance validation. Proceed?" : "This will create and map an asset account for this statement, then approve it with balance validation. Proceed?")} confirmLabel="Approve" loading={approveMutation.isPending} />
       <ConfirmDialog isOpen={rejectDialogOpen} onCancel={() => !rejectMutation.isPending && setRejectDialogOpen(false)} onConfirm={handleReject} title="Reject Statement" message="Parsed transactions can't be edited. To fix a mis-parse, reject this statement with a reason. The reason guides the next parse, or run it again with hints on this page. This will mark the statement as rejected." confirmLabel="Reject" confirmVariant="danger" input={{ label: "Rejection Reason (optional)", placeholder: "Enter reason for rejection...", maxLength: 500 }} loading={rejectMutation.isPending} />
       <ConfirmDialog isOpen={deleteDialogOpen} title="Delete Statement" message="Are you sure you want to delete this statement? This action cannot be undone and will remove all associated parsed transactions and errors." confirmLabel="Delete" confirmVariant="danger" loading={deleteLoading} onConfirm={handleDeleteStatement} onCancel={() => setDeleteDialogOpen(false)} />
