@@ -33,5 +33,7 @@ describe("HoldingsTable", () => {
     expect(row).not.toBeNull();
     expect(row?.textContent).not.toMatch(/0\.00%/);
     expect([4, 5].map((cell) => row?.querySelectorAll("td")[cell]?.textContent)).toEqual(["—", "—"]);
+    // The cost column is hidden below the md breakpoint, so the profit cell carries the reason too.
+    expect(row?.querySelectorAll("td")[4]?.getAttribute("title")).toBe("No purchase recorded");
   });
 }); // AC-portfolio.fe-ia-portfolio.1

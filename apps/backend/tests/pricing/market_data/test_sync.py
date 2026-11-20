@@ -147,10 +147,10 @@ async def test_portfolio_uses_and_quantizes_synced_stock_prices(db: AsyncSession
         StockPrice(symbol="IBM", price=Decimal("173.980232"), currency="SGD", price_date=date(2026, 1, 6), source="test_sync"),
     ])
     await db.flush()
-    db.add_all([_buy_row(test_user.id, aapl, Decimal("100.00")), _buy_row(test_user.id, ibm, Decimal("26.90"))])
+    db.add_all([_buy_row(test_user.id, aapl, Decimal("110.00")), _buy_row(test_user.id, ibm, Decimal("30.00"))])  # differ from the stored costs 100.00 and 26.90
     await db.commit()
     by_sym = {h.asset_identifier: h for h in await PortfolioService().get_holdings(db, user_id=test_user.id, as_of_date=date(2026, 1, 6), base_currency="SGD")}
-    assert ((by_sym["AAPL"].market_value, by_sym["AAPL"].unrealized_pnl), (by_sym["IBM"].market_value, by_sym["IBM"].unrealized_pnl)) == ((Decimal("310.00"), Decimal("210.00")), (Decimal("521.94"), Decimal("495.04")))  # cost from the recorded BUY rows (#2920)
+    assert ((by_sym["AAPL"].market_value, by_sym["AAPL"].unrealized_pnl), (by_sym["IBM"].market_value, by_sym["IBM"].unrealized_pnl)) == ((Decimal("310.00"), Decimal("200.00")), (Decimal("521.94"), Decimal("491.94")))  # cost from the recorded BUY rows, not the stored cost (#2920)
 
 
 async def test_persist_stock_price_and_upsert_sync_state_concurrency(db: AsyncSession, monkeypatch: pytest.MonkeyPatch) -> None:

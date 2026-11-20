@@ -63,6 +63,19 @@ async def test_reconcile_stores_no_cost_basis_for_a_position_without_a_purchase(
     )
 
 
+async def test_reconcile_counts_a_position_as_updated_only_when_the_snapshot_date_changes(db, test_user):
+    service = PositionService()
+    db.add(_snapshot(test_user.id, JUNE, "2000.00"))
+    await db.flush()
+    created = await service.reconcile_positions(db, test_user.id)
+    unchanged = await service.reconcile_positions(db, test_user.id)
+    db.add(_snapshot(test_user.id, SEPTEMBER, "2100.00"))
+    await db.flush()
+    later = await service.reconcile_positions(db, test_user.id)
+
+    assert [(r.created, r.updated) for r in (created, unchanged, later)] == [(1, 0), (0, 0), (0, 1)]
+
+
 async def test_holdings_return_no_cost_and_no_profit_without_a_purchase(db, test_user):
     await _import_two_snapshots(db, test_user.id)
     service = PortfolioService()
