@@ -363,6 +363,8 @@ async def _queue_statement_reparse(
     file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
     request_id = ensure_request_id()
     model_to_use = model
+    # End the read-only transaction, so no database transaction stays open during the storage read (#3156).
+    await db.commit()
     started = await start_user_extract_run(
         db,
         statement_id=statement.id,

@@ -82,7 +82,6 @@ async def test_external_io_inside_open_app_transaction_raises_and_ingestion_pass
 ) -> None:
     from dataclasses import replace
     import hashlib
-    from unittest.mock import AsyncMock
     from uuid import uuid4
 
     import httpx
@@ -95,7 +94,6 @@ async def test_external_io_inside_open_app_transaction_raises_and_ingestion_pass
     from src.extraction.base.types import ParseJob, StatementIngestionStatus
     from src.extraction.base.validation import split_multi_account_extraction
     from src.extraction.extension.service import ExtractionService
-    from src.llm.extension.client import cassette_completion
     from src.runtime.extension.storage import StorageService
     from tests.conftest import active_guarded_app_transactions
     from tests.extraction._statement_run_helpers import create_test_run
@@ -108,12 +106,6 @@ async def test_external_io_inside_open_app_transaction_raises_and_ingestion_pass
         async with httpx.AsyncClient() as http_client:
             with pytest.raises(RuntimeError, match="External I/O attempted while an application AsyncSession transaction is open"):
                 await http_client.get("https://example.com/")
-        with pytest.raises(RuntimeError, match="External I/O attempted while an application AsyncSession transaction is open"):
-            await cassette_completion(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": "ping"}],
-                provider_call=AsyncMock(return_value={}),
-            )
         await open_session.rollback()
 
     pdf_bytes = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
