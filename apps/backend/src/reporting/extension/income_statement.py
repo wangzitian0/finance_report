@@ -12,13 +12,12 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, AccountType, JournalEntry, JournalEntryAuthorityState, JournalLine
-from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import ErrorIds, get_logger
 from src.platform import require_base_currency
 from src.pricing import FxWarning, PrefetchedFxRates, PricingError, convert_money
 from src.reporting.base.income_statement_calculator import calculate_income_statement_totals
 from src.reporting.base.l1_registry import economic_category_line
-from src.reporting.extension._core import _build_account_lines, _load_accounts, _prefetch_fx_rates
+from src.reporting.extension._core import _build_account_lines, _ledger_lines_query, _load_accounts, _prefetch_fx_rates
 from src.reporting.extension.balance_sheet import _compute_unrealized_fx_gain_loss
 from src.reporting.extension.internal_transfer import _internal_transfer_adjustment
 from src.audit import DataProvenance
@@ -109,18 +108,15 @@ async def generate_income_statement(
     period_totals: dict[date, dict[str, Decimal]] = {}
     category_balances: dict[tuple[UUID, str], Decimal] = defaultdict(lambda: Decimal("0"))
 
-    stmt = (
-        select(JournalLine, Account, JournalEntry)
-        .join(Account, JournalLine.account_id == Account.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(
-            Account.user_id == user_id,
-            Account.type.in_(account_types),
-            JournalEntry.user_id == user_id,
-            active_journal_entry_filter(JournalEntry),
-            JournalEntry.entry_date >= start_date,
-            JournalEntry.entry_date <= end_date,
-        )
+    stmt = _ledger_lines_query(
+        JournalLine,
+        Account,
+        JournalEntry,
+        user_id=user_id,
+        account_types=account_types,
+        start_date=start_date,
+        as_of_date=end_date,
+        exclude_fx_revaluation=False,
     )
     entries_by_id: dict[UUID, list[tuple[JournalLine, Account, JournalEntry]]] = {}
     fx_needs: list[tuple[str, str, date, date | None, date | None]] = []

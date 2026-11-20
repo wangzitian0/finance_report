@@ -23,7 +23,7 @@ from src.audit.base.trace import (
     TraceScope,
     VersionedTraceRef,
 )
-from src.audit.base.trace_repository import TraceDecisionHead, TraceRecordRepository
+from src.audit.base.trace_repository import TraceDecisionHead
 from src.audit.orm.trace_record import TraceRecordParentRow, TraceRecordRow
 from src.audit.ratio import Ratio
 
@@ -32,7 +32,7 @@ class TraceRecordPersistenceError(RuntimeError):
     """A TraceRecord could not be validated or flushed in the caller's UoW."""
 
 
-class SqlTraceRecordRepository(TraceRecordRepository):
+class SqlTraceRecordRepository:
     def __init__(
         self,
         db: AsyncSession,
@@ -70,7 +70,9 @@ class SqlTraceRecordRepository(TraceRecordRepository):
                 if existing.content_digest != record.content_digest:
                     raise TraceRecordPersistenceError("record id collision")
                 return existing
-            await self._lock_lineage(record)
+            await self._db.execute(
+                select(func.pg_advisory_xact_lock(func.hashtextextended(_lineage_lock_key(record), 0)))
+            )
             existing = await self.get(record.scope, record.record_id)
             if existing is not None:
                 if existing.content_digest != record.content_digest:
@@ -201,7 +203,10 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             TraceRecordRow.assertion_id,
         )
         heads: Counter[TraceLineage] = Counter()
-        for chunk in _chunks(sorted(set(lineages), key=_lineage_sort_key), _READ_CHUNK_SIZE):
+        for chunk in _chunks(
+            sorted(set(lineages), key=lambda item: (item.target_kind, item.target_id, item.assertion_kind, item.assertion_id)),
+            _READ_CHUNK_SIZE,
+        ):
             rows = (
                 await self._db.execute(
                     select(
@@ -300,24 +305,17 @@ class SqlTraceRecordRepository(TraceRecordRepository):
         lineage: TraceLineage,
     ) -> TraceDecisionHead | None:
         try:
-            return await self._read_decision_head(scope, lineage)
+            row = await self._decision_head_row(scope, lineage)
+            if row is None:
+                return None
+            return TraceDecisionHead(
+                record=await self._restore(row, frozenset({row.id})),
+                ancestry_current=await self._has_current_ancestry(scope, row.id, frozenset()),
+            )
         except TraceRecordPersistenceError:
             raise
         except (SQLAlchemyError, TraceRecordValidationError, RuntimeError) as exc:
             raise TraceRecordPersistenceError(f"TraceRecord decision-head read failed: {exc}") from exc
-
-    async def _read_decision_head(
-        self,
-        scope: TraceScope,
-        lineage: TraceLineage,
-    ) -> TraceDecisionHead | None:
-        row = await self._decision_head_row(scope, lineage)
-        if row is None:
-            return None
-        return TraceDecisionHead(
-            record=await self._restore(row, frozenset({row.id})),
-            ancestry_current=await self._has_current_ancestry(scope, row.id, frozenset()),
-        )
 
     async def _decision_head_row(
         self,
@@ -404,9 +402,6 @@ class SqlTraceRecordRepository(TraceRecordRepository):
             parents.append(parent)
 
         self._replay_decision_digest(record, parents)
-
-    async def _lock_lineage(self, record: TraceRecord) -> None:
-        await self._db.execute(select(func.pg_advisory_xact_lock(func.hashtextextended(_lineage_lock_key(record), 0))))
 
     async def _lock_lineages(self, records: Collection[TraceRecord]) -> None:
         """Take the lineage locks of a set in one statement, in key order.
@@ -576,10 +571,6 @@ _READ_CHUNK_SIZE = 1000
 def _chunks(items: Sequence[Any], size: int) -> Iterator[Sequence[Any]]:
     for start in range(0, len(items), size):
         yield items[start : start + size]
-
-
-def _lineage_sort_key(lineage: TraceLineage) -> tuple[str, str, str, str]:
-    return (lineage.target_kind, lineage.target_id, lineage.assertion_kind, lineage.assertion_id)
 
 
 #: Keys of ``Session.info`` that hold what the repositories of one session know.

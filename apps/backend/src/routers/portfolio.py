@@ -7,11 +7,11 @@ from uuid import UUID
 from fastapi import APIRouter, Query, status
 from src.audit import to_money
 from src.composition import (
-    compose_brokerage_import_service,
     import_statement_brokerage_positions,
     refresh_market_data_for_brokerage_import,
 )
 from src.deps import Ctx, ReadCtx, RequestContext
+from src.extraction import BrokeragePositionImportService
 from src.observability import get_logger
 from src.platform import PreconditionFailedError, ResourceNotFoundError
 from src.portfolio import (
@@ -46,7 +46,7 @@ _DEFAULT_LIST_LIMIT = 100
 _MAX_LIST_LIMIT = 500
 
 _position_service = PositionService()
-_brokerage_import_service = compose_brokerage_import_service()
+_brokerage_import_service = BrokeragePositionImportService(position_reconciler=_position_service.reconcile_positions)
 _investment_accounting_service = InvestmentAccountingService()
 
 

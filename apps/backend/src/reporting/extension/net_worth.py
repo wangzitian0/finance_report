@@ -10,10 +10,8 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.audit import JournalEntrySourceType
 from src.audit.ratio import Ratio
 from src.ledger import Account, AccountType, JournalEntry, JournalLine
-from src.ledger.orm.journal import active_journal_entry_filter
 from src.platform import require_base_currency
 from src.pricing import (
     ManualValuationLiquidityClass,
@@ -23,7 +21,13 @@ from src.pricing import (
     get_exchange_rate_series,
 )
 from src.reporting.base.types import DEFAULT_INCLUDE_RESTRICTED
-from src.reporting.extension._core import _load_accounts, _prefetch_fx_rates, _single_source_currency
+from src.reporting.extension._core import (
+    _ledger_lines_query,
+    _load_accounts,
+    _prefetch_fx_rates,
+    _require_prefetched_rate,
+    _single_source_currency,
+)
 from src.reporting.extension.balance_sheet import generate_balance_sheet
 from src.reporting.extension.portfolio_market import (
     _held_on,
@@ -274,22 +278,18 @@ async def get_account_trend(
     else:
         raise ReportError(f"Unsupported period: {period}")
 
-    agg_stmt = (
-        select(
-            JournalLine.currency,
-            JournalEntry.entry_date,
-            JournalLine.direction,
-            func.sum(JournalLine.amount).label("total"),
-        )
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(
-            JournalLine.account_id == account_id,
-            active_journal_entry_filter(JournalEntry),
-            JournalEntry.entry_date >= start_date,
-            JournalEntry.entry_date <= today,
-        )
-        .group_by(JournalLine.currency, JournalEntry.entry_date, JournalLine.direction)
-    )
+    agg_stmt = _ledger_lines_query(
+        JournalLine.currency,
+        JournalEntry.entry_date,
+        JournalLine.direction,
+        func.sum(JournalLine.amount).label("total"),
+        user_id=user_id,
+        account_id=account_id,
+        start_date=start_date,
+        as_of_date=today,
+        join_account=False,
+        exclude_fx_revaluation=False,
+    ).group_by(JournalLine.currency, JournalEntry.entry_date, JournalLine.direction)
     rows = (await db.execute(agg_stmt)).all()
     fx_needs = [
         (row.currency, target_currency, row.entry_date, None, None)
@@ -304,11 +304,7 @@ async def get_account_trend(
     totals: dict[date, Decimal] = {span.start: Decimal("0") for span in spans}
 
     for row in rows:
-        rate = fx_rates.get_rate(row.currency, target_currency, row.entry_date)
-        if rate is None:
-            if row.currency.upper() != target_currency:
-                raise ReportError(f"No FX rate available for {row.currency}/{target_currency} on {row.entry_date}")
-            rate = Decimal("1")
+        rate = _require_prefetched_rate(fx_rates, row.currency, target_currency, row.entry_date)
 
         signed = _signed_amount(account.type, row.direction, Decimal(str(row.total)) * rate)
         key = (
@@ -347,29 +343,26 @@ async def _ledger_net_worth_balances(
     first_point = point_dates[0]
     signed_columns = (JournalLine.account_id, Account.type, Account.name, JournalLine.currency, JournalLine.direction)
 
-    def movement_query(*extra_columns: Any) -> Any:
-        return (
-            select(*signed_columns, *extra_columns, func.sum(JournalLine.amount).label("total"))
-            .join(Account, JournalLine.account_id == Account.id)
-            .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-            .where(
-                Account.user_id == user_id,
-                Account.type.in_((AccountType.ASSET, AccountType.LIABILITY)),
-                JournalEntry.user_id == user_id,
-                active_journal_entry_filter(JournalEntry),
-                JournalEntry.source_type != JournalEntrySourceType.FX_REVALUATION,
-            )
-            .group_by(*signed_columns, *extra_columns)
-        )
+    def movement_query(
+        *extra_columns: Any,
+        as_of: date,
+        as_of_inclusive: bool = True,
+        start: date | None = None,
+    ) -> Any:
+        return _ledger_lines_query(
+            *signed_columns,
+            *extra_columns,
+            func.sum(JournalLine.amount).label("total"),
+            user_id=user_id,
+            account_types=(AccountType.ASSET, AccountType.LIABILITY),
+            start_date=start,
+            as_of_date=as_of,
+            as_of_inclusive=as_of_inclusive,
+        ).group_by(*signed_columns, *extra_columns)
 
-    opening_rows = (await db.execute(movement_query().where(JournalEntry.entry_date < first_point))).all()
+    opening_rows = (await db.execute(movement_query(as_of=first_point, as_of_inclusive=False))).all()
     daily_rows = (
-        await db.execute(
-            movement_query(JournalEntry.entry_date).where(
-                JournalEntry.entry_date >= first_point,
-                JournalEntry.entry_date <= point_dates[-1],
-            )
-        )
+        await db.execute(movement_query(JournalEntry.entry_date, start=first_point, as_of=point_dates[-1]))
     ).all()
 
     account_types: dict[UUID, AccountType] = {}
@@ -601,25 +594,17 @@ async def get_category_breakdown(
     account_map = {account.id: account for account in accounts}
     balances: dict[UUID, Decimal] = {account.id: Decimal("0") for account in accounts}
 
-    agg_stmt = (
-        select(
-            Account.id.label("account_id"),
-            JournalLine.currency,
-            JournalLine.direction,
-            func.sum(JournalLine.amount).label("total"),
-        )
-        .join(Account, JournalLine.account_id == Account.id)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(
-            Account.user_id == user_id,
-            Account.type == breakdown_type,
-            JournalEntry.user_id == user_id,
-            active_journal_entry_filter(JournalEntry),
-            JournalEntry.entry_date >= start_date,
-            JournalEntry.entry_date <= today,
-        )
-        .group_by(Account.id, JournalLine.currency, JournalLine.direction)
-    )
+    agg_stmt = _ledger_lines_query(
+        Account.id.label("account_id"),
+        JournalLine.currency,
+        JournalLine.direction,
+        func.sum(JournalLine.amount).label("total"),
+        user_id=user_id,
+        account_types=(breakdown_type,),
+        start_date=start_date,
+        as_of_date=today,
+        exclude_fx_revaluation=False,
+    ).group_by(Account.id, JournalLine.currency, JournalLine.direction)
     rows = (await db.execute(agg_stmt)).all()
     fx_needs = [
         (row.currency, target_currency, today, start_date, today)
@@ -629,11 +614,9 @@ async def get_category_breakdown(
     fx_rates = await _prefetch_fx_rates(db, fx_needs, "category breakdown", prefetched_cls=PrefetchedFxRates)
 
     for row in rows:
-        rate = fx_rates.get_rate(row.currency, target_currency, today, start_date, today)
-        if rate is None:
-            if row.currency.upper() != target_currency:
-                raise ReportError(f"No FX rate available for {row.currency}/{target_currency}")
-            rate = Decimal("1")
+        rate = _require_prefetched_rate(
+            fx_rates, row.currency, target_currency, today, start_date, today, include_date_in_error=False
+        )
 
         if account := account_map.get(row.account_id):
             balances[row.account_id] += _signed_amount(account.type, row.direction, Decimal(str(row.total)) * rate)

@@ -11,9 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.ledger import Account, JournalEntry, JournalLine
-from src.ledger.orm.journal import active_journal_entry_filter
 from src.observability import get_logger
-from src.reporting.extension._core import _get_fx_rates_map
+from src.reporting.extension._core import _get_fx_rates_map, _ledger_lines_query
 from src.reporting.extension.reporting_calc import (
     ReportError,
     _normalize_currency,
@@ -46,17 +45,16 @@ async def get_account_lineage(
 
     target_currency = _normalize_currency(currency or account.currency)
 
-    line_stmt = (
-        select(JournalLine, JournalEntry)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .where(JournalLine.account_id == account_id)
-        .where(JournalEntry.user_id == user_id)
-        .where(active_journal_entry_filter(JournalEntry))
-        .where(JournalEntry.entry_date <= as_of_date)
-        .order_by(JournalEntry.entry_date.desc(), JournalLine.created_at.desc())
-    )
-    if start_date:
-        line_stmt = line_stmt.where(JournalEntry.entry_date >= start_date)
+    line_stmt = _ledger_lines_query(
+        JournalLine,
+        JournalEntry,
+        user_id=user_id,
+        account_id=account_id,
+        start_date=start_date,
+        as_of_date=as_of_date,
+        join_account=False,
+        exclude_fx_revaluation=False,
+    ).order_by(JournalEntry.entry_date.desc(), JournalLine.created_at.desc())
 
     rows = (await db.execute(line_stmt)).all()
     currencies = {line.currency.upper() for line, _entry in rows}

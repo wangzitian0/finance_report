@@ -29,6 +29,7 @@ from src.pricing import (
     PricingError,
     list_current_manual_valuation_facts,
 )
+from src.reporting.extension._core import _ledger_lines_query
 from src.reporting.extension.reporting_calc import AnnualizedIncomeTotals, income_bucket, resolve_line_currency
 from src.schemas import (
     AnnualizedIncomeScheduleHolding,
@@ -60,14 +61,16 @@ async def generate_annualized_income_schedule(
         report_date = as_of_date
     start_date = report_date - timedelta(days=365)
     income_result = await db.execute(
-        select(JournalLine, Account)
-        .join(JournalEntry, JournalLine.journal_entry_id == JournalEntry.id)
-        .join(Account, JournalLine.account_id == Account.id)
-        .where(JournalEntry.user_id == user_id)
-        .where(JournalEntry.entry_date > start_date)
-        .where(JournalEntry.entry_date <= report_date)
-        .where(active_journal_entry_filter(JournalEntry))
-        .where(Account.type == AccountType.INCOME)
+        _ledger_lines_query(
+            JournalLine,
+            Account,
+            user_id=user_id,
+            account_types=(AccountType.INCOME,),
+            start_date=start_date,
+            start_inclusive=False,
+            as_of_date=report_date,
+            exclude_fx_revaluation=False,
+        )
     )
     income_rows = income_result.all()
 

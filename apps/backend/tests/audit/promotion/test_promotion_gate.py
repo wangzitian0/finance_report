@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 import src.reconciliation as reconciliation
-from src.audit.promotion import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE, STATEMENT_BALANCE_TOLERANCE, InvariantResult, PromotionDecision, evaluate_promotion, tier_rank
+from src.audit import RECONCILIATION_AUTO_ACCEPT_SCORE, RECONCILIATION_REVIEW_SCORE, STATEMENT_BALANCE_TOLERANCE, InvariantResult, PromotionDecision, evaluate_promotion, tier_rank
 from src.extraction.extension import statement_validation
 
 

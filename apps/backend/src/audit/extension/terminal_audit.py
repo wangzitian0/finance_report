@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from typing import Any
+
 from src.audit.base.terminal_audit import TerminalAuditSpec
 from src.audit.base.trace import (
     TraceAuthorityProfile,
@@ -16,7 +18,6 @@ from src.audit.base.trace import (
     TraceTargetClass,
     VersionedTraceRef,
 )
-from src.audit.base.trace_repository import TraceRecordRepository
 from src.audit.digest import canonical_json_digest
 
 _POLICY = {
@@ -43,7 +44,7 @@ class _TerminalAuditError(RuntimeError):
 class TerminalAuditVerifier:
     """Verify canonical records without reconstructing an owner's policy."""
 
-    def __init__(self, repository: TraceRecordRepository) -> None:
+    def __init__(self, repository: Any) -> None:
         self._repository = repository
 
     async def verify_graph(self, spec: TerminalAuditSpec) -> TraceRecord:

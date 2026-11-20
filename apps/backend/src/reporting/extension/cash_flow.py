@@ -29,7 +29,12 @@ from src.ledger.orm.journal import active_journal_entry_filter
 from src.platform import require_base_currency
 from src.pricing import PrefetchedFxRates
 from src.reporting.base.cash_flow_calculator import calculate_cash_flow_bridge
-from src.reporting.extension._core import _line_total, _load_accounts, _prefetch_fx_rates
+from src.reporting.extension._core import (
+    _line_total,
+    _load_accounts,
+    _prefetch_fx_rates,
+    _require_prefetched_rate,
+)
 from src.reporting.extension.reporting_calc import ReportError, _normalize_currency, _quantize_money
 
 _PROCESSING_ACCOUNT = ProcessingAccount()
@@ -534,10 +539,7 @@ async def _build_cash_flow(
     fx_rates = await _prefetch_fx_rates(db, list(fx_needs), "cash flow", prefetched_cls=PrefetchedFxRates)
 
     def converted_delta(line: _LineFacts, rate_date: date) -> Decimal:
-        source = line.currency.upper()
-        rate = Decimal("1") if source == target_currency else fx_rates.get_rate(source, target_currency, rate_date)
-        if rate is None:
-            raise ReportError(f"No FX rate available for {source}/{target_currency} on {rate_date}")
+        rate = _require_prefetched_rate(fx_rates, line.currency, target_currency, rate_date)
         return _cash_delta(line) * rate
 
     beginning_cash = Decimal("0")
