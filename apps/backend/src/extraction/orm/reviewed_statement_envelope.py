@@ -156,6 +156,8 @@ class ReviewedStatementEnvelope(Base, UUIDMixin, UserOwnedMixin):
     opening_balance: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     closing_balance: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     rationale: Mapped[str] = mapped_column(Text, nullable=False)
+    # The institution that the reviewer stated; NULL when the source states its institution (#3167).
+    institution: Mapped[str | None] = mapped_column(String(100), nullable=True)
     command_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     review_trace_record_id: Mapped[UUID] = mapped_column(PGUUID(as_uuid=True), nullable=False)
     supersedes_id: Mapped[UUID | None] = mapped_column(

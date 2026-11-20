@@ -123,7 +123,8 @@ class StatementSummary(Base, UUIDMixin, UserOwnedMixin, TimestampMixin):
     )
 
     # Statement envelope (source facts).
-    institution: Mapped[str] = mapped_column(String(100), nullable=False)
+    # NULL when the source states no institution; the reviewer states it in the envelope confirmation (#3167).
+    institution: Mapped[str | None] = mapped_column(String(100), nullable=True)
     account_last4: Mapped[str | None] = mapped_column(String(4), nullable=True)
     currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     period_start: Mapped[date | None] = mapped_column(Date, nullable=True)

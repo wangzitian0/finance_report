@@ -274,6 +274,7 @@ async def test_an_envelope_that_changes_account_currency_or_period_ends_the_conf
     other = await create_statement_account(db, test_user.id, "DBS Env Other")
     facts = {
         "account_id": statement.account_id,
+        "institution": None,
         "currency": statement.currency,
         "period_start": statement.period_start,
         "period_end": statement.period_end,

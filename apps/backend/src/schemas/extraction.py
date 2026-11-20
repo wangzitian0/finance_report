@@ -131,7 +131,7 @@ class BankStatementListItemResponse(BaseModel):
     account_id: UUID | None
     file_path: str
     original_filename: str
-    institution: str
+    institution: str | None
     account_last4: str | None
     currency: str | None
     period_start: date | None
@@ -348,6 +348,14 @@ class ReviewedStatementEnvelopeRequest(BaseModel):
     opening_balance: Decimal
     closing_balance: Decimal
     rationale: Annotated[str, Field(min_length=1, max_length=2000)]
+    institution: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            max_length=100,
+            description="Required when source_missing_facts holds institution. Never replaces a source institution.",
+        ),
+    ] = None
 
 
 class ReviewedStatementEnvelopeResponse(BaseModel):
@@ -360,6 +368,7 @@ class ReviewedStatementEnvelopeResponse(BaseModel):
     opening_balance: Decimal
     closing_balance: Decimal
     rationale: str
+    institution: str | None = None
     review_trace_record_id: UUID
     created_at: datetime
 

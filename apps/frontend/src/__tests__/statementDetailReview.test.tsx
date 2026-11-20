@@ -46,6 +46,16 @@ describe("StatementReviewPage", () => {
     clk(R.cfd); await posted; await wFor(() => probe.expectDeclaredInvalidated()); await F.wEn("Approve"); has([R.confMsg]);
   });
 
+  it("envelope sends the institution that the reviewer states (#3167)", async () => {
+    let body: unknown = null;
+    const noInstitution = { ...R.missing, institution: null, source_missing_facts: ["institution", "statement_currency", "period", "balances"] };
+    F.mockStmtApi(api, { stmt: { ...stmt, institution: null }, rev: noInstitution, extra: (op, req) => (op === OP.ACCTS ? Promise.resolve(R.cashAccts) : op === OP.CONFIRM ? ((body = req?.body), Promise.resolve({ id: "review-1" })) : undefined) });
+    ren(<App />); await see(R.confTitle); await see(/Institution not stated/); await within(lbl(R.custLbl)).findByRole("option", { name: "DBS Cash (SGD)" });
+    for (const [l, v] of R.confirmFields) chg(l, v);
+    dis(R.cfd); chg("Institution", "  Reviewed Bank "); clk(R.cfd);
+    await wFor(() => mObj(body, { institution: "Reviewed Bank", account_id: "a1", currency: "SGD" }));
+  });
+
   it("AC2477.1 / AC2826.2 account & custody", async () => {
     mv.inlineAcc(); const v1 = renP(), cb = await fBtn(R.createAcc); await act(async () => {}); fireEvent.click(cb);
     await see(R.dbsMsg); await wFor(() => eq((document.getElementById("custody-account") as HTMLSelectElement).value, "acc-1")); v1.unmount();

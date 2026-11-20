@@ -316,6 +316,7 @@ def _envelope_response(envelope, digest: str) -> ReviewedStatementEnvelopeRespon
         opening_balance=envelope.opening_balance,
         closing_balance=envelope.closing_balance,
         rationale=envelope.rationale,
+        institution=envelope.institution,
         review_trace_record_id=envelope.review_trace_record_id,
         created_at=envelope.created_at,
     )

@@ -22,7 +22,7 @@ import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/li
 import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
 import { BankStatement, normalizeBankStatement } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
-import { PARSING_POLL_MS, currencyCodeOrDash, statementDisplayTitle } from "@/lib/statusLabels";
+import { PARSING_POLL_MS, currencyCodeOrDash, institutionLabel, statementDisplayTitle } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 
 function statusDisplay(status: string): { label: string; variant: BadgeVariant } {
@@ -215,7 +215,7 @@ export default function UploadPage() {
                       <div className="text-xs text-[var(--error)] mt-1 line-clamp-2 [overflow-wrap:anywhere]">{statement.validation_error}</div>
                     ) : null}
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                      <span className="[overflow-wrap:anywhere]">{statement.institution}</span>
+                      <span className="[overflow-wrap:anywhere]">{institutionLabel(statement.institution)}</span>
                       <span>•</span>
                       <span className="whitespace-nowrap">{formatPeriod(statement.period_start, statement.period_end, isParsing ? "Parsing..." : undefined)}</span>
                       <span>•</span>

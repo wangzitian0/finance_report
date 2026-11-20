@@ -12,7 +12,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { formatCurrencyLocale } from "@/lib/audit/money";
 import { formatCategoryLabel, getCategoriesForDirection } from "@/lib/categories";
-import { confidenceLabel, statementDisplayTitle } from "@/lib/statusLabels";
+import { confidenceLabel, institutionLabel, statementDisplayTitle } from "@/lib/statusLabels";
 import { DetailDialog } from "@/components/ui/Overlay";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -39,6 +39,8 @@ export function RowConfidenceBadge({ txn }: { txn: Pick<BankStatementTransaction
 export type Transaction = BankStatementTransaction;
 
 export interface EnvelopeDraft {
+  /** The reviewer states it when the source misses the institution (#3167). */
+  institution?: string;
   accountId: string;
   currency: string;
   periodStart: string;
@@ -191,7 +193,8 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
     ? custodyAccounts.filter((a) => a.currency?.toUpperCase() === targetCurrency)
     : custodyAccounts;
   const canCreateAccount = Boolean(onCreateAccount) && matchingCustodyAccounts.length === 0;
-  const isComplete = Boolean(envelopeDraft.accountId && envelopeDraft.currency && envelopeDraft.periodStart && envelopeDraft.periodEnd && envelopeDraft.openingBalance && envelopeDraft.closingBalance && envelopeDraft.rationale.trim());
+  const needsInstitution = sourceMissingFacts.includes("institution");
+  const isComplete = (!needsInstitution || Boolean(envelopeDraft.institution?.trim())) && Boolean(envelopeDraft.accountId && envelopeDraft.currency && envelopeDraft.periodStart && envelopeDraft.periodEnd && envelopeDraft.openingBalance && envelopeDraft.closingBalance && envelopeDraft.rationale.trim());
   const missingText = sourceMissingFacts.map((f) => missingFactLabels[f] || f).join(", ");
   return (
     <>
@@ -202,6 +205,9 @@ export function SourceEnvelopeConfirmation({ requiresEnvelopeConfirmation, requi
             <p className="mt-1 text-sm text-muted">{sourceMissingFacts.length ? `This source did not declare ${missingText}. Confirm only facts you can support from the original document or export.` : "This statement needs your confirmation before it can be used. Check the transaction list, account, dates, and balances against the original document. Known source facts must remain unchanged."}</p>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
+            {needsInstitution && (
+              <label className="text-sm font-medium md:col-span-2" htmlFor="statement-institution">Institution<input id="statement-institution" required maxLength={100} value={envelopeDraft.institution ?? ""} onChange={(e) => onDraftChange((c) => ({ ...c, institution: e.target.value }))} className="input mt-1 w-full" placeholder="The bank or card issuer that the document prints" /></label>
+            )}
             <label className="text-sm font-medium" htmlFor="custody-account">Custody account
               <select id="custody-account" value={envelopeDraft.accountId} onChange={(e) => onDraftChange((c) => ({ ...c, accountId: e.target.value }))} className="input mt-1 w-full">
                 <option value="">Select an asset account</option>
@@ -375,7 +381,7 @@ export function StatementHeader({ statement, canImport, canDelete = true, import
           <StatusBadge status={statement.status} variants={{ approved: "success", rejected: "error", parsed: "warning" }} />
           {statement.original_filename && <span data-testid="statement-original-filename-badge" className="inline-flex items-center rounded-md border border-[var(--border)] bg-[var(--background-muted)] px-2.5 py-0.5 text-xs font-medium text-[var(--foreground-muted)]">Source file: {statement.original_filename}</span>}
         </div>
-        <p className="page-description">{statement.institution} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end, statement.status === "parsing" ? "Parsing..." : undefined)}{statement.confidence_score != null && <> • Confidence {statement.confidence_score}% ({confidenceLabel(statement.confidence_score)})</>}</p>
+        <p className="page-description">{institutionLabel(statement.institution)} • {formatCode(statement.currency)} • {formatPeriod(statement.period_start, statement.period_end, statement.status === "parsing" ? "Parsing..." : undefined)}{statement.confidence_score != null && <> • Confidence {statement.confidence_score}% ({confidenceLabel(statement.confidence_score)})</>}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {canImport && <button type="button" onClick={onBrokerageImport} disabled={importLoading} className="btn-secondary flex items-center gap-2" aria-label="Import brokerage positions to portfolio">{importLoading ? "Importing..." : "Import to Portfolio"}</button>}
