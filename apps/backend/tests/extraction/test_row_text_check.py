@@ -88,6 +88,8 @@ def test_rows_missing_from_text_names_each_row_by_number():
     ]
     assert rows_missing_from_text(text, rows) == [3, 4]
     assert rows_missing_from_text(text, rows[:2]) == []
+    zero_rows = [(Decimal("0.00"), Decimal("100.00")), (Decimal("0"), None)]
+    assert rows_missing_from_text("Fee 12.50 balance 100.00", zero_rows) == []
     assert rows_missing_from_text("", rows) is None
     assert rows_missing_from_text("page 1 of 2", rows) is None
 
