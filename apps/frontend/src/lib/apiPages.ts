@@ -8,6 +8,8 @@ import type { ApiOperationId } from "@/lib/api-operations";
 
 /** The `maximum` of the shared `limit` query parameter (`MAX_PAGE_LIMIT` in apps/backend/src/deps.py). */
 export const MAX_PAGE_LIMIT = 500;
+/** The helper stops with an error after this many pages (100,000 rows), so a server that ignores `offset` cannot loop it. */
+export const MAX_PAGES = 200;
 
 type PageResponse = { items?: unknown[]; total?: number };
 type PagedQuery = { query?: { limit?: number | null; offset?: number | null } | null };
@@ -31,7 +33,8 @@ export async function apiOperationAllPages<Id extends PagedOperationId>(
 ): Promise<ApiOperationResponse<Id>> {
   const request = (args[0] ?? {}) as ApiOperationRequest<Id> & { query?: Record<string, unknown> | null };
   const items: unknown[] = [];
-  for (let offset = 0; ; offset += MAX_PAGE_LIMIT) {
+  for (let pageIndex = 0; pageIndex < MAX_PAGES; pageIndex += 1) {
+    const offset = pageIndex * MAX_PAGE_LIMIT;
     const pageRequest = { ...request, query: { ...(request.query ?? {}), limit: MAX_PAGE_LIMIT, offset } };
     const page = (await apiOperation(operationId, ...([pageRequest] as unknown as ApiOperationArgs<Id>))) as PageResponse;
     const pageItems = page.items ?? [];
@@ -41,4 +44,5 @@ export async function apiOperationAllPages<Id extends PagedOperationId>(
       return { ...page, items } as ApiOperationResponse<Id>;
     }
   }
+  throw new Error(`${operationId} returned more than ${MAX_PAGES} full pages`);
 }
