@@ -392,7 +392,7 @@ jobs:
           echo "Shard ${{ matrix.shard }}/${{ strategy.job-total }} runs ${#BACKEND_SHARD_TESTS[@]} test files"
           COV_ARGS=(--no-cov)
           if [ "${CI_EVENT_NAME:-pull_request}" != "pull_request" ]; then
-            export COVERAGE_FILE=".coverage.shard-${{ matrix.shard }}"
+            export COVERAGE_FILE="cov-data-shard-${{ matrix.shard }}"
             COV_ARGS=(--cov=src --cov-fail-under=0)
           fi
           uv run pytest -n auto -v \
@@ -407,7 +407,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-backend-shard-${{ matrix.shard }}
-          path: apps/backend/.coverage.shard-${{ matrix.shard }}*
+          path: apps/backend/cov-data-shard-${{ matrix.shard }}*
+          if-no-files-found: error
           overwrite: true
           retention-days: 14
 
@@ -485,7 +486,7 @@ jobs:
           mkdir -p test-results
           COV_ARGS=(--no-cov)
           if [ "${CI_EVENT_NAME:-pull_request}" != "pull_request" ]; then
-            export COVERAGE_FILE=".coverage.integration"
+            export COVERAGE_FILE="cov-data-integration"
             COV_ARGS=(--cov=src --cov-fail-under=0)
           fi
           uv run pytest -n auto -v \
@@ -500,7 +501,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-backend-integration
-          path: apps/backend/.coverage.integration*
+          path: apps/backend/cov-data-integration*
+          if-no-files-found: error
           overwrite: true
           retention-days: 14
 
@@ -522,7 +524,7 @@ jobs:
           ## Backend Integration Stage
           - Scope: `-m "integration"` backend suites
           - Contribution: behavior proof channel only
-          - Coverage effect: **not included** in unified line coverage baseline for now
+          - Coverage effect: contributes backend statement coverage on non-PR (`main`) runs; `--no-cov` on PRs
           EOF
 
   frontend-build:
@@ -913,8 +915,15 @@ jobs:
           parallel = true
           concurrency = greenlet,thread
           source = apps/backend/src
+          omit =
+              apps/backend/src/__init__.py
+              apps/backend/src/schemas/__init__.py
+              apps/backend/src/routers/__init__.py
+              apps/backend/src/main.py
+              apps/backend/tests/**
+              apps/backend/migrations/**
           EOF
-            export COVERAGE_FILE="apps/backend/.coverage.tooling"
+            export COVERAGE_FILE="apps/backend/cov-data-tooling"
             COV_ARGS=(--cov=apps/backend/src --cov-config=/tmp/tooling.coveragerc --cov-fail-under=0)
           fi
           apps/backend/.venv/bin/python -m pytest tests/tooling/ -n auto "${COV_ARGS[@]}" -q
@@ -924,7 +933,8 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-backend-tooling
-          path: apps/backend/.coverage.tooling*
+          path: apps/backend/cov-data-tooling*
+          if-no-files-found: error
           overwrite: true
           retention-days: 14
 
@@ -933,7 +943,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [changes, backend, backend-integration, tooling]
-    if: needs.changes.outputs.pr_required == 'true' && github.event_name != 'pull_request'
+    if: ${{ !cancelled() && needs.changes.outputs.pr_required == 'true' && github.event_name != 'pull_request' && needs.backend.result == 'success' && needs.backend-integration.result == 'success' && (needs.tooling.result == 'success' || needs.tooling.result == 'skipped') }}
     steps:
       - uses: actions/checkout@v7
 
@@ -953,8 +963,8 @@ jobs:
       - name: Combine shards and enforce 96% backend coverage floor
         run: |
           cd apps/backend
-          ls -la .coverage.*
-          uv run coverage combine .coverage.*
+          ls -la cov-data-*
+          uv run coverage combine cov-data-*
           uv run coverage report --fail-under=96
 
   finish:
@@ -1027,13 +1037,14 @@ jobs:
 
           | Stage | Coverage Effect | Behavior Proof |
           |---|---|---|
-          | schema-migrations | not included in unified coverage | yes (Alembic DDL/schema drift) |
-          | backend (sharded) | contributes to unified line coverage baseline | yes |
-          | backend-integration | not included in unified coverage | yes (marker 'integration') |
-          | frontend-build | not included in unified coverage | yes (typecheck + production build) |
-          | frontend-vitest | contributes to unified line coverage baseline | yes |
-          | frontend-playwright | not included in unified coverage | yes (provider-free browser UI) |
-          | frontend-telemetry-e2e | not included in unified coverage | yes (browser telemetry emission) |
+          | schema-migrations | not included in backend coverage gate | yes (Alembic DDL/schema drift) |
+          | backend (sharded) | contributes on non-PR runs (`--no-cov` on PR) | yes |
+          | backend-integration | contributes on non-PR runs (`--no-cov` on PR) | yes (marker 'integration') |
+          | tooling | contributes on non-PR runs (`--no-cov` on PR) | yes (contracts & tools) |
+          | frontend-build | not included in coverage | yes (typecheck + production build) |
+          | frontend-vitest | enforces frontend Vitest coverage thresholds | yes |
+          | frontend-playwright | not included in coverage | yes (provider-free browser UI) |
+          | frontend-telemetry-e2e | not included in coverage | yes (browser telemetry emission) |
           EOF
 
       - name: Set up Python for the timing summary
@@ -1100,6 +1111,10 @@ jobs:
             fi
             if [[ "${{ needs.backend-integration.result }}" != "success" ]]; then
               echo "::error::Backend integration tests failed"
+              exit 1
+            fi
+            if [[ "${{ github.event_name }}" != "pull_request" && "${{ needs.backend-coverage-gate.result }}" != "success" ]]; then
+              echo "::error::Backend merged coverage gate failed or skipped unexpectedly (${{ needs.backend-coverage-gate.result }})"
               exit 1
             fi
             if [[ "${{ needs.backend-coverage-gate.result }}" != "success" && "${{ needs.backend-coverage-gate.result }}" != "skipped" ]]; then

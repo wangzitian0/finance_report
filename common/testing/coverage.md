@@ -9,7 +9,7 @@
 - **Backend**:
   - `apps/backend/pyproject.toml` keeps default `addopts` single-process and coverage-free for fast focused TDD (`pytest -n0 --no-cov -o addopts=`).
   - **PR CI (`pull_request`)**: Backend shards, integration tests, and tooling run with `--no-cov` to meet the PR pipeline time budget.
-  - **`main` CI (`push` / `workflow_dispatch`)**: Shards emit `.coverage.*` artifacts across `backend`, `backend-integration`, and `tooling`; the `backend-coverage-gate` job runs `coverage combine` and enforces `--fail-under=96`.
+  - **`main` CI (`push` / `workflow_dispatch`)**: Shards emit `cov-data-*` artifacts across `backend`, `backend-integration`, and `tooling`; `backend-coverage-gate` combines them and enforces `--fail-under=96` statement coverage.
   - **Local full check**: `make test-cov` runs explicit branch coverage (`--cov=src --cov-branch --cov-fail-under=96`).
 - **Frontend**: `apps/frontend/vitest.config.ts` enforces thresholds `lines/functions/statements 98`, `branches 84`.
 

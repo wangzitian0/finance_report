@@ -41,7 +41,7 @@ Default local verification uses fast focused tests (`pytest -n0 --no-cov -o addo
 ### Coverage & Metric Semantics
 
 - Coverage thresholds and deny-list omissions live in `apps/backend/pyproject.toml` (`96%` BE floor) and `apps/frontend/vitest.config.ts` (`98/98/84/98` FE).
-- On PRs, `backend`, `backend-integration`, and `tooling` run with `--no-cov` for fast `Pipeline time contract` turnaround; on `main` pushes and manual runs, `backend-coverage-gate` combines `.coverage.*` shards across those three lanes and enforces `--fail-under=96`.
+- On PRs, `backend`, `backend-integration`, and `tooling` run with `--no-cov` for fast `Pipeline time contract` turnaround; on `main` pushes and manual runs, `backend-coverage-gate` combines `cov-data-*` across those three lanes and enforces `--fail-under=96` statement coverage.
 - PR CI dry-runs staging image builds before merge; Main and release-branch push CI, plus on-demand `workflow_dispatch` push immutable `:<sha>` images.
 - CI observability artifacts (JUnit XML, run context, and non-PR coverage) upload on both success and failure (`if: always()`).
 - Local `make test-cov` and Vitest govern full line/branch floors (`--cov-fail-under=96` BE; Vitest `98/98/84/98` FE).
@@ -52,6 +52,6 @@ Default local verification uses fast focused tests (`pytest -n0 --no-cov -o addo
 
 ## Test Optimization
 
-- Backend shards use `tools/backend_shard_files.py` (`--splitting-algorithm=least_duration` over `apps/backend/ci/backend-test-durations.json`), running `--no-cov` on PRs and emitting `.coverage.shard-*` on `main`.
+- Backend shards use `tools/backend_shard_files.py` (`--splitting-algorithm=least_duration` over `apps/backend/ci/backend-test-durations.json`), running `--no-cov` on PRs and emitting `cov-data-shard-*` on `main`.
 - Provider-free journeys use seeded fixtures (`@pytest.mark.e2e` without `@pytest.mark.llm`).
 - Related: [development.md](../meta/development.md) · [environments.md](../runtime/environments.md) · [coverage.md](./coverage.md) · [tdd.md](./tdd.md) · [common/runtime/ci-cd.md](../runtime/ci-cd.md)
