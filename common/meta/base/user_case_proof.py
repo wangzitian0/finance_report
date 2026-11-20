@@ -28,15 +28,14 @@ PROOF_TIER_ORDER: tuple[ProofTier, ...] = (
 )
 
 # Current baseline floors (ratchet: only block proof deletions, never unrelated PRs).
+# The floors count evidence tiers, so a linked gap issue does not lower them.
 PROOF_FLOOR_L4_FULL = 14
 PROOF_FLOOR_E2E_TOTAL = 21
 PROOF_FLOOR_BENCH_TOTAL = 30
 
 
-def derive_proof_tier(uc: Mapping[str, Any]) -> ProofTier:
-    """Compute the objective proof tier strictly from physical proof references."""
-    if uc.get("gap_issue"):
-        return ProofTier.L0_GAP if uc.get("gap_kind") == "gap" else ProofTier.L1_PARTIAL
+def derive_evidence_tier(uc: Mapping[str, Any]) -> ProofTier:
+    """Compute the tier from test references only; an open gap issue does not change it."""
     has_e2e = bool(str(uc.get("e2e_test_ref") or "").strip())
     has_bench = bool(uc.get("benchmark_cases"))
     if has_e2e and has_bench:
@@ -48,6 +47,22 @@ def derive_proof_tier(uc: Mapping[str, Any]) -> ProofTier:
     return ProofTier.L2_SURFACE_CONTRACT
 
 
+def derive_proof_tier(uc: Mapping[str, Any]) -> ProofTier:
+    """Compute the board tier: an open gap issue overrides the test evidence."""
+    if uc.get("gap_issue"):
+        return ProofTier.L0_GAP if uc.get("gap_kind") == "gap" else ProofTier.L1_PARTIAL
+    return derive_evidence_tier(uc)
+
+
+def summarize_evidence_totals(domains: Sequence[Mapping[str, Any]]) -> dict[str, int]:
+    """Count evidence tiers across all domains; the deletion ratchet reads these counts."""
+    totals: dict[str, int] = {tier.value: 0 for tier in PROOF_TIER_ORDER}
+    for domain in domains:
+        for uc in domain.get("user_cases", ()):
+            totals[derive_evidence_tier(uc).value] += 1
+    return totals
+
+
 def format_proof_tier_cell(uc: Mapping[str, Any]) -> str:
     """Render the Markdown cell value for one user case's derived proof tier."""
     tier = derive_proof_tier(uc)
@@ -55,7 +70,9 @@ def format_proof_tier_cell(uc: Mapping[str, Any]) -> str:
     return f"{tier.value} ({gap_issue})" if gap_issue else tier.value
 
 
-def summarize_domain_tiers(domains: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def summarize_domain_tiers(
+    domains: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
     """Aggregate derived proof-tier counts per domain."""
     rows: list[dict[str, Any]] = []
     for domain in domains:

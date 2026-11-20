@@ -16,8 +16,10 @@ from common.meta.base.user_case_proof import (
     PROOF_FLOOR_E2E_TOTAL,
     PROOF_FLOOR_L4_FULL,
     ProofTier,
+    derive_evidence_tier,
     derive_proof_tier,
     format_proof_tier_cell,
+    summarize_evidence_totals,
     summarize_registry_totals,
 )
 from src.audit import JournalEntrySourceType, Money, canonical_json_digest, text_digest
@@ -55,6 +57,8 @@ from src.reporting import (
     generate_cash_flow,
     generate_income_statement,
 )
+
+GAP_ISSUE_PATTERN = re.compile(r"#\d+(?:, #\d+)*")
 
 
 def _repo_root() -> Path:
@@ -303,9 +307,7 @@ def _assert_real_test_file(repo_root: Path, rel_path: str, label: str) -> None:
             f"{label} contains no Python test definition: {rel_path}"
         )
     else:
-        assert re.search(r"\b(?:it|test)\s*\(", content), (
-            f"{label} contains no frontend test case: {rel_path}"
-        )
+        assert re.search(r"\b(?:it|test)\s*\(", content), f"{label} contains no frontend test case: {rel_path}"
 
 
 def test_user_case_proof_tier_ratchet_and_board() -> None:
@@ -314,20 +316,25 @@ def test_user_case_proof_tier_ratchet_and_board() -> None:
     domains = data.get("domains", [])
     totals = summarize_registry_totals(domains)
     assert totals["total"] == 47
-    assert totals[ProofTier.L4_FULL_PROOF.value] >= PROOF_FLOOR_L4_FULL
+    evidence = summarize_evidence_totals(domains)
+    assert evidence[ProofTier.L4_FULL_PROOF.value] >= PROOF_FLOOR_L4_FULL
+    assert evidence[ProofTier.L4_FULL_PROOF.value] + evidence[ProofTier.L3_E2E_PROVEN.value] >= PROOF_FLOOR_E2E_TOTAL
     assert (
-        totals[ProofTier.L4_FULL_PROOF.value] + totals[ProofTier.L3_E2E_PROVEN.value]
-        >= PROOF_FLOOR_E2E_TOTAL
-    )
-    assert (
-        totals[ProofTier.L4_FULL_PROOF.value] + totals[ProofTier.L3_BENCH_PROVEN.value]
-        >= PROOF_FLOOR_BENCH_TOTAL
+        evidence[ProofTier.L4_FULL_PROOF.value] + evidence[ProofTier.L3_BENCH_PROVEN.value] >= PROOF_FLOOR_BENCH_TOTAL
     )
     assert totals[ProofTier.L0_GAP.value] == 0
 
     # Synthetic mutation proof for derive_proof_tier across all 6 tiers.
     assert derive_proof_tier({"gap_issue": "#1", "gap_kind": "gap"}) == ProofTier.L0_GAP
     assert derive_proof_tier({"gap_issue": "#1", "gap_kind": "partial"}) == ProofTier.L1_PARTIAL
+    full_with_gap = {
+        "gap_issue": "#1",
+        "gap_kind": "partial",
+        "e2e_test_ref": "tests/e2e/x.py",
+        "benchmark_cases": ["1"],
+    }
+    assert derive_proof_tier(full_with_gap) == ProofTier.L1_PARTIAL
+    assert derive_evidence_tier(full_with_gap) == ProofTier.L4_FULL_PROOF
     assert derive_proof_tier({"e2e_test_ref": None, "benchmark_cases": []}) == ProofTier.L2_SURFACE_CONTRACT
     assert derive_proof_tier({"e2e_test_ref": None, "benchmark_cases": ["1"]}) == ProofTier.L3_BENCH_PROVEN
     assert derive_proof_tier({"e2e_test_ref": "tests/e2e/x.py", "benchmark_cases": []}) == ProofTier.L3_E2E_PROVEN
@@ -362,7 +369,9 @@ def test_each_user_case_has_valid_contracts_and_test_evidence(uc: dict) -> None:
 
     gap_issue = uc.get("gap_issue")
     if gap_issue is not None:
-        assert isinstance(gap_issue, str) and gap_issue.strip(), f"{uc['id']} invalid gap_issue"
+        assert isinstance(gap_issue, str) and GAP_ISSUE_PATTERN.fullmatch(gap_issue), (
+            f"{uc['id']} gap_issue must read '#N' or '#N, #M': {gap_issue!r}"
+        )
         assert uc.get("gap_kind") in {"partial", "gap"}, f"{uc['id']} gap_issue requires gap_kind"
         assert derive_proof_tier(uc) in {ProofTier.L0_GAP, ProofTier.L1_PARTIAL}
     else:

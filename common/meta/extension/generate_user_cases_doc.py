@@ -82,13 +82,17 @@ def render_user_cases_doc(registry: dict[str, Any]) -> str:
         "- `L2_SURFACE`: `backend_test_ref` + `frontend_test_ref` only (missing both `e2e_test_ref` and `benchmark_cases`)",
         "- `L1_PARTIAL` / `L0_GAP`: active `gap_issue` tracked in GitHub",
         "",
+        "Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`). The deletion ratchet counts test references only, so a link does not lower its floors.",
+        "",
         "| Domain | Total | `L4_FULL` | `L3_E2E` | `L3_BENCH` | `L2_SURFACE` | `L1_PARTIAL` | `L0_GAP` |",
         "|---|---:|---:|---:|---:|---:|---:|---:|",
     ]
 
     for row in domain_rows:
         tier_cells = " | ".join(str(row[tier.value]) for tier in PROOF_TIER_ORDER)
-        lines.append(f"| **D{row['id']}: {row['name']}** | {row['total']} | {tier_cells} |")
+        lines.append(
+            f"| **D{row['id']}: {row['name']}** | {row['total']} | {tier_cells} |"
+        )
 
     total_cells = " | ".join(f"**{totals[tier.value]}**" for tier in PROOF_TIER_ORDER)
     lines.append(f"| **Total** | **{totals['total']}** | {total_cells} |")
