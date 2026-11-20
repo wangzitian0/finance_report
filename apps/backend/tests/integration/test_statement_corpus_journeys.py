@@ -13,6 +13,7 @@ from src.extraction import ClassificationStatus, RuleType, TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import AccountType
+from tests.api._statement_router_fixtures import approve_reviewed
 from tests.factories import AccountFactory, seed_parsed_statement
 
 pytestmark = [pytest.mark.integration, pytest.mark.e2e]
@@ -171,7 +172,7 @@ async def _seed_and_accept_case(client, db, user_id, case: CorpusCase, prefix: s
                 json={"action": "confirm_distinct", "note": f"corpus {case.short_id}: source rows verified"},
             )
         ).status_code == 200
-    approve_resp = await client.post(f"/statements/{stmt_id}/approvals", json={"create_account_if_missing": True})
+    approve_resp = await approve_reviewed(client, stmt_id, {"create_account_if_missing": True})
     assert (
         approve_resp.status_code == 200
         and approve_resp.json()["journal_entries_created"] == len(case.rows)

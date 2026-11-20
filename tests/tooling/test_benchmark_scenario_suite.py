@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import sys
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import httpx
 import pytest
 import yaml
 from infra2_sdk.manifests import load_hooks_manifest
@@ -108,8 +110,6 @@ def test_brokerage_pdf_fixtures_contain_holdings_table() -> None:
         with fitz.open(pdf_path) as doc:
             full_text = "\n".join(page.get_text("text") for page in doc)
         assert "Holdings / Positions" in full_text, f"{pdf_path.name} missing Holdings / Positions table"
-        import json
-
         expected = json.loads(expected_path.read_text(encoding="utf-8"))
         assert expected.get("positions"), f"{expected_path.name} missing non-empty positions"
 
@@ -130,3 +130,36 @@ def test_bench_sdk_version_mismatch_and_unknown_tag_diagnostics(
 
     with pytest.raises(AssertionError, match=r"unknown to local git.*COMMIT_REF"):
         assert_pinned_deployment({"version": "024cc16", "git_sha": "024cc16"}, "v0.2.50", None)
+
+
+def _approval_api(digest: str | None, approvals: list[dict], *, approve_status: int = 200) -> httpx.Client:
+    """Return a client for a fake API that records each approval body (#3025)."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/review"):
+            return httpx.Response(200, json={"source_result_digest": digest})
+        if request.url.path.endswith("/approvals"):
+            approvals.append(json.loads(request.content))
+            return httpx.Response(approve_status, json={"status": "approved", "detail": "balance mismatch"})
+        return httpx.Response(200, json={"status": "parsed"})
+
+    return httpx.Client(base_url="http://api.test", transport=httpx.MockTransport(handler))
+
+
+def test_benchmark_approvals_name_the_reviewed_extraction_result(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tests.benchmarks import run_financial_scenario_benchmark as runner_module
+
+    monkeypatch.setattr(runner_module, "wait_for_statement_runs_sync", lambda *_args: None)
+    runner = runner_module.ScenarioBenchmarkRunner("http://api.test")
+    digest = "a" * 64
+    sent: list[dict] = []
+    runner.approve_statement(_approval_api(digest, sent), "stmt-1")
+    runner.assert_approval_blocked_by_balance_mismatch(_approval_api(digest, sent, approve_status=400), "stmt-2")
+    assert sent == [
+        {"create_account_if_missing": True, "expected_source_result_digest": digest},
+        {"expected_source_result_digest": digest},
+    ]
+
+    sent_without_result: list[dict] = []
+    runner.approve_statement(_approval_api(None, sent_without_result), "stmt-3")
+    assert sent_without_result == [{"create_account_if_missing": True}]

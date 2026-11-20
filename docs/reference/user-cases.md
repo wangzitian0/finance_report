@@ -47,7 +47,7 @@ Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`). 
 
 ### Incremental Proof Upgrade Queue
 
-- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-10 (#2917), UC-11 (#3029), UC-13 (#3025, #2984), UC-14 (#3112), UC-15 (#2958), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923), UC-39 (#2955), UC-42 (#2977)
+- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-10 (#2917), UC-11 (#3029), UC-13 (#2984), UC-14 (#3112), UC-15 (#2958), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923), UC-39 (#2955), UC-42 (#2977)
 - **Surface-only (`L2_SURFACE` — add E2E or benchmark)**: UC-12, UC-18, UC-37
 - **Bench without E2E (`L3_BENCH` -> `L4_FULL`)**: UC-16, UC-17, UC-22, UC-23, UC-25, UC-28, UC-29, UC-30, UC-33, UC-35, UC-40, UC-41, UC-44, UC-46
 - **E2E without Bench (`L3_E2E` -> `L4_FULL`)**: UC-05, UC-19, UC-20, UC-27, UC-43
@@ -92,7 +92,7 @@ Governs Stage-1 fact validation, mismatch defense, deduplication, rejection tria
 
 | UC ID | User Case (EN / 中文) | UI Surface | Frontend Component | Backend Endpoint | Invariant / Accounting Rule | Proof Tier | Test Reference |
 |---|---|---|---|---|---|---|---|
-| **UC-13** | Stage-1 Review Quick Human Approval<br>*(事实核对快速批准)* | `/statements/{id}` | `ReviewActionBar` | `POST /statements/{id}/approvals` | `Approved statements create posted journal entries with matching custody account` | `L1_PARTIAL (#3025, #2984)` | [`apps/backend/tests/api/test_statements_router.py`](../../apps/backend/tests/api/test_statements_router.py) |
+| **UC-13** | Stage-1 Review Quick Human Approval<br>*(事实核对快速批准)* | `/statements/{id}` | `ReviewActionBar` | `POST /statements/{id}/approvals` | `Approved statements create posted journal entries with matching custody account` | `L1_PARTIAL (#2984)` | [`apps/backend/tests/api/test_statements_router.py`](../../apps/backend/tests/api/test_statements_router.py) |
 | **UC-14** | Stage-1 Balance Mismatch Defense & Rejection Guidance<br>*(链断裂防御与驳回重析引导)* | `/statements/{id}` | `LowConfidenceReviewModal` | `POST /statements/{id}/rejections` | `Mismatch prevents silent corruption; rejects in-place mutation and routes to re-parse` | `L1_PARTIAL (#3112)` | [`apps/backend/tests/api/test_statements_router.py`](../../apps/backend/tests/api/test_statements_router.py) |
 | **UC-15** | Cross-Statement Overlapping Transaction Deduplication<br>*(跨账单重叠交易去重)* | `/statements/{id}` | `ConflictResolutionDialog` | `POST /reconciliation/consistency-checks/runs` | `Duplicate transactions flagged and linked without double-counting in ledger` | `L1_PARTIAL (#2958)` | [`apps/backend/tests/extraction/test_deduplication.py`](../../apps/backend/tests/extraction/test_deduplication.py) |
 | **UC-16** | Low Quality Document Triage and Rejection Recovery<br>*(劣质文档排查与废弃)* | `/statements/{id}` | `ConfirmDialog` | `POST /statements/{id}/rejections` | `Rejected statements excluded from general ledger and marked with taxonomy reason` | `L3_BENCH` | [`apps/backend/tests/api/test_statements_router.py`](../../apps/backend/tests/api/test_statements_router.py) |

@@ -23,6 +23,7 @@ from tests.api._statement_router_fixtures import (
     add_reviewed_disposition_rule,
     add_statement,
     add_txn,
+    approve_reviewed,
     build_statement,
     create_statement_account,
     create_statement_with_bank,
@@ -72,7 +73,7 @@ async def test_approval_posts_a_row_with_a_long_description(client: AsyncClient,
     )
     await db.commit()
 
-    resp = await client.post(f"/statements/{statement.id}/approvals")
+    resp = await approve_reviewed(client, statement.id)
     assert resp.status_code == status.HTTP_200_OK and (
         resp.json()["journal_entries_created"],
         resp.json()["status"],
@@ -91,7 +92,7 @@ async def test_stage1_requires_economic_review(client: AsyncClient, db, test_use
     )
     await db.commit()
 
-    exc = await client.post(f"/statements/{statement.id}/approvals")
+    exc = await approve_reviewed(client, statement.id)
     await db.refresh(statement)
     assert (
         exc.status_code == status.HTTP_409_CONFLICT
@@ -142,7 +143,7 @@ async def test_approval_uses_reviewed_envelope_and_disposition(client: AsyncClie
     statement.closing_balance = Decimal("999.00")
     await db.commit()
     assert (
-        exc := await client.post(f"/statements/{statement.id}/approvals")
+        exc := await approve_reviewed(client, statement.id)
     ).status_code == status.HTTP_400_BAD_REQUEST and "diverges from its current reviewed envelope" in exc.json()[
         "detail"
     ]
@@ -153,7 +154,7 @@ async def test_approval_uses_reviewed_envelope_and_disposition(client: AsyncClie
     )
     await db.commit()
     assert (
-        approved_resp := await client.post(f"/statements/{statement.id}/approvals")
+        approved_resp := await approve_reviewed(client, statement.id)
     ).status_code == status.HTTP_200_OK
     assert (approved_resp.json()["status"], approved_resp.json()["journal_entries_created"]) == (
         BankStatementStatus.APPROVED.value,
@@ -189,7 +190,7 @@ async def test_approve_statement_stage1_auto_maps_unique_prior_confirmed_account
     )
     await db.commit()
 
-    resp = await client.post(f"/statements/{statement.id}/approvals")
+    resp = await approve_reviewed(client, statement.id)
     assert resp.status_code == status.HTTP_200_OK and resp.json()["journal_entries_created"] == 1
     await db.refresh(statement)
     assert statement.account_id == bank_account.id
@@ -313,7 +314,7 @@ async def test_approve_statement_stage1_routes_legacy_statement_entry_to_correct
     await db.commit()
 
     assert (
-        exc_info := await client.post(f"/statements/{statement.id}/approvals")
+        exc_info := await approve_reviewed(client, statement.id)
     ).status_code == status.HTTP_409_CONFLICT and "legacy_unanchored_source_entry" in exc_info.json()["detail"]
     [await db.refresh(x) for x in (existing, statement)]
     assert (
@@ -375,7 +376,7 @@ async def test_approve_statement_stage1_blocks_mapping_and_period_guards(
     await db.commit()
 
     assert (
-        exc := await client.post(f"/statements/{statement.id}/approvals")
+        exc := await approve_reviewed(client, statement.id)
     ).status_code == status.HTTP_400_BAD_REQUEST and expected_detail in exc.json()["detail"]
     assert await _stmt_entries(db, test_user.id) == []
     if scenario == "unmapped":
@@ -428,7 +429,7 @@ async def test_approve_statement_stage1_blocks_unsafe_explicit_account_mapping(
     await db.commit()
 
     assert (
-        exc := await client.post(f"/statements/{statement.id}/approvals")
+        exc := await approve_reviewed(client, statement.id)
     ).status_code == status.HTTP_400_BAD_REQUEST and exc.json()["detail"] == expected_detail
 
 
@@ -439,7 +440,7 @@ async def test_approve_statement_stage1_creates_account_with_explicit_confirmati
     await db.commit()
 
     assert (
-        resp := await client.post(f"/statements/{statement.id}/approvals", json={"create_account_if_missing": True})
+        resp := await approve_reviewed(client, statement.id, {"create_account_if_missing": True})
     ).status_code == status.HTTP_200_OK and resp.json()["journal_entries_created"] == 1
     await db.refresh(statement)
     account = await db.get(Account, statement.account_id)
@@ -468,7 +469,7 @@ async def test_approve_statement_stage1_authorizes_before_balance_validation(
     validation = AsyncMock(side_effect=AssertionError("validation should not run before authorization"))
     monkeypatch.setattr(statement_validation_mod, "validate_balance_chain", validation)
     assert (
-        exc := await client.post(f"/statements/{statement.id}/approvals")
+        exc := await approve_reviewed(client, statement.id)
     ).status_code == 404 and "Statement not found" in exc.json()["detail"]
     validation.assert_not_awaited()
 
