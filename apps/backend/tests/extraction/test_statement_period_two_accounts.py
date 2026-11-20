@@ -113,7 +113,15 @@ FOURTH = (date(2025, 1, 22), "40.00")
         ("same_rows", ROWS, ROWS, {}, False, True),
         ("exactly_80_percent", (*ROWS, FOURTH), (*ROWS, FOURTH, EXTRA[0]), {}, False, True),
         ("two_rows_only", ROWS, ROWS[:2], {}, False, False),
-        ("three_of_five_rows", ROWS, (*ROWS, *EXTRA), {}, False, False),
+        ("all_rows_of_the_smaller_statement", ROWS, (*ROWS, *EXTRA), {}, False, True),
+        (
+            "three_of_five_rows_on_both_sides",
+            (*ROWS, FOURTH, (date(2025, 1, 28), "7.00")),
+            (*ROWS, *EXTRA),
+            {},
+            False,
+            False,
+        ),
         ("other_currency", ROWS, ROWS, {"currency": "USD"}, False, False),
         (
             "period_does_not_overlap",
@@ -129,7 +137,7 @@ FOURTH = (date(2025, 1, 22), "40.00")
 async def test_the_other_account_match_follows_its_definition(
     client: AsyncClient, db, test_user, case, other_rows, rows, statement_fields, other_user, matches
 ):
-    """#2917: each part of the match is pinned: user, currency, overlap, 3 rows, 80 percent of this statement."""
+    """#2917: each part of the match is pinned: user, currency, overlap, 3 rows, 80 percent of the smaller one."""
     owner = (await UserFactory.create_async(db)).id if other_user else test_user.id
     approved_account = await create_statement_account(db, owner, f"Approved {case}")
     approved = await add_statement(
@@ -156,3 +164,55 @@ async def test_the_other_account_match_follows_its_definition(
 
     found = (await client.get(f"/statements/{statement.id}/conflicts")).json()["other_statement_matches"]
     assert [match["statement_id"] for match in found] == ([str(approved.id)] if matches else [])
+
+
+async def test_a_quarter_after_an_approved_month_needs_review_before_it_posts(client: AsyncClient, db, test_user):
+    """#2917: the month rows are one third of the quarter, and all of the approved month."""
+    month = await _month_on_account(db, test_user.id, "hash_2917_month", "DBS Month", suffix="", last4="1234")
+    account = await create_statement_account(db, test_user.id, "DBS Quarter")
+    quarter = await add_statement(
+        db, test_user.id, "hash_2917_quarter", confidence=89, account_id=account.id, closing="16.00", account_last4=None
+    )
+    later = tuple((date(2025, 1, 22 + day), f"{day + 1}.50") for day in range(6))
+    for txn_date, amount in (*ROWS, *later):
+        await add_txn(
+            db, quarter, txn_date=txn_date, description="PAYNOW GROCER", amount=Decimal(amount), direction="OUT"
+        )
+    await add_reviewed_disposition_rule(
+        db, user_id=test_user.id, keyword="paynow", account_type=AccountType.EXPENSE, category="TRANSFER_OUT"
+    )
+    await db.commit()
+
+    assert (await client.post(f"/statements/{month.id}/approvals")).status_code == status.HTTP_200_OK
+    blocked = await client.post(f"/statements/{quarter.id}/approvals")
+    assert blocked.status_code == status.HTTP_400_BAD_REQUEST
+    assert "3 of 9 rows" in blocked.json()["detail"] and "DBS Month" in blocked.json()["detail"]
+    assert await _entry_count(db, test_user.id) == 3
+
+
+async def test_a_confirmation_does_not_cover_a_statement_approved_after_it(client: AsyncClient, db, test_user):
+    """#2917: the reviewer confirmed before the other account held an approved month."""
+    pdf_month = await _month_on_account(db, test_user.id, "hash_2917_late_a", "DBS Late PDF", suffix="", last4="1234")
+    csv_month = await _month_on_account(
+        db, test_user.id, "hash_2917_late_b", "DBS Late CSV", suffix=" REF 7781", last4=None
+    )
+    await add_reviewed_disposition_rule(
+        db, user_id=test_user.id, keyword="paynow", account_type=AccountType.EXPENSE, category="TRANSFER_OUT"
+    )
+    await db.commit()
+
+    confirm_url = f"/statements/{csv_month.id}/conflict-resolutions"
+    assert (await client.post(confirm_url, json={})).status_code == status.HTTP_200_OK
+    assert (await client.get(f"/statements/{csv_month.id}/conflicts")).json()["resolved"] is True
+    assert (await client.post(f"/statements/{pdf_month.id}/approvals")).status_code == status.HTTP_200_OK
+
+    blocked = await client.post(f"/statements/{csv_month.id}/approvals")
+    assert blocked.status_code == status.HTTP_400_BAD_REQUEST
+    assert "DBS Late PDF" in blocked.json()["detail"]
+    assert await _entry_count(db, test_user.id) == 3
+    assert (await client.get(f"/statements/{csv_month.id}/conflicts")).json()["resolved"] is False
+
+    assert (await client.post(confirm_url, json={})).status_code == status.HTTP_200_OK
+    assert (await client.get(f"/statements/{csv_month.id}/conflicts")).json()["resolved"] is True
+    assert (await client.post(f"/statements/{csv_month.id}/approvals")).status_code == status.HTTP_200_OK
+    assert await _entry_count(db, test_user.id) == 6

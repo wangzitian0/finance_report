@@ -444,6 +444,7 @@ def _has_unresolved_statement_conflicts(transactions: list[AtomicTransaction]) -
 
 # A month that is approved on one account and uploaded again on another account of the user posts each row twice:
 # the row identity holds the account, so no unique key sees it (#2917). These two numbers define "the same month".
+# The share is of the statement with fewer rows: a quarter that holds an approved month matches too.
 OTHER_STATEMENT_MIN_MATCHED_ROWS = 3
 OTHER_STATEMENT_MIN_MATCHED_SHARE = Decimal("0.8")
 
@@ -456,6 +457,7 @@ class OtherStatementMatch:
     account_name: str
     matched_rows: int
     total_rows: int
+    approved_at: datetime | None = None
 
 
 def _row_key(txn: AtomicTransaction) -> tuple:
@@ -500,31 +502,43 @@ async def find_other_account_statement_matches(
     for other, account_name in others:
         theirs = Counter(_row_key(txn) for txn in await resolve_statement_transactions(db, other))
         matched = sum((mine & theirs).values())
-        if (
-            matched >= OTHER_STATEMENT_MIN_MATCHED_ROWS
-            and matched >= OTHER_STATEMENT_MIN_MATCHED_SHARE * len(transactions)
-        ):
+        smaller = min(len(transactions), sum(theirs.values()))
+        if matched >= OTHER_STATEMENT_MIN_MATCHED_ROWS and matched >= OTHER_STATEMENT_MIN_MATCHED_SHARE * smaller:
             matches.append(
                 OtherStatementMatch(
                     statement_id=other.id,
                     account_name=account_name,
                     matched_rows=matched,
                     total_rows=len(transactions),
+                    approved_at=other.stage1_reviewed_at,
                 )
             )
     return matches
 
 
+def other_account_matches_not_confirmed(
+    statement: StatementSummary, matches: list[OtherStatementMatch]
+) -> list[OtherStatementMatch]:
+    """Return the matches that the reviewer has not confirmed.
+
+    A confirmation covers the statements that were approved before it. A statement approved later is new to the
+    reviewer, so it needs a new confirmation (#2917).
+    """
+    confirmed_at = statement.stage1_conflicts_resolved_at
+    if confirmed_at is None:
+        return matches
+    return [match for match in matches if match.approved_at is not None and match.approved_at > confirmed_at]
+
+
 async def _raise_if_statement_conflicts_unresolved(
     db: AsyncSession, statement: StatementSummary, transactions: list[AtomicTransaction]
 ) -> None:
-    if statement.stage1_conflicts_resolved_at is not None:
-        return
-    if _has_unresolved_statement_conflicts(transactions):
+    if statement.stage1_conflicts_resolved_at is None and _has_unresolved_statement_conflicts(transactions):
         raise ValidationFailedError(
             "Cannot approve statement while unresolved duplicate or transfer-pair candidates remain"
         )
-    for match in await find_other_account_statement_matches(db, statement, transactions):
+    matches = await find_other_account_statement_matches(db, statement, transactions)
+    for match in other_account_matches_not_confirmed(statement, matches):
         raise ValidationFailedError(
             f"{match.matched_rows} of {match.total_rows} rows equal the rows of an approved statement of account "
             f"{match.account_name}. Confirm that this statement is a different account before posting."
