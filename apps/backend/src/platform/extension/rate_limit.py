@@ -28,6 +28,7 @@ Identity's auth-specific limiters live in the ``identity`` package
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import math
 import time
@@ -122,7 +123,7 @@ class RateLimiter:
         self._local_state: dict[str, RateLimitState] = {}
         self._lock = Lock()
         self._last_prune = 0.0
-        self._redis_clients: dict[str, Any] = {}
+        self._redis_clients: dict[tuple[str, int], Any] = {}
 
     def _prune_expired_locked(self, now: float) -> None:
         window_start = now - self.config.window_seconds
@@ -168,7 +169,12 @@ class RateLimiter:
         return f"{prefix}:w", f"{prefix}:b"
 
     def _get_async_redis_client(self, redis_url: str) -> Any:
-        client = self._redis_clients.get(redis_url)
+        try:
+            loop_key = id(asyncio.get_running_loop())
+        except RuntimeError:
+            loop_key = 0
+        cache_key = (redis_url, loop_key)
+        client = self._redis_clients.get(cache_key)
         if client is None:
             import redis.asyncio
 
@@ -178,7 +184,7 @@ class RateLimiter:
                 socket_timeout=2.0,
                 socket_connect_timeout=2.0,
             )
-            self._redis_clients[redis_url] = client
+            self._redis_clients[cache_key] = client
         return client
 
     async def is_allowed_async(self, key: str) -> tuple[bool, int]:

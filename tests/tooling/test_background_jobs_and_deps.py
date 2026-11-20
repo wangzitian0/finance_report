@@ -57,6 +57,16 @@ def test_background_jobs_manifest_and_main_coverage_policy() -> None:
         "apps/backend/pyproject.toml must not omit main.py from coverage"
     )
 
+    ci_workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    tooling_coveragerc = ci_workflow.split("cat > /tmp/tooling.coveragerc <<'EOF'", 1)[
+        1
+    ].split("EOF", 1)[0]
+    assert "apps/backend/src/main.py" not in tooling_coveragerc, (
+        ".github/workflows/ci.yml /tmp/tooling.coveragerc must not omit apps/backend/src/main.py"
+    )
+
 
 def test_cli_job_lists_every_background_job() -> None:
     from src.runtime import BACKGROUND_JOBS

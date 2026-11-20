@@ -161,6 +161,7 @@ STRING_PSEUDONYM_COLUMNS: dict[str, str] = {
                 "journal_entries": "memo void_reason",
                 "llm_providers": "api_base label",
                 "manual_valuation_snapshots": "notes source",
+                "outbox": "last_error",
                 "reviewed_statement_envelopes": "rationale",
                 "statement_runs": "error_message",
                 "statement_summaries": "institution sub_account_key validation_error",

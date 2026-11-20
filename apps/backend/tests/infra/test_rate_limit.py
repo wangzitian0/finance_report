@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -42,7 +42,7 @@ async def test_global_rate_limit_middleware(
     from src.main import api_rate_limiter
 
     kwargs = {"json": {"email": "x@x.com", "password": "x"}} if method == "post" else {}
-    with patch.object(api_rate_limiter, "is_allowed", return_value=allowed_rv) as mock_is_allowed:
+    with patch.object(api_rate_limiter, "is_allowed_async", AsyncMock(return_value=allowed_rv)) as mock_is_allowed:
         response = await getattr(public_client, method)(path, **kwargs)
     if expected_status == 429:
         assert response.status_code == 429 and "Retry-After" in response.headers and response.headers["X-Request-ID"]
@@ -85,6 +85,13 @@ async def test_rate_limiter_async_uses_redis_resets_and_falls_back(monkeypatch) 
             for key in keys:
                 self.counts.pop(key, None)
             return len(keys)
+
+        async def scan_iter(self, *, match: str = "*"):
+            from fnmatch import fnmatch
+
+            for key in list(self.counts):
+                if fnmatch(key, match):
+                    yield key
 
         async def aclose(self) -> None:
             return None
