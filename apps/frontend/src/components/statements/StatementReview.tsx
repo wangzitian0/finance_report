@@ -106,7 +106,7 @@ export function ReviewActionBar({ onApprove, onReject, actionLoading, balanceVal
   const blockedByBalance = !isParsing && !blockedByReview && !balanceValid;
   const isBlocked = isParsing || blockedByReview || blockedByBalance;
   const reason = isParsing ? "Approve is paused — extraction is in progress."
-    : blockedByConflicts ? "Approve is paused — we found possible duplicate or transfer-pair transactions. Review them before approving."
+    : blockedByConflicts ? "Approve is paused — we found possible duplicates, transfer pairs, or equal rows on another account. Review them before approving."
     : blockedByReview ? (approvalBlockedReason || "Approve is paused until the required review is complete.")
     : blockedByBalance ? "Approve is paused — this statement's closing balance doesn't match its transactions. Re-parsing usually fixes this." : "";
   return (

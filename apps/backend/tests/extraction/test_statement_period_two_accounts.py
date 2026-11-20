@@ -18,6 +18,7 @@ from tests.api._statement_router_fixtures import (
     add_txn,
     create_statement_account,
 )
+from tests.factories import UserFactory
 
 pytestmark = pytest.mark.asyncio
 
@@ -100,3 +101,58 @@ async def test_two_matching_rows_of_another_account_do_not_block(client: AsyncCl
     assert (await client.post(f"/statements/{pdf_month.id}/approvals")).status_code == status.HTTP_200_OK
     assert (await client.post(f"/statements/{statement.id}/approvals")).status_code == status.HTTP_200_OK
     assert await _entry_count(db, test_user.id) == 6
+
+
+EXTRA = ((date(2025, 1, 25), "5.00"), (date(2025, 1, 27), "6.00"))
+FOURTH = (date(2025, 1, 22), "40.00")
+
+
+@pytest.mark.parametrize(
+    ("case", "other_rows", "rows", "statement_fields", "other_user", "matches"),
+    [
+        ("same_rows", ROWS, ROWS, {}, False, True),
+        ("exactly_80_percent", (*ROWS, FOURTH), (*ROWS, FOURTH, EXTRA[0]), {}, False, True),
+        ("two_rows_only", ROWS, ROWS[:2], {}, False, False),
+        ("three_of_five_rows", ROWS, (*ROWS, *EXTRA), {}, False, False),
+        ("other_currency", ROWS, ROWS, {"currency": "USD"}, False, False),
+        (
+            "period_does_not_overlap",
+            ROWS,
+            ROWS,
+            {"period_start": date(2025, 2, 1), "period_end": date(2025, 2, 28)},
+            False,
+            False,
+        ),
+        ("statement_of_another_user", ROWS, ROWS, {}, True, False),
+    ],
+)
+async def test_the_other_account_match_follows_its_definition(
+    client: AsyncClient, db, test_user, case, other_rows, rows, statement_fields, other_user, matches
+):
+    """#2917: each part of the match is pinned: user, currency, overlap, 3 rows, 80 percent of this statement."""
+    owner = (await UserFactory.create_async(db)).id if other_user else test_user.id
+    approved_account = await create_statement_account(db, owner, f"Approved {case}")
+    approved = await add_statement(
+        db,
+        owner,
+        f"hash_2917_{case}_a",
+        status=BankStatementStatus.APPROVED,
+        account_id=approved_account.id,
+        closing="40.00",
+    )
+    for txn_date, amount in other_rows:
+        await add_txn(
+            db, approved, txn_date=txn_date, description="PAYNOW GROCER", amount=Decimal(amount), direction="OUT"
+        )
+    account = await create_statement_account(db, test_user.id, f"Second {case}")
+    statement = await add_statement(
+        db, test_user.id, f"hash_2917_{case}_b", account_id=account.id, closing="40.00", **statement_fields
+    )
+    for txn_date, amount in rows:
+        await add_txn(
+            db, statement, txn_date=txn_date, description="PAYNOW CAFE", amount=Decimal(amount), direction="OUT"
+        )
+    await db.commit()
+
+    found = (await client.get(f"/statements/{statement.id}/conflicts")).json()["other_statement_matches"]
+    assert [match["statement_id"] for match in found] == ([str(approved.id)] if matches else [])
