@@ -317,6 +317,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         try:
             extracted = slice_obj.payload
             sub_account_key = slice_obj.sub_account_key
+            if slice_obj.analysis.directions_repaired:
+                # The model direction of these rows contradicted the printed running balance (#2987 AC6).
+                logger.warning(
+                    "statement.extraction.directions_repaired",
+                    row_count=len(extracted.get("transactions") or []),
+                    repaired_count=slice_obj.analysis.directions_repaired,
+                )
             final_institution = institution or extracted.get("institution")
             if not final_institution:
                 raise ExtractionError("Institution is required; extraction cannot invent source identity")

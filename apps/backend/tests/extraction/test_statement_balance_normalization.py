@@ -106,7 +106,10 @@ def test_AC_extraction_2987_15_a_direction_that_the_running_balance_contradicts_
     truth = _directions(payload)
     payload["transactions"][flipped]["direction"] = "OUT" if truth[flipped] == "IN" else "IN"
     assert detect_balance_chain_break(payload["transactions"], opening_balance=Decimal("1000.00")) is not None
-    normalized = analyze_statement_balance_payload(payload).payload
+    analysis = analyze_statement_balance_payload(payload)
+    normalized = analysis.payload
+    assert analysis.directions_repaired == 1
+    assert analyze_statement_balance_payload(normalized).directions_repaired == 0
     assert (
         _directions(normalized),
         detect_balance_chain_break(normalized["transactions"], opening_balance=Decimal("1000.00")),
