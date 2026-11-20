@@ -59,7 +59,7 @@ describe("StatementReviewPage", () => {
   it("conflicts & LowConfidenceReviewModal", async () => {
     mv.conflicts(); const { probe, unmount } = F.renProbe("statements.review.resolve-conflicts", <App />, ["s1"]);
     E(await fBtn("Approve")).toBeDisabled(); has([R.pauseMsg]);
-    const d = await dlg(R.conflictsDlg); has(R.conflictTypes, d); probe.expectNothingInvalidated(); clk("Resolve", d);
+    const d = await dlg(R.conflictsDlg); has(R.conflictTypes, d); probe.expectNothingInvalidated(); clk("These rows are different transactions. Continue.", d);
     await F.wOp(api, OP.RESOLVE_CONF, { path: { statement_id: "s1" } }); await wFor(() => probe.expectDeclaredInvalidated()); unmount();
 
     mv.lowModal(); renP(); fireEvent.click((await screen.findAllByRole("button", { name: "Review" }))[0]);

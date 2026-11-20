@@ -3,9 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ConflictResolutionDialog } from "@/components/statements/StatementReview";
 import { clk, has } from "./helpers/statementTestFixtures";
 
-const dup = [{ id: "d1", description: "Dup One", txn_date: "2024-01-01", amount: "10.00" }];
-const xfer = [{ id: "x1", description: "Transfer A", txn_date: "2024-01-02", amount: "20.00" }];
-
 describe("ConflictResolutionDialog", () => {
   const onClose = vi.fn();
   beforeEach(() => { vi.clearAllMocks(); });
@@ -20,18 +17,22 @@ describe("ConflictResolutionDialog", () => {
     expect(onClose).toHaveBeenCalledTimes(4);
   });
 
-  it("AC16.34.3 renders candidates, fires actions, and disables while resolving", () => {
+  it("AC16.34.3 renders one confirmation for all candidates, links nothing, and disables while resolving (#2958)", () => {
     const onResolve = vi.fn();
-    const { rerender } = render(<ConflictResolutionDialog isOpen onClose={onClose} duplicateCandidates={dup} transferPairCandidates={xfer} onResolve={onResolve} />);
-    has(["Duplicate Candidates", "Dup One", "Transfer Pair Candidates", "Transfer A"]);
-    fireEvent.click(screen.getByText("Resolve"));
-    expect(onResolve).toHaveBeenCalledWith("confirm_distinct");
-    fireEvent.click(screen.getByText("Link Pair"));
-    expect(onResolve).toHaveBeenCalledWith("link_transfer");
-    rerender(<ConflictResolutionDialog isOpen onClose={onClose} duplicateCandidates={dup} transferPairCandidates={[]} onResolve={onResolve} isResolving />);
-    const r = screen.getByText("Resolving…");
-    expect(r).toBeDisabled();
-    fireEvent.click(r);
-    expect(onResolve).toHaveBeenCalledTimes(2);
+    const dups = [1, 2, 3].map((n) => ({ id: `d${n}`, description: `Dup ${n}`, txn_date: "2024-01-01", amount: "10.00" }));
+    const xfers = [1, 2].map((n) => ({ id: `x${n}`, description: `Transfer ${n}`, txn_date: "2024-01-02", amount: "20.00" }));
+    const { rerender } = render(<ConflictResolutionDialog isOpen onClose={onClose} duplicateCandidates={dups} transferPairCandidates={xfers} onResolve={onResolve} />);
+    has(["Duplicate Candidates", "Dup 3", "Transfer Pair Candidates", "Transfer 2", "This confirmation links no rows. Transfer pairs are matched in reconciliation."]);
+    const actions = screen.getAllByRole("button").filter((b) => !/close/i.test(b.textContent ?? "") && !/close/i.test(b.getAttribute("aria-label") ?? ""));
+    expect(actions).toHaveLength(1);
+    expect(screen.queryByText("Link Pair")).toBeNull();
+    fireEvent.click(actions[0]);
+    expect(onResolve).toHaveBeenCalledTimes(1);
+    expect(onResolve).toHaveBeenCalledWith();
+    rerender(<ConflictResolutionDialog isOpen onClose={onClose} duplicateCandidates={dups} transferPairCandidates={[]} onResolve={onResolve} isResolving />);
+    const pending = screen.getByText("Confirming…");
+    expect(pending).toBeDisabled();
+    fireEvent.click(pending);
+    expect(onResolve).toHaveBeenCalledTimes(1);
   });
 });

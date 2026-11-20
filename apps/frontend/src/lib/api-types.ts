@@ -1675,7 +1675,6 @@ export interface components {
       note?: string | null;
     };
     ResolveConflictsRequest: {
-      action: "confirm_distinct" | "link_transfer";
       note?: string | null;
     };
     ReviewConflictCandidate: {
@@ -2633,7 +2632,7 @@ export interface operations {
     parameters: _PP<{
         statement_id: string;
       }>;
-    requestBody: _B<_S["ResolveConflictsRequest"]>;
+    requestBody?: _B<_S["ResolveConflictsRequest"] | null>;
     responses: _R<_S["ReviewConflictsResolveResponse"]>;
   };
   get_review_conflicts_statements__statement_id__conflicts_get: {

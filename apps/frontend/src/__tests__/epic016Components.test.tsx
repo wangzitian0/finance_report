@@ -35,7 +35,7 @@ rc(<>
 </>);
 E(await S.findByText("PDF preview could not be loaded")).toBeInTheDocument();
 E(S.getAllByText("Test Txn").length > 0 && S.getAllByText("high").length > 0).toBe(true);
-for (const t of ["Resolve Conflicts", "No conflicts detected for this statement.", "Home"]) E(S.getByText(t)).toBeInTheDocument();
+for (const t of ["Review possible duplicates", "No conflicts detected for this statement.", "Home"]) E(S.getByText(t)).toBeInTheDocument();
 E(S.getByRole("navigation", { name: "Primary" })).toBeInTheDocument();
 });
 // AC-extraction.fe-stage1-review.12

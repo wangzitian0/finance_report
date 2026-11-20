@@ -1054,10 +1054,10 @@ async def get_review_conflicts(statement_id: UUID, ctx: ReadCtx) -> ReviewConfli
 @router.post("/{statement_id}/conflict-resolutions", response_model=ReviewConflictsResolveResponse)
 async def resolve_review_conflicts(
     statement_id: UUID,
-    request: ResolveConflictsRequest,
     ctx: Ctx,
+    request: ResolveConflictsRequest | None = None,
 ) -> ReviewConflictsResolveResponse:
-    """Resolve Stage-1 duplicate/transfer-pair candidates (#962)."""
+    """Record that the reviewer saw the Stage-1 candidates and confirms different transactions (#962, #2958)."""
     db, user_id = ctx.db, ctx.user_id
     statement = await resolve_statement_conflicts(db, statement_id, user_id)
     resolved_at = statement.stage1_conflicts_resolved_at
@@ -1067,7 +1067,6 @@ async def resolve_review_conflicts(
         "stage1.conflicts.resolved",
         audit_event="stage1.conflicts.resolved",
         statement_id=str(statement_id),
-        action=request.action,
-        note=request.note,
+        note=request.note if request else None,
     )
     return ReviewConflictsResolveResponse(resolved=True, resolved_at=resolved_at)

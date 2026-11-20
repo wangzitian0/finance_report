@@ -882,7 +882,7 @@ export const REV_TBL = {
   confTitle: "Confirm missing source facts",
   confDlg: "Approve Statement",
   rejDlg: "Reject Statement",
-  conflictsDlg: "Resolve Conflicts",
+  conflictsDlg: "Review possible duplicates",
   conflictTypes: ["Duplicate Candidates", "Transfer Pair Candidates"],
   mismatchHas: ["Prior Gap (3198)", "Closing Mismatch", "Prior Δ: 120.00", "Closing Δ: 5.00"],
   gapHas: ["Prior Gap (3198)", /Unexplained Statement Gap Equity \(3198\)/i],
@@ -1001,7 +1001,7 @@ export const REV = {
   custLbl: "Custody account", createAcc: "Create account", lowTitle: "Review Low-Confidence Transaction",
   cfd: "Confirm statement details", lStmt: "Loading statement", fStmt: "Failed to load statement", rejBy: "Rejected by reviewer",
   dbsMsg: 'Account "DBS account" created and selected.', prevCol: "stage1-desktop-transaction-region", pdfH: "PDF Preview",
-  autoMsg: /filed under default categories/, pauseMsg: /Approve is paused/i, pausedAction: "confirm_distinct",
+  autoMsg: /filed under default categories/, pauseMsg: /Approve is paused/i,
 };
 
 export const S2P = { ...S2_FIX, ...S2_PAGE_DATA, ...S2_PAGE_TBL, load: "Loading review queue...", appSel: /Approve Selected/i };
@@ -1148,7 +1148,7 @@ export function revMocks(api: ApiMock) {
       mockStmtApi(api, { stmt: REV.stmt, rev: { ...REV.stmt, validation_error: null, transactions: [REV.unrated] }, extra: (op, req) => (op === OP.APPROVE ? ((body = req?.body), Promise.resolve({ journal_entries_created: 1 })) : undefined) });
       return () => body;
     },
-    conflicts: () => mockStmtApi(api, { stmt: REV.stmt, conflicts: REV.conflicts, extra: (op, req) => (op === OP.RESOLVE_CONF ? (expect(req?.body).toEqual({ action: "confirm_distinct" }), Promise.resolve({ resolved: true, resolved_at: "2026-06-14T00:00:00Z" })) : undefined) }),
+    conflicts: () => mockStmtApi(api, { stmt: REV.stmt, conflicts: REV.conflicts, extra: (op, req) => (op === OP.RESOLVE_CONF ? (expect(req?.body).toEqual({}), Promise.resolve({ resolved: true, resolved_at: "2026-06-14T00:00:00Z" })) : undefined) }),
     lowModal: () => {
       let cat: string | null = null;
       mockStmtApi(api, { stmt: REV.stmt, rev: () => ({ ...REV.stmt, transactions: [{ ...REV.stmt.transactions[0], proposed_category: cat, confidence_tier: cat ? "HIGH" : "LOW" }] }), extra: (op, req) => (op === OP.CORR ? ((cat = (req?.body as { corrected_category: string }).corrected_category), Promise.resolve({ id: "corr-1", transaction_id: "txn-1", corrected_category: cat })) : undefined) });

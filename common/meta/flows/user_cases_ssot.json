@@ -310,8 +310,7 @@
           "benchmark_cases": [
             "2"
           ],
-          "gap_kind": "partial",
-          "gap_issue": "#2958"
+          "gap_issue": null
         },
         {
           "id": "UC-16",

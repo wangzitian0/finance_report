@@ -108,6 +108,21 @@ async def test_AC16_32_1_stage1_approval_blocks_unresolved_conflicts(db, test_us
     assert exc.value.status_code == status.HTTP_400_BAD_REQUEST and "unresolved duplicate or transfer-pair" in exc.value.detail
 
 
+async def test_conflict_confirmation_has_no_action_field_and_needs_no_body(client, db, test_user):
+    """#2958: the route records one confirmation for the statement. It takes no action and links no rows."""
+    assert "action" not in ResolveConflictsRequest.model_fields
+    stmt = build_statement(test_user.id, "hash_stage1_confirm_no_body", 90)
+    stmt.status = BankStatementStatus.PARSED
+    db.add(stmt)
+    await db.commit()
+    assert stmt.stage1_conflicts_resolved_at is None
+    for body in (None, {}, {"note": "rows checked"}):
+        response = await client.post(f"/statements/{stmt.id}/conflict-resolutions", json=body)
+        assert (response.status_code, response.json()["resolved"]) == (status.HTTP_200_OK, True)
+    await db.refresh(stmt)
+    assert stmt.stage1_conflicts_resolved_at is not None
+
+
 async def test_AC16_34_resolve_conflicts_and_reject_reset(db, test_user):
     uid, ctx = test_user.id, RequestContext(db, test_user.id)
     acc = await create_statement_account(db, uid, "Resolve Conflict Account")
@@ -123,20 +138,20 @@ async def test_AC16_34_resolve_conflicts_and_reject_reset(db, test_user):
     with pytest.raises(DomainError) as exc_blk:
         await statements_router.approve_statement_stage1(statement_id=stmt.id, request=Stage1ApprovalRequest(), ctx=ctx)
     assert exc_blk.value.status_code == status.HTTP_400_BAD_REQUEST
-    assert (await statements_router.resolve_review_conflicts(statement_id=stmt.id, request=ResolveConflictsRequest(action="confirm_distinct"), ctx=ctx)).resolved is True
+    assert (await statements_router.resolve_review_conflicts(statement_id=stmt.id, request=ResolveConflictsRequest(), ctx=ctx)).resolved is True
     assert (await statements_router.get_review_conflicts(statement_id=stmt.id, ctx=ctx)).resolved is True
     approved = await statements_router.approve_statement_stage1(statement_id=stmt.id, request=Stage1ApprovalRequest(), ctx=ctx)
     assert (approved.id, approved.status) == (stmt.id, BankStatementStatus.APPROVED)
 
     with pytest.raises(DomainError) as exc_404:
-        await statements_router.resolve_review_conflicts(statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"), request=ResolveConflictsRequest(action="confirm_distinct"), ctx=ctx)
+        await statements_router.resolve_review_conflicts(statement_id=statements_router.UUID("00000000-0000-0000-0000-000000000000"), request=ResolveConflictsRequest(), ctx=ctx)
     assert exc_404.value.status_code == status.HTTP_404_NOT_FOUND
 
     stmt2 = build_statement(uid, "hash_stage1_resolve_reset", 90)
     stmt2.status = BankStatementStatus.PARSED
     db.add(stmt2)
     await db.commit()
-    await statements_router.resolve_review_conflicts(statement_id=stmt2.id, request=ResolveConflictsRequest(action="confirm_distinct"), ctx=ctx)
+    await statements_router.resolve_review_conflicts(statement_id=stmt2.id, request=ResolveConflictsRequest(), ctx=ctx)
     await db.refresh(stmt2)
     assert stmt2.stage1_conflicts_resolved_at is not None
     await statement_validation_mod.reject_statement(db, stmt2.id, uid, reason="reparse")
