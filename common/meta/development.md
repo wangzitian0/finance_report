@@ -14,9 +14,9 @@ Run commands in POSIX shells (macOS/Linux or WSL Ubuntu on Windows via `wsl.exe 
 ## Moon Commands
 
 - Infra & dev: `python tools/cli.py dev`, `moon run :dev -- --backend`, `moon run :dev -- --frontend`
-- Verification: `moon run :lint`, `moon run :test -- --smart`, `moon run :test -- --fast`, `moon run :test`, `moon run :build`
+- Verification: `moon run :lint`, `moon run :test -- --fast`, `moon run :test`, `moon run :build`
 
-Default local verification starts with affected fast tests (`moon run :test -- --smart`, focused Vitest, or focused tooling checks). Risk-triggered local escalation applies to accounting, schema migrations (`uv run alembic upgrade head && uv run alembic check`), API contracts, shared `common/` or `tools/`, and deploy configs ([ci-cd.md](../testing/ci-cd.md#path-risk-to-local-gate-matrix)).
+Default local verification starts with fast single-process focused tests (`pytest -n0 --no-cov -o addopts= <file>::<test> -x`, focused Vitest, or focused tooling checks). Risk-triggered local escalation applies to accounting, schema migrations (`uv run alembic upgrade head && uv run alembic check`), API contracts, shared `common/` or `tools/`, and deploy configs ([ci-cd.md](../testing/ci-cd.md#path-risk-to-local-gate-matrix)).
 
 <a id="local-test-isolation"></a>
 ### Local Test Isolation

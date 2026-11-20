@@ -168,6 +168,7 @@ CHECKS: tuple[Check, ...] = (
     _py_check(
         "user-cases-doc",
         (
+            "common/meta/base/user_case_proof.py",
             "common/meta/flows/user_cases_ssot.json",
             "docs/reference/user-cases.md",
             "tools/generate_user_cases_doc.py",
@@ -175,7 +176,7 @@ CHECKS: tuple[Check, ...] = (
         ),
         "tools/generate_user_cases_doc.py",
         "--check",
-        why="user_cases_ssot.json or generated user-cases reference changed: docs/reference/user-cases.md must stay in sync",
+        why="user_cases_ssot.json, classifier, or generated user-cases reference changed: docs/reference/user-cases.md must stay in sync",
     ),
     Check(
         name="openapi-spec",

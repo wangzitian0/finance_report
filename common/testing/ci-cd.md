@@ -30,7 +30,7 @@ Local runs are fast advisory gates; PR CI is the deterministic merge authority; 
 
 ### Path Risk to Local Gate Matrix
 
-Default local verification uses `moon run :test -- --smart` or focused Vitest/tooling checks; risk-triggered escalation adds:
+Default local verification uses fast focused tests (`pytest -n0 --no-cov -o addopts= <file>::<test> -x`, focused Vitest, or `moon run :test -- --fast`) plus cached static `tools/preflight.py` on push; risk-triggered escalation adds:
 - `accounting, posting, reconciliation, money, balance`: focused domain pytest suite
 - `schema, migrations`: `alembic upgrade head` + `alembic check` + DB tests
 - `API contract, OpenAPI`: backend API tests + `tools/preflight.py` (`api-reference`, `router-contract`)
@@ -40,10 +40,11 @@ Default local verification uses `moon run :test -- --smart` or focused Vitest/to
 
 ### Coverage & Metric Semantics
 
-- Coverage thresholds and deny-list omissions live in `apps/backend/pyproject.toml` (`--cov-fail-under=96` BE) and `apps/frontend/vitest.config.ts` (`98/98/84/98` FE).
+- Coverage thresholds and deny-list omissions live in `apps/backend/pyproject.toml` (`96%` BE floor) and `apps/frontend/vitest.config.ts` (`98/98/84/98` FE).
+- On PRs, `backend`, `backend-integration`, and `tooling` run with `--no-cov` for fast `Pipeline time contract` turnaround; on `main` pushes and manual runs, `backend-coverage-gate` combines `.coverage.*` shards across those three lanes and enforces `--fail-under=96`.
 - PR CI dry-runs staging image builds before merge; Main and release-branch push CI, plus on-demand `workflow_dispatch` push immutable `:<sha>` images.
-- CI observability artifacts (JUnit XML, coverage, run context) upload on both success and failure (`if: always()`).
-- Local pytest/Vitest thresholds govern line/branch floors (`--cov-fail-under=96` BE; Vitest `98/98/84/98` FE).
+- CI observability artifacts (JUnit XML, run context, and non-PR coverage) upload on both success and failure (`if: always()`).
+- Local `make test-cov` and Vitest govern full line/branch floors (`--cov-fail-under=96` BE; Vitest `98/98/84/98` FE).
 
 ## PR Review Thread Merge Gate
 
@@ -51,6 +52,6 @@ Default local verification uses `moon run :test -- --smart` or focused Vitest/to
 
 ## Test Optimization
 
-- Backend shards use `tools/backend_shard_files.py` (`--splitting-algorithm=least_duration` over `apps/backend/ci/backend-test-durations.json`), with `--cov-fail-under=0` per shard.
+- Backend shards use `tools/backend_shard_files.py` (`--splitting-algorithm=least_duration` over `apps/backend/ci/backend-test-durations.json`), running `--no-cov` on PRs and emitting `.coverage.shard-*` on `main`.
 - Provider-free journeys use seeded fixtures (`@pytest.mark.e2e` without `@pytest.mark.llm`).
 - Related: [development.md](../meta/development.md) · [environments.md](../runtime/environments.md) · [coverage.md](./coverage.md) · [tdd.md](./tdd.md) · [common/runtime/ci-cd.md](../runtime/ci-cd.md)
