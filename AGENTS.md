@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=35228692b21a71a9ed137ccf73f6bb9e38bc0bfc443f21b8d5b6e1c1820c6755 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=8e1516a53883fe27407c3c1a51ea657bbed511c8cad746dac6484a0d48d89d22 -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -34,11 +34,11 @@
 
 The single definition of the production reservation. Other tiers, skills and gates point here.
 
-- **Only a production change returns to the owner.** A production change alters what production runs or stores. Examples: a deploy, promote or apply to production; a production secret write; a manual production data write or deletion. Also a production DNS, route or host change, and a release that cannot be recalled. Code that reaches production with no later owner approval, for example on a schedule, counts too. Each Repo tier names its production paths. A path can be a merge.
+- **Only a production change returns to the owner.** A production change alters what production runs or stores (deploy, promote or apply to production; production secret write; manual production data write or deletion; production DNS, route or host change; unrecallable release; or scheduled unapproved production code). Each Repo tier names its production paths. A path can be a merge or a release-checkout pull.
 - **Approval:** the owner approves the exact commit SHA or release tag of each production change, and is present when it runs. A "deploy" reply covers only the release that it names. Immediately before a production dispatch, get a live reply from the owner.
-- **Self-guard:** an edit that removes, narrows or redefines the production reservation needs the owner's approval of its head SHA. This includes an edit that makes fewer production runs wait for the owner. Examples: the owner-approval check of a deploy path, a production job classification, the settings of a production environment. It also includes an edit that removes or weakens a pin of this section or its dev_env pin test. The same holds for the required check that runs the test.
-- **Everything else is the agent's:** in a repository that the owner owns, every merge, staging and canary deploy, and release tag. Also rule text, skills, gate code, data and tests, required-check workflows and release code. Before you merge gate or release code, a read-only reviewer that did not write it checks the head. The review states whether the gate gets stricter, stays equal or gets looser. A looser edit in the self-guard list follows the self-guard.
-- **Every other hold is a defect:** a rule, skill, label or gate exit code that holds non-production work for the owner. Do the work, then fix the hold. `ws_owner_scope` fails on it.
+- **Self-guard:** an edit that removes, narrows or redefines the production reservation needs the owner's approval of its head SHA. This includes an edit that makes fewer production runs wait for the owner (deploy-path approval check, production job classification, or production environment settings). It also covers removing or weakening a pin of this section, its pin test, or the required check that runs the test.
+- **Everything else is the agent's:** in any repository the owner owns, every non-production change (including `dev_env` outside the self-guard), staging and canary deploy, release tag, rule text, skill, gate/release code, and required-check edit. Before merging gate or release code, an independent read-only reviewer inspects the head SHA and states whether the gate gets stricter, equal or looser. A looser edit in the self-guard follows the self-guard.
+- **Every other hold is a defect:** a rule, skill, label or gate holding non-production work for the owner is a defect. Do the work, then fix the hold. `ws_owner_scope` fails on it.
 
 ## Runtime safety
 
@@ -50,134 +50,49 @@ The single definition of the production reservation. Other tiers, skills and gat
 
 # Finance Report — Agent & Contributor Guide
 
-> **Rule source**: This file is generated. Change its dev_env source and pass the rule-text checklist; do not hand-edit it.
-> **Merge authority**: AI deliverable = CI-passing PR. An agent merges it when every condition in [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds. That covers gate code, workflows and release code once the review that the Root section `Production reservation` requires is on the PR.
+> **Rule source**: Generated from `dev_env`; pass the rule-text checklist rather than hand-editing.
+> **Merge authority**: Deliverable = CI-passing PR merged autonomously when [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds. Gate code, workflows, and release code merge after the independent review required by Root section `Production reservation`.
 > **Production here**: the infra2 workflow `reconcile-iac-inputs.yml` with `promote_prod=true` and the infra2 workflow `deploy.yml` with `type=prod`.
-> **Checklist**: Before completing a task, verify every item in [docs/agents/orchestration.md](docs/agents/orchestration.md).
-> **Language**: Write all code, PRs, commits, issues, and repository docs in **English**. Reply to the user in the language of their question.
+> **Checklist & Language**: Check [docs/agents/orchestration.md](docs/agents/orchestration.md) before finishing. Write code, PRs, commits, issues, and docs in **English**.
 
----
-
-## 🚨 Security & Red Lines (CRITICAL)
+## Security & Red Lines
 
 Full rules: **[docs/agents/red-lines.md](docs/agents/red-lines.md)**
 
-- **NEVER** use `float` for monetary amounts — use `Decimal`
-- **NEVER** commit `.env`, `*.pem`, or credential files
-- **NEVER** skip entry balance validation
-- **NEVER** use raw `fetch()` in frontend — use `lib/api.ts`
-- **NEVER** create `sa.Enum` without explicit `name="..."` parameter
+- **NEVER** use `float` for monetary amounts — use `Decimal`.
+- **NEVER** commit `.env`, `*.pem`, or credential files, or skip entry balance validation.
+- **NEVER** use raw `fetch()` in frontend — use `lib/api.ts`.
+- **NEVER** create `sa.Enum` without explicit `name="..."`.
 
----
+## Mandatory Work Order & SSOT
 
-## 🧱 Document Hierarchy & Boundaries
+- **Work order:** **MECE → User Case → Test → Code → Doc** (`common/meta/flows/user_cases_ssot.json` + EPIC in `docs/project/` — never mirror test tables into `docs/project/EPIC-*.md`; failing tests first; minimal code; update owning `common/<pkg>/readme.md`). Details: [docs/agents/orchestration.md](docs/agents/orchestration.md), [common/testing/tdd.md](common/testing/tdd.md).
+- **SSOT first:** Define bounded-context concepts in `common/<pkg>/readme.md` (and cross-cutting metadata in `common/*/data/` or `common/runtime/`); `docs/ssot/` is retired (#1823). Layering registry: [common/meta/readme.md](common/meta/readme.md).
+- **Pre-push gate parity:** `git push` runs `tools/preflight.py --tier=static` automatically via `pre-commit` (install hooks with `make install`; never invoke `moon run :lint && moon run :test` before every push — run focused tests locally and `--tier=static`, leaving full suites to CI). Cloud/sandbox agents without hooks run `--tier=full`. Use `--no-cov` inner-loop runs per Root (`make test-cov` for full branch coverage when needed).
 
-Four document roles have zero overlapping ownership:
-
-| Document | Question | Role & Responsibility |
-|---|---|---|
-| **vision.md** | *Why* | Product vision, architectural north star, and design culture. |
-| **Package README** | *In what shared language* | Base entities, vocabulary, and data contracts (`common/<pkg>/`). Package layering & boundaries: [common/meta/readme.md](common/meta/readme.md). |
-| **docs/project/** | *What tracking* | Horizontal EPIC milestone tracking. |
-| **README** (root, `apps/*`) | *What per module* | Module goals, setup commands, and build guides. |
-
-No document may usurp another's role: vision does not dictate module internals; EPICs do not redefine package data types.
-
----
-
-## 🧭 Navigation Map
-
-| Goal | Go to |
-|------|-------|
-| Project vision & decisions | [vision.md](vision.md) |
-| Tech stack, quick start | [README.md](README.md) |
-| Package layering & metadata | [common/meta/readme.md](common/meta/readme.md) |
-| Project tracking & EPICs | [docs/project/README.md](docs/project/README.md) |
-| Agent skills | [.agents/skills/](.agents/skills/) |
-| Copilot settings | [.github/copilot-instructions.md](.github/copilot-instructions.md) |
-| Moon commands / dev setup | [common/meta/development.md](common/meta/development.md) |
-| Six environments & isolation | [common/runtime/environments.md](common/runtime/environments.md) |
-| CI jobs & test strategy | [common/runtime/ci-cd.md](common/runtime/ci-cd.md) |
-| Deployment / Vault / staging | [common/runtime/deployment.md](common/runtime/deployment.md) |
-| Data model | [common/meta/schema.md](common/meta/schema.md) |
-| Current work | [docs/project/](docs/project/) |
-
----
-
-## 📐 SSOT-First Principle
-
-Bounded-context concepts live in `common/<pkg>/readme.md`. Cross-cutting concepts, gate inputs, and generated artifacts live in the governing package's `data/` directory (`common/meta/data/`, `common/testing/data/`, or `common/runtime/`). `docs/ssot/` is retired (#1823). Layering registry: **[common/meta/readme.md](common/meta/readme.md)**.
-
-1. **No SSOT, no work**: Define shared terms in the owning package (`readme.md` or `common/meta/data/`) before writing code.
-2. **No hidden drift**: Sync code and its owning document in the same change.
-3. **Single owner**: Each concept has one owner file.
-
----
-
-## 🔄 Mandatory Work Order
-
-**EPIC → AC → Test → Code → Doc**
-
-> **Planning tasks** (reviews, issue triage, prioritization) run **Vision → Guarantees → Gaps → Actions** with a counterfactual pass before opening an issue ([docs/agents/orchestration.md](docs/agents/orchestration.md)).
-> **Bug fixes** identify the root cause, explain why existing gates missed it, and add the missing test in the same PR.
-
-0. Frame a **MECE** breakdown: mutually exclusive slices, collectively exhaustive coverage, explicit dependencies, and out-of-scope items.
-1. Anchor to an EPIC in `docs/project/`.
-2. Record new or changed end-to-end user cases in `common/meta/flows/user_cases_ssot.json` (never mirror test tables into `docs/project/EPIC-*.md`).
-3. Write **failing** tests first (🔴 red).
-4. Write minimal code to pass tests (🟢 green).
-5. Update the owning package's `common/<pkg>/readme.md` (and `common/meta/flows/user_cases_ssot.json` if user cases changed).
-
-Details: [docs/agents/orchestration.md](docs/agents/orchestration.md) · [common/testing/tdd.md](common/testing/tdd.md)
-
----
-
-## 🛡️ Pre-Push Gate Parity
-
-- **Pre-push hook**: `git push` runs `tools/preflight.py --tier=static` automatically via `pre-commit` (cached per worktree tree/HEAD). Do not invoke `--tier=static` manually before pushing. Check list SSOT: `tools/preflight.py --list` (#1435).
-- **Escape hatch**: If preflight itself is broken, declare `preflight skipped: <reason>` in the PR body.
-- **Cloud/sandbox agents**: Run `apps/backend/.venv/bin/python tools/preflight.py --tier=full` before pushing; if dependencies cannot install, declare it via the escape hatch.
-- **Coverage**: Follow [common/testing/coverage.md](common/testing/coverage.md) (`make test-cov` runs full branch coverage locally; keep inner-loop runs coverage-free per Root rule).
-
----
-
-## 🌿 Branch & PR Rules
+## Branch, PR, and Merge Rules
 
 Full policy: **[docs/contributing/branch-policy.md](docs/contributing/branch-policy.md)**
 
-- ❌ No direct commits to `main`. Parallel PR branches must satisfy [branch-policy.md](docs/contributing/branch-policy.md) rule 3.
-- Agents merge any PR that satisfies [branch-policy.md](docs/contributing/branch-policy.md) §4.
-- A merge that reaches **production** is a production change (Root section `Production reservation`). A protected-file change merges once the protected-file checklist in [branch-policy.md](docs/contributing/branch-policy.md) §4 passes. A merge that only triggers a preview/staging redeploy is the agent's call — see [branch-policy.md](docs/contributing/branch-policy.md) §4.
-- Install hooks with `make install`; run `moon run :lint && moon run :test` before pushing.
-- Resolve all Copilot review comments by fixing them or stating the rationale; reply on the thread before resolving it.
-- Verify `mergeable=MERGEABLE` and `mergeStateStatus` in `CLEAN` or `BEHIND` (within 24 hours of `main`) fresh before reporting ready; rebase only on `DIRTY` conflicts or after 24 hours behind `main` ([docs/agents/orchestration.md](docs/agents/orchestration.md)).
-- State the exact deployed commit/version when claiming staging or production verification.
-- Keep watching open PRs for CI runs, review comments, and merge conflicts until merged ([docs/agents/orchestration.md](docs/agents/orchestration.md)). After merge, resync `main`, rebase only conflicting or `>24h`-behind branches, and start the next slice.
-- Make reversible product decisions and record the rationale in the PR or issue. Only a production change waits for the user. While they wait, start the next independent planned slice.
+- No direct commits to `main`. Conflict-free PRs (`MERGEABLE`, `CLEAN` or `BEHIND <= 24h`) merge without rebasing; rebase only on `DIRTY` conflicts or `> 24h` behind `main`.
+- **Weighted review gate:** Unresolved review threads use literal `severity:` weights (`high = 1.0`, `middle`/`medium = 0.5`, `low = 0.25`, unlabelled = `0.5`); `>= 1.0` blocks (`check_pr_review_threads.py` & `ws-pr-gate`). Reply with evidence before resolving; Copilot review is optional and non-blocking.
+- A merge that reaches **production** is a production change (Root section `Production reservation`). Only a production change waits for the user. Protected files follow the checklist in [branch-policy.md](docs/contributing/branch-policy.md) §4.
+- Sub-issues close once Stage 1 merges and a passing `smoke` reality probe completes (`ws-delivery-status --assert-complete --reality-probe`); `infra2` `release-train` handles Staging verification and `[PROD GATEKEEPER]` (`deploy vX.Y.Z`).
+- Use `ws-pr-gate` or GitHub events for open PRs (no foreground watch loops). Add `_issue<N>_` worktree naming (`finance_report_issue1234_infra`), PR title scope `[$(basename ...)] ...`, and keep `ongoing` on open PRs only.
 
----
+## Agent Architecture & Writing
 
-## 🧭 Parallel Windows Coordination
+- Orchestrate in the host runtime's main loop and delegate read-only searches or isolated edits to host-native subagents per Root. Skills: **[.agents/skills/](.agents/skills/)**.
+- **UI proof:** Before/after `ux-review` captures pass on simulator or browser with an independent read-only check before any UI change reaches production.
+- **Plain facts & performance:** State exact files, commands, exit codes, and year-scale control-sampled metrics when claiming latency improvements. Avoid banned jargon (`orthogonal`, `ontology planes`, `terminal residue`, `epistemic layer`, `emergence`, `empowerment`, `touchpoint`, `paradigm shift`).
 
-- Add an `_infra` affix to local workspace names for infra tasks (e.g., `finance_report_infra_issue-1234-infra`).
-- Check issue assignees and open PRs before starting; claim an issue in one place (assign yourself and post branch/worktree name).
-- Derive PR title scope from checkout basename: `scope=$(basename "$(git rev-parse --show-toplevel 2>/dev/null || pwd)")` → `[${scope}] ...`. Only rewrite PRs matching your local `scope`.
-- Keep the `ongoing` label on open PRs only; remove it on merge or close.
+## Load on demand
 
-## 🤖 Agent Architecture
-
-Guides: **[docs/agents/orchestration.md](docs/agents/orchestration.md)** · Skills: **[.agents/skills/](.agents/skills/)** and **[.claude/skills/](.claude/skills/)** (physical renders from `dev_env`)
-
-- The active runtime's main loop is the orchestrator. Use the runtime's own subagent list (Claude Code: `.claude/agents/`; OpenCode: `.opencode/oh-my-openagent.json`).
-- Delegate read-only search fan-out to cheap search agents; reserve expensive models for hard reasoning. Bound parallelism by write conflicts (vision.md, Good Taste 6).
-- UI work: tests prove behavior. A UI change goes to production only when its before/after `ux-review` skill pass on simulator or browser captures finds no core moment worse.
-
----
-
-## ✍️ Communication & Writing Standards
-
-- **Plain engineering facts**: State exact files changed, rationale, and verification results (commands, exit codes, latency).
-- **Performance claims**: A performance claim compares wall time, CPU time, and SQL count at a year-scale dataset, before and after, in the same environment. Each run samples a control endpoint, and both runs use the same user and data state. A count of removed calls is not evidence of a latency change.
-- **Banned jargon**: Never use "orthogonal" (outside math), "ontology planes", "terminal residue", "epistemic layer", "emergence", "empowerment", "touchpoint", or "paradigm shift".
-- **Zero concealment**: Report exact failing commands, stack traces, and minimal reproduction steps.
+| Topic | Read |
+|---|---|
+| Repo overview & stack | [`README.md`](README.md) · [`vision.md`](vision.md) |
+| Package hierarchy & schema | [`common/meta/readme.md`](common/meta/readme.md) · [`common/meta/schema.md`](common/meta/schema.md) |
+| Dev commands & environments | [`common/meta/development.md`](common/meta/development.md) · [`common/runtime/environments.md`](common/runtime/environments.md) |
+| CI & Deployment | [`common/testing/ci-cd.md`](common/testing/ci-cd.md) · [`common/runtime/deployment.md`](common/runtime/deployment.md) |
+| Agent orchestration & red lines | [`docs/agents/orchestration.md`](docs/agents/orchestration.md) · [`docs/agents/red-lines.md`](docs/agents/red-lines.md) |
 <!-- WS_STATIC_END -->
