@@ -6,7 +6,7 @@ import {
 } from "@/lib/api";
 import type { ApiOperationId } from "@/lib/api-operations";
 
-/** The `maximum` of the shared `limit` query parameter (`MAX_PAGE_LIMIT` in apps/backend/src/deps.py). */
+/** The `maximum` of the shared `limit` query parameter (the backend `MAX_PAGE_LIMIT` in `src/deps.py`). */
 export const MAX_PAGE_LIMIT = 500;
 /** The helper stops with an error after this many pages (100,000 rows), so a server that ignores `offset` cannot loop it. */
 export const MAX_PAGES = 200;
