@@ -139,3 +139,24 @@ def test_reap_ephemeral_only_and_active_worktree_protection(
     reaped_all, total = rtd.reap_orphaned_test_databases()
     assert total == 3 and reaped_all == 2
     assert dropped == [gone_wt_db, dead_ephem_db]
+
+
+def test_session_teardown_drops_only_a_test_database() -> None:
+    """The session teardown must not drop the DATABASE_URL development database."""
+    from apps.backend.tests._support import test_isolation as ti
+
+    assert ti.is_droppable_test_db("finance_report_test")
+    assert ti.is_droppable_test_db("finance_report_test_gw3")
+    assert ti.is_droppable_test_db(ti.get_test_db_name("feat_x_1a2b3c4d"))
+    for name in ("finance_report", "postgres", "finance_report_gw0", "", None):
+        assert not ti.is_droppable_test_db(name), name
+
+    conftest = (
+        Path(__file__).resolve().parents[2] / "apps/backend/tests/conftest.py"
+    ).read_text(encoding="utf-8")
+    drop_calls = [
+        line for line in conftest.splitlines() if "await _drop_test_database(" in line
+    ]
+    assert len(drop_calls) == 1
+    guard_line = conftest.splitlines()[conftest.splitlines().index(drop_calls[0]) - 1]
+    assert "is_droppable_test_db(db_name)" in guard_line
