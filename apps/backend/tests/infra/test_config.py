@@ -29,8 +29,7 @@ def test_parse_helpers_and_to_llm_settings() -> None:
 
 
 def test_env_aliases_and_closed_modes(monkeypatch) -> None:
-    monkeypatch.delenv("ENVIRONMENT", raising=False)
-    monkeypatch.setenv("ENV", "staging")
+    monkeypatch.setenv("ENVIRONMENT", "staging")
     monkeypatch.delenv("LLM_BASE_URL", raising=False)
     monkeypatch.delenv("CORS_ORIGIN_REGEX", raising=False)
     s = Settings(_env_file=None)
@@ -101,13 +100,13 @@ def test_explicit_empty_cors_rate_limits_and_thresholds(monkeypatch) -> None:
 def test_config_contracts_formats_pool_and_model_roles(monkeypatch) -> None:
     assert settings.ai_provider == "zai" and settings.small_model.startswith("glm-") and re.match(r"^glm-[\d.a-z-]+", settings.small_model)
     env_example = (Path(__file__).parents[4] / ".env.example").read_text()
-    match = re.search(r"^SMALL_MODEL=(.+)$", env_example, re.MULTILINE)
+    match = re.search(r"^LLM_SMALL_MODEL=(.+)$", env_example, re.MULTILINE)
     assert match and settings.small_model == match.group(1).strip()
     assert settings.base_currency.isalpha() and len(settings.base_currency) == 3 and settings.base_currency.isupper()
     assert 3 <= len(settings.s3_bucket) <= 63 and re.match(r"^[a-z0-9][a-z0-9-]*[a-z0-9]$", settings.s3_bucket)
     assert settings.jwt_algorithm in {"HS256", "RS256"} and ("postgresql+asyncpg://" in settings.database_url or "sqlite" in settings.database_url)
 
-    for k in ("DB_POOL_SIZE", "DB_POOL_MAX_OVERFLOW", "LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+    for k in ("DB_POOL_SIZE", "DB_POOL_MAX_OVERFLOW", "LLM_LARGE_MODEL", "LLM_SMALL_MODEL", "LLM_MULTIMODAL_MODEL"):
         monkeypatch.delenv(k, raising=False)
     for k in ("NEXT_PUBLIC_APP_URL", "OTEL_RESOURCE_ATTRIBUTES"):
         monkeypatch.setenv(k, "")

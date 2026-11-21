@@ -175,7 +175,6 @@ async def test_static_config_basics_exceptions_and_aliases(monkeypatch, mock_set
         await Bootloader.validate(BootMode.CRITICAL)
     assert exc_info2.value.code == 1
     monkeypatch.setenv("ENVIRONMENT", "staging")
-    monkeypatch.setenv("ENV", "production")
     assert Bootloader._check_static_config() is False
 
 
@@ -235,11 +234,11 @@ def test_AC_runtime_guard_proofs_3_protected_runtime_classification(
                 "DEBUG": "true",
                 "ENVIRONMENT": "development",
                 "BASE_CURRENCY": "USD",
-                "LARGE_MODEL": "test-large-model",
-                "SMALL_MODEL": "gemini",
+                "LLM_LARGE_MODEL": "test-large-model",
+                "LLM_SMALL_MODEL": "gemini",
                 "LLM_PROVIDER": "zai",
                 "LLM_BASE_URL": ZAI_CODING_BASE_URL,
-                "MULTIMODAL_MODEL": "test-vision-model",
+                "LLM_MULTIMODAL_MODEL": "test-vision-model",
                 "S3_ENDPOINT": "http://localhost:9000",
                 "S3_BUCKET": "statements",
                 "CORS_ORIGIN_REGEX": ".*",

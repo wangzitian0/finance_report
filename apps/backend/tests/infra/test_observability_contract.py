@@ -64,9 +64,9 @@ def test_AC_runtime_guard_proofs_7_and_8_telemetry_tag(monkeypatch, env: str, de
 def test_observability_ssot_manifest_and_json_renderer(monkeypatch) -> None:
     from infra2_sdk.runtime.otel import _JsonLogFormatter
 
-    obs_doc, env_ex, env_ref = _read(REPO_ROOT / "common/observability/observability.md"), _read(REPO_ROOT / ".env.example"), _read(REPO_ROOT / "common/runtime/env-reference.generated.md")
+    obs_doc, env_ex = _read(REPO_ROOT / "common/observability/observability.md"), _read(REPO_ROOT / ".env.example")
     fields = {e["env"]: e for e in json.loads(_read(REPO_ROOT / "common/runtime/required-env.generated.json"))["fields"]}
-    assert "SSOT Key" in obs_doc and "observability" in obs_doc and all(k in obs_doc and k in env_ex and k in fields and k in env_ref for k in ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_SERVICE_NAME", "OTEL_RESOURCE_ATTRIBUTES"))
+    assert "SSOT Key" in obs_doc and "observability" in obs_doc and all(k in obs_doc and k in env_ex and k in fields for k in ("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_SERVICE_NAME", "OTEL_RESOURCE_ATTRIBUTES"))
 
     monkeypatch.setattr(observability_module.settings, "otel_exporter_otlp_endpoint", None)
     monkeypatch.setattr(telemetry_metrics_module.settings, "otel_exporter_otlp_endpoint", None)

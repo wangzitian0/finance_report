@@ -356,7 +356,7 @@ def _build_health_checks() -> list[_BootCheck]:
     return checks
 
 
-if "ENVIRONMENT" not in os.environ and "ENV" not in os.environ:
+if "ENVIRONMENT" not in os.environ:
     os.environ["ENVIRONMENT"] = settings.environment
 if settings.otel_exporter_otlp_endpoint:
     os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", settings.otel_exporter_otlp_endpoint)

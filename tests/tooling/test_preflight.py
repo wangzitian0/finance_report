@@ -112,11 +112,11 @@ class TestSelectChecks:
             _m23_c.name
             for _m23_c in preflight.select_checks(["apps/backend/src/config.py"])
         ]
-        assert "env-reference" in _m23_names
+        assert "env-manifests" in _m23_names
         assert "backend-format" in _m23_names
         _m24_names = [
             _m24_c.name
-            for _m24_c in preflight.select_checks(["tools/generate_env_reference.py"])
+            for _m24_c in preflight.select_checks(["tools/env_manifests.py"])
         ]
         assert "tooling" in _m24_names
         assert preflight.select_checks(["Makefile"]) == []

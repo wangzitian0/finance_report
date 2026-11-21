@@ -44,7 +44,7 @@ dependencies = [
     # The `otel` extra installs `opentelemetry-instrumentation-logging` so
     # `infra2_sdk.fastapi.init_service` and `infra2_sdk.runtime.otel.init_worker`
     # own OTel traces/metrics/logs, JSON logging, /livez, /readyz, and /health.
-    "infra2-sdk[otel] @ https://github.com/wangzitian0/infra2-sdk/releases/download/v4.0.0/infra2_sdk-4.0.0-py3-none-any.whl",
+    "infra2-sdk[otel] @ https://github.com/wangzitian0/infra2-sdk/releases/download/v4.3.0/infra2_sdk-4.3.0-py3-none-any.whl",
 ]
 
 [dependency-groups]

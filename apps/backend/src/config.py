@@ -56,7 +56,7 @@ access_token_expire_minutes|sec||Access token lifetime in minutes.
 trust_proxy|sec||Trust X-Forwarded-For headers from reverse proxies.
 ai_provider|ai|i,ac:LLM_PROVIDER|AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults).
 ai_api_key|ai|i,al:LLM_API_KEY|AI provider API key (empty key = AI features disabled).
-environment|app|i,ac:ENVIRONMENT+ENV|Logical environment name (used to differentiate environments).
+environment|app|i|Logical environment name (used to differentiate environments).
 debug|app|na|Enable debug mode.
 base_currency|app|na|Base reporting currency (ISO 4217).
 market_data_lazy_fetch_enabled|app||Report-side FX lazy resolution. Set to false to prevent outbound Yahoo Finance calls.
@@ -99,6 +99,8 @@ enable_storage_sweep|ff||Enable periodic background sweep for orphaned S3 object
 storage_sweep_grace_period_hours|ff||Grace period (hours) before an orphaned S3 object is eligible for the storage sweep. Objects younger than this are never deleted, to avoid racing with in-progress uploads (issue #356, default 24h).
 storage_sweep_interval_seconds|ff||Interval (seconds) between orphaned-S3-object sweep runs (issue #356, default 86400s = daily).
 git_commit_sha|dep||Deployment commit SHA (set by CI, not manually).
+configuration_sha256|dep||SHA-256 of the deployed configuration. infra2 sets it at deploy time.
+prefect_worker_query_seconds|ai||Interval (seconds) between work-pool queries of the Prefect worker. scripts/prefect_worker_entrypoint.sh reads it.
 api_rate_limit_requests|rl||Global API rate-limit request count (applies to all endpoints except /health, /ping, /docs). Default 300 allows E2E test suites and power users.
 api_rate_limit_window|rl||Global API rate-limit window in seconds.
 register_rate_limit_requests|rl||Per-IP registration rate-limit request count on /api/auth/register. Default 10/600s is strict; set to 10000 in test envs.
@@ -112,6 +114,9 @@ _SDK_LLM_KEY_ALIASES: dict[str, tuple[str, ...]] = {
     "ai_provider": ("LLM_PROVIDER",),
     "ai_api_key": ("LLM_API_KEY",),
     "ai_base_url": ("LLM_BASE_URL",),
+    "large_model": ("LLM_LARGE_MODEL",),
+    "small_model": ("LLM_SMALL_MODEL",),
+    "multimodal_model": ("LLM_MULTIMODAL_MODEL",),
 }
 
 
@@ -244,7 +249,7 @@ class Settings(BaseSettings):
     trust_proxy: bool = _f("trust_proxy", False)
     ai_provider: str = _f("ai_provider", "zai")
     ai_api_key: str = _f("ai_api_key", "", store_key="LLM_API_KEY")
-    environment: str = _f("environment", "development", extra_keys=["ENV"])
+    environment: str = _f("environment", "development")
     debug: bool = _f("debug", False, ex="true")
     base_currency: str = _f("base_currency", "SGD")
     market_data_lazy_fetch_enabled: bool = _f("market_data_lazy_fetch_enabled", True)
@@ -289,6 +294,8 @@ class Settings(BaseSettings):
     storage_sweep_grace_period_hours: int = _f("storage_sweep_grace_period_hours", 24, ge=1)
     storage_sweep_interval_seconds: int = _f("storage_sweep_interval_seconds", 86400, ge=1)
     git_commit_sha: str = _f("git_commit_sha", "unknown")
+    configuration_sha256: str = _f("configuration_sha256", "")
+    prefect_worker_query_seconds: int = _f("prefect_worker_query_seconds", 1, ge=1)
     api_rate_limit_requests: int = _f("api_rate_limit_requests", 300, ge=1)
     api_rate_limit_window: int = _f("api_rate_limit_window", 60, ge=1)
     register_rate_limit_requests: int = _f("register_rate_limit_requests", 10, ge=1)
@@ -385,7 +392,7 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
         "composed_from": "redis://:{PASSWORD}@finance_report-redis{env:ENV_SUFFIX}:6379/0",
     },
     "ai_api_key": {"source": "human", "sensitive": True, "empty_ok": True, "store_key": "LLM_API_KEY"},
-    "git_commit_sha": {"source": "release"},
+    **{k: {"source": "release"} for k in ("git_commit_sha", "configuration_sha256")},
     **{k: {"source": "runtime", "sensitive": True} for k in ("s3_access_key", "s3_secret_key", "secret_key")},
     **{
         k: {"source": "runtime", "sensitive": True, "empty_ok": True}

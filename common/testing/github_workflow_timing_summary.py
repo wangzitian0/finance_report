@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from common.runtime.github_api import parse_github_time
+from infra2_sdk.ci import parse_github_time
 
 # The one machine copy of the budgets (#2688, #2996), in seconds. Source: the zitian
 # Workspace tier, section "Pipeline time contract". Docs link that tier and repeat no

@@ -40,7 +40,7 @@ async def test_AC23_2_4_provider_protocol_families(monkeypatch, ai_provider: str
 
 @pytest.mark.no_db
 async def test_default_glm_models_cassette_settings_and_retired_resolution(monkeypatch) -> None:
-    for variable in ("LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+    for variable in ("LLM_LARGE_MODEL", "LLM_SMALL_MODEL", "LLM_MULTIMODAL_MODEL"):
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.setattr(env_config, "settings", Settings(_env_file=None, LLM_PROVIDER="zai", LLM_API_KEY="test-key"))
     source, sdk = EnvConfigSource(), LlmSettings()

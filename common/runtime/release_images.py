@@ -11,7 +11,7 @@ import time
 from collections.abc import Callable, Sequence
 
 from common.meta.base.gate_util import required_arg
-from common.runtime.github_api import write_github_output as _write_github_output
+from infra2_sdk.ci import write_github_output as _write_github_output
 
 InspectImage = Callable[[str], tuple[int, str]]
 Sleep = Callable[[float], None]

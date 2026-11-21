@@ -2,7 +2,7 @@
 
 Projects the provider-neutral environment settings (``LLM_PROVIDER`` /
 ``LLM_BASE_URL`` / ``LLM_API_KEY``) and the three canonical model roles
-(``LARGE_MODEL``, ``SMALL_MODEL``, ``MULTIMODAL_MODEL``) onto the
+(``LLM_LARGE_MODEL``, ``LLM_SMALL_MODEL``, ``LLM_MULTIMODAL_MODEL``) onto the
 scene×model contract.
 """
 

@@ -182,6 +182,12 @@ jobs:
         run: |
           cd apps/backend
           uv run --frozen python ../../tools/generate_api_reference.py --check
+      - name: Environment Manifest Check (infra2 SDK)
+        run: |
+          # infra2_sdk.manifests checks the backend manifest from config.py, the
+          # hand-written frontend manifest, and the backend block of .env.example.
+          cd apps/backend
+          uv run --frozen python ../../tools/env_manifests.py --check
       - name: Generated OpenAPI Spec and API Types Check
         run: |
           # The committed apps/frontend/openapi.json and src/lib/api-types.ts must
