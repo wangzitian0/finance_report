@@ -17,7 +17,7 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
             "secret_key jwt_algorithm access_token_expire_minutes llm_encryption_keys "
             "cors_origins_str cors_origin_regex trust_proxy",
         ),
-        ("deployment", "environment debug git_commit_sha next_public_app_url"),
+        ("deployment", "environment debug git_commit_sha configuration_sha256 next_public_app_url"),
         ("domain", "base_currency"),
         (
             "feature",
@@ -34,7 +34,8 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
             "api_rate_limit_requests api_rate_limit_window register_rate_limit_requests "
             "register_rate_limit_window otel_service_name otel_resource_attributes "
             "openpanel_environment reconciliation_auto_accept_threshold "
-            "reconciliation_review_threshold llm_cassette_engage llm_cassette_refresh llm_live",
+            "reconciliation_review_threshold llm_cassette_engage llm_cassette_refresh llm_live "
+            "prefect_worker_query_seconds",
         ),
     )
     for field in fields.split()
