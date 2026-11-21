@@ -622,3 +622,15 @@ def test_an_account_without_rows_and_unequal_balances_stops_the_proof():
     )
     assert score.balance_fails and not score.balance_proven
     assert not replaces(score, _score(five_rows_gap_10, None))
+
+
+async def test_a_difference_inside_the_tolerance_is_no_gap_and_keeps_the_printed_closing():
+    """#2394 class: a later pass computes the closing balance from its rows. The printed closing stays."""
+    text = "100.00 60.00 10.00 20.00 9.95"
+    printed = _reading("10.00", "20.00", "9.95", opening_balance="100.00", closing_balance="60.00", period_start=None)
+    computed = {**printed, "closing_balance": "60.05", "period_start": "2025-01-01"}
+
+    assert _score(printed, text).gap == 0 and _score(printed, text).proven_rows == 3
+    assert not replaces(_score(computed, text), _score(printed, text))
+    result, _ = await _run([printed, computed], content=_pdf(text), max_attempts=2)
+    assert result is printed

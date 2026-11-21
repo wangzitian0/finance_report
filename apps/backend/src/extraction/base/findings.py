@@ -332,6 +332,9 @@ def _states_balance(reading: dict[str, Any], field: str, bucket_field: str) -> b
 
 def _gap_of(result: dict[str, Any]) -> Decimal:
     """Return the balance difference of one account. A balance that cannot be computed is the largest gap."""
+    if result.get("balance_valid"):
+        # A difference inside the tolerance is no gap: it must not outrank the proof of another pass.
+        return Decimal("0")
     if not result.get("balance_computable", True):
         return Decimal("Infinity")
     try:
