@@ -503,7 +503,7 @@ async def test_parse_document_activates_split_single_batch_on_vision_images():
     async def fake_model(*, messages, model, **kwargs):
         prompt_text = messages[0]["content"][0]["text"]
         calls.append(prompt_text)
-        if "METADATA + BALANCES" in prompt_text:
+        if "HEADER & BALANCES CHECK ONLY" in prompt_text:
             return {
                 "institution": "DBS",
                 "currency": "SGD",
@@ -531,5 +531,7 @@ async def test_parse_document_activates_split_single_batch_on_vision_images():
             file_type="png",
         )
     assert len(calls) == 2
-    assert result.requires_review is True
+    # One of the two calls is the header call. Before #2964 the fake matched no prompt, so both calls gave rows.
+    assert sum("HEADER & BALANCES CHECK ONLY" in prompt for prompt in calls) == 1
+    assert result.requires_review is False
     assert result.confidence <= Decimal("0.80")
