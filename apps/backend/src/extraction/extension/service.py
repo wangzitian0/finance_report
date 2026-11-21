@@ -931,7 +931,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         max_attempts = max(1, settings.ai_extract_max_attempts)
         base_seed = settings.ai_json_seed
         best: tuple[list[AccountExtractionSlice], bool | None] | None = None
-        best_rank: tuple[int, Decimal] | None = None
+        best_rank: tuple[int, int, int, Decimal] | None = None
+        previous_findings: list[Finding] | None = None
         best_evaluable = False
         last_error: Exception | None = None
         extract_overridden = (
@@ -1034,28 +1035,41 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 continue
             if not findings:
                 return current_parse
-            rank = (len(findings), self._balance_gap(slices))
+            # A reading without rows is the worst, then a reading whose balance equation fails: the persist
+            # step rejects it. The number of findings and the size of the balance gap decide the rest.
+            codes = {finding.code for finding in findings}
+            rank = (
+                int(FindingCode.NO_ROWS in codes),
+                int(FindingCode.BALANCE_MISMATCH in codes),
+                len(findings),
+                self._balance_gap(slices),
+            )
             if best is None or best_rank is None or rank < best_rank:
                 best, best_rank = current_parse, rank
                 best_evaluable = evaluable and not any(f.code in _BALANCE_NOT_PRINTED for f in findings)
+            if findings == previous_findings and FindingCode.BALANCE_MISMATCH not in codes:
+                # The same findings twice: the document does not print what the checks ask for.
+                break
+            previous_findings = findings
             feedback = check_feedback_block(findings)
-            # The text checks judge the text, so the second pass reads the text again. A balance gap that
-            # stays after it sends the next pass to the page images.
-            read_text_layer = attempt == 0 or not any(f.code is FindingCode.BALANCE_MISMATCH for f in findings)
+            # The text checks judge the text, so the next pass reads the text again. A balance gap sends the
+            # last pass to the page images, and each pass after a second gap.
+            last_pass_is_next = attempt + 2 >= max_attempts
+            read_text_layer = FindingCode.BALANCE_MISMATCH not in codes or (attempt == 0 and not last_pass_is_next)
 
         if best is not None:
             if max_attempts > 1:
                 logger.info(
                     "Checks did not pass after re-extract; keeping the pass with the fewest findings",
                     attempts=max_attempts,
-                    finding_count=best_rank[0] if best_rank else None,
-                    best_difference=str(best_rank[1]) if best_rank else None,
+                    finding_count=best_rank[2] if best_rank else None,
+                    best_difference=str(best_rank[3]) if best_rank else None,
                 )
             return best
         raise last_error or ExtractionError("Extraction failed after all retries")
 
     def _balance_gap(self, slices: list[AccountExtractionSlice]) -> Decimal:
-        """Return the sum of the balance differences of the accounts whose balance equation is computable."""
+        """Return the sum of the balance differences of the accounts. A balance that cannot be computed is the largest gap."""
         total = Decimal("0")
         for s in slices:
             sub = s.payload
@@ -1069,11 +1083,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 currency_balances=per_currency,
                 transactions=sub.get("transactions") or [],
             )
-            if result.get("balance_computable", True):
-                try:
-                    total += abs(Decimal(str(result.get("difference", "0") or "0")))
-                except (ValueError, TypeError, InvalidOperation):
-                    continue
+            if not result.get("balance_computable", True):
+                return Decimal("Infinity")
+            try:
+                total += abs(Decimal(str(result.get("difference", "0") or "0")))
+            except (ValueError, TypeError, InvalidOperation):
+                return Decimal("Infinity")
         return total
 
     async def _extract_json_with_model(
@@ -1299,7 +1314,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 allow_multiple_accounts=allow_multiple_accounts,
                 split_single_batch=False,
             )
-            if from_text.get("transactions") or (document_kind == "brokerage" and from_text.get("positions")):
+            # A reply with ``accounts`` holds the rows of several accounts, read from the text (#2983).
+            has_rows = from_text.get("transactions") or from_text.get("accounts")
+            if has_rows or (document_kind == "brokerage" and from_text.get("positions")):
                 return from_text, text_split_agreed
             logger.warning(
                 "PDF text layer gave no transactions or positions; reading the page images",

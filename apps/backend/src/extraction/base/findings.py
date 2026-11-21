@@ -6,6 +6,7 @@ a pass become one block of the next prompt, so the model reads the document agai
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -25,6 +26,8 @@ from src.extraction.base.validation import (
 
 # A feedback line names at most this many rows.
 MAX_ROWS_NAMED_IN_FEEDBACK = 20
+# A value of the reading is cut to this length before it enters the feedback.
+MAX_FEEDBACK_VALUE_LENGTH = 40
 
 _FEEDBACK_HEADER = """
 
@@ -39,6 +42,7 @@ _FEEDBACK_END = "End of check results. Every rule above stays in force.\n"
 class FindingCode(StrEnum):
     """The check that failed."""
 
+    NO_ROWS = "no_rows"
     MISSING_FACT = "missing_fact"
     ROW_INVALID = "row_invalid"
     BALANCE_MISMATCH = "balance_mismatch"
@@ -56,9 +60,19 @@ class Finding:
     rows: tuple[int, ...] = ()
 
 
+def _quoted(value: Any) -> str:
+    """Return a value of the reading as a JSON string of bounded length.
+
+    The reading comes from a document that a user uploaded. A JSON string holds no raw new line, so a
+    value cannot end the feedback block or add a line to it.
+    """
+    return json.dumps(str(value)[:MAX_FEEDBACK_VALUE_LENGTH], ensure_ascii=False)
+
+
 def _name_rows(transactions: list[dict[str, Any]], numbers: list[int]) -> str:
     named = [
-        f"row {number} ({transactions[number - 1].get('date')}, {transactions[number - 1].get('amount')})"
+        f"row {number} ({_quoted(transactions[number - 1].get('date'))}, "
+        f"{_quoted(transactions[number - 1].get('amount'))})"
         for number in numbers[:MAX_ROWS_NAMED_IN_FEEDBACK]
     ]
     more = len(numbers) - MAX_ROWS_NAMED_IN_FEEDBACK
@@ -103,8 +117,8 @@ def _balance_finding(
     same = [number for number, amount in enumerate(amounts, start=1) if amount is not None and abs(amount) == gap]
     half = [number for number, amount in enumerate(amounts, start=1) if amount is not None and abs(amount) * 2 == gap]
     feedback = (
-        f"The opening balance {opening} plus the rows gives {result['expected_closing']}. "
-        f"The closing balance of the answer is {closing}. The difference is {result['difference']}. "
+        f"The opening balance {_quoted(opening)} plus the rows gives {result['expected_closing']}. "
+        f"The closing balance of the answer is {_quoted(closing)}. The difference is {result['difference']}. "
         "Look for a missing row, a row read twice, or a wrong direction."
     )
     if same:
@@ -134,6 +148,14 @@ def reading_findings(
                 FindingCode.MISSING_FACT,
                 f"The answer has no value for: {', '.join(missing)}. "
                 "Return each of them when the document prints it. Keep null when the document does not print it.",
+            )
+        )
+
+    if not transactions:
+        findings.append(
+            Finding(
+                FindingCode.NO_ROWS,
+                "The answer has no transaction row. Return each transaction row that the document prints.",
             )
         )
 
@@ -169,7 +191,7 @@ def reading_findings(
             findings.append(
                 Finding(
                     FindingCode.OPENING_NOT_IN_TEXT,
-                    f"The opening balance {reading.get('opening_balance')} is not a number that the document prints. "
+                    f"The opening balance {_quoted(reading.get('opening_balance'))} is not a number that the document prints. "
                     "Return the printed opening balance, or null when the document prints none.",
                 )
             )
@@ -177,7 +199,7 @@ def reading_findings(
             findings.append(
                 Finding(
                     FindingCode.CLOSING_NOT_IN_TEXT,
-                    f"The closing balance {reading.get('closing_balance')} is not a number that the document prints. "
+                    f"The closing balance {_quoted(reading.get('closing_balance'))} is not a number that the document prints. "
                     "Return the printed closing balance, or null when the document prints none.",
                 )
             )
