@@ -2,6 +2,7 @@
 
 A reading is the JSON answer of the model for one account. Each failed check gives one finding. The findings of
 a pass become one block of the next prompt, so the model reads the document again with the errors in view.
+``PassScore`` and ``replaces`` decide which of two passes is kept.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ from src.extraction.base.validation import (
 MAX_ROWS_NAMED_IN_FEEDBACK = 20
 # A value of the reading is cut to this length before it enters the feedback.
 MAX_FEEDBACK_VALUE_LENGTH = 40
+# One feedback line is cut to this length.
+MAX_FEEDBACK_LINE_LENGTH = 2000
 
 _FEEDBACK_HEADER = """
 
@@ -51,6 +54,9 @@ class FindingCode(StrEnum):
     ROWS_NOT_IN_TEXT = "rows_not_in_text"
 
 
+_BALANCE_NOT_PRINTED = frozenset({FindingCode.OPENING_NOT_IN_TEXT, FindingCode.CLOSING_NOT_IN_TEXT})
+
+
 @dataclass(frozen=True, slots=True)
 class Finding:
     """One failed check of a reading. ``feedback`` is the sentence that the model gets."""
@@ -60,6 +66,12 @@ class Finding:
     rows: tuple[int, ...] = ()
 
 
+def _number(value: Any) -> Decimal | None:
+    """Return a finite Decimal, or None. ``NaN`` and ``Infinity`` are not amounts."""
+    number = _safe_parse_decimal(value)
+    return number if number is not None and number.is_finite() else None
+
+
 def _quoted(value: Any) -> str:
     """Return a value of the reading as a JSON string of bounded length.
 
@@ -67,6 +79,11 @@ def _quoted(value: Any) -> str:
     value cannot end the feedback block or add a line to it.
     """
     return json.dumps(str(value)[:MAX_FEEDBACK_VALUE_LENGTH], ensure_ascii=False)
+
+
+def _rows_of(reading: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_rows = reading.get("transactions")
+    return [txn for txn in raw_rows if isinstance(txn, dict)] if isinstance(raw_rows, list) else []
 
 
 def _name_rows(transactions: list[dict[str, Any]], numbers: list[int]) -> str:
@@ -91,34 +108,39 @@ def _missing_fact_names(reading: dict[str, Any], *, institution_given: bool) -> 
     return [name for name, has_value in present.items() if not has_value]
 
 
-def _balance_finding(
-    reading: dict[str, Any], transactions: list[dict[str, Any]], per_currency: list[dict[str, str]] | None
-) -> Finding | None:
+def _balance_result(reading: dict[str, Any]) -> dict[str, Any] | None:
+    """Return the balance evaluation of a reading, or None when the reading has no balances to evaluate."""
+    per_currency = bank_currency_balances(reading)
     opening, closing = reading.get("opening_balance"), reading.get("closing_balance")
     if not balance_is_evaluable(opening, closing, per_currency):
         return None
-    result = evaluate_statement_balance(
-        opening=_safe_parse_decimal(opening),
-        closing=_safe_parse_decimal(closing),
+    return evaluate_statement_balance(
+        opening=_number(opening),
+        closing=_number(closing),
         currency=reading.get("currency"),
         currency_balances=per_currency,
-        transactions=transactions,
+        transactions=_rows_of(reading),
     )
-    if result.get("balance_valid"):
+
+
+def _balance_finding(reading: dict[str, Any], transactions: list[dict[str, Any]]) -> Finding | None:
+    result = _balance_result(reading)
+    if result is None or result.get("balance_valid"):
         return None
-    if per_currency or not result.get("balance_computable", True):
+    if bank_currency_balances(reading) or not result.get("balance_computable", True) or "raw_difference" not in result:
         return Finding(
             FindingCode.BALANCE_MISMATCH,
             "The opening balance plus the rows does not give the closing balance for each currency. "
             "Look for a missing row, a row read twice, or a wrong direction.",
         )
     gap = Decimal(str(result["raw_difference"]))
-    amounts = [_safe_parse_decimal(txn.get("amount")) for txn in transactions]
+    amounts = [_number(txn.get("amount")) for txn in transactions]
     same = [number for number, amount in enumerate(amounts, start=1) if amount is not None and abs(amount) == gap]
     half = [number for number, amount in enumerate(amounts, start=1) if amount is not None and abs(amount) * 2 == gap]
     feedback = (
-        f"The opening balance {_quoted(opening)} plus the rows gives {result['expected_closing']}. "
-        f"The closing balance of the answer is {_quoted(closing)}. The difference is {result['difference']}. "
+        f"The opening balance {_quoted(reading.get('opening_balance'))} plus the rows gives "
+        f"{_quoted(result['expected_closing'])}. The closing balance of the answer is "
+        f"{_quoted(reading.get('closing_balance'))}. The difference is {_quoted(result['difference'])}. "
         "Look for a missing row, a row read twice, or a wrong direction."
     )
     if same:
@@ -134,10 +156,10 @@ def reading_findings(
     """Return one finding for each check that the reading of one bank account fails.
 
     ``source_text`` is the text layer of the PDF, or None when the source has none. ``institution_given`` is
-    True when the caller supplied the institution, so the reading does not have to state it.
+    True when the caller supplied the institution, so the reading does not have to state it. An account
+    without rows is not a finding here: ``document_findings`` judges the rows of the whole document.
     """
-    raw_rows = reading.get("transactions")
-    transactions = [txn for txn in raw_rows if isinstance(txn, dict)] if isinstance(raw_rows, list) else []
+    transactions = _rows_of(reading)
     per_currency = bank_currency_balances(reading)
     findings: list[Finding] = []
 
@@ -151,18 +173,10 @@ def reading_findings(
             )
         )
 
-    if not transactions:
-        findings.append(
-            Finding(
-                FindingCode.NO_ROWS,
-                "The answer has no transaction row. Return each transaction row that the document prints.",
-            )
-        )
-
     invalid = [
         number
         for number, txn in enumerate(transactions, start=1)
-        if not txn.get("date") or _safe_parse_decimal(txn.get("amount")) is None
+        if not txn.get("date") or _number(txn.get("amount")) is None
     ]
     if invalid:
         findings.append(
@@ -174,15 +188,15 @@ def reading_findings(
             )
         )
 
-    balance = _balance_finding(reading, transactions, per_currency)
+    balance = _balance_finding(reading, transactions)
     if balance is not None:
         findings.append(balance)
 
     if not source_text or not transactions:
         return findings
-    opening = _safe_parse_decimal(reading.get("opening_balance"))
-    closing = _safe_parse_decimal(reading.get("closing_balance"))
-    amounts = [_safe_parse_decimal(txn.get("amount")) for txn in transactions]
+    opening = _number(reading.get("opening_balance"))
+    closing = _number(reading.get("closing_balance"))
+    amounts = [_number(txn.get("amount")) for txn in transactions]
     if per_currency is None:
         verdict = check_closing_balance_against_text(
             source_text, opening=opening, closing=closing, amounts=[a for a in amounts if a is not None]
@@ -191,21 +205,21 @@ def reading_findings(
             findings.append(
                 Finding(
                     FindingCode.OPENING_NOT_IN_TEXT,
-                    f"The opening balance {_quoted(reading.get('opening_balance'))} is not a number that the document prints. "
-                    "Return the printed opening balance, or null when the document prints none.",
+                    f"The opening balance {_quoted(reading.get('opening_balance'))} is not a number that the "
+                    "document prints. Return the printed opening balance, or null when the document prints none.",
                 )
             )
         elif verdict is SourceBalanceVerdict.CLOSING_NOT_IN_TEXT:
             findings.append(
                 Finding(
                     FindingCode.CLOSING_NOT_IN_TEXT,
-                    f"The closing balance {_quoted(reading.get('closing_balance'))} is not a number that the document prints. "
-                    "Return the printed closing balance, or null when the document prints none.",
+                    f"The closing balance {_quoted(reading.get('closing_balance'))} is not a number that the "
+                    "document prints. Return the printed closing balance, or null when the document prints none.",
                 )
             )
     not_printed = rows_missing_from_text(
         source_text,
-        [(amount, _safe_parse_decimal(txn.get("balance_after"))) for amount, txn in zip(amounts, transactions)],
+        [(amount, _number(txn.get("balance_after"))) for amount, txn in zip(amounts, transactions)],
     )
     if not_printed:
         findings.append(
@@ -219,9 +233,101 @@ def reading_findings(
     return findings
 
 
+def _balance_holds(reading: dict[str, Any]) -> bool:
+    result = _balance_result(reading)
+    return result is not None and bool(result.get("balance_valid"))
+
+
+def document_findings(
+    readings: list[dict[str, Any]], *, source_text: str | None, institution_given: bool = False
+) -> list[Finding]:
+    """Return the findings of each account of one document, and ``no_rows`` when the document gave no row.
+
+    An account without activity is correct when its printed balances are equal, so a balance equation
+    that holds is the proof that a document without rows is complete.
+    """
+    findings = [
+        finding
+        for reading in readings
+        for finding in reading_findings(reading, source_text=source_text, institution_given=institution_given)
+    ]
+    if not any(_rows_of(reading) for reading in readings) and not any(_balance_holds(r) for r in readings):
+        findings.insert(
+            0,
+            Finding(
+                FindingCode.NO_ROWS,
+                "The answer has no transaction row. Return each transaction row that the document prints.",
+            ),
+        )
+    return findings
+
+
 def check_feedback_block(findings: list[Finding]) -> str:
     """Return the findings as one block of a prompt, or "" when there is no finding."""
     if not findings:
         return ""
-    lines = [f"{number}. {finding.feedback}\n" for number, finding in enumerate(findings, start=1)]
+    lines = [
+        f"{number}. {finding.feedback[:MAX_FEEDBACK_LINE_LENGTH]}\n" for number, finding in enumerate(findings, start=1)
+    ]
     return "".join([_FEEDBACK_HEADER, *lines, _FEEDBACK_END])
+
+
+@dataclass(frozen=True, slots=True)
+class PassScore:
+    """What decides whether one pass replaces another."""
+
+    rows: int
+    codes: frozenset[FindingCode]
+    finding_count: int
+    # True when one account or more has balances that the equation can judge.
+    evaluable: bool
+    # The sum of the balance differences. A balance that cannot be computed is the largest gap.
+    gap: Decimal
+
+    @property
+    def balance_fails(self) -> bool:
+        return FindingCode.BALANCE_MISMATCH in self.codes
+
+    @property
+    def rank(self) -> tuple[int, int, Decimal, int]:
+        """Lower is better: has rows, the balance equation holds, the smaller gap, the fewer findings."""
+        return (int(FindingCode.NO_ROWS in self.codes), int(self.balance_fails), self.gap, self.finding_count)
+
+
+def score_pass(readings: list[dict[str, Any]], findings: list[Finding]) -> PassScore:
+    """Return the score of one pass from its account readings and its findings."""
+    gap = Decimal("0")
+    evaluable = False
+    for reading in readings:
+        result = _balance_result(reading)
+        if result is None:
+            continue
+        evaluable = True
+        try:
+            difference = Decimal(str(result.get("difference", "0") or "0"))
+        except ArithmeticError:
+            difference = Decimal("Infinity")
+        gap += abs(difference) if result.get("balance_computable", True) else Decimal("Infinity")
+    return PassScore(
+        rows=sum(len(_rows_of(reading)) for reading in readings),
+        codes=frozenset(finding.code for finding in findings),
+        finding_count=len(findings),
+        evaluable=evaluable,
+        gap=gap,
+    )
+
+
+def replaces(candidate: PassScore, kept: PassScore) -> bool:
+    """Return True when a later pass replaces the kept pass.
+
+    A later pass never loses evidence without proof:
+    - It keeps the balances, unless the text check showed that the document does not print them.
+    - It keeps the number of rows, unless the kept pass fails the balance equation and the later pass holds it.
+    Then the lower rank wins. An equal rank keeps the earlier pass.
+    """
+    if kept.evaluable and not candidate.evaluable and not (kept.codes & _BALANCE_NOT_PRINTED):
+        return False
+    repairs_balance = kept.balance_fails and candidate.evaluable and not candidate.balance_fails
+    if candidate.rows < kept.rows and not repairs_balance:
+        return False
+    return candidate.rank < kept.rank

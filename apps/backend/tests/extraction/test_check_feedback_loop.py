@@ -7,7 +7,14 @@ from unittest.mock import AsyncMock, patch
 import fitz
 
 from src.config import settings
-from src.extraction.base.findings import FindingCode, check_feedback_block, reading_findings
+from src.extraction.base.findings import (
+    FindingCode,
+    check_feedback_block,
+    document_findings,
+    reading_findings,
+    replaces,
+    score_pass,
+)
 from src.extraction.extension.service import ExtractionService
 
 PRINTED = "10.00 20.00 30.00 40.00 50.00"
@@ -201,8 +208,9 @@ async def test_a_pass_without_rows_never_replaces_a_pass_with_rows():
     result, mock = await _run([two_findings, empty, empty], content=_pdf(PRINTED), max_attempts=3)
 
     assert len(reading_findings(two_findings, source_text=PRINTED)) == 2
-    assert [f.code for f in reading_findings(empty, source_text=PRINTED)] == [FindingCode.NO_ROWS]
-    assert result is two_findings and mock.await_count == 3
+    assert [f.code for f in document_findings([empty], source_text=PRINTED)] == [FindingCode.NO_ROWS]
+    # The empty pass does not improve the kept pass, so the loop ends after it.
+    assert result is two_findings and mock.await_count == 2
 
 
 async def test_a_balanced_pass_beats_a_pass_with_a_balance_gap_and_fewer_findings():
@@ -273,3 +281,83 @@ async def test_each_account_of_a_paged_statement_takes_the_period_of_the_documen
         ("1234", "2025-01-01", "2025-01-31"),
         ("5678", "2025-01-01", "2025-01-31"),
     ]
+
+
+def _score(reading_or_accounts, text: str | None = PRINTED):
+    readings = reading_or_accounts if isinstance(reading_or_accounts, list) else [reading_or_accounts]
+    return score_pass(readings, document_findings(readings, source_text=text))
+
+
+def test_replaces_never_loses_rows_or_balances_without_proof():
+    in_rows = [{**row, "direction": "IN"} for row in _rows("10.00", "20.00", "30.00", "40.00", "50.00")]
+    balanced = _reading(opening_balance="100.00", closing_balance="250.00", transactions=in_rows)
+    gap_1 = {**balanced, "closing_balance": "251.00", "period_start": None}
+    gap_140 = {**balanced, "transactions": in_rows[:1]}
+    fewer_rows_clean = _reading("10.00", "20.00")
+    five_rows_one_unprinted = _reading("10.00", "20.00", "30.00", "40.00", "999.99")
+    no_balances = _reading("10.00", "20.00", "30.00", "40.00", "50.00")
+    duplicate_row = {**balanced, "transactions": [*in_rows, in_rows[0]]}
+    account_with_rows = {**_reading("10.00", "20.00", "30.00"), "account_last4": "1111", "period_start": None}
+    account_without = {**_reading(), "account_last4": "2222", "period_start": None}
+
+    # Among two readings with a balance gap, the smaller gap wins over the smaller number of findings.
+    assert not replaces(_score(gap_140, None), _score(gap_1, None))
+    assert replaces(_score(gap_1, None), _score(gap_140, None))
+    # A reading with no finding and fewer rows does not replace a reading with more rows.
+    assert not replaces(_score(fewer_rows_clean), _score(five_rows_one_unprinted))
+    # A reading without balances does not replace a reading with balances that the text prints.
+    assert not replaces(_score(no_balances, None), _score(gap_1, None))
+    # Fewer rows are accepted when they repair the balance equation.
+    assert replaces(_score(balanced, None), _score(duplicate_row, None))
+    # Several accounts: one account without rows does not make the document a reading without rows.
+    two_accounts = _score([account_with_rows, account_without])
+    assert FindingCode.NO_ROWS not in two_accounts.codes and two_accounts.rows == 3
+    assert not replaces(_score(_reading()), two_accounts)
+    assert not replaces(_score([{**account_with_rows, "transactions": []}, account_without]), two_accounts)
+
+
+async def test_a_statement_without_activity_and_equal_balances_ends_after_one_pass():
+    quiet = _reading(opening_balance="500.00", closing_balance="500.00")
+    result, mock = await _run([quiet], content=_pdf("Opening 500.00 Closing 500.00"), max_attempts=3)
+    assert result is quiet and mock.await_count == 1
+    assert document_findings([quiet], source_text="Opening 500.00 Closing 500.00") == []
+
+
+async def test_a_pass_that_lost_the_balances_still_sends_the_next_pass_to_the_page_images():
+    gap = _reading("10.00", "20.00", "30.00", "40.00", "50.00", opening_balance="200.00", closing_balance="40.00")
+    lost = {**gap, "opening_balance": None, "closing_balance": None}
+    result, mock = await _run([gap, lost, dict(gap)], content=_pdf(PRINTED + " 200.00"), max_attempts=3)
+    assert result is gap and [call.kwargs["read_text_layer"] for call in mock.await_args_list] == [True, True, False]
+
+
+async def test_findings_that_change_between_passes_without_an_improvement_end_the_loop():
+    no_start = _reading("10.00", "20.00", "30.00", "40.00", "50.00", period_start=None)
+    no_end = _reading("10.00", "20.00", "30.00", "40.00", "50.00", period_end=None)
+    result, mock = await _run([no_start, no_end, no_start, no_end], content=_pdf(PRINTED), max_attempts=5)
+    assert result is no_start and mock.await_count == 2
+
+
+def test_the_feedback_block_is_bounded_and_a_non_finite_amount_is_an_invalid_row():
+    huge = _reading("10.00", opening_balance="9" * 50_000, closing_balance="5.00")
+    assert len(check_feedback_block(document_findings([huge], source_text=None))) < 1_500
+    exponent = _reading("10.00", opening_balance="1E+100000", closing_balance="5.00")
+    assert len(check_feedback_block(document_findings([exponent], source_text=None))) < 1_500
+    signalling = _reading("sNaN", "10.00", "20.00", "30.00", "40.00", "50.00")
+    codes = [finding.code for finding in document_findings([signalling], source_text=PRINTED)]
+    assert codes == [FindingCode.ROW_INVALID]
+
+
+async def test_a_text_reply_whose_accounts_have_no_rows_is_read_again_from_the_page_images():
+    service = ExtractionService()
+    service.api_key, service.multimodal_model = "test-key", "test-model"
+    empty_accounts = {"institution": "DBS", "accounts": [{"account_last4": "1111", "transactions": []}, {}]}
+    from_images = {"institution": "DBS", "transactions": _rows("50.00")}
+    image = [[{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]]
+    with (
+        patch.object(service, "_extract_json_with_model", AsyncMock(side_effect=[empty_accounts, from_images])),
+        patch.object(service, "_build_vision_media_payload_batches", lambda *args, **kwargs: image),
+    ):
+        result, _ = await service._extract_financial_data_with_meta(
+            file_content=_pdf(PRINTED), institution="DBS", file_type="pdf", split_single_batch=False
+        )
+    assert result is from_images

@@ -16,7 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.money.currency import normalize_currency_code
-from src.extraction.base.findings import Finding, FindingCode, check_feedback_block, reading_findings
+from src.extraction.base.findings import (
+    Finding,
+    PassScore,
+    check_feedback_block,
+    document_findings,
+    replaces,
+    score_pass,
+)
 from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.base.paged_extraction import (
     MultipleAccountsError,
@@ -931,9 +938,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         max_attempts = max(1, settings.ai_extract_max_attempts)
         base_seed = settings.ai_json_seed
         best: tuple[list[AccountExtractionSlice], bool | None] | None = None
-        best_rank: tuple[int, int, int, Decimal] | None = None
-        previous_findings: list[Finding] | None = None
-        best_evaluable = False
+        best_score: PassScore | None = None
+        best_findings: list[Finding] = []
         last_error: Exception | None = None
         extract_overridden = (
             type(self).extract_financial_data is not _ORIGINAL_EXTRACT_FINANCIAL_DATA
@@ -983,17 +989,15 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         feedback=feedback,
                     )
                 slices = split_multi_account_extraction(raw_extracted)
-                findings: list[Finding] = []
-                for s in slices:
-                    findings.extend(
-                        reading_findings(s.payload, source_text=source_text, institution_given=bool(institution))
-                    )
+                readings = [s.payload for s in slices]
+                findings = document_findings(readings, source_text=source_text, institution_given=bool(institution))
+                score = score_pass(readings, findings)
             except DuplicateCurrencyError as exc:
                 raise ExtractionError(
                     f"This statement lists several balances in {exc.currency}, usually several accounts in one PDF. "
                     "Upload one account per file."
                 ) from exc
-            except (ExtractionError, ValueError) as exc:
+            except (ExtractionError, ValueError, ArithmeticError) as exc:
                 logger.warning(
                     "Extraction pass failed",
                     attempt=attempt + 1,
@@ -1021,75 +1025,33 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 max_attempts=max_attempts,
                 finding_codes=[finding.code.value for finding in findings],
             )
-            evaluable = any(
-                balance_is_evaluable(
-                    s.payload.get("opening_balance"),
-                    s.payload.get("closing_balance"),
-                    bank_currency_balances(s.payload),
-                )
-                for s in slices
-            )
-            if best is not None and best_evaluable and not evaluable:
-                # A pass that lost the balances cannot replace a pass that has them, unless the text check
-                # showed that the document does not print them.
-                continue
-            if not findings:
-                return current_parse
-            # A reading without rows is the worst, then a reading whose balance equation fails: the persist
-            # step rejects it. The number of findings and the size of the balance gap decide the rest.
-            codes = {finding.code for finding in findings}
-            rank = (
-                int(FindingCode.NO_ROWS in codes),
-                int(FindingCode.BALANCE_MISMATCH in codes),
-                len(findings),
-                self._balance_gap(slices),
-            )
-            if best is None or best_rank is None or rank < best_rank:
-                best, best_rank = current_parse, rank
-                best_evaluable = evaluable and not any(f.code in _BALANCE_NOT_PRINTED for f in findings)
-            if findings == previous_findings and FindingCode.BALANCE_MISMATCH not in codes:
-                # The same findings twice: the document does not print what the checks ask for.
+            if best is None or best_score is None or replaces(score, best_score):
+                best, best_score, best_findings, improved = current_parse, score, findings, True
+            else:
+                improved = False
+            if not best_findings:
+                return best
+            if not improved and not best_score.balance_fails:
+                # The pass did not improve the kept pass: the document does not print what the checks ask for.
                 break
-            previous_findings = findings
-            feedback = check_feedback_block(findings)
-            # The text checks judge the text, so the next pass reads the text again. A balance gap sends the
-            # last pass to the page images, and each pass after a second gap.
+            # The next pass gets the check results of the kept pass. The text checks judge the text, so the
+            # next pass reads the text again. A balance gap sends the last pass to the page images, and each
+            # pass after the second.
+            feedback = check_feedback_block(best_findings)
             last_pass_is_next = attempt + 2 >= max_attempts
-            read_text_layer = FindingCode.BALANCE_MISMATCH not in codes or (attempt == 0 and not last_pass_is_next)
+            read_text_layer = not best_score.balance_fails or (attempt == 0 and not last_pass_is_next)
 
-        if best is not None:
+        if best is not None and best_score is not None:
             if max_attempts > 1:
                 logger.info(
-                    "Checks did not pass after re-extract; keeping the pass with the fewest findings",
+                    "Checks did not pass after re-extract; keeping the best pass",
                     attempts=max_attempts,
-                    finding_count=best_rank[2] if best_rank else None,
-                    best_difference=str(best_rank[3]) if best_rank else None,
+                    finding_count=best_score.finding_count,
+                    best_difference=str(best_score.gap),
+                    rows=best_score.rows,
                 )
             return best
         raise last_error or ExtractionError("Extraction failed after all retries")
-
-    def _balance_gap(self, slices: list[AccountExtractionSlice]) -> Decimal:
-        """Return the sum of the balance differences of the accounts. A balance that cannot be computed is the largest gap."""
-        total = Decimal("0")
-        for s in slices:
-            sub = s.payload
-            per_currency = bank_currency_balances(sub)
-            if not balance_is_evaluable(sub.get("opening_balance"), sub.get("closing_balance"), per_currency):
-                continue
-            result = evaluate_statement_balance(
-                opening=self._safe_decimal(sub.get("opening_balance")),
-                closing=self._safe_decimal(sub.get("closing_balance")),
-                currency=sub.get("currency"),
-                currency_balances=per_currency,
-                transactions=sub.get("transactions") or [],
-            )
-            if not result.get("balance_computable", True):
-                return Decimal("Infinity")
-            try:
-                total += abs(Decimal(str(result.get("difference", "0") or "0")))
-            except (ValueError, TypeError, InvalidOperation):
-                return Decimal("Infinity")
-        return total
 
     async def _extract_json_with_model(
         self,
@@ -1315,7 +1277,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 split_single_batch=False,
             )
             # A reply with ``accounts`` holds the rows of several accounts, read from the text (#2983).
-            has_rows = from_text.get("transactions") or from_text.get("accounts")
+            accounts = from_text.get("accounts")
+            has_rows = from_text.get("transactions") or any(
+                isinstance(account, dict) and account.get("transactions")
+                for account in (accounts if isinstance(accounts, list) else [])
+            )
             if has_rows or (document_kind == "brokerage" and from_text.get("positions")):
                 return from_text, text_split_agreed
             logger.warning(
@@ -1485,5 +1451,4 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         return merged, meta_agreed
 
 
-_BALANCE_NOT_PRINTED = frozenset({FindingCode.OPENING_NOT_IN_TEXT, FindingCode.CLOSING_NOT_IN_TEXT})
 _ORIGINAL_EXTRACT_FINANCIAL_DATA = ExtractionService.extract_financial_data

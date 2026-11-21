@@ -128,7 +128,7 @@ async def test_AC_extraction_2987_5_6_7_retry_fallback_and_paged_batches():
         True,
         False,
     ]
-    assert "The difference is 12.50" in mock1.await_args_list[1].kwargs["feedback"]
+    assert 'The difference is "12.50"' in mock1.await_args_list[1].kwargs["feedback"]
 
     svc2 = _service()
     mock2 = AsyncMock(
