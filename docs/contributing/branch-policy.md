@@ -17,7 +17,7 @@ Before your first commit, install pre-commit hooks to prevent CI failures:
 ## 🌙 Moon Commands (Quick Reference)
 | Command | Purpose |
 |---------|---------|
-| `moon run :dev -- --backend` | Full Stack (App + DB + Redis + MinIO) | | `moon run :dev -- --frontend` | Next.js on :3000 | | `moon run :lint` | Lint all | | `moon run :lint -- --fix` | Auto-fix Python | | `moon run :test` | All tests (backend threshold code-owned by `apps/backend/pyproject.toml`) | | `moon run :test -- --fast` | TDD mode (no coverage, fastest) |
+| `moon run :dev -- --backend` | Full Stack (App + DB + Redis + MinIO) | | `moon run :dev -- --frontend` | Next.js on :3000 | | `moon run :lint` | Lint all | | `moon run :lint -- --fix` | Auto-fix Python | | `moon run :test -- <file>::<test> -x` | Focused backend test (single process, no coverage) |
 | `moon run :test -- --e2e` | Root deployment E2E tests | | `moon run :build` | Build all | Full reference: [common/meta/development.md](../../common/meta/development.md)
 ## 🔍 Debugging & Observability
 **Use `tools/debug.py` for unified debugging** across all environments.

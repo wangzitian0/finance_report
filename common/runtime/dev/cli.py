@@ -124,10 +124,7 @@ def cmd_test(args, extra_args: list[str]):
 
     cov_override = (
         ["--no-cov"]
-        if (
-            args.fast
-            or not any(a.startswith("--cov") or a == "--no-cov" for a in extra_args)
-        )
+        if not any(a.startswith("--cov") or a == "--no-cov" for a in extra_args)
         else []
     )
     run(uv_run("python", "-m", "pytest") + cov_override + extra_args, cwd=BACKEND_DIR)
@@ -237,12 +234,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # test - use parse_known_args for transparent pass-through
     p_test = subparsers.add_parser("test", help="Run tests")
-    p_test.add_argument("--fast", action="store_true", help="No coverage, fast")
-    p_test.add_argument(
-        "--ephemeral",
-        action="store_true",
-        help="Ephemeral mode: destroy all infra after run",
-    )
     p_test.add_argument(
         "--e2e",
         action="store_true",
@@ -268,7 +259,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     # clean
     p_clean = subparsers.add_parser("clean", help="Clean up resources")
-    p_clean.add_argument("--db", action="store_true", help="Clean test databases")
+    p_clean.add_argument("--db", action="store_true", help="Stop containers")
     p_clean.add_argument("--containers", action="store_true", help="Stop containers")
     p_clean.add_argument(
         "--force", action="store_true", help="Force clean processes/leaked containers"
