@@ -57,7 +57,7 @@ Important Rules:
    source uses — e.g. 2025年01月15日 -> 2025-01-15, 15/01/2025 -> 2025-01-15,
    2025/1/5 -> 2025-01-05, 15 Jan 2025 -> 2025-01-15. Do the conversion yourself;
    never echo a non-ISO source format.
-4. direction: "IN" for credits/deposits, "OUT" for debits/withdrawals. When the table prints two amount columns (for example Debit and Credit, Withdrawal and Deposit, Paid out and Paid in), the column that holds the amount decides the direction, not the words of the description. A mark after an amount names its column: "[Debit]" means OUT, "[Credit]" means IN; never copy the mark into a field.
+4. direction: "IN" for credits/deposits, "OUT" for debits/withdrawals. When the table prints two amount columns (for example Debit and Credit, Withdrawal and Deposit, Paid out and Paid in), the column that holds the amount decides the direction, not the words of the description.
 5. Include ALL transactions visible in the document. NEVER invent, fabricate, or alter a transaction
 6. If unsure about a field, set it to null but include the transaction
 7. For long statements with 50+ transactions, include all of them - do NOT truncate
@@ -149,7 +149,6 @@ Important Rules:
    IMPORTANT: If the statement contains a 'Cash Movement' or 'Activity' section alongside 'Holdings/Positions', you MUST extract both. If no cash transactions occurred during the period, return transactions: [] and populated positions: [...] without error.
 10. If NO holdings/positions snapshot table is present, omit `positions` or return an EMPTY `positions` array `[]` (do not invent rows) and extract all cash movement / transaction rows into `transactions`.
 11. Auto-detect the broker name from the document header/logo into the "institution" field
-12. A mark "[Debit]" or "[Credit]" after an amount names the column of that amount in the document. Never copy the mark into a field.
 """
 
 # Institution-specific hints

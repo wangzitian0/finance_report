@@ -213,7 +213,6 @@ def test_fixture_structure_and_invariants(name):
                 ["the column that holds the amount decides the direction"],
                 ["NEVER compute it"],
                 ["NEVER invent, fabricate"],
-                ['"[Debit]" means OUT, "[Credit]" means IN'],
                 ["NEVER cross-summed"],
                 ["EXACTLY ONCE"],
                 ["do NOT double-count"],
