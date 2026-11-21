@@ -128,20 +128,20 @@ async def ensure_database(db_url: str):
         if isinstance(e, SQLAlchemyError): raise RuntimeError(f'Cannot proceed without test database: {e}') from e
     finally: await engine.dispose()
 DISABLE_AUTOVACUUM_STATEMENTS = ("\nCREATE FUNCTION public.test_disable_autovacuum() RETURNS event_trigger\nLANGUAGE plpgsql AS $$\nDECLARE\n    created record;\nBEGIN\n    FOR created IN\n        SELECT d.objid\n        FROM pg_event_trigger_ddl_commands() AS d JOIN pg_class AS c ON c.oid = d.objid\n        WHERE d.object_type = 'table' AND d.schema_name = 'public' AND c.relkind = 'r'\n    LOOP\n        EXECUTE format('ALTER TABLE %s SET (autovacuum_enabled = false)', created.objid::regclass);\n    END LOOP;\nEND\n$$\n", "\nCREATE EVENT TRIGGER test_disable_autovacuum ON ddl_command_end\nWHEN TAG IN ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO')\nEXECUTE FUNCTION public.test_disable_autovacuum()\n", 'ALTER EVENT TRIGGER test_disable_autovacuum ENABLE ALWAYS')
-async def _drop_ephemeral_database(db_url: str, db_name: str) -> None:
+async def _drop_test_database(db_url: str, db_name: str) -> None:
     admin_url = make_url(db_url).set(database='postgres')
     admin_engine = create_async_engine(admin_url, isolation_level='AUTOCOMMIT', poolclass=NullPool)
     try:
         async with admin_engine.connect() as conn:
             await conn.execute(text(f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)'))
     except (SQLAlchemyError, Exception) as exc:
-        print(f'Warning: Failed to drop ephemeral test database {db_name}: {exc}')
+        print(f'Warning: Failed to drop test database {db_name}: {exc}')
     finally:
         await admin_engine.dispose()
 @pytest_asyncio.fixture(scope='session')
 async def _schema_engine(test_database_url):
     import atexit
-    from tests._support.test_isolation import get_namespace, is_ephemeral_namespace, register_namespace, sanitize_namespace, unregister_namespace
+    from tests._support.test_isolation import get_namespace, register_namespace, sanitize_namespace, unregister_namespace
     raw_namespace = os.environ.get('TEST_NAMESPACE'); namespace = sanitize_namespace(raw_namespace) if raw_namespace else get_namespace()
     register_namespace(namespace); atexit.register(unregister_namespace, namespace)
     await ensure_database(test_database_url); import src.counter.extension.sql; import src.identity.extension.sql; import src.orm_registry; import src.platform.extension.sql; from src.database import Base, create_app_engine; engine = create_app_engine(test_database_url, echo=False, poolclass=NullPool)
@@ -160,8 +160,8 @@ async def _schema_engine(test_database_url):
         await engine.dispose()
         if os.environ.get('KEEP_TEST_DB') != '1':
             db_name = make_url(test_database_url).database
-            if db_name and is_ephemeral_namespace(namespace):
-                await _drop_ephemeral_database(test_database_url, db_name)
+            if db_name:
+                await _drop_test_database(test_database_url, db_name)
         unregister_namespace(namespace)
 _WRITE_STMT_PREFIXES = ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'); _TABLE_EXTRACT_RE = re.compile('(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM|TRUNCATE(?:\\s+TABLE)?)\\s+[\\"\'\\`]?([a-zA-Z0-9_]+)[\\"\'\\`]?', re.IGNORECASE); _DIRTY_TABLES: set[str] = set()
 async def _cleanup_dirty_tables(engine) -> None:

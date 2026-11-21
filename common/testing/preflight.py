@@ -878,7 +878,7 @@ def run(
     parser.add_argument("--base", default=None)
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--changed", nargs="*", default=None)
-    parser.add_argument("--tier", choices=("full", *TIERS), default="full")
+    parser.add_argument("--tier", choices=("full", *TIERS), default="static")
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--only", action="append", default=None, metavar="NAME")
     parser.add_argument("--pytest-changed", action="store_true")

@@ -10,11 +10,10 @@ Backend tests are organized by SSOT domain and verify package invariants and end
 
 ## Commands
 
+Run the focused test of the change before a PR. CI runs the full and parallel suites.
+
 ```bash
-moon run :test
-uv run pytest tests/accounting/ -v
-uv run pytest tests/infra/ tests/ai/test_models_repr.py -v
-uv run pytest -n 4 --cov=src --cov-report=term-missing --cov-branch --cov-fail-under=96
+uv run pytest -n0 --no-cov -o addopts= <file>::<test> -x
 ```
 
 ## SSOT Links

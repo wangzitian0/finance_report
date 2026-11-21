@@ -78,10 +78,22 @@ async def _drop_database(worker_url: URL, database: str) -> None:
         await admin.dispose()
 
 
+async def _database_exists(worker_url: URL, database: str) -> bool:
+    admin = create_async_engine(worker_url.set(database="postgres"), isolation_level="AUTOCOMMIT", poolclass=NullPool)
+    try:
+        async with admin.connect() as conn:
+            found = await conn.execute(text("SELECT 1 FROM pg_database WHERE datname = :name"), {"name": database})
+            return found.scalar() is not None
+    finally:
+        await admin.dispose()
+
+
 async def test_AC_testing_backend_test_planner_4_the_guard_passes_in_the_session_after_a_table_was_recreated(
     test_database_url: str,
 ) -> None:
-    ns = f"planner_seq_{uuid4().hex[:8]}"
+    # A branch namespace: the session teardown must drop its database too (#3184).
+    ns = f"branch_{uuid4().hex[:8]}"
+    db_name = get_test_db_name(sanitize_namespace(ns))
     env = {
         k: v
         for k, v in os.environ.items()
@@ -103,11 +115,13 @@ async def test_AC_testing_backend_test_planner_4_the_guard_passes_in_the_session
     ]
     try:
         res = subprocess.run(cmd, cwd=BACKEND_DIR, env=env, check=False, capture_output=True, text=True, timeout=40)
+        left_behind = await _database_exists(make_url(test_database_url), db_name)
     except subprocess.TimeoutExpired as timeout:
         pytest.fail(f"the pytest session did not end in 40 s: {timeout.stdout!r}")
     finally:
-        await _drop_database(make_url(test_database_url), get_test_db_name(sanitize_namespace(ns)))
+        await _drop_database(make_url(test_database_url), db_name)
     assert res.returncode == 0 and re.search(r"\b2 passed\b", res.stdout), (res.stdout + res.stderr)[-3000:]
+    assert not left_behind, f"the finished pytest session left the database {db_name}"
 
 
 async def _seed_year(session: AsyncSession) -> User:

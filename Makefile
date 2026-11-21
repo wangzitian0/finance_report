@@ -1,4 +1,4 @@
-.PHONY: help install dev test test-cov lint format check pre-commit clean llm-record
+.PHONY: help install dev lint format check pre-commit clean llm-record
 
 help:
 	@echo "Finance Report - Development Commands"
@@ -16,7 +16,6 @@ help:
 	@echo "  make lint         Run linters (ruff + eslint)"
 	@echo "  make format       Auto-format code"
 	@echo "  make check        Run all checks (lint + env-check)"
-	@echo "  make test         Run backend tests"
 	@echo "  make llm-record   Re-record LLM cassettes (record mode; any provider key)"
 	@echo ""
 	@echo "Utilities:"
@@ -58,12 +57,6 @@ format:
 
 check: lint env-check
 	@echo "✅ All checks passed"
-
-test:
-	moon run :test
-
-test-cov:
-	cd apps/backend && uv run pytest -n 4 --cov=src --cov-report=term-missing --cov-branch --cov-fail-under=96
 
 # Re-record the LLM cassettes against a live provider. Provider-agnostic: it uses
 # whatever provider key the env config resolves (any provider, not only the GLM

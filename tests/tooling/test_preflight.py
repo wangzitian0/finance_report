@@ -467,16 +467,17 @@ class TestTierCli:
         assert rc == 0
         return ran
 
-    def test_main_default_equals_tier_full(self):
-        assert self._run_and_collect([]) == self._run_and_collect(["--tier=full"])
-        _m1_full_ran = self._run_and_collect([])
-        _m1_static_ran = self._run_and_collect(["--tier=static"])
-        assert 0 < len(_m1_static_ran) < len(_m1_full_ran)
-        assert all((_m1_argv in _m1_full_ran for _m1_argv in _m1_static_ran))
+    def test_main_default_runs_no_heavy_gate(self):
+        default_ran = self._run_and_collect([])
+        full_ran = self._run_and_collect(["--tier=full"])
+        heavy_ran = self._run_and_collect(["--tier=heavy"])
+        assert 0 < len(default_ran) < len(full_ran)
+        assert default_ran == self._run_and_collect(["--tier=static"])
+        assert heavy_ran and all((argv not in default_ran for argv in heavy_ran))
 
     def test_main_list_shows_each_selected_checks_tier(self, capsys):
         rc = preflight.run(
-            ["--list", "--changed", "apps/backend/src/ledger/__init__.py"],
+            ["--list", "--tier=full", "--changed", "apps/backend/src/ledger/__init__.py"],
             runner=lambda argv, cwd: 0,
         )
         assert rc == 0
