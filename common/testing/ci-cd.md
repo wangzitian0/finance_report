@@ -15,7 +15,7 @@
 
 #### Environment Axis
 
-- `local`: developer workstation (`moon run :test`, `tools/preflight.py`)
+- `local`: developer workstation (focused single-process test, `tools/preflight.py`)
 - `pr`: GitHub PR/main CI runner proof before merge
 - `staging`: post-merge deployed environment for `main` SHAs (`workflow_dispatch`)
 - `prd`: production release environment

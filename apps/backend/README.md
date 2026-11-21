@@ -8,7 +8,7 @@ FastAPI backend for Finance Report.
 uv sync
 uv run uvicorn src.main:app --reload
 moon run :dev -- --backend
-moon run :test
+uv run pytest -n0 --no-cov -o addopts= <file>::<test> -x
 ```
 
 ## SSOT Links

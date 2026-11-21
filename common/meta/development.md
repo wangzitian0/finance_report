@@ -21,7 +21,7 @@ Local verification is the focused single-process test of the change (`pytest -n0
 <a id="local-test-isolation"></a>
 ### Local Test Isolation
 
-`apps/backend/tests/_support/test_isolation.py` namespaces databases (`finance_report_test_{namespace}`, `_gwN`) and MinIO buckets (`statements-{namespace}`, hash-truncated within 63 chars) on ephemeral localhost ports so parallel worktrees do not collide. A test session drops its database when it ends; `python tools/reap_test_dbs.py` drops the databases of interrupted runs.
+`apps/backend/tests/_support/test_isolation.py` namespaces databases (`finance_report_test_{namespace}`, `_gwN`) and MinIO buckets (`statements-{namespace}`, hash-truncated within 63 chars) on ephemeral localhost ports so parallel worktrees do not collide. A test session drops its database when it ends; `python tools/reap_test_dbs.py --all` drops the idle databases that interrupted runs left.
 
 ## Environment Variables
 
