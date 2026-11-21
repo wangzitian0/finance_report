@@ -123,10 +123,12 @@ async def test_AC_extraction_2987_5_6_7_retry_fallback_and_paged_batches():
         slices1, _ = await svc1._extract_with_balance_retry(
             file_content=b"x", institution=None, file_type="pdf", file_url=None, force_model=None, filename="s.pdf"
         )
+    # A balance gap sends the check result to the model, which reads the text again (#2964).
     assert slices1[0].payload is second and [c.kwargs["read_text_layer"] for c in mock1.await_args_list] == [
         True,
-        False,
+        True,
     ]
+    assert "The difference is 12.50" in mock1.await_args_list[1].kwargs["feedback"]
 
     svc2 = _service()
     mock2 = AsyncMock(
