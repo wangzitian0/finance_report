@@ -9,7 +9,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from src.extraction import (
     BankStatementStatus,
@@ -350,11 +350,9 @@ class ReviewedStatementEnvelopeRequest(BaseModel):
     rationale: Annotated[str, Field(min_length=1, max_length=2000)]
     institution: Annotated[
         str | None,
-        Field(
-            min_length=1,
-            max_length=100,
-            description="Required when source_missing_facts holds institution. Never replaces a source institution.",
-        ),
+        # The value is trimmed first, so a blank value gives 422 and not an error in the command (#3167).
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
+        Field(description="Required when source_missing_facts holds institution. Never replaces a source institution."),
     ] = None
 
 

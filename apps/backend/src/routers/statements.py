@@ -368,6 +368,15 @@ async def _queue_statement_reparse(
     file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
     request_id = ensure_request_id()
     model_to_use = model
+    # The rerun gives the institution as a hint only when the current source result states it. An institution
+    # that only the reviewer stated is no source fact: the rerun reads the source again without it (#3167).
+    source_result = await get_current_statement_extraction_result(
+        db, user_id=user_id, statement_id=statement.id, statement=statement
+    )
+    if source_result is not None:
+        institution_hint = source_result.institution
+    else:
+        institution_hint = None if statement.institution == "Pending Detection" else statement.institution
     # End the read-only transaction, so no database transaction stays open during the storage read (#3156).
     await db.commit()
     started = await start_user_extract_run(
@@ -391,7 +400,7 @@ async def _queue_statement_reparse(
             statement_id=statement.id,
             run_id=started.run_id,
             filename=filename,
-            institution=None if statement.institution == "Pending Detection" else statement.institution,
+            institution=institution_hint,
             user_id=user_id,
             account_id=statement.account_id,
             file_hash=statement.file_hash,

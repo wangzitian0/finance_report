@@ -339,8 +339,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 is_brokerage=is_brokerage_payload, provider_payload=extracted, positions=brokerage_positions
             )
             is_position_snapshot = is_brokerage_payload and evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
-            if final_institution is None and evidence_type is StatementEvidenceType.POSITION_SNAPSHOT:
-                # The envelope confirmation takes transaction ledgers only. No review can state the broker.
+            if final_institution is None and (
+                is_brokerage_payload or evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
+            ):
+                # A missing institution is accepted for a bank ledger only. The envelope confirmation binds a
+                # custody identity for a bank source only, and it takes no position snapshot.
                 raise ExtractionError("Institution is required; extraction cannot invent source identity")
 
             resolved_file_hash = source.content_hash

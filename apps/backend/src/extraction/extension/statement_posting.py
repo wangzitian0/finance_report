@@ -662,7 +662,12 @@ async def create_statement_account_from_confirmation(
         raise ValidationFailedError(
             "Statement currency required before creating an account. Confirm the source currency first."
         )
-    account_name = (statement.institution or "").strip() or "Statement Account"
+    account_name = (statement.institution or "").strip()
+    if not account_name:
+        # The creation of an account commits at once. No account gets an invented name (#3167).
+        raise ValidationFailedError(
+            "Statement institution required before creating an account. Confirm the institution of the statement first."
+        )
     if statement.account_last4:
         account_name = f"{account_name} *{statement.account_last4.strip()}"
 

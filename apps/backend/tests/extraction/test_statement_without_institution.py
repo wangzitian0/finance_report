@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from datetime import date
 from decimal import Decimal
 from io import BytesIO
@@ -14,26 +15,32 @@ from reportlab.pdfgen import canvas
 from sqlalchemy import func, select
 
 from src.audit import canonical_json_digest
-from src.extraction import BankStatementStatus, DocumentSource, Stage1Status
-from src.extraction.base.result import StatementExtractionResult
+from src.extraction import BankStatementStatus, DocumentSource, ParseJob, Stage1Status
+from src.extraction.base.result import StatementExtractionResult, StatementSourceType
+from src.extraction.base.validation import split_multi_account_extraction
 from src.extraction.base.reviewed_statement_envelope import supports_reviewed_statement_envelope
 from src.extraction.extension.reviewed_statement_envelope import (
     ReviewedStatementEnvelopeCommand,
     confirm_reviewed_statement_envelope,
-    persist_statement_extraction_result,
+    get_current_statement_extraction_result,
     require_current_statement_envelope_trust,
 )
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
+from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, JournalEntry
 from src.platform import ValidationFailedError
 from tests.extraction._statement_run_helpers import (
+    Proposer,
+    _use_case,
+    install_proposer,
     integrity_store_result,
     make_account,
     migration_db_url,
     run_alembic,
 )
-from tests.statement_ingestion import parse_and_load_statement_projection, posting_dependencies
+from tests.factories import StatementSummaryFactory
+from tests.statement_ingestion import parse_and_load_statement_projection, posting_dependencies, run_for
 
 _ROWS = [
     {"date": "2026-03-02", "description": "Salary credit", "amount": "2000.00", "direction": "IN"},
@@ -69,11 +76,16 @@ def _printed_statement(tag: str) -> bytes:
     return buffer.getvalue()
 
 
+def _stub_service(reply_institution: str | None, **reply_changes) -> ExtractionService:
+    service = ExtractionService()
+    service.extract_financial_data = AsyncMock(return_value=_reply(reply_institution, **reply_changes))
+    return service
+
+
 async def _parse(
     db, user_id, *, reply_institution: str | None, upload_institution: str | None, account_id=None, **reply_changes
 ):
-    service = ExtractionService()
-    service.extract_financial_data = AsyncMock(return_value=_reply(reply_institution, **reply_changes))
+    service = _stub_service(reply_institution, **reply_changes)
     tag = uuid4().hex
     return await parse_and_load_statement_projection(
         service,
@@ -192,6 +204,52 @@ async def test_position_snapshot_without_institution_is_still_rejected():
     assert parsed == ["Institution is required; extraction cannot invent source identity", ("SynthBroker", 1)]
 
 
+async def test_brokerage_ledger_without_institution_is_still_rejected():
+    """A missing institution is accepted for a bank source only. A brokerage cash ledger keeps the old rejection."""
+    parsed = []
+    for upload_institution in (None, "SynthBroker"):
+        service = _stub_service(None, source_type="brokerage_statement")
+        source = DocumentSource.resolve(path=Path("cash-ledger.pdf"), content=uuid4().bytes)
+        try:
+            result = await service.parse_document(source, institution=upload_institution, user_id=uuid4())
+            parsed.append((result.source_type, result.institution, len(result.transactions), len(result.positions)))
+        except ExtractionError as error:
+            parsed.append(str(error))
+
+    assert parsed == [
+        "Institution is required; extraction cannot invent source identity",
+        (StatementSourceType.BROKERAGE, "SynthBroker", 3, 0),
+    ]
+
+
+async def test_each_statement_of_a_split_without_institution_waits_for_review(db, test_user):
+    accounts = [{**_reply(None), "account_last4": last4} for last4 in ("1234", "5678")]
+    for account in accounts:
+        del account["institution"]
+    service = ExtractionService()
+    service._extract_vision_source = AsyncMock(
+        return_value=(split_multi_account_extraction({"institution": None, "accounts": accounts}), None)
+    )
+    source = DocumentSource.resolve(path=Path("consolidated.pdf"), content=_printed_statement(uuid4().hex))
+
+    results = await service.parse_documents(source, user_id=test_user.id, db=db)
+    summaries = (
+        (await db.execute(select(StatementSummary).where(StatementSummary.user_id == test_user.id))).scalars().all()
+    )
+
+    assert (
+        sorted(r.account_last4 for r in results),
+        [r.missing_required_facts for r in results],
+        sorted((s.account_last4, s.status, s.institution, s.account_id) for s in summaries),
+        await _count(db, Account, test_user.id),
+    ) == (
+        ["1234", "5678"],
+        [("institution",), ("institution",)],
+        [("1234", BankStatementStatus.PARSED, None, None), ("5678", BankStatementStatus.PARSED, None, None)],
+        0,
+    )
+
+
 async def test_institution_given_at_upload_is_kept_when_the_reply_has_none(db, test_user):
     result, statement, transactions = await _parse(db, test_user.id, reply_institution=None, upload_institution="ACME")
 
@@ -257,9 +315,112 @@ async def test_envelope_confirmation_must_state_the_missing_institution(db, test
     )
 
 
-async def test_reparse_of_the_same_result_keeps_the_institution_of_the_reviewer(db, test_user):
+async def _rerun_job(client, db, monkeypatch, statement, content: bytes):
+    """Start a rerun through POST /statements/{id}/runs and return the job that the route dispatches."""
+    dispatch = AsyncMock(return_value=None)
+    monkeypatch.setattr("src.routers.statements.submit_parse_pipeline", dispatch)
+    monkeypatch.setattr("src.routers.statements.run_in_threadpool", AsyncMock(return_value=content))
+    await db.commit()
+    response = await client.post(f"/statements/{statement.id}/runs", json={})
+    assert response.status_code == 202, response.text
+    return dispatch.call_args.kwargs["job"]
+
+
+@pytest.mark.parametrize("account_at_upload", [False, True])
+async def test_rerun_does_not_turn_the_institution_of_the_reviewer_into_a_source_fact(
+    client, db, test_user, monkeypatch, account_at_upload
+):
+    """The reviewer can mistype the institution. A rerun reads the source again with no institution hint."""
+    # The classify model is a stub. It has no answer for the Groceries row, so it gives none for it.
+    install_proposer(monkeypatch, Proposer(refuse=frozenset({"Groceries"})))
+    service, content = _stub_service(None), _printed_statement(uuid4().hex)
+    account = await make_account(db, test_user.id, name="Reviewer account")
+    # The first parse runs as the upload does: a statement in PARSING and a job without an institution.
+    statement = StatementSummaryFactory.build(
+        id=uuid4(),
+        user_id=test_user.id,
+        status=BankStatementStatus.PARSING,
+        file_hash=hashlib.sha256(content).hexdigest(),
+        institution="Pending Detection",
+        account_id=account.id if account_at_upload else None,
+    )
+    db.add(statement)
+    await db.commit()
+    upload_job = ParseJob(
+        statement_id=statement.id,
+        run_id=await run_for(db, statement.id),
+        filename="no-institution.pdf",
+        institution=None,
+        user_id=test_user.id,
+        account_id=statement.account_id,
+        file_hash=statement.file_hash,
+        storage_key="statements/no-institution.pdf",
+        model=None,
+        request_id="req-3167-upload",
+    )
+    await _use_case(db, service).execute(upload_job, content=content)
+    await db.refresh(statement)
+    result = await get_current_statement_extraction_result(db, user_id=test_user.id, statement_id=statement.id)
+    parsed_state = (statement.status, statement.institution, result.missing_required_facts)
+    await confirm_reviewed_statement_envelope(
+        db,
+        user_id=test_user.id,
+        statement_id=statement.id,
+        command=_command(result, account.id, institution="Reviewd Bnak"),
+        trace_emitter=posting_dependencies().trace_emitter_factory(db),
+    )
+    confirmed_institution = statement.institution
+
+    job = await _rerun_job(client, db, monkeypatch, statement, content)
+    await _use_case(db, service).execute(job, content=content)
+    await db.refresh(statement)
+    rerun_result = await get_current_statement_extraction_result(db, user_id=test_user.id, statement_id=statement.id)
+    same_result = rerun_result.content_digest == result.content_digest
+    trust_error = None
+    try:
+        await require_current_statement_envelope_trust(db, statement=statement)
+    except ValidationFailedError as error:
+        trust_error = str(error)
+
+    assert (
+        parsed_state,
+        confirmed_institution,
+        job.institution,
+        rerun_result.institution,
+        rerun_result.missing_required_facts,
+        statement.status,
+        await _count(db, JournalEntry, test_user.id),
+        same_result,
+        statement.institution,
+        statement.account_id,
+        trust_error,
+    ) == (
+        (BankStatementStatus.PARSED, None, ("institution",)),
+        "Reviewd Bnak",
+        None,
+        None,
+        ("institution",),
+        BankStatementStatus.PARSED,
+        0,
+        *(
+            # The same account gives the same source result. The envelope of the reviewer still applies to it.
+            (True, "Reviewd Bnak", account.id, None)
+            if account_at_upload
+            # The account of the reviewer changes the row identities, so the result is new and has no envelope.
+            else (
+                False,
+                None,
+                None,
+                "Current source facts require an explicit reviewed envelope before posting: institution",
+            )
+        ),
+    )
+
+
+async def test_posting_guard_refuses_a_statement_whose_institution_differs_from_its_envelope(db, test_user):
+    """A guard test. No route writes this state; the test sets it to prove that the posting guard reads it."""
     result, statement, _ = await _parse(db, test_user.id, reply_institution=None, upload_institution=None)
-    stored = await integrity_store_result(db, statement, result)
+    await integrity_store_result(db, statement, result)
     account = await make_account(db, test_user.id, name="Reviewer account")
     await confirm_reviewed_statement_envelope(
         db,
@@ -268,18 +429,30 @@ async def test_reparse_of_the_same_result_keeps_the_institution_of_the_reviewer(
         command=_command(result, account.id, institution="Reviewed Bank"),
         trace_emitter=posting_dependencies().trace_emitter_factory(db),
     )
+    await require_current_statement_envelope_trust(db, statement=statement)
 
-    # A second parse of the same source writes the source institution (none) to the statement again.
-    statement.institution = None
+    statement.institution = "Other Bank"
     await db.flush()
     with pytest.raises(ValidationFailedError, match="diverges from its current reviewed envelope"):
         await require_current_statement_envelope_trust(db, statement=statement)
-    await persist_statement_extraction_result(
-        db, statement=statement, result=result, source_trace_record_id=stored.source_trace_record_id
-    )
 
-    assert statement.institution == "Reviewed Bank"
-    await require_current_statement_envelope_trust(db, statement=statement)
+
+async def test_rerun_keeps_an_institution_that_the_source_result_states(client, db, test_user, monkeypatch):
+    content = _printed_statement(uuid4().hex)
+    source = DocumentSource.resolve(path=Path("acme.pdf"), content=content)
+    # No period, so the statement stays PARSED and a rerun is open for it.
+    result, statement, _ = await parse_and_load_statement_projection(
+        _stub_service(None, period_start=None, period_end=None),
+        db=db,
+        user_id=test_user.id,
+        source=source,
+        institution="ACME",
+    )
+    await integrity_store_result(db, statement, result)
+
+    job = await _rerun_job(client, db, monkeypatch, statement, content)
+
+    assert (result.institution, statement.status, job.institution) == ("ACME", BankStatementStatus.PARSED, "ACME")
 
 
 async def test_envelope_confirmation_refuses_an_institution_that_differs_from_the_source(db, test_user):
@@ -327,6 +500,7 @@ async def test_review_api_shows_no_institution_and_takes_the_institution_of_the_
     approval = await client.post(f"{url}/approvals", json={"expected_source_result_digest": result.content_digest})
     refused = await client.post(f"{url}/review-envelopes", json=body)
     too_long = await client.post(f"{url}/review-envelopes", json={**body, "institution": "B" * 101})
+    blank = await client.post(f"{url}/review-envelopes", json={**body, "institution": "   "})
     confirmed = await client.post(f"{url}/review-envelopes", json={**body, "institution": "Reviewed Bank"})
     after = await client.get(f"{url}/review")
 
@@ -341,6 +515,7 @@ async def test_review_api_shows_no_institution_and_takes_the_institution_of_the_
         refused.status_code,
         "must state the institution" in refused.text,
         too_long.status_code,
+        (blank.status_code, "institution" in blank.text),
         confirmed.status_code,
         confirmed.json()["institution"],
         after.json()["institution"],
@@ -358,6 +533,7 @@ async def test_review_api_shows_no_institution_and_takes_the_institution_of_the_
         400,
         True,
         422,
+        (422, True),
         200,
         "Reviewed Bank",
         "Reviewed Bank",
@@ -365,6 +541,27 @@ async def test_review_api_shows_no_institution_and_takes_the_institution_of_the_
         str(account.id),
         0,
     )
+
+
+async def test_approval_that_asks_for_a_new_account_is_refused_and_creates_no_account(client, db, test_user):
+    result, statement, _ = await _parse(db, test_user.id, reply_institution=None, upload_institution=None)
+    await integrity_store_result(db, statement, result)
+    await db.commit()
+
+    approval = await client.post(
+        f"/statements/{statement.id}/approvals",
+        json={"expected_source_result_digest": result.content_digest, "create_account_if_missing": True},
+    )
+    await db.refresh(statement)
+
+    assert (
+        approval.status_code,
+        "institution" in approval.text,
+        statement.status,
+        statement.account_id,
+        await _count(db, Account, test_user.id),
+        await _count(db, JournalEntry, test_user.id),
+    ) == (400, True, BankStatementStatus.PARSED, None, 0, 0)
 
 
 def test_envelope_command_trims_the_institution_and_limits_its_length():
