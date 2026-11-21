@@ -991,7 +991,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 slices = split_multi_account_extraction(raw_extracted)
                 readings = [s.payload for s in slices]
                 findings = document_findings(readings, source_text=source_text, institution_given=bool(institution))
-                score = score_pass(readings, findings)
+                score = score_pass(readings, findings, source_text=source_text)
                 is_brokerage = looks_like_brokerage_payload(
                     readings[0], filename=filename, institution=institution or readings[0].get("institution")
                 )

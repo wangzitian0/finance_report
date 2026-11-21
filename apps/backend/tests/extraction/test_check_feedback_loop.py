@@ -287,7 +287,7 @@ async def test_each_account_of_a_paged_statement_takes_the_period_of_the_documen
 
 def _score(reading_or_accounts, text: str | None = PRINTED):
     readings = reading_or_accounts if isinstance(reading_or_accounts, list) else [reading_or_accounts]
-    return score_pass(readings, document_findings(readings, source_text=text))
+    return score_pass(readings, document_findings(readings, source_text=text), source_text=text)
 
 
 def test_replaces_never_loses_rows_or_balances_without_proof():
@@ -494,10 +494,10 @@ def test_several_accounts_are_judged_account_by_account():
 
 def test_a_balance_gap_is_first_in_the_block_and_a_cut_block_says_how_many_findings_it_left_out():
     accounts = [{"transactions": [{"date": None, "amount": "x"}]} for _ in range(20)]
-    accounts.append(_balanced(closing_balance="70.00"))
+    accounts.append({"account_last4": "9999", **_balanced(closing_balance="70.00")})
     findings = document_findings(accounts, source_text=None)
     block = check_feedback_block(findings)
-    assert len(findings) == 41 and block.splitlines()[6].startswith("1. The opening balance")
+    assert len(findings) == 41 and block.splitlines()[6].startswith('1. Account "9999": The opening balance')
     assert "And 11 more failed checks of the same kinds.\n" in block
 
 
@@ -510,3 +510,40 @@ def test_a_gap_in_one_currency_counts_in_the_score():
         ],
     }
     assert _score(reading, None).gap == Decimal("30.00")
+
+
+def test_a_later_pass_that_leaves_out_the_account_without_proof_does_not_replace_the_kept_pass():
+    """One proven account of 3 rows in both passes: the later pass proves no more rows, so it cannot lose rows."""
+    proven = {"account_last4": "1111", **_balanced(period_start=None, period_end=None)}
+    one_row = {"account_last4": "2222", **_reading("50.00", period_start=None, period_end=None)}
+    opening_only = {**one_row, "transactions": _rows("50.00", "5.00"), "opening_balance": "200.00"}
+    other_proven = {"account_last4": "2222", **_reading("50.00", opening_balance="200.00", closing_balance="150.00")}
+    third = {"account_last4": "3333", **_reading("1.00", "2.00")}
+    account_only = _score([{"account_last4": "1111", **_balanced()}], None)
+
+    assert _score([proven, one_row], None).proven_rows == 3 and account_only.proven_rows == 3
+    assert not replaces(account_only, _score([proven, one_row], None))
+    assert not replaces(account_only, _score([proven, opening_only], None))
+    assert not replaces(_score(_balanced(), None), _score([proven, one_row], None))
+    assert not replaces(_score([proven, {**one_row, "transactions": []}], None), _score([proven, one_row], None))
+    assert not replaces(_score([proven, other_proven], None), _score([proven, other_proven, third], None))
+    # A single account that proves all 4 rows does replace it: it proves more rows.
+    merged = _reading("10.00", "20.00", "10.00", "50.00", opening_balance="100.00", closing_balance="10.00")
+    assert replaces(_score(merged, None), _score([proven, one_row], None))
+
+
+def test_a_finding_of_a_document_with_several_accounts_names_its_account():
+    first = {"account_last4": "1111", **_balanced(closing_balance="61.00")}
+    second = {"account_last4": "2222", **_reading("50.00", period_start=None)}
+    feedback = [finding.feedback for finding in document_findings([first, second], source_text=None)]
+    assert feedback[0].startswith('Account "1111": The opening balance') and feedback[1].startswith('Account "2222": ')
+    assert not document_findings([_balanced(closing_balance="61.00")], source_text=None)[0].feedback.startswith(
+        "Account"
+    )
+
+
+def test_a_feedback_line_is_never_cut_inside_a_value():
+    rows = [{"date": "ü" * 50, "amount": "é\u2028" * 50} for _ in range(30)]
+    (finding,) = [f for f in document_findings([_reading(transactions=rows)], source_text=None) if f.rows]
+    line = check_feedback_block([finding]).splitlines()[6]
+    assert len(finding.feedback) < 5000 and line.endswith("the printed amount as a number.") and line.isascii()

@@ -30,7 +30,7 @@ MAX_ROWS_NAMED_IN_FEEDBACK = 20
 # A value of the reading is cut to this length before it enters the feedback.
 MAX_FEEDBACK_VALUE_LENGTH = 40
 # One feedback line is cut to this length.
-MAX_FEEDBACK_LINE_LENGTH = 2000
+MAX_FEEDBACK_LINE_LENGTH = 5000
 # The feedback block holds at most this many findings.
 MAX_FEEDBACK_FINDINGS = 30
 
@@ -74,10 +74,11 @@ def _number(value: Any) -> Decimal | None:
 def _quoted(value: Any) -> str:
     """Return a value of the reading as a JSON string of bounded length.
 
-    The reading comes from a document that a user uploaded. An ASCII JSON string holds no raw new line and
-    no Unicode line separator, so a value cannot end the feedback block or add a line to it.
+    The reading comes from a document that a user uploaded. Each character that is not printable ASCII
+    becomes "?", so a value cannot end the feedback block or add a line to it, and its length stays bounded.
     """
-    return json.dumps(str(value)[:MAX_FEEDBACK_VALUE_LENGTH], ensure_ascii=True)
+    text = "".join(char if " " <= char <= "~" else "?" for char in str(value)[:MAX_FEEDBACK_VALUE_LENGTH])
+    return json.dumps(text)
 
 
 def _rows_of(reading: dict[str, Any]) -> list[dict[str, Any]]:
@@ -245,11 +246,14 @@ def document_findings(
     An account without activity is correct when its printed balances are equal, so a balance equation
     that holds is the proof that a document without rows is complete.
     """
-    findings = [
-        finding
-        for reading in readings
-        for finding in reading_findings(reading, source_text=source_text, institution_given=institution_given)
-    ]
+    findings: list[Finding] = []
+    for reading in readings:
+        of_account = reading_findings(reading, source_text=source_text, institution_given=institution_given)
+        if len(readings) > 1:
+            # Row numbers start again in each account, so each line names its account.
+            name = f"Account {_quoted(reading.get('account_last4'))}: "
+            of_account = [Finding(f.code, name + f.feedback, f.rows) for f in of_account]
+        findings.extend(of_account)
     if not any(_rows_of(reading) for reading in readings) and not any(_balance_holds(r) for r in readings):
         findings.insert(
             0,
@@ -291,8 +295,8 @@ class PassScore:
     # The number of accounts that state the balance.
     opening_count: int
     closing_count: int
-    # True when the balance equation holds for each account that has rows, and one account or more has rows.
-    all_accounts_hold: bool
+    # The rows of the accounts whose balance equation holds on balances that no text check questions.
+    proven_rows: int
 
     @property
     def balance_fails(self) -> bool:
@@ -301,8 +305,7 @@ class PassScore:
     @property
     def balance_proven(self) -> bool:
         """True when each account with rows holds its balance equation, on balances that no text check questions."""
-        not_printed = {FindingCode.OPENING_NOT_IN_TEXT, FindingCode.CLOSING_NOT_IN_TEXT}
-        return self.all_accounts_hold and not self.balance_fails and not (self.codes & not_printed)
+        return self.rows > 0 and self.proven_rows == self.rows
 
     @property
     def unusable(self) -> bool:
@@ -343,11 +346,17 @@ def _gap_of(result: dict[str, Any]) -> Decimal:
         return Decimal("Infinity")
 
 
-def score_pass(readings: list[dict[str, Any]], findings: list[Finding]) -> PassScore:
+def _account_is_proven(reading: dict[str, Any], source_text: str | None) -> bool:
+    if not _balance_holds(reading):
+        return False
+    codes = {finding.code for finding in reading_findings(reading, source_text=source_text, institution_given=True)}
+    return not (codes & {FindingCode.OPENING_NOT_IN_TEXT, FindingCode.CLOSING_NOT_IN_TEXT})
+
+
+def score_pass(readings: list[dict[str, Any]], findings: list[Finding], *, source_text: str | None = None) -> PassScore:
     """Return the score of one pass from its account readings and its findings."""
     gap = Decimal("0")
     evaluable = False
-    with_rows = [reading for reading in readings if _rows_of(reading)]
     for reading in readings:
         result = _balance_result(reading)
         if result is None:
@@ -362,7 +371,7 @@ def score_pass(readings: list[dict[str, Any]], findings: list[Finding]) -> PassS
         gap=gap,
         opening_count=sum(_states_balance(reading, "opening_balance", "opening") for reading in readings),
         closing_count=sum(_states_balance(reading, "closing_balance", "closing") for reading in readings),
-        all_accounts_hold=bool(with_rows) and all(_balance_holds(reading) for reading in with_rows),
+        proven_rows=sum(len(_rows_of(reading)) for reading in readings if _account_is_proven(reading, source_text)),
     )
 
 
@@ -371,9 +380,9 @@ def replaces(candidate: PassScore, kept: PassScore) -> bool:
 
     A pass without rows never replaces a pass with rows. A reading that the persist step cannot store loses
     to each reading that it can store. Apart from that, a later pass never loses evidence without a stronger
-    balance proof. The proof is stronger when each of its accounts with rows holds the balance equation on
-    balances that no text check questions and the kept pass does not, or when the kept pass fails the
-    balance equation and its gap is smaller. Without a stronger proof:
+    balance proof. The proof is stronger when each of its rows is in an account that holds the balance
+    equation on balances that no text check questions, and it has more such rows than the kept pass; or
+    when the kept pass fails the balance equation and its gap is smaller. Without a stronger proof:
     - It states the opening balance for no fewer accounts, unless the text check showed that the document
       does not print one. The same rule holds for the closing balance.
     - It has no fewer rows.
@@ -385,7 +394,7 @@ def replaces(candidate: PassScore, kept: PassScore) -> bool:
         return kept.unusable and candidate.rank < kept.rank
     if kept.unusable:
         return True
-    stronger_proof = candidate.balance_proven and not kept.balance_proven
+    stronger_proof = candidate.balance_proven and candidate.proven_rows > kept.proven_rows
     smaller_gap = kept.balance_fails and candidate.evaluable and candidate.gap < kept.gap
     if not (stronger_proof or smaller_gap):
         if candidate.opening_count < kept.opening_count and FindingCode.OPENING_NOT_IN_TEXT not in kept.codes:
