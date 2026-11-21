@@ -168,3 +168,7 @@ const SYSTEM_ACCOUNT_CODE_LABELS: Record<string, string> = {
 export function formatAccountCodeBadge(code: string): string {
     return SYSTEM_ACCOUNT_CODE_LABELS[code] ?? code;
 }
+
+/** The upload list reads again while a statement is parsing or has a requested or running run (#3029). */
+export const statementInProgress = (statement: { status: string; active_run_kind?: string | null }): boolean =>
+  statement.status === "parsing" || Boolean(statement.active_run_kind);

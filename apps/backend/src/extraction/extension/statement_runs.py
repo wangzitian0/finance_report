@@ -19,7 +19,7 @@ hints verbatim.
 from __future__ import annotations
 
 import re
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, fields
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
@@ -266,6 +266,18 @@ async def get_active_run(db: AsyncSession, statement_id: UUID) -> StatementRun |
     )
 
 
+async def active_run_kinds(db: AsyncSession, statement_ids: Sequence[UUID]) -> dict[UUID, RunKind]:
+    """Return the kind of the requested or running run of each statement that has one. One query for all ids."""
+    if not statement_ids:
+        return {}
+    rows = await db.execute(
+        select(StatementRun.statement_id, StatementRun.kind).where(
+            StatementRun.statement_id.in_(statement_ids), StatementRun.state.in_(ACTIVE_RUN_STATES)
+        )
+    )
+    return {statement_id: kind for statement_id, kind in rows}
+
+
 async def get_latest_run(db: AsyncSession, statement_id: UUID) -> StatementRun | None:
     """Return the run with the highest attempt number of the statement, whatever its state."""
     return await db.scalar(
@@ -297,12 +309,16 @@ class StatementRunRecord:
     requested_at: datetime
     started_at: datetime | None
     finished_at: datetime | None
+    #: How the run ended, from the `outcome` of its result summary. Only a classify run writes one (#3029).
+    outcome: str | None = None
 
 
 def _to_run_record(run: StatementRun) -> StatementRunRecord:
-    names = [field.name for field in fields(StatementRunRecord) if field.name != "hints"]
+    names = [field.name for field in fields(StatementRunRecord) if field.name not in {"hints", "outcome"}]
+    outcome = (run.result_summary or {}).get("outcome")
     return StatementRunRecord(
         **{name: getattr(run, name) for name in names},
+        outcome=outcome if isinstance(outcome, str) else None,
         # A stored row that the current rules reject must not break the audit list: no validation here.
         hints=RunHints.model_construct(keywords=list(run.hints.get("keywords", [])), note=run.hints.get("note")),
     )
@@ -604,6 +620,7 @@ __all__ = [
     "StartedRun",
     "StatementRunRecord",
     "StatementStatusChanged",
+    "active_run_kinds",
     "claim_run",
     "create_run",
     "fail_run",

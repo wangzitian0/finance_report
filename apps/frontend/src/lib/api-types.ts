@@ -395,6 +395,7 @@ export interface components {
     BankStatementListItemResponse: {
       account_id: string | null;
       account_last4: string | null;
+      active_run_kind?: string | null;
       balance_validated: boolean | null;
       brokerage_import_failed: boolean;
       brokerage_import_failure_reason?: string | null;
@@ -417,6 +418,7 @@ export interface components {
     BankStatementResponse: {
       account_id: string | null;
       account_last4: string | null;
+      active_run_kind?: string | null;
       balance_validated: boolean | null;
       brokerage_import_failed: boolean;
       brokerage_import_failure_reason?: string | null;
@@ -1779,6 +1781,7 @@ export interface components {
     StatementReviewResponse: {
       account_id: string | null;
       account_last4: string | null;
+      active_run_kind?: string | null;
       balance_validated: boolean | null;
       balance_validation_result?: _S["BalanceValidationResult"] | null;
       brokerage_import_failed: boolean;
@@ -1816,6 +1819,7 @@ export interface components {
       id: string;
       kind: _S["RunKind"];
       model: string | null;
+      outcome?: string | null;
       parent_run_id: string | null;
       prompt_digest: string | null;
       prompt_template_version: string | null;

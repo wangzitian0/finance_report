@@ -24,6 +24,7 @@
         "validation_error": null,
         "brokerage_import_failed": false,
         "brokerage_import_failure_reason": null,
+        "active_run_kind": null,
         "created_at": "2026-01-15T08:30:00Z",
         "updated_at": "2026-01-15T08:30:00Z",
         "transactions": []
@@ -52,6 +53,7 @@
         "validation_error": null,
         "brokerage_import_failed": false,
         "brokerage_import_failure_reason": null,
+        "active_run_kind": null,
         "created_at": "2026-01-15T08:30:00Z",
         "updated_at": "2026-01-31T09:00:00Z",
         "transactions": [

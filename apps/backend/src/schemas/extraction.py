@@ -144,6 +144,10 @@ class BankStatementListItemResponse(BaseModel):
     validation_error: str | None
     brokerage_import_failed: bool = False
     brokerage_import_failure_reason: str | None = None
+    active_run_kind: str | None = Field(
+        default=None,
+        description="The kind of the requested or running run of the statement. Only the list routes fill it.",
+    )
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)

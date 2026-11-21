@@ -22,7 +22,7 @@ import { invalidateLedgerDerivedQueries, invalidatePortfolioQueries } from "@/li
 import { SHARED_STALE_MS, STATEMENTS_LIST_QUERY_KEY } from "@/lib/sharedQueries";
 import { BankStatement, normalizeBankStatement } from "@/lib/types";
 import { formatCurrencyLocale } from "@/lib/audit/money";
-import { PARSING_POLL_MS, currencyCodeOrDash, institutionLabel, statementDisplayTitle } from "@/lib/statusLabels";
+import { PARSING_POLL_MS, currencyCodeOrDash, institutionLabel, statementDisplayTitle, statementInProgress } from "@/lib/statusLabels";
 import { formatPeriod } from "@/lib/date";
 
 function statusDisplay(status: string): { label: string; variant: BadgeVariant } {
@@ -68,7 +68,7 @@ export default function UploadPage() {
     queryFn: ({ signal }) => apiOperationAllPages("list_statements_statements_get", { signal }),
     staleTime: SHARED_STALE_MS,
     refetchOnMount: "always",
-    refetchInterval: (query) => (query.state.data?.items?.some((s) => s.status === "parsing") ? PARSING_POLL_MS : false),
+    refetchInterval: (query) => (query.state.data?.items?.some(statementInProgress) ? PARSING_POLL_MS : false),
   });
   const listItems = statementsQuery.data?.items;
   const statements = useMemo(() => (listItems ?? []).map(normalizeBankStatement), [listItems]);

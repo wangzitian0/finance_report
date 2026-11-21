@@ -40,6 +40,16 @@ describe("StatementsPage", () => {
     if (clickRev) { clk(/Review/i); hasC(routerPushMock, "/statements/s9"); }
   });
 
+  // #3029 item 1: a statement stays `parsed` during a classify run. The list reads again until the run ends.
+  it.each([["classify", 2, "Approved"], [null, 1, "Ready to review"]] as const)("active run %s: %i list reads after 3 s", async (kind, reads, label) => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    F.mockStmtsPageApi(api, { statements: [{ items: [stmt("s1", "run.pdf", "parsed", { active_run_kind: kind })] }, { items: [stmt("s1", "run.pdf", "approved", { active_run_kind: null })] }] });
+    ren(<P />); await see("run.pdf"); isNull(screen.queryByText("AI Parsing in Progress"));
+    await F.tick(3000);
+    eq(F.cnt(api, F.OP.STMTS), reads); await wFor(() => has([label]));
+    await F.tick(6000); eq(F.cnt(api, F.OP.STMTS), reads);
+  });
+
   it("polling & delete lifecycle", () => F.stmtsDelFlow(api, <P />, showToastMock, ps));
 
   it("brokerage import retry & reason", async () => {
