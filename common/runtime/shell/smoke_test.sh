@@ -26,6 +26,17 @@ echo "Running smoke tests against $BASE_URL"
 echo "Mode: $MODE"
 echo "========================================"
 
+# The hook runner (infra2-sdk 4.0.0) sets APP_VERSION_REF; EXPECTED_SHA is the older name.
+EXPECTED_REF="${APP_VERSION_REF:-${EXPECTED_SHA:-}}"
+case "${ENVIRONMENT:-}" in
+    preview|staging|prod|production)
+        if [ -z "$EXPECTED_REF" ]; then
+            echo "✗ APP_VERSION_REF (or EXPECTED_SHA) must be set when ENVIRONMENT=${ENVIRONMENT}"
+            exit 2
+        fi
+        ;;
+esac
+
 # Helper function
 check_endpoint() {
     CHECK_COUNT=$((CHECK_COUNT + 1))
@@ -133,19 +144,19 @@ wait_for_endpoint "API Health" "$BASE_URL/api/health" || FAILED=1
 wait_for_endpoint "Frontend Ready" "$BASE_URL/" || FAILED=1
 
 # --- Version/Deploy Verification ---
-if [ -n "${EXPECTED_SHA:-}" ]; then
+if [ -n "$EXPECTED_REF" ]; then
     echo "--- Version Verification ---"
-    echo "Checking deployed version against source ($EXPECTED_SHA)..."
-    # Extract git_sha from health endpoint
-    # Use python for parsing if jq is not guaranteed, or simple grep/sed
+    echo "Checking deployed version against source ($EXPECTED_REF)..."
+    # Resolve a tag or branch ref to its commit when git knows it.
+    EXPECTED_COMMIT="$(git rev-parse --verify --end-of-options "${EXPECTED_REF}^{commit}" 2>/dev/null || true)"
     HEALTH_RESP=$(curl -sS "$BASE_URL/api/health")
     ACTUAL_SHA=$(echo "$HEALTH_RESP" | grep -o '"git_sha":"[^"]*"' | cut -d'"' -f4 || echo "unknown")
 
-    if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
+    if [ -n "$ACTUAL_SHA" ] && { [ "$ACTUAL_SHA" = "$EXPECTED_REF" ] || { [ -n "$EXPECTED_COMMIT" ] && [ "${EXPECTED_COMMIT#"$ACTUAL_SHA"}" != "$EXPECTED_COMMIT" ]; }; }; then
         echo "✓ Git SHA matches: $ACTUAL_SHA"
     else
         echo "✗ Git SHA Mismatch!"
-        echo "  Expected: $EXPECTED_SHA"
+        echo "  Expected: $EXPECTED_REF (commit: ${EXPECTED_COMMIT:-unresolved})"
         echo "  Got:      $ACTUAL_SHA"
         FAILED=1
     fi

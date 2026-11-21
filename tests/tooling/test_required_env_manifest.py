@@ -41,6 +41,21 @@ def test_runtime_hooks_gate_errors_reports_a_cell_without_checks(tmp_path):
     path.write_text(json.dumps(payload), encoding='utf-8')
     assert gen.runtime_hooks_gate_errors(path) == ["runtime-hooks.manifest.json: no check runs in cell 'staging.post'"]
 
+def test_runtime_hooks_gate_errors_reports_prod_post_without_check(tmp_path):
+    payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
+    payload['checks'][0].pop('cells')
+    path = tmp_path / 'runtime-hooks.manifest.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    assert gen.runtime_hooks_gate_errors(path) == ["runtime-hooks.manifest.json: no check runs in cell 'prod.post'"]
+
+def test_smoke_script_refuses_a_deployed_environment_without_a_version_ref():
+    import subprocess, os
+    script = gen.ROOT_DIR / 'common' / 'runtime' / 'shell' / 'smoke_test.sh'
+    base = {k: v for k, v in os.environ.items() if k not in {'APP_VERSION_REF', 'EXPECTED_SHA'}}
+    for env_name in ('preview', 'staging', 'production'):
+        res = subprocess.run(['bash', str(script), 'http://127.0.0.1:9'], env={**base, 'ENVIRONMENT': env_name}, capture_output=True, text=True, timeout=30)
+        assert res.returncode == 2 and 'APP_VERSION_REF' in res.stdout, (env_name, res.stdout)
+
 def test_runtime_hooks_gate_errors_reports_unknown_env_key(tmp_path):
     payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
     payload['checks'][1]['optional_env'] = [*payload['checks'][1].get('optional_env', []), 'NOT_A_REAL_KEY']

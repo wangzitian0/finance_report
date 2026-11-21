@@ -15,7 +15,15 @@
       ],
       "writes": false,
       "accepts_scale": false,
-      "timeout_seconds": 120
+      "timeout_seconds": 120,
+      "cells": {
+        "add": {
+          "prod.post": {
+            "reason": "prod gate runs smoke as before",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
     },
     {
       "id": "preview_minimum_e2e",
