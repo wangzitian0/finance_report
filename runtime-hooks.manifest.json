@@ -1,69 +1,358 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "service": "finance_report/app",
-  "slots": {
-    "smoke": {
-      "run": "bash common/runtime/shell/smoke_test.sh \"$INFRA2_HOOK_APP_URL\"",
-      "timeout_seconds": 120
-    },
-    "preview_gate": {
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "checks": [
-        {"id": "smoke", "argv": ["sh", "-c", "bash common/runtime/shell/smoke_test.sh \"$INFRA2_HOOK_APP_URL\""]},
-        {"id": "preview_minimum_e2e", "argv": ["python", "-m", "common.testing.test_selection", "--stage", "preview_minimum_e2e", "--run"]},
-        {"id": "touched_files", "argv": ["python", "-m", "common.testing.test_selection", "--touched-files", "--run"]}
+  "checks": [
+    {
+      "id": "smoke",
+      "argv": [
+        "sh",
+        "-c",
+        "bash common/runtime/shell/smoke_test.sh \"$APP_URL\""
       ],
-      "timeout_seconds": 360,
+      "needs": [
+        "code",
+        "running_service"
+      ],
+      "writes": false,
+      "accepts_scale": false,
+      "timeout_seconds": 120,
+      "cells": {
+        "add": {
+          "prod.post": {
+            "reason": "prod gate runs smoke as before",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "preview_minimum_e2e",
+      "argv": [
+        "python",
+        "-m",
+        "common.testing.test_selection",
+        "--stage",
+        "preview_minimum_e2e",
+        "--run"
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 240,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
         "INFRA2_TOUCHED_FILES",
         "LLM_PROVIDER",
-        "LLM_BASE_URL",
-        "LARGE_MODEL",
-        "SMALL_MODEL",
-        "MULTIMODAL_MODEL"
-      ]
-    },
-    "staging_gate": {
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "checks": [
-        {"id": "smoke", "argv": ["sh", "-c", "bash common/runtime/shell/smoke_test.sh \"$INFRA2_HOOK_APP_URL\""]},
-        {"id": "staging_core_e2e", "argv": ["python", "-m", "common.testing.test_selection", "--stage", "staging_core_e2e", "--run"]},
-        {"id": "ai_provider_connectivity", "argv": ["env", "STRICT_E2E_GATES=1", "python", "-m", "pytest", "tests/e2e/test_ai_provider_connectivity.py", "-v", "--tb=short", "-o", "addopts="]},
-        {"id": "staging_ai_ocr", "argv": ["python", "-m", "common.testing.test_selection", "--stage", "staging_ai_ocr", "--corpus", "canary", "--run"]}
+        "LLM_BASE_URL"
       ],
-      "timeout_seconds": 540,
+      "cells": {
+        "remove": {
+          "staging.post": {
+            "reason": "preview-only check (schema 2 slot preview_gate)",
+            "issue": "wangzitian0/infra2#1823"
+          },
+          "scheduled_audit": {
+            "reason": "preview-only check (schema 2 slot preview_gate)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "touched_files",
+      "argv": [
+        "python",
+        "-m",
+        "common.testing.test_selection",
+        "--touched-files",
+        "--run"
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 240,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "optional_env": [
+        "INFRA2_TOUCHED_FILES",
+        "LLM_PROVIDER",
+        "LLM_BASE_URL"
+      ],
+      "cells": {
+        "remove": {
+          "staging.post": {
+            "reason": "preview-only check (schema 2 slot preview_gate)",
+            "issue": "wangzitian0/infra2#1823"
+          },
+          "scheduled_audit": {
+            "reason": "preview-only check (schema 2 slot preview_gate)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "staging_core_e2e",
+      "argv": [
+        "python",
+        "-m",
+        "common.testing.test_selection",
+        "--stage",
+        "staging_core_e2e",
+        "--run"
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm",
+        "staging_data",
+        "real_provider"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 300,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
         "LLM_BASE_URL",
-        "LARGE_MODEL",
-        "SMALL_MODEL",
-        "MULTIMODAL_MODEL",
         "TEST_USER_EMAIL",
         "TEST_USER_PASSWORD"
-      ]
-    },
-    "prod_gate": {
-      "run": "bash common/runtime/shell/smoke_test.sh \"$INFRA2_HOOK_APP_URL\"",
-      "timeout_seconds": 180
-    },
-    "scheduled_audit": {
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "checks": [
-        {"id": "audit_replay", "argv": ["python", "-m", "common.testing.test_selection", "--stage", "staging_ai_ocr", "--corpus", "audit_replay", "--run"]},
-        {"id": "core_journey", "argv": ["python", "-m", "common.testing.test_selection", "--stage", "staging_ai_ocr", "--corpus", "core_journey", "--run"]},
-        {"id": "pdf_corpus_oracle", "argv": ["sh", "-c", "python -m tests.benchmarks.pdf_corpus_oracle --app-url \"$INFRA2_HOOK_APP_URL\" --max-workers 1"]},
-        {"id": "financial_scenario_benchmark", "argv": ["sh", "-c", "python -m tests.benchmarks.run_financial_scenario_benchmark --app-url \"$INFRA2_HOOK_APP_URL\" --case 1,2,3,4,5,6"]}
       ],
-      "timeout_seconds": 3600,
+      "cells": {
+        "remove": {
+          "scheduled_audit": {
+            "reason": "staging-only check (schema 2 slot staging_gate)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "ai_provider_connectivity",
+      "argv": [
+        "env",
+        "STRICT_E2E_GATES=1",
+        "python",
+        "-m",
+        "pytest",
+        "tests/e2e/test_ai_provider_connectivity.py",
+        "-v",
+        "--tb=short",
+        "-o",
+        "addopts="
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm",
+        "staging_data",
+        "real_provider"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 120,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
         "LLM_BASE_URL",
-        "LARGE_MODEL",
-        "SMALL_MODEL",
-        "MULTIMODAL_MODEL",
         "TEST_USER_EMAIL",
         "TEST_USER_PASSWORD"
-      ]
+      ],
+      "cells": {
+        "remove": {
+          "scheduled_audit": {
+            "reason": "staging-only check (schema 2 slot staging_gate)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "staging_ai_ocr",
+      "argv": [
+        "python",
+        "-m",
+        "common.testing.test_selection",
+        "--stage",
+        "staging_ai_ocr",
+        "--corpus",
+        "canary",
+        "--run"
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm",
+        "staging_data",
+        "real_provider"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 300,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "optional_env": [
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "TEST_USER_EMAIL",
+        "TEST_USER_PASSWORD"
+      ],
+      "cells": {
+        "remove": {
+          "scheduled_audit": {
+            "reason": "staging-only check (schema 2 slot staging_gate)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "audit_replay",
+      "argv": [
+        "python",
+        "-m",
+        "common.testing.test_selection",
+        "--stage",
+        "staging_ai_ocr",
+        "--corpus",
+        "audit_replay",
+        "--run"
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm",
+        "staging_data",
+        "real_provider"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 1200,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "optional_env": [
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "TEST_USER_EMAIL",
+        "TEST_USER_PASSWORD"
+      ],
+      "cells": {
+        "remove": {
+          "staging.post": {
+            "reason": "audit-only check (schema 2 slot scheduled_audit)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "core_journey",
+      "argv": [
+        "python",
+        "-m",
+        "common.testing.test_selection",
+        "--stage",
+        "staging_ai_ocr",
+        "--corpus",
+        "core_journey",
+        "--run"
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm",
+        "staging_data",
+        "real_provider"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 1200,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "optional_env": [
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "TEST_USER_EMAIL",
+        "TEST_USER_PASSWORD"
+      ],
+      "cells": {
+        "remove": {
+          "staging.post": {
+            "reason": "audit-only check (schema 2 slot scheduled_audit)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "pdf_corpus_oracle",
+      "argv": [
+        "sh",
+        "-c",
+        "python -m tests.benchmarks.pdf_corpus_oracle --app-url \"$APP_URL\" --max-workers 1"
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm",
+        "staging_data",
+        "real_provider"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 900,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "optional_env": [
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "TEST_USER_EMAIL",
+        "TEST_USER_PASSWORD"
+      ],
+      "cells": {
+        "remove": {
+          "staging.post": {
+            "reason": "audit-only check (schema 2 slot scheduled_audit)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
+    },
+    {
+      "id": "financial_scenario_benchmark",
+      "argv": [
+        "sh",
+        "-c",
+        "python -m tests.benchmarks.run_financial_scenario_benchmark --app-url \"$APP_URL\" --case 1,2,3,4,5,6"
+      ],
+      "needs": [
+        "code",
+        "running_service",
+        "real_llm",
+        "staging_data",
+        "real_provider"
+      ],
+      "writes": true,
+      "accepts_scale": false,
+      "timeout_seconds": 900,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "optional_env": [
+        "LLM_PROVIDER",
+        "LLM_BASE_URL",
+        "TEST_USER_EMAIL",
+        "TEST_USER_PASSWORD"
+      ],
+      "cells": {
+        "remove": {
+          "staging.post": {
+            "reason": "audit-only check (schema 2 slot scheduled_audit)",
+            "issue": "wangzitian0/infra2#1823"
+          }
+        }
+      }
     }
-  }
+  ]
 }

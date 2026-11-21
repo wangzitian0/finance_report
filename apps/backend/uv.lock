@@ -1015,7 +1015,7 @@ requires-dist = [
     { name = "email-validator", specifier = ">=2.1.0" },
     { name = "fastapi", specifier = ">=0.162.2" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "infra2-sdk", extras = ["otel"], url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.32.0/infra2_sdk-3.32.0-py3-none-any.whl" },
+    { name = "infra2-sdk", extras = ["otel"], url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.0.0/infra2_sdk-4.0.0-py3-none-any.whl" },
     { name = "litellm", specifier = ">=1.55.0" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.24.0" },
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.45b0" },
@@ -1586,13 +1586,13 @@ wheels = [
 
 [[package]]
 name = "infra2-sdk"
-version = "3.32.0"
-source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.32.0/infra2_sdk-3.32.0-py3-none-any.whl" }
+version = "4.0.0"
+source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.0.0/infra2_sdk-4.0.0-py3-none-any.whl" }
 dependencies = [
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v3.32.0/infra2_sdk-3.32.0-py3-none-any.whl", hash = "sha256:23cf2e199019153d5acfb597aadcffd6de7d829ff7a1e40541ab80cd47e63936" },
+    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.0.0/infra2_sdk-4.0.0-py3-none-any.whl", hash = "sha256:1413069801ecc62246f1d50acb0f390deb2b76993261f2ad05c87c5c7e3eaf7d" },
 ]
 
 [package.optional-dependencies]
@@ -1635,14 +1635,18 @@ requires-dist = [
     { name = "psycopg", extras = ["binary"], marker = "extra == 'dev'", specifier = ">=3.2,<4" },
     { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2,<4" },
     { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.7,<3" },
+    { name = "pydantic-ai-slim", extras = ["zai"], marker = "extra == 'all'", specifier = ">=2.71.0,<3" },
+    { name = "pydantic-ai-slim", extras = ["zai"], marker = "extra == 'dev'", specifier = ">=2.71.0,<3" },
+    { name = "pydantic-ai-slim", extras = ["zai"], marker = "extra == 'pydantic-ai'", specifier = ">=2.71.0,<3" },
     { name = "pydantic-settings", marker = "extra == 'dev'", specifier = ">=2.2,<3" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8,<10" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23,<2" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5,<8" },
+    { name = "pytest-recording", marker = "extra == 'dev'", specifier = ">=0.15,<1" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12,<1" },
 ]
-provides-extras = ["s3", "postgres", "otel", "http", "fastapi", "all", "dev"]
+provides-extras = ["s3", "postgres", "otel", "http", "fastapi", "pydantic-ai", "all", "dev"]
 
 [[package]]
 name = "iniconfig"

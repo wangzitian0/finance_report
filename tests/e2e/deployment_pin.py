@@ -10,6 +10,14 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+def expected_version_from_env() -> str | None:
+    """Return the deployment ref a live proof must match: EXPECTED_SHA, else APP_VERSION_REF (set by the hook runner)."""
+    for key in ("EXPECTED_SHA", "APP_VERSION_REF"):
+        if val := os.getenv(key, "").strip():
+            return val
+    return None
+
+
 def resolve_expected_commit(expected_version: str, repo_root: Path = REPO_ROOT) -> str | None:
     """Resolve expected_version via git, CI refs, or clean-room hook HEAD."""
     candidates = [expected_version]
