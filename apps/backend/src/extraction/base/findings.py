@@ -295,8 +295,11 @@ class PassScore:
     # The number of accounts that state the balance.
     opening_count: int
     closing_count: int
-    # The rows of the accounts whose balance equation holds on balances that no text check questions.
+    # The rows of the accounts whose balance equation holds on balances that the text prints (or, for a
+    # source without a text layer, on the stated balances).
     proven_rows: int
+    # The number of accounts that have rows.
+    accounts_with_rows: int
 
     @property
     def balance_fails(self) -> bool:
@@ -305,7 +308,7 @@ class PassScore:
     @property
     def balance_proven(self) -> bool:
         """True when each account with rows holds its balance equation, on balances that no text check questions."""
-        return self.rows > 0 and self.proven_rows == self.rows
+        return self.rows > 0 and self.proven_rows == self.rows and not self.balance_fails
 
     @property
     def unusable(self) -> bool:
@@ -314,14 +317,8 @@ class PassScore:
 
     @property
     def rank(self) -> tuple[int, int, Decimal, int, int]:
-        """Lower is better: usable, no balance gap, the smaller gap, a proven balance, the fewer findings."""
-        return (
-            int(self.unusable),
-            int(self.balance_fails),
-            self.gap,
-            int(not self.balance_proven),
-            self.finding_count,
-        )
+        """Lower is better: usable, no balance gap, the smaller gap, more proven rows, the fewer findings."""
+        return (int(self.unusable), int(self.balance_fails), self.gap, -self.proven_rows, self.finding_count)
 
 
 def _states_balance(reading: dict[str, Any], field: str, bucket_field: str) -> bool:
@@ -347,10 +344,24 @@ def _gap_of(result: dict[str, Any]) -> Decimal:
 
 
 def _account_is_proven(reading: dict[str, Any], source_text: str | None) -> bool:
+    """Return True when the balance equation of the account holds on balances that are a proof.
+
+    With a text layer, the text must print both balances: a balance pair that the text does not show is no
+    proof. For per-currency balances the pair is the opening and the closing balance of the primary
+    currency. Without a text layer the equation decides.
+    """
     if not _balance_holds(reading):
         return False
-    codes = {finding.code for finding in reading_findings(reading, source_text=source_text, institution_given=True)}
-    return not (codes & {FindingCode.OPENING_NOT_IN_TEXT, FindingCode.CLOSING_NOT_IN_TEXT})
+    if not source_text:
+        return True
+    amounts = [_number(txn.get("amount")) for txn in _rows_of(reading)]
+    verdict = check_closing_balance_against_text(
+        source_text,
+        opening=_number(reading.get("opening_balance")),
+        closing=_number(reading.get("closing_balance")),
+        amounts=[amount for amount in amounts if amount is not None],
+    )
+    return verdict is SourceBalanceVerdict.VERIFIED
 
 
 def score_pass(readings: list[dict[str, Any]], findings: list[Finding], *, source_text: str | None = None) -> PassScore:
@@ -372,6 +383,7 @@ def score_pass(readings: list[dict[str, Any]], findings: list[Finding], *, sourc
         opening_count=sum(_states_balance(reading, "opening_balance", "opening") for reading in readings),
         closing_count=sum(_states_balance(reading, "closing_balance", "closing") for reading in readings),
         proven_rows=sum(len(_rows_of(reading)) for reading in readings if _account_is_proven(reading, source_text)),
+        accounts_with_rows=sum(1 for reading in readings if _rows_of(reading)),
     )
 
 
@@ -379,14 +391,14 @@ def replaces(candidate: PassScore, kept: PassScore) -> bool:
     """Return True when a later pass replaces the kept pass.
 
     A pass without rows never replaces a pass with rows. A reading that the persist step cannot store loses
-    to each reading that it can store. Apart from that, a later pass never loses evidence without a stronger
-    balance proof. The proof is stronger when each of its rows is in an account that holds the balance
-    equation on balances that no text check questions, and it has more such rows than the kept pass; or
-    when the kept pass fails the balance equation and its gap is smaller. Without a stronger proof:
+    to each reading that it can store. A kept pass with a balance gap is replaced by a pass with a smaller
+    gap. Apart from these, a later pass never loses evidence:
+    - It has no fewer accounts with rows.
     - It states the opening balance for no fewer accounts, unless the text check showed that the document
       does not print one. The same rule holds for the closing balance.
-    - It has no fewer rows.
-    Then the lower rank wins. An equal rank keeps the earlier pass.
+    - It has no fewer rows, unless each of its rows is proven and it has more proven rows than the kept pass.
+    Then the lower rank wins, and the rank puts more proven rows before fewer findings. An equal rank keeps
+    the earlier pass.
     """
     if candidate.rows == 0 and kept.rows > 0:
         return False
@@ -394,13 +406,15 @@ def replaces(candidate: PassScore, kept: PassScore) -> bool:
         return kept.unusable and candidate.rank < kept.rank
     if kept.unusable:
         return True
-    stronger_proof = candidate.balance_proven and candidate.proven_rows > kept.proven_rows
     smaller_gap = kept.balance_fails and candidate.evaluable and candidate.gap < kept.gap
-    if not (stronger_proof or smaller_gap):
+    if not smaller_gap:
+        if candidate.accounts_with_rows < kept.accounts_with_rows:
+            return False
         if candidate.opening_count < kept.opening_count and FindingCode.OPENING_NOT_IN_TEXT not in kept.codes:
             return False
         if candidate.closing_count < kept.closing_count and FindingCode.CLOSING_NOT_IN_TEXT not in kept.codes:
             return False
-        if candidate.rows < kept.rows:
+        more_proof = candidate.balance_proven and candidate.proven_rows > kept.proven_rows
+        if candidate.rows < kept.rows and not more_proof:
             return False
     return candidate.rank < kept.rank

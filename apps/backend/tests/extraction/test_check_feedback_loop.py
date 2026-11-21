@@ -527,9 +527,13 @@ def test_a_later_pass_that_leaves_out_the_account_without_proof_does_not_replace
     assert not replaces(_score(_balanced(), None), _score([proven, one_row], None))
     assert not replaces(_score([proven, {**one_row, "transactions": []}], None), _score([proven, one_row], None))
     assert not replaces(_score([proven, other_proven], None), _score([proven, other_proven, third], None))
-    # A single account that proves all 4 rows does replace it: it proves more rows.
+    # Two accounts merged into one are fewer accounts with rows, even when the merged account proves all 4 rows.
     merged = _reading("10.00", "20.00", "10.00", "50.00", opening_balance="100.00", closing_balance="10.00")
-    assert replaces(_score(merged, None), _score([proven, one_row], None))
+    assert not replaces(_score(merged, None), _score([proven, one_row], None))
+    # The same two accounts with a proof for the second one do replace it.
+    assert replaces(
+        _score([{"account_last4": "1111", **_balanced()}, other_proven], None), _score([proven, one_row], None)
+    )
 
 
 def test_a_finding_of_a_document_with_several_accounts_names_its_account():
@@ -547,3 +551,74 @@ def test_a_feedback_line_is_never_cut_inside_a_value():
     (finding,) = [f for f in document_findings([_reading(transactions=rows)], source_text=None) if f.rows]
     line = check_feedback_block([finding]).splitlines()[6]
     assert len(finding.feedback) < 5000 and line.endswith("the printed amount as a number.") and line.isascii()
+
+
+def test_without_a_balance_gap_a_later_pass_loses_no_account_and_no_proven_row():
+    def account(last4, *amounts, **fields):
+        return {"account_last4": last4, **_reading(*amounts, period_start=None, period_end=None), **fields}
+
+    first = account("1111", "10.00", "20.00", "10.00", opening_balance="100.00", closing_balance="60.00")
+    first_no_closing = {**first, "closing_balance": None}
+    second = account("2222", "50.00", opening_balance="200.00", closing_balance="150.00")
+    second_no_balances = account("2222", "50.00")
+    kept_both_proven = _score([first, second], None)
+
+    cases = [
+        # (candidate, kept, reason)
+        ([_balanced()], [first_no_closing, second], "the proven account 2222 is left out while 1111 gains its closing"),
+        (
+            [_reading("10.00", "10.00", "10.00", "5.00", "5.00", opening_balance="100.00", closing_balance="60.00")],
+            [first, second],
+            "one account with more proven rows in total, account 2222 gone",
+        ),
+        (
+            [{**first, "opening_balance": None, "closing_balance": None}, second],
+            [first, second_no_balances],
+            "the balances moved to the other account: 3 proven rows became 1",
+        ),
+        ([first, {**second, "transactions": []}], [first, second], "the rows of account 2222 are gone"),
+    ]
+    wrong = [reason for candidate, kept, reason in cases if replaces(_score(candidate, None), _score(kept, None))]
+    assert wrong == [] and kept_both_proven.proven_rows == 4 and kept_both_proven.accounts_with_rows == 2
+
+    # Fewer rows need more proven rows, not the same number: 3 proven of 5 rows stay over 3 proven of 3 rows.
+    two_rows_no_balances = account("2222", "50.00", "5.00")
+    two_proven = account("1111", "20.00", "20.00", opening_balance="100.00", closing_balance="60.00")
+    one_proven = {**second, "period_start": "2025-01-01", "period_end": "2025-01-31"}
+    kept, candidate = _score([first, two_rows_no_balances], None), _score([two_proven, one_proven], None)
+    assert (kept.proven_rows, kept.rows, candidate.proven_rows, candidate.rows) == (3, 5, 3, 3)
+    assert candidate.balance_proven and candidate.finding_count < kept.finding_count and not replaces(candidate, kept)
+
+
+def test_with_a_text_layer_a_balance_pair_that_the_text_does_not_print_is_no_proof():
+    text = BALANCED_TEXT
+    printed = _balanced(period_start=None)
+    invented = _balanced(opening_balance="105.00", closing_balance="65.00")
+    per_currency = {
+        **_reading("10.00", "20.00", "10.00"),
+        "balances": [
+            {"currency": "SGD", "opening": "100.00", "closing": "60.00"},
+            {"currency": "USD", "opening": "5.00", "closing": "5.00"},
+        ],
+    }
+    assert _score(printed, text).proven_rows == 3
+    assert _score(invented, text).proven_rows == 0 and _score(invented, None).proven_rows == 3
+    assert _score(per_currency, text).proven_rows == 0 and _score(per_currency, None).proven_rows == 3
+    # The text check reads the pair of the primary currency, so that pair makes the proof when the text prints it.
+    with_primary_pair = {**per_currency, "opening_balance": "100.00", "closing_balance": "60.00"}
+    assert _score(with_primary_pair, text).proven_rows == 3
+    # The invented pair has fewer findings, and it still does not replace the printed pair.
+    assert not replaces(_score(invented, text), _score(printed, text))
+    # Fewer rows with an invented pair do not replace more rows without balances.
+    five_rows = _reading("10.00", "20.00", "10.00", "5.00", "40.00")
+    assert not replaces(_score(invented, text), _score(five_rows, text))
+
+
+def test_an_account_without_rows_and_unequal_balances_stops_the_proof():
+    empty_unequal = {"account_last4": "2222", **_reading(opening_balance="200.00", closing_balance="190.00")}
+    score = _score([{"account_last4": "1111", **_balanced()}, empty_unequal], None)
+    five_rows_gap_10 = _reading(
+        "10.00", "10.00", "5.00", "5.00", "20.00", opening_balance="100.00", closing_balance="60.00"
+    )
+    assert score.balance_fails and not score.balance_proven
+    assert not replaces(score, _score(five_rows_gap_10, None))
