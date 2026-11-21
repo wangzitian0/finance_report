@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from unittest.mock import AsyncMock, patch
 
 import fitz
@@ -469,3 +470,43 @@ async def test_a_text_reply_whose_accounts_hold_no_row_object_is_read_again_from
                 file_content=_pdf(PRINTED), institution="DBS", file_type="pdf", split_single_batch=False
             )
         assert result is from_images
+
+
+def test_several_accounts_are_judged_account_by_account():
+    holds = {"account_last4": "1111", **_balanced()}
+    no_proof = {"account_last4": "2222", **_reading("50.00", "5.00")}
+    six_rows = _reading("10.00", "20.00", "10.00", "5.00", "5.00", "50.00", period_start=None, period_end=None)
+    one_proven_one_not = _score([holds, no_proof], None)
+
+    # One account that holds does not prove the rows of the other account, so fewer rows are refused.
+    assert not one_proven_one_not.balance_proven
+    assert not replaces(one_proven_one_not, _score(six_rows, None))
+
+    second = {"account_last4": "2222", **_reading("50.00", opening_balance="200.00", closing_balance="150.00")}
+    both = _score([{**holds, "period_start": None}, {**second, "period_start": None}], None)
+    second_lost_opening = _score([holds, {**second, "opening_balance": None}], None)
+    second_lost_both = _score([holds, {**second, "opening_balance": None, "closing_balance": None}], None)
+
+    # A later pass that states a balance for fewer accounts does not replace the kept pass.
+    assert both.balance_proven and both.opening_count == 2
+    assert not replaces(second_lost_opening, both) and not replaces(second_lost_both, both)
+
+
+def test_a_balance_gap_is_first_in_the_block_and_a_cut_block_says_how_many_findings_it_left_out():
+    accounts = [{"transactions": [{"date": None, "amount": "x"}]} for _ in range(20)]
+    accounts.append(_balanced(closing_balance="70.00"))
+    findings = document_findings(accounts, source_text=None)
+    block = check_feedback_block(findings)
+    assert len(findings) == 41 and block.splitlines()[6].startswith("1. The opening balance")
+    assert "And 11 more failed checks of the same kinds.\n" in block
+
+
+def test_a_gap_in_one_currency_counts_in_the_score():
+    reading = {
+        **_reading("10.00"),
+        "balances": [
+            {"currency": "SGD", "opening": "100.00", "closing": "60.00"},
+            {"currency": "USD", "opening": "5.00", "closing": "5.00"},
+        ],
+    }
+    assert _score(reading, None).gap == Decimal("30.00")
