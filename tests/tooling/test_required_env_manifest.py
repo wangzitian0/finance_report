@@ -22,14 +22,31 @@ def test_AC_runtime_guard_proofs_13_unknown_source_class_name_exits_with_the_fie
     with pytest.raises(SystemExit) as stop: gen._environment_contract()
     assert 'not_a_setting' in str(stop.value); assert str(stop.value).startswith('ENV_SOURCE_CLASSES:')
 def test_AC_runtime_guard_proofs_14_sensitive_credentials_and_filtered_consumer_validation(): 'AC-runtime.guard-proofs.14'; committed = _committed_manifest(); by_env = {entry['env']: entry for entry in committed['fields']}; assert by_env['DATABASE_URL']['sensitive'] is True; assert by_env['REDIS_URL']['sensitive'] is True; assert gen.manifest_gate_errors() == []; counterexample = json.loads(gen.render_required_env_manifest(gen.collect_backend_fields())); counterexample['fields'].append({'field': 'synthetic_downstream_url', 'env': 'SYNTHETIC_DOWNSTREAM_URL', 'aliases': [], 'required': False, 'injected': False, 'has_default': True, 'sensitive': False, 'group': 'Application', 'description': 'Synthetic service URL', 'source': 'runtime', 'empty_ok': False, 'scope': 'env', 'provided_by': '', 'composed_from': 'https://service:{SYNTHETIC_SECRET}@internal:8080', 'mirror_to_1password': False, 'ci': 'forbidden', 'store_key': '', 'vault': False}); errors = gen.manifest_gate_errors(counterexample); assert any(('composed_from references undeclared SYNTHETIC_SECRET' in err for err in errors)), f'Expected counterexample with dropped producer to fail offline gate, got: {errors}'
-def test_runtime_hooks_gate_errors_rejects_v1_manifest(tmp_path):
-    v1_payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
-    v1_payload['schema_version'] = 1
-    v1_payload['slots'].pop('prod_gate', None)
-    v1_path = tmp_path / 'runtime-hooks.manifest.json'
-    v1_path.write_text(json.dumps(v1_payload), encoding='utf-8')
-    errors = gen.runtime_hooks_gate_errors(v1_path)
-    assert errors == ['runtime-hooks.manifest.json: expected schema_version 2, got 1']
+@pytest.mark.parametrize('old_version', [1, 2])
+def test_runtime_hooks_gate_errors_rejects_old_schema(tmp_path, old_version):
+    payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
+    payload['schema_version'] = old_version
+    path = tmp_path / 'runtime-hooks.manifest.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    errors = gen.runtime_hooks_gate_errors(path)
+    assert len(errors) == 1 and 'schema_version 3' in errors[0], errors
+
+def test_runtime_hooks_gate_errors_is_empty_for_the_committed_manifest():
+    assert gen.runtime_hooks_gate_errors() == []
+
+def test_runtime_hooks_gate_errors_reports_a_cell_without_checks(tmp_path):
+    payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
+    payload['checks'] = [c for c in payload['checks'] if c['id'] not in {'staging_core_e2e', 'ai_provider_connectivity', 'staging_ai_ocr'}]
+    path = tmp_path / 'runtime-hooks.manifest.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    assert gen.runtime_hooks_gate_errors(path) == ["runtime-hooks.manifest.json: no check runs in cell 'staging.post'"]
+
+def test_runtime_hooks_gate_errors_reports_unknown_env_key(tmp_path):
+    payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
+    payload['checks'][1]['optional_env'] = [*payload['checks'][1].get('optional_env', []), 'NOT_A_REAL_KEY']
+    path = tmp_path / 'runtime-hooks.manifest.json'
+    path.write_text(json.dumps(payload), encoding='utf-8')
+    assert any("'NOT_A_REAL_KEY'" in e for e in gen.runtime_hooks_gate_errors(path))
 
 def test_settings_to_llm_settings_uses_sdk_from_mapping():
     from infra2_sdk.runtime.environment import shared_env_contract

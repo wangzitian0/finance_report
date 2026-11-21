@@ -30,8 +30,8 @@ if str(REPO_ROOT / "apps" / "backend") not in sys.path:
 def test_staging_core_e2e_marker_and_benchmark_manifest() -> None:
     assert STAGING_CORE_E2E_MARKER == "(smoke or e2e) and not llm"
     manifest = load_hooks_manifest(REPO_ROOT / "runtime-hooks.manifest.json")
-    assert "common.testing.test_selection --stage staging_core_e2e --run" in hook_text(manifest.slots["staging_gate"])
-    assert "tests.benchmarks.run_financial_scenario_benchmark" in hook_text(manifest.slots["scheduled_audit"])
+    assert "common.testing.test_selection --stage staging_core_e2e --run" in hook_text(manifest, "staging.post")
+    assert "tests.benchmarks.run_financial_scenario_benchmark" in hook_text(manifest, "scheduled_audit")
     bench_manifest = yaml.safe_load((REPO_ROOT / "tests/fixtures/benchmarks/manifest.yaml").read_text())
     assert bench_manifest["version"] == "2.2"
     assert len(bench_manifest["fixtures"]) == 20
@@ -122,11 +122,11 @@ def test_bench_sdk_version_mismatch_and_unknown_tag_diagnostics(
 
     monkeypatch.setattr(
         "tests.benchmarks.run_financial_scenario_benchmark.read_sdk_pin",
-        lambda _r: ("https://x/infra2_sdk-3.32.0-py3-none-any.whl", "0" * 64, "infra2_sdk-3.32.0-py3-none-any.whl"),
+        lambda _r: ("https://x/infra2_sdk-4.0.0-py3-none-any.whl", "0" * 64, "infra2_sdk-4.0.0-py3-none-any.whl"),
     )
     monkeypatch.setattr("importlib.metadata.version", lambda _pkg: "3.8.0")
     warning = _check_sdk_version()
-    assert warning is not None and "3.32.0" in warning and "3.8.0" in warning and "3.32.0" in capsys.readouterr().err
+    assert warning is not None and "4.0.0" in warning and "3.8.0" in warning and "4.0.0" in capsys.readouterr().err
 
     with pytest.raises(AssertionError, match=r"unknown to local git.*COMMIT_REF"):
         assert_pinned_deployment({"version": "024cc16", "git_sha": "024cc16"}, "v0.2.50", None)

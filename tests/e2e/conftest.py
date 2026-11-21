@@ -22,6 +22,7 @@ from tests.e2e._journey_helpers import (  # noqa: E402
     verify_session_target,
 )
 from tests.e2e.auth_cookie import build_auth_cookie  # noqa: E402
+from tests.e2e.deployment_pin import expected_version_from_env  # noqa: E402
 from tests.e2e.critical_skip_gate import (
     CRITICAL_MARKER,
     critical_skip_failure_message,
@@ -40,7 +41,7 @@ class TestConfig:
         os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or "http://localhost:3000"
     )
     TEST_ENV = os.getenv("TEST_ENV", "staging").lower()
-    EXPECTED_SHA = os.getenv("EXPECTED_SHA")
+    EXPECTED_SHA = expected_version_from_env()
     HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
     TIMEOUT_MS = int(os.getenv("TIMEOUT_MS", "30000"))
     SLOW_MO = int(os.getenv("SLOW_MO", "0"))

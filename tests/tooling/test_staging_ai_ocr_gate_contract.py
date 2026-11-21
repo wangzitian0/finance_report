@@ -414,11 +414,11 @@ def test_AC_testing_deploy_gates_37_gate_preflights_before_corpus_spend() -> Non
     from infra2_sdk.manifests import load_hooks_manifest
 
     manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
-    for slot, corpus in (
-        ("staging_gate", "canary"),
+    for cell, corpus in (
+        ("staging.post", "canary"),
         ("scheduled_audit", "audit_replay"),
     ):
-        cmd = hook_text(manifest.slots[slot])
+        cmd = hook_text(manifest, cell)
         assert (
             f"common.testing.test_selection --stage staging_ai_ocr --corpus {corpus} --run"
             in cmd

@@ -34,7 +34,11 @@ from tests.fixtures.provider_review import (
 
 from tests.e2e.auth_cookie import build_auth_cookie, redact_playwright_auth_headers
 from tests.e2e.bench_ui_bridge import BenchUiBridge
-from tests.e2e.deployment_pin import assert_pinned_deployment, resolve_expected_commit
+from tests.e2e.deployment_pin import (
+    assert_pinned_deployment,
+    expected_version_from_env,
+    resolve_expected_commit,
+)
 from tests.e2e.journey_checkpoint import checkpoint
 from tests.e2e.path_quality import HANDSHAKE_USER_AGENT, report_path_quality
 from tests.e2e.transport_retry import ReconnectCount, get_with_reconnect
@@ -67,7 +71,7 @@ def verify_session_target(
 ) -> None:
     if not expected_sha:
         pytest.exit(
-            "Fatal: EXPECTED_SHA must be explicitly set in CI, staging, and strict gate environments",
+            "Fatal: EXPECTED_SHA or APP_VERSION_REF must be explicitly set in CI, staging, and strict gate environments",
             returncode=1,
         )
     health_url, ctx = api_url("/health", app_url), ssl.create_default_context()
@@ -306,8 +310,8 @@ async def assert_pinned_via_client(
     reconnects: ReconnectCount | None = None,
     reason: str = "core-journey proof",
 ) -> dict[str, Any]:
-    expected_version = os.getenv("EXPECTED_SHA")
-    assert expected_version, f"{reason} requires an explicit EXPECTED_SHA"
+    expected_version = expected_version_from_env()
+    assert expected_version, f"{reason} requires an explicit EXPECTED_SHA or APP_VERSION_REF"
     expected_commit = resolve_expected_commit(expected_version)
     health = await get_json(client, "/health", base_url=base_url, reconnects=reconnects)
     fe_url = get_url("/frontend-version.json", base_url)
@@ -338,8 +342,8 @@ async def assert_pinned_via_page(
     *,
     base_url: str = APP_URL,
 ) -> None:
-    expected_version = os.getenv("EXPECTED_SHA")
-    assert expected_version, "live browser proof requires an explicit EXPECTED_SHA"
+    expected_version = expected_version_from_env()
+    assert expected_version, "live browser proof requires an explicit EXPECTED_SHA or APP_VERSION_REF"
     expected_commit = resolve_expected_commit(expected_version)
     for path in ("/api/health", "/frontend-version.json"):
         resp = await page.request.get(get_url(path, base_url))

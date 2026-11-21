@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 import uuid
 
@@ -8,6 +7,7 @@ import pytest
 from playwright.async_api import Page, expect
 
 from tests.e2e._journey_helpers import assert_pinned_via_page, get_url
+from tests.e2e.deployment_pin import expected_version_from_env
 
 AUTH_LANDING_URL_PATTERN = re.compile("/(?:dashboard)?(?:[?#].*)?$")
 
@@ -100,8 +100,8 @@ async def test_full_registration_flow(page: Page) -> None:
 async def test_browser_cookie_logout_lifecycle(
     page: Page, viewport: str, record_property
 ) -> None:
-    expected = os.environ.get("EXPECTED_SHA")
-    assert expected, "Authentication lifecycle proof requires explicit EXPECTED_SHA"
+    expected = expected_version_from_env()
+    assert expected, "Authentication lifecycle proof requires explicit EXPECTED_SHA or APP_VERSION_REF"
     await assert_pinned_via_page(page, record_property)
     await page.set_viewport_size(
         {"width": 390, "height": 844}

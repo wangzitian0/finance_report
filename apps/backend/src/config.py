@@ -366,13 +366,6 @@ class Settings(BaseSettings):
             large_model=self.large_model,
             small_model=self.small_model,
             multimodal_model=self.multimodal_model,
-            encryption_keys=list(self.llm_encryption_key_list),
-            chat_completions_path=self.ai_chat_completions_path,
-            json_timeout_seconds=self.ai_json_timeout_seconds,
-            json_max_tokens=self.ai_json_max_tokens,
-            json_disable_thinking=self.ai_json_disable_thinking,
-            json_seed=self.ai_json_seed,
-            extract_max_attempts=self.ai_extract_max_attempts,
         )
 
 
