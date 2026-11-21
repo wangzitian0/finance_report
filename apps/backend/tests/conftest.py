@@ -211,3 +211,92 @@ async def public_client(db_engine, test_database_url):
     finally: database.set_test_session_maker(None)
 @pytest.fixture(scope='session')
 def openapi_schema() -> dict[str, Any]: from src.main import app; return app.openapi()
+
+
+# --- Model calls in tests (#3153) ---------------------------------------------------------------------------
+# No test reaches a provider. A test gives a fake model (`fake_llm`), or replays a recording
+# (`@pytest.mark.vcr` with `vcr_llm`; `pytest --record-mode=rewrite <test>` records it again).
+from pydantic_ai import models as _pydantic_ai_models  # noqa: E402
+
+_pydantic_ai_models.ALLOW_MODEL_REQUESTS = False
+# litellm downloads its price table on import. A recording must hold the model request only. This line goes
+# away with litellm (#3153).
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
+
+def _llm_body_matches(recorded: Any, sent: Any) -> None:
+    """A recording answers only the request that it was recorded for: the JSON bodies must be equal."""
+    import json
+
+    def body(request: Any) -> Any:
+        raw = request.body
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8", errors="replace")
+        try:
+            return json.loads(raw) if raw else None
+        except ValueError:
+            return raw
+
+    assert body(recorded) == body(sent), "the request body differs from the recorded request body"
+
+
+def pytest_recording_configure(config: Any, vcr: Any) -> None:
+    vcr.register_matcher("llm_body", _llm_body_matches)
+
+
+@pytest.fixture(scope="module")
+def vcr_config() -> dict[str, Any]:
+    from infra2_sdk.runtime import vcr_llm_config
+
+    config = vcr_llm_config()
+    config["match_on"] = (*config["match_on"], "llm_body")
+    # A recording holds requests to the model provider only.
+    config["ignore_hosts"] = ("raw.githubusercontent.com",)
+    return config
+
+
+@pytest.fixture
+def vcr_llm(monkeypatch: pytest.MonkeyPatch):
+    """Allow the model request of a replay test. `LLM_API_KEY` is needed only to record."""
+    from infra2_sdk.runtime import allow_vcr_model_requests
+
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "ai_api_key", os.environ.get("LLM_API_KEY") or "replay-key")
+    with allow_vcr_model_requests():
+        yield
+
+
+@pytest.fixture
+def fake_llm():
+    """Return a function that installs a fake model for the test: `fake_llm(lambda prompt: "reply")`.
+
+    The reply function gets the last user content (a string, or the list of parts). It returns the reply
+    text, or raises. The returned list holds each content that the code sent.
+    """
+    from contextlib import ExitStack
+
+    from pydantic_ai.messages import ModelResponse, TextPart
+    from pydantic_ai.models.function import FunctionModel
+
+    from src.llm.extension.agent import override_model
+
+    with ExitStack() as stack:
+
+        def install(reply: Any) -> list[Any]:
+            sent: list[Any] = []
+
+            def respond(messages: Any, _info: Any) -> ModelResponse:
+                content = messages[-1].parts[-1].content
+                sent.append(content)
+                return ModelResponse(parts=[TextPart(reply(content) if callable(reply) else reply)])
+
+            async def respond_stream(messages: Any, _info: Any):
+                content = messages[-1].parts[-1].content
+                sent.append(content)
+                yield reply(content) if callable(reply) else reply
+
+            stack.enter_context(override_model(FunctionModel(respond, stream_function=respond_stream)))
+            return sent
+
+        yield install

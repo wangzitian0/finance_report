@@ -5,9 +5,8 @@
 job is "call the LLM and parse its JSON reply" — a genuine LLM call, which is
 disallowed inside ``reconciliation`` (declared ``CODE-ONLY``; see
 ``common/meta/readme.md``'s "Cross-tier MUST rules", rule 2: a CODE-ONLY
-module MUST NOT depend on an LLM client). It belongs here instead, composing
-``extension.streaming``'s base-layer primitives into a higher-level
-scene-agnostic helper.
+module MUST NOT depend on an LLM client). It belongs here instead, calling the
+one model entry point ``extension.agent.complete_text`` (#3153).
 
 Deliberately generic: this function takes an already-built ``prompt`` string
 rather than reconciliation-specific parameters (transaction description /
@@ -24,51 +23,42 @@ from __future__ import annotations
 
 import json
 
-import src.config
-from src.llm.extension.streaming import AIStreamError, accumulate_stream, stream_ai_json
+from infra2_sdk.runtime import DecodingSpec
+from pydantic_ai.usage import UsageLimits
+
+from src.llm.extension.agent import CallSite, complete_text
 from src.observability import get_logger
 
 logger = get_logger(__name__)
-settings = src.config.settings
+
+# GLM maps ``thinking=False`` to the lowest reasoning effort, which is what the small role used before.
+_DECODING = DecodingSpec("reconciliation.semantic_score.v1", thinking=False, timeout=30.0)
+_USAGE_LIMITS = UsageLimits(request_limit=3)
 
 
 async def ai_semantic_score(prompt: str) -> int:
-    """Stream ``prompt`` through the configured AI provider; return a 0-100 score.
+    """Send ``prompt`` to the small model; return a 0-100 score.
 
     ``prompt`` must instruct the model to reply with a JSON object carrying a
     ``similarity_score`` field (0-100); this function parses and clamps that
-    field. Falls back gracefully to 50 (neutral) on any error — a provider
-    failure, empty response, or malformed JSON never blocks the caller.
+    field. Falls back to 50 (neutral) on any error: a provider failure, an empty
+    response, or malformed JSON never blocks the caller.
     """
-    messages = [{"role": "user", "content": prompt}]
-
     try:
-        stream = stream_ai_json(
-            messages=messages,
-            model=settings.small_model,
-            timeout=30.0,
+        content = await complete_text(
+            CallSite.RECONCILIATION_SEMANTIC_SCORE,
+            "small",
+            prompt,
+            decoding=_DECODING,
+            usage_limits=_USAGE_LIMITS,
         )
-        content = await accumulate_stream(stream)
-
         if not content or not content.strip():
             logger.warning("AI semantic score returned empty response")
             return 50
-
-        parsed = json.loads(content)
-        score = int(parsed.get("similarity_score", 50))
-
-        logger.debug(
-            "AI semantic score computed",
-            score=score,
-            model=settings.small_model,
-        )
-
+        score = int(json.loads(content).get("similarity_score", 50))
+        logger.debug("AI semantic score computed", score=score)
         return max(0, min(100, score))
-
-    except (AIStreamError, json.JSONDecodeError, ValueError, TypeError, KeyError) as e:
-        logger.warning(
-            "AI semantic score failed, using fallback",
-            error=str(e),
-            error_type=type(e).__name__,
-        )
+    except Exception as exc:
+        # The SDK already redacted a model error: its text holds the class, the HTTP status and the provider code.
+        logger.warning("AI semantic score failed, using fallback", error=str(exc)[:300], error_type=type(exc).__name__)
         return 50

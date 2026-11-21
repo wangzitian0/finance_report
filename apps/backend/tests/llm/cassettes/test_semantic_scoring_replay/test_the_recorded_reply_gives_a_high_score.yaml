@@ -1,0 +1,94 @@
+interactions:
+- request:
+    body: '{"model":"glm-5.3-flash","stream":false,"messages":[{"role":"user","content":"You
+      are a financial transaction matching expert.\nGiven two transaction descriptions,
+      rate their semantic similarity on a 0-100 scale.\n\nConsider:\n- Whether they
+      refer to the same merchant, payee, or transaction type\n- Matching reference
+      numbers, invoice numbers, or identifiers\n- Similar transaction patterns (e.g.,
+      \"SALARY ACME\" matches \"Payroll - Acme Corp\")\n- Date proximity and amount
+      similarity as context clues\n\nContext provided:\n- Bank transaction description
+      and journal entry memo\n- Date proximity (days apart)\n- Amount match percentage\n\nCRITICAL:
+      Return ONLY a JSON object, no markdown, no extra text:\n{\n  \"similarity_score\":
+      85,\n  \"reasoning\": \"Both refer to salary payment from same employer\"\n}\n\nRules:\n-
+      Score 90-100: Clear same transaction (same merchant, reference, or pattern)\n-
+      Score 70-89: Likely same transaction (similar merchant, compatible amounts)\n-
+      Score 50-69: Possibly related (same category, different details)\n- Score 0-49:
+      Unlikely to be the same transaction\n\n\nNow evaluate this pair:\n\nBank Transaction:
+      \"GIRO SALARY ACME PTE LTD\"\nJournal Entry: \"Monthly salary from Acme\"\nDate
+      difference: 0 days apart\nAmount match: 100%\n\nReturn your JSON assessment:"}],"thinking":{"type":"enabled","clear_thinking":false},"reasoning_effort":"low"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '1387'
+      content-type:
+      - application/json
+      host:
+      - api.z.ai
+      user-agent:
+      - pydantic-ai/2.71.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 3.57.0
+      x-stainless-read-timeout:
+      - '30.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.12
+    method: POST
+    uri: https://api.z.ai/api/coding/paas/v4/chat/completions
+  response:
+    body:
+      string: '{"choices":[{"finish_reason":"stop","index":0,"message":{"content":"{\"similarity_score\":
+        96, \"reasoning\": \"Both refer to salary payment from Acme Pte Ltd, same
+        date, exact amount match\"}","role":"assistant"}}],"created":1795285789,"id":"20261122022948e0606df45ace48d9","model":"glm-5.3-flash","object":"chat.completion","request_id":"20261122022948e0606df45ace48d9","usage":{"completion_tokens":34,"completion_tokens_details":{"reasoning_tokens":0},"prompt_tokens":283,"prompt_tokens_details":{"cached_tokens":256},"total_tokens":317}}'
+    headers:
+      alt-svc:
+      - h3=":443"; ma=3600
+      connection:
+      - keep-alive
+      content-length:
+      - '541'
+      content-type:
+      - application/json; charset=UTF-8
+      date:
+      - Sat, 21 Nov 2026 18:29:49 GMT
+      ga-traceid:
+      - bf2becc22efc55ec046699db79ee2bed
+      set-cookie:
+      - REDACTED
+      transfer-encoding:
+      - chunked
+      vary:
+      - Accept-Encoding
+      - Origin
+      - Access-Control-Request-Method
+      - Access-Control-Request-Headers
+      - Origin
+      - Access-Control-Request-Method
+      - Access-Control-Request-Headers
+      - Origin
+      x-log-id:
+      - 20261122022948e0606df45ace48d9
+      x-request-id:
+      - 8ddf54de-5896-4054-8e78-60408ffa3bbe
+    status:
+      code: 200
+      message: OK
+version: 1
