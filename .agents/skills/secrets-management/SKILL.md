@@ -58,7 +58,7 @@ Vault path convention: `secret/data/{project}/{environment}/{component}`
    deploy copies it into Vault; `runtime` → the deploy generates it; `decision` →
    infra2 states it in the compose env for `finance_report/app` (needs an infra2
    compose PR); unlisted → `code` default, never stored. Regenerate the manifest
-   (`python tools/env_manifests.py`): infra2 renders its vault-agent
+   (`python tools/generate_env_reference.py`): infra2 renders its vault-agent
    template and policy from it, so there is no hand-written `secrets.ctmpl` to
    edit and no git pointer to update here.
 
