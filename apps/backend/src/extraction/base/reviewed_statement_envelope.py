@@ -14,7 +14,8 @@ from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOL
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MONEY_QUANTUM = Decimal("0.01")
-_ENVELOPE_REVIEWABLE_FACTS = frozenset({"statement_currency", "period", "balances"})
+_ENVELOPE_REVIEWABLE_FACTS = frozenset({"institution", "statement_currency", "period", "balances"})
+_INSTITUTION_MAX_LENGTH = 100
 
 
 def supports_reviewed_statement_envelope(result: StatementExtractionResult) -> bool:
@@ -43,6 +44,8 @@ class ReviewedStatementEnvelopeCommand:
     opening_balance: Decimal
     closing_balance: Decimal
     rationale: str
+    # The reviewer states the institution when the source states none (#3167).
+    institution: str | None = None
 
     def __post_init__(self) -> None:
         if not _SHA256.fullmatch(self.source_result_digest):
@@ -69,19 +72,27 @@ class ReviewedStatementEnvelopeCommand:
         if len(rationale) > 2000:
             raise ValueError("rationale exceeds 2000 characters")
         object.__setattr__(self, "rationale", rationale)
+        if self.institution is not None:
+            institution = self.institution.strip()
+            if not institution:
+                raise ValueError("institution must not be blank")
+            if len(institution) > _INSTITUTION_MAX_LENGTH:
+                raise ValueError(f"institution exceeds {_INSTITUTION_MAX_LENGTH} characters")
+            object.__setattr__(self, "institution", institution)
 
     @property
     def digest(self) -> str:
-        return canonical_json_digest(
-            {
-                "source_result_digest": self.source_result_digest,
-                "account_id": str(self.account_id),
-                "currency": self.currency,
-                "period_start": self.period_start.isoformat(),
-                "period_end": self.period_end.isoformat(),
-                "opening_balance": str(self.opening_balance),
-                "closing_balance": str(self.closing_balance),
-                "rationale": self.rationale,
-            },
-            default=str,
-        )
+        payload = {
+            "source_result_digest": self.source_result_digest,
+            "account_id": str(self.account_id),
+            "currency": self.currency,
+            "period_start": self.period_start.isoformat(),
+            "period_end": self.period_end.isoformat(),
+            "opening_balance": str(self.opening_balance),
+            "closing_balance": str(self.closing_balance),
+            "rationale": self.rationale,
+        }
+        # A command without an institution keeps the digest of the envelopes stored before #3167.
+        if self.institution is not None:
+            payload["institution"] = self.institution
+        return canonical_json_digest(payload, default=str)

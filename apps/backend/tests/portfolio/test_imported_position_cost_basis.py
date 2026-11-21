@@ -404,13 +404,14 @@ def test_migration_0079_clears_the_cost_of_positions_without_a_buy_and_keeps_the
                     )
                 )
             }
-        run_alembic(database_url, "check")
         run_alembic(database_url, "downgrade", "0078_outbox_dead_letter")
         with engine.connect() as connection:
             downgraded = dict(
                 connection.execute(text("SELECT asset_identifier, cost_basis FROM managed_positions")).tuples().all()
             )
         run_alembic(database_url, "upgrade", "head")
+        # The model parity check needs the head revision, so it runs after the last upgrade (#3167).
+        run_alembic(database_url, "check")
 
         assert (upgraded, downgraded) == (
             # ES3: the cost of its BUY row (1805.00) less the cost of its SELL row (500.00).

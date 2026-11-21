@@ -33,7 +33,7 @@ import {
 } from "@/components/statements/StatementReview";
 
 const PARSING_TIMEOUT_MS = 7 * 60 * 1000;
-const MISSING_FACT_LABELS: Record<string, string> = { statement_currency: "statement currency", period: "statement period", balances: "opening and closing balances", transaction_currency: "transaction currency" };
+const MISSING_FACT_LABELS: Record<string, string> = { institution: "institution", statement_currency: "statement currency", period: "statement period", balances: "opening and closing balances", transaction_currency: "transaction currency" };
 
 export default function StatementDetailPage() {
   const { showToast } = useToast();
@@ -361,6 +361,7 @@ export default function StatementDetailPage() {
             opening_balance: envelopeDraft.openingBalance,
             closing_balance: envelopeDraft.closingBalance,
             rationale: envelopeDraft.rationale,
+            ...(sourceMissingFacts.includes("institution") ? { institution: envelopeDraft.institution?.trim() } : {}),
           },
         },
       );
@@ -442,6 +443,7 @@ export default function StatementDetailPage() {
         (matchingAccounts.length === 1 ? matchingAccounts[0] : undefined)
       : undefined;
     setEnvelopeDraft((current) => ({
+      institution: current.institution,
       accountId: review.account_id || current.accountId || autoAccount?.id || "",
       currency: review.currency || current.currency || "",
       periodStart: review.period_start || current.periodStart || "",

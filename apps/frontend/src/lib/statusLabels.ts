@@ -121,6 +121,13 @@ export function checkTypeLabel(type: string): string {
 
 export const PARSING_POLL_MS = 3000;
 
+/** The text for a statement whose source states no institution (#3167). No bank name is invented. */
+export const INSTITUTION_NOT_STATED = "Institution not stated";
+
+export function institutionLabel(institution: string | null | undefined): string {
+    return institution?.trim() || INSTITUTION_NOT_STATED;
+}
+
 /** Canonical statement display title shared by `/upload` and `/statements/[id]`. */
 export function statementDisplayTitle(statement: {
     original_filename?: string | null;
@@ -128,7 +135,7 @@ export function statementDisplayTitle(statement: {
     period_start?: string | null;
     period_end?: string | null;
 }): string {
-    return statement.original_filename || `${statement.institution ?? ""} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
+    return statement.original_filename || `${institutionLabel(statement.institution)} (${statement.period_start ?? ""} – ${statement.period_end ?? ""})`;
 }
 
 const BROKERAGE_ALIASES = ["interactive brokers", "ibkr", "ib llc", "moomoo", "futu sg", "futu", "富途"];

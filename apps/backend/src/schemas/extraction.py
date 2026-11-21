@@ -9,7 +9,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
 
 from src.extraction import (
     BankStatementStatus,
@@ -131,7 +131,7 @@ class BankStatementListItemResponse(BaseModel):
     account_id: UUID | None
     file_path: str
     original_filename: str
-    institution: str
+    institution: str | None
     account_last4: str | None
     currency: str | None
     period_start: date | None
@@ -348,6 +348,12 @@ class ReviewedStatementEnvelopeRequest(BaseModel):
     opening_balance: Decimal
     closing_balance: Decimal
     rationale: Annotated[str, Field(min_length=1, max_length=2000)]
+    institution: Annotated[
+        str | None,
+        # The value is trimmed first, so a blank value gives 422 and not an error in the command (#3167).
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
+        Field(description="Required when source_missing_facts holds institution. Never replaces a source institution."),
+    ] = None
 
 
 class ReviewedStatementEnvelopeResponse(BaseModel):
@@ -360,6 +366,7 @@ class ReviewedStatementEnvelopeResponse(BaseModel):
     opening_balance: Decimal
     closing_balance: Decimal
     rationale: str
+    institution: str | None = None
     review_trace_record_id: UUID
     created_at: datetime
 

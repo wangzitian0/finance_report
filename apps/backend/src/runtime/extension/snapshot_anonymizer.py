@@ -162,7 +162,7 @@ STRING_PSEUDONYM_COLUMNS: dict[str, str] = {
                 "llm_providers": "api_base label",
                 "manual_valuation_snapshots": "notes source",
                 "outbox": "last_error",
-                "reviewed_statement_envelopes": "rationale",
+                "reviewed_statement_envelopes": "institution rationale",
                 "statement_runs": "error_message",
                 "statement_summaries": "institution sub_account_key validation_error",
                 "uploaded_documents": "file_path",

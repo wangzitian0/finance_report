@@ -324,9 +324,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     row_count=len(extracted.get("transactions") or []),
                     repaired_count=slice_obj.analysis.directions_repaired,
                 )
-            final_institution = institution or extracted.get("institution")
-            if not final_institution:
-                raise ExtractionError("Institution is required; extraction cannot invent source identity")
+            # A source without an institution keeps its rows. The institution is a missing fact for the reviewer.
+            stated_institution = institution or extracted.get("institution")
+            final_institution = stated_institution if str(stated_institution or "").strip() else None
             is_brokerage_payload = looks_like_brokerage_payload(
                 extracted, filename=display_filename, institution=final_institution
             )
@@ -339,6 +339,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 is_brokerage=is_brokerage_payload, provider_payload=extracted, positions=brokerage_positions
             )
             is_position_snapshot = is_brokerage_payload and evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
+            if final_institution is None and (
+                is_brokerage_payload or evidence_type is StatementEvidenceType.POSITION_SNAPSHOT
+            ):
+                # A missing institution is accepted for a bank ledger only. The envelope confirmation binds a
+                # custody identity for a bank source only, and it takes no position snapshot.
+                raise ExtractionError("Institution is required; extraction cannot invent source identity")
 
             resolved_file_hash = source.content_hash
             statement_payload = extracted.get("statement")
@@ -469,6 +475,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
             source_fact_gaps = StatementExtractionResult.required_fact_kinds(
                 evidence_type=evidence_type,
+                has_institution=final_institution is not None,
                 period_start=resolved_period_start,
                 period_end=resolved_period_end,
                 has_statement_currency=statement_currency is not None or bool(statement.currency_balances),

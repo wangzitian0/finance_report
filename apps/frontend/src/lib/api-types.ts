@@ -404,7 +404,7 @@ export interface components {
       currency: string | null;
       file_path: string;
       id: string;
-      institution: string;
+      institution: string | null;
       opening_balance: string | null;
       original_filename: string;
       period_end: string | null;
@@ -426,7 +426,7 @@ export interface components {
       currency: string | null;
       file_path: string;
       id: string;
-      institution: string;
+      institution: string | null;
       opening_balance: string | null;
       original_filename: string;
       period_end: string | null;
@@ -1711,6 +1711,7 @@ export interface components {
       account_id: string;
       closing_balance: number | string;
       currency: string;
+      institution?: string | null;
       opening_balance: number | string;
       period_end: string;
       period_start: string;
@@ -1723,6 +1724,7 @@ export interface components {
       created_at: string;
       currency: string;
       id: string;
+      institution?: string | null;
       opening_balance: string;
       period_end: string;
       period_start: string;
@@ -1787,7 +1789,7 @@ export interface components {
       currency: string | null;
       file_path: string;
       id: string;
-      institution: string;
+      institution: string | null;
       manual_opening_balance?: string | null;
       opening_balance: string | null;
       original_filename: string;

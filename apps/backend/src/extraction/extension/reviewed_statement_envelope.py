@@ -265,6 +265,8 @@ async def require_current_statement_envelope_trust(db: AsyncSession, *, statemen
     attrs = ("account_id", "currency", "period_start", "period_end", "opening_balance", "closing_balance")
     if tuple(getattr(statement, a) for a in attrs) != tuple(getattr(envelope, a) for a in attrs):
         raise ValidationFailedError("Statement projection diverges from its current reviewed envelope")
+    if envelope.institution is not None and statement.institution != envelope.institution:
+        raise ValidationFailedError("Statement projection diverges from its current reviewed envelope")
     from src.extraction.extension.statement_contribution import resolve_statement_contribution
 
     contribution = await resolve_statement_contribution(db, user_id=statement.user_id, statement_id=statement.id)
@@ -312,6 +314,8 @@ def _apply_envelope_to_statement(statement: StatementSummary, envelope: Reviewed
     ):
         statement.stage1_conflicts_resolved_at = None
     statement.account_id = envelope.account_id
+    if envelope.institution is not None:
+        statement.institution = envelope.institution
     statement.currency = envelope.currency
     statement.period_start, statement.period_end = envelope.period_start, envelope.period_end
     statement.opening_balance, statement.closing_balance = envelope.opening_balance, envelope.closing_balance
@@ -366,6 +370,7 @@ async def confirm_reviewed_statement_envelope(
     if not supports_reviewed_statement_envelope(source_result):
         raise ValidationFailedError("Current source result cannot be confirmed with a cash statement envelope")
     _validate_command_against_source(command, source_result)
+    institution = source_result.institution or command.institution
 
     account = (
         await db.execute(select(Account).where(Account.id == command.account_id, Account.user_id == user_id))
@@ -374,15 +379,11 @@ async def confirm_reviewed_statement_envelope(
         raise ValidationFailedError("A user-owned active asset or liability custody account is required")
     if account.currency.strip().upper() != command.currency:
         raise ValidationFailedError("Custody account currency must match the confirmed statement currency")
-    if (
-        source_result.source_type is StatementSourceType.BANK
-        and source_result.institution
-        and source_result.account_last4
-    ):
+    if source_result.source_type is StatementSourceType.BANK and institution and source_result.account_last4:
         await resolve_bank_custody_account(
             db,
             user_id=user_id,
-            institution=source_result.institution,
+            institution=institution,
             account_last4=source_result.account_last4,
             currency=command.currency,
             account_id=account.id,
@@ -445,6 +446,7 @@ async def confirm_reviewed_statement_envelope(
         opening_balance=command.opening_balance,
         closing_balance=command.closing_balance,
         rationale=command.rationale,
+        institution=command.institution,
         command_digest=command.digest,
         review_trace_record_id=trace_records[-1].record_id,
         supersedes_id=previous.id if previous is not None else None,
@@ -461,6 +463,15 @@ def _validate_command_against_source(
 ) -> None:
     if source_result.evidence_type is not StatementEvidenceType.TRANSACTION_LEDGER:
         raise ValidationFailedError("Only transaction-ledger sources accept a cash statement envelope confirmation")
+    if source_result.institution is None and command.institution is None:
+        raise ValidationFailedError(
+            "The source states no institution. The confirmation must state the institution of the statement."
+        )
+    # The command never replaces an institution that the source states.
+    if None not in (source_result.institution, command.institution) and (
+        command.institution != source_result.institution
+    ):
+        raise ValidationFailedError("Confirmed institution must match the declared source fact")
     declared: dict[str, object] = {
         "currency": source_result.statement_currency,
         "period_start": source_result.period_start,

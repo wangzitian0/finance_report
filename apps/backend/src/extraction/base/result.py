@@ -145,7 +145,8 @@ class StatementExtractionResult:
     source_content_digest: str
     source_type: StatementSourceType
     evidence_type: StatementEvidenceType
-    institution: str
+    # None when the source states no institution. The reviewer states it in the envelope confirmation (#3167).
+    institution: str | None
     account_last4: str | None
     period_start: date | None
     period_end: date | None
@@ -174,7 +175,8 @@ class StatementExtractionResult:
             raise TypeError("evidence_type must be StatementEvidenceType")
         if self.statement_currency is not None:
             object.__setattr__(self, "statement_currency", _currency(self.statement_currency))
-        object.__setattr__(self, "institution", required_text(self.institution, "institution"))
+        if self.institution is not None:
+            object.__setattr__(self, "institution", required_text(self.institution, "institution"))
         if self.account_last4 is not None and not re.fullmatch(r"[A-Za-z0-9]{1,4}", self.account_last4):
             raise ValueError("account_last4 must contain one to four ASCII alphanumeric characters")
         if (self.period_start is None) != (self.period_end is None):
@@ -200,6 +202,7 @@ class StatementExtractionResult:
         """Facts required before this result may cross the promotion boundary."""
         return self.required_fact_kinds(
             evidence_type=self.evidence_type,
+            has_institution=self.institution is not None,
             period_start=self.period_start,
             period_end=self.period_end,
             # A multi-currency source may declare units only on its exact
@@ -215,6 +218,7 @@ class StatementExtractionResult:
     def required_fact_kinds(
         *,
         evidence_type: StatementEvidenceType,
+        has_institution: bool,
         period_start: date | None,
         period_end: date | None,
         has_statement_currency: bool,
@@ -224,6 +228,8 @@ class StatementExtractionResult:
     ) -> tuple[str, ...]:
         """Return the one promotion policy used by every extraction transport."""
         missing: list[str] = []
+        if not has_institution:
+            missing.append("institution")
         if evidence_type is StatementEvidenceType.TRANSACTION_LEDGER and not has_statement_currency:
             missing.append("statement_currency")
         if period_start is None or period_end is None:
@@ -240,6 +246,7 @@ class StatementExtractionResult:
     def required_fact_labels(fact_kinds: tuple[str, ...]) -> tuple[str, ...]:
         """Translate stable fact identifiers into one human review explanation."""
         labels = {
+            "institution": "institution",
             "statement_currency": "statement currency",
             "period": "statement period",
             "balances": "opening and closing balances",
@@ -343,7 +350,7 @@ class StatementExtractionResult:
             source_content_digest=payload["source_content_digest"],
             source_type=source_type,
             evidence_type=evidence_type,
-            institution=payload["institution"],
+            institution=payload.get("institution"),
             account_last4=payload.get("account_last4"),
             period_start=date.fromisoformat(payload["period_start"]) if payload["period_start"] else None,
             period_end=date.fromisoformat(payload["period_end"]) if payload["period_end"] else None,
