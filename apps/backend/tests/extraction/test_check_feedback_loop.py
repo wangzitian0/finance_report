@@ -5,6 +5,7 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, patch
 
 import fitz
+import pytest
 
 from src.config import settings
 from src.extraction.base.findings import (
@@ -15,7 +16,7 @@ from src.extraction.base.findings import (
     replaces,
     score_pass,
 )
-from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
 
 PRINTED = "10.00 20.00 30.00 40.00 50.00"
 FEEDBACK_HEADER = "Check results of your previous answer"
@@ -361,3 +362,110 @@ async def test_a_text_reply_whose_accounts_have_no_rows_is_read_again_from_the_p
             file_content=_pdf(PRINTED), institution="DBS", file_type="pdf", split_single_batch=False
         )
     assert result is from_images
+
+
+BALANCED_TEXT = "100.00 10.00 20.00 30.00 40.00 60.00 5.00"
+
+
+def _balanced(**fields) -> dict:
+    """Three OUT rows of 10, 20 and 10 between a printed opening of 100.00 and a printed closing of 60.00."""
+    return {**_reading("10.00", "20.00", "10.00", opening_balance="100.00", closing_balance="60.00"), **fields}
+
+
+async def test_a_later_pass_that_raises_keeps_the_kept_pass():
+    kept = _balanced(period_start=None)
+    duplicate_currency = {
+        **_balanced(),
+        "balances": [
+            {"currency": "SGD", "opening": "1.00", "closing": "1.00"},
+            {"currency": "SGD", "opening": "2.00", "closing": "2.00"},
+            {"currency": "USD", "opening": "3.00", "closing": "3.00"},
+        ],
+    }
+    malformed_balances = {**_balanced(), "balances": ["SGD", 5]}
+    odd_types = {"institution": 5, "period_start": ["x"], "currency": 7, "transactions": _rows("10.00")}
+
+    for later in (duplicate_currency, malformed_balances, odd_types):
+        result, mock = await _run([kept, later], content=b"x", max_attempts=2)
+        assert result is kept and mock.await_count == 2
+
+    # Without a kept pass, two balances in one currency still end the loop with the message for the user.
+    with pytest.raises(ExtractionError, match="several balances in SGD"):
+        await _run([duplicate_currency, kept], content=b"x", max_attempts=2)
+
+
+def test_replaces_table():
+    text = BALANCED_TEXT
+    balanced = _balanced()
+    invalid_row = _balanced(transactions=[*_rows("10.00", "abc", "10.00")])
+    no_balances_4 = _reading("10.00", "20.00", "10.00", "5.00")
+    opening_computed = _reading("10.00", "20.00", "10.00", "5.00", opening_balance="105.00", closing_balance="60.00")
+    no_opening = {**opening_computed, "opening_balance": None}
+    quiet = _reading(opening_balance="100.00", closing_balance="100.00")
+    invalid_no_balances = _reading("10.00", "abc", "10.00")
+    no_balances_3 = _reading("10.00", "20.00", "10.00")
+    opening_only_no_period = {**no_balances_3, "opening_balance": "100.00", "period_start": None}
+    gap_20_six_rows = _reading(
+        "10.00", "20.00", "10.00", "5.00", "5.00", "10.00", opening_balance="100.00", closing_balance="60.00"
+    )
+    gap_5_four_rows = _reading("10.00", "20.00", "10.00", "5.00", opening_balance="100.00", closing_balance="60.00")
+
+    def score(reading):
+        return _score(reading, text)
+
+    cases = [
+        # (candidate, kept, expected, reason)
+        (no_balances_4, invalid_row, True, "a reading that the persist step can store replaces one that it cannot"),
+        (invalid_row, no_balances_4, False, "an unusable reading does not replace a usable one"),
+        (no_balances_4, opening_computed, False, "the closing balance is printed, so a later pass keeps it"),
+        (no_opening, opening_computed, True, "only the opening balance is not printed, so only it may go"),
+        (quiet, balanced, False, "a pass without rows never replaces a pass with rows"),
+        (quiet, invalid_row, False, "a pass without rows never replaces rows, even invalid ones"),
+        (balanced, no_balances_4, True, "fewer rows with a proven balance replace more rows with no balance"),
+        (gap_5_four_rows, gap_20_six_rows, True, "fewer rows with a smaller gap replace a larger gap"),
+        (gap_20_six_rows, gap_5_four_rows, False, "more rows with a larger gap do not replace a smaller gap"),
+        (balanced, balanced, False, "an equal rank keeps the earlier pass"),
+        (invalid_row, invalid_no_balances, False, "of two unusable readings, the one with the balance gap loses"),
+        (no_balances_3, opening_only_no_period, False, "the opening balance is printed, so a later pass keeps it"),
+    ]
+    wrong = [
+        reason for candidate, kept, expected, reason in cases if replaces(score(candidate), score(kept)) is not expected
+    ]
+    assert wrong == []
+
+
+async def test_a_brokerage_reading_replaces_only_a_kept_pass_that_fails():
+    brokerage = {"institution": "Moomoo", "positions": [{"symbol": "AAPL", "quantity": "1", "market_value": "1.00"}]}
+    usable = _balanced(period_start=None)
+    with_gap = _balanced(closing_balance="61.00")
+
+    kept, _ = await _run([usable, brokerage], content=b"x", max_attempts=2)
+    replaced, _ = await _run([with_gap, brokerage], content=b"x", max_attempts=2)
+
+    assert kept is usable and replaced is brokerage
+
+
+def test_the_block_holds_at_most_thirty_findings_and_no_unicode_line_separator():
+    many_accounts = [{} for _ in range(500)]
+    block = check_feedback_block(document_findings(many_accounts, source_text=None))
+    assert block.count("\n") < 40 and len(block) < 10_000
+    separator = _reading("10.00", opening_balance="1.00  \u0085", closing_balance="5.00")
+    block = check_feedback_block(document_findings([separator], source_text=None))
+    assert not any(character in block for character in "  \u0085")
+
+
+async def test_a_text_reply_whose_accounts_hold_no_row_object_is_read_again_from_the_page_images():
+    service = ExtractionService()
+    service.api_key, service.multimodal_model = "test-key", "test-model"
+    from_images = {"institution": "DBS", "transactions": _rows("50.00")}
+    image = [[{"type": "image_url", "image_url": {"url": "data:image/png;base64,AAAA"}}]]
+    for rows in ([None], "see page 2", {"a": 1}, 7):
+        reply = {"institution": "DBS", "accounts": [{"transactions": rows}]}
+        with (
+            patch.object(service, "_extract_json_with_model", AsyncMock(side_effect=[reply, from_images])),
+            patch.object(service, "_build_vision_media_payload_batches", lambda *args, **kwargs: image),
+        ):
+            result, _ = await service._extract_financial_data_with_meta(
+                file_content=_pdf(PRINTED), institution="DBS", file_type="pdf", split_single_batch=False
+            )
+        assert result is from_images

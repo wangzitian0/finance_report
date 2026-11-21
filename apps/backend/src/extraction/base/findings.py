@@ -31,6 +31,8 @@ MAX_ROWS_NAMED_IN_FEEDBACK = 20
 MAX_FEEDBACK_VALUE_LENGTH = 40
 # One feedback line is cut to this length.
 MAX_FEEDBACK_LINE_LENGTH = 2000
+# The feedback block holds at most this many findings.
+MAX_FEEDBACK_FINDINGS = 30
 
 _FEEDBACK_HEADER = """
 
@@ -54,9 +56,6 @@ class FindingCode(StrEnum):
     ROWS_NOT_IN_TEXT = "rows_not_in_text"
 
 
-_BALANCE_NOT_PRINTED = frozenset({FindingCode.OPENING_NOT_IN_TEXT, FindingCode.CLOSING_NOT_IN_TEXT})
-
-
 @dataclass(frozen=True, slots=True)
 class Finding:
     """One failed check of a reading. ``feedback`` is the sentence that the model gets."""
@@ -75,10 +74,10 @@ def _number(value: Any) -> Decimal | None:
 def _quoted(value: Any) -> str:
     """Return a value of the reading as a JSON string of bounded length.
 
-    The reading comes from a document that a user uploaded. A JSON string holds no raw new line, so a
-    value cannot end the feedback block or add a line to it.
+    The reading comes from a document that a user uploaded. An ASCII JSON string holds no raw new line and
+    no Unicode line separator, so a value cannot end the feedback block or add a line to it.
     """
-    return json.dumps(str(value)[:MAX_FEEDBACK_VALUE_LENGTH], ensure_ascii=False)
+    return json.dumps(str(value)[:MAX_FEEDBACK_VALUE_LENGTH], ensure_ascii=True)
 
 
 def _rows_of(reading: dict[str, Any]) -> list[dict[str, Any]]:
@@ -267,7 +266,8 @@ def check_feedback_block(findings: list[Finding]) -> str:
     if not findings:
         return ""
     lines = [
-        f"{number}. {finding.feedback[:MAX_FEEDBACK_LINE_LENGTH]}\n" for number, finding in enumerate(findings, start=1)
+        f"{number}. {finding.feedback[:MAX_FEEDBACK_LINE_LENGTH]}\n"
+        for number, finding in enumerate(findings[:MAX_FEEDBACK_FINDINGS], start=1)
     ]
     return "".join([_FEEDBACK_HEADER, *lines, _FEEDBACK_END])
 
@@ -283,15 +283,44 @@ class PassScore:
     evaluable: bool
     # The sum of the balance differences. A balance that cannot be computed is the largest gap.
     gap: Decimal
+    # True when one account or more states the balance.
+    has_opening: bool
+    has_closing: bool
 
     @property
     def balance_fails(self) -> bool:
         return FindingCode.BALANCE_MISMATCH in self.codes
 
     @property
-    def rank(self) -> tuple[int, int, Decimal, int]:
-        """Lower is better: has rows, the balance equation holds, the smaller gap, the fewer findings."""
-        return (int(FindingCode.NO_ROWS in self.codes), int(self.balance_fails), self.gap, self.finding_count)
+    def balance_proven(self) -> bool:
+        """True when the balance equation holds for balances that no text check questions."""
+        not_printed = {FindingCode.OPENING_NOT_IN_TEXT, FindingCode.CLOSING_NOT_IN_TEXT}
+        return self.evaluable and not self.balance_fails and not (self.codes & not_printed)
+
+    @property
+    def unusable(self) -> bool:
+        """True when the persist step cannot store the reading: it has no row, or a row is invalid."""
+        return bool(self.codes & {FindingCode.NO_ROWS, FindingCode.ROW_INVALID})
+
+    @property
+    def rank(self) -> tuple[int, int, Decimal, int, int]:
+        """Lower is better: usable, no balance gap, the smaller gap, a proven balance, the fewer findings."""
+        return (
+            int(self.unusable),
+            int(self.balance_fails),
+            self.gap,
+            int(not self.balance_proven),
+            self.finding_count,
+        )
+
+
+def _states_balance(reading: dict[str, Any], field: str, bucket_field: str) -> bool:
+    if _number(reading.get(field)) is not None:
+        return True
+    balances = reading.get("balances")
+    return isinstance(balances, list) and any(
+        isinstance(bucket, dict) and _number(bucket.get(bucket_field)) is not None for bucket in balances
+    )
 
 
 def score_pass(readings: list[dict[str, Any]], findings: list[Finding]) -> PassScore:
@@ -314,20 +343,36 @@ def score_pass(readings: list[dict[str, Any]], findings: list[Finding]) -> PassS
         finding_count=len(findings),
         evaluable=evaluable,
         gap=gap,
+        has_opening=any(_states_balance(reading, "opening_balance", "opening") for reading in readings),
+        has_closing=any(_states_balance(reading, "closing_balance", "closing") for reading in readings),
     )
 
 
 def replaces(candidate: PassScore, kept: PassScore) -> bool:
     """Return True when a later pass replaces the kept pass.
 
-    A later pass never loses evidence without proof:
-    - It keeps the balances, unless the text check showed that the document does not print them.
-    - It keeps the number of rows, unless the kept pass fails the balance equation and the later pass holds it.
+    A pass without rows never replaces a pass with rows. A reading that the persist step cannot store loses
+    to each reading that it can store. Apart from that, a later pass never loses evidence without proof:
+    - It keeps the opening balance, unless the text check showed that the document does not print it. The
+      same rule holds for the closing balance.
+    - It keeps the number of rows, unless its balance proof is stronger: its balance equation holds for
+      balances that no text check questions and that of the kept pass does not, or the kept pass fails the
+      balance equation and its gap is smaller.
     Then the lower rank wins. An equal rank keeps the earlier pass.
     """
-    if kept.evaluable and not candidate.evaluable and not (kept.codes & _BALANCE_NOT_PRINTED):
+    if candidate.rows == 0 and kept.rows > 0:
         return False
-    repairs_balance = kept.balance_fails and candidate.evaluable and not candidate.balance_fails
-    if candidate.rows < kept.rows and not repairs_balance:
+    if candidate.unusable:
+        return kept.unusable and candidate.rank < kept.rank
+    if kept.unusable:
+        return True
+    if kept.has_opening and not candidate.has_opening and FindingCode.OPENING_NOT_IN_TEXT not in kept.codes:
         return False
+    if kept.has_closing and not candidate.has_closing and FindingCode.CLOSING_NOT_IN_TEXT not in kept.codes:
+        return False
+    if candidate.rows < kept.rows:
+        stronger_proof = candidate.balance_proven and not kept.balance_proven
+        smaller_gap = kept.balance_fails and candidate.evaluable and candidate.gap < kept.gap
+        if not (stronger_proof or smaller_gap):
+            return False
     return candidate.rank < kept.rank

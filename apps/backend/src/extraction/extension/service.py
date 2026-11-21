@@ -992,12 +992,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 readings = [s.payload for s in slices]
                 findings = document_findings(readings, source_text=source_text, institution_given=bool(institution))
                 score = score_pass(readings, findings)
-            except DuplicateCurrencyError as exc:
-                raise ExtractionError(
-                    f"This statement lists several balances in {exc.currency}, usually several accounts in one PDF. "
-                    "Upload one account per file."
-                ) from exc
-            except (ExtractionError, ValueError, ArithmeticError) as exc:
+                is_brokerage = looks_like_brokerage_payload(
+                    readings[0], filename=filename, institution=institution or readings[0].get("institution")
+                )
+            except Exception as exc:
+                # A later pass that raises never discards the kept pass. Without a kept pass, two balances in
+                # one currency end the loop with a message for the user, and an unknown error is raised.
+                if best is None and isinstance(exc, DuplicateCurrencyError):
+                    raise ExtractionError(
+                        f"This statement lists several balances in {exc.currency}, usually several accounts in "
+                        "one PDF. Upload one account per file."
+                    ) from exc
+                if best is None and not isinstance(exc, (ExtractionError, ValueError, ArithmeticError)):
+                    raise
                 logger.warning(
                     "Extraction pass failed",
                     attempt=attempt + 1,
@@ -1013,10 +1020,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 structlog.contextvars.unbind_contextvars("extract_attempt")
             current_parse = (slices, split_meta_agreed)
 
-            primary = slices[0].payload
-            if looks_like_brokerage_payload(
-                primary, filename=filename, institution=institution or primary.get("institution")
-            ):
+            if is_brokerage and (best_score is None or best_score.balance_fails or best_score.unusable):
+                # A brokerage reading is judged by its positions, not by the checks of a bank account. It
+                # does not replace a kept bank reading that is usable and has no balance gap.
                 return current_parse
 
             logger.info(
@@ -1279,7 +1285,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             # A reply with ``accounts`` holds the rows of several accounts, read from the text (#2983).
             accounts = from_text.get("accounts")
             has_rows = from_text.get("transactions") or any(
-                isinstance(account, dict) and account.get("transactions")
+                isinstance(account, dict)
+                and isinstance(account.get("transactions"), list)
+                and any(isinstance(row, dict) for row in account["transactions"])
                 for account in (accounts if isinstance(accounts, list) else [])
             )
             if has_rows or (document_kind == "brokerage" and from_text.get("positions")):
