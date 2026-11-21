@@ -79,7 +79,7 @@ async def _run(
 ) -> int:
     target = _redact(settings.database_url)
     mode = "APPLY" if args.apply else "dry-run"
-    raw_environment = os.environ.get("ENVIRONMENT") or os.environ.get("ENV") or os.environ.get("INFRA_ENVIRONMENT")
+    raw_environment = os.environ.get("ENVIRONMENT")
     pattern = args.pattern
     print(
         f"[purge-test-accounts] target={target} environment={raw_environment!r} "

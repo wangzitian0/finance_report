@@ -8,7 +8,10 @@
 #
 # Variables:
 #   - DB_PORTS: Port mapping for DB (Default: 127.0.0.1:5432:5432 for Local)
-#   - TRAEFIK_ENABLE: Enable routing (Default: false)
+#   - TRAEFIK_ENABLE: Enable routing (Default: false). Applies only with the
+#     override file docker-compose.traefik.yml, which attaches the app services to
+#     the external network dokploy-network:
+#       docker compose -f docker-compose.yml -f docker-compose.traefik.yml --profile app up
 #   - ENV_SUFFIX: Isolation suffix (Default: empty)
 
 x-json-logging: &json-logging
@@ -123,7 +126,7 @@ services:
       # the environment it runs with actually has it (shell/direnv, or the root
       # `.env` it loads), and omits the key entirely otherwise.
       LLM_API_KEY:
-      # AI provider/endpoint paths and model ids (LARGE/SMALL/MULTIMODAL_MODEL)
+      # AI provider/endpoint paths and model ids (LARGE/SMALL/LLM_MULTIMODAL_MODEL)
       # are deliberately not pinned here: the infra2 SDK defaults apply (#2566).
       # A duplicate pin here drifted from the code for months (#2005, #2501); the
       # retired AI_MODEL_CATALOG_SOURCE / AI_DAILY_LIMIT_USD knobs are gone too.
@@ -137,18 +140,6 @@ services:
       REGISTER_RATE_LIMIT_REQUESTS:
     networks:
       - internal
-      - dokploy-network
-    labels:
-      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
-      - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.rule=Host(`report${ENV_DOMAIN_SUFFIX:-}.${INTERNAL_DOMAIN:-localhost}`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.priority=100"
-      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.entrypoints=websecure"
-      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.service=finance-report-api${ENV_SUFFIX:-}"
-      - "traefik.http.services.finance-report-api${ENV_SUFFIX:-}.loadbalancer.server.port=8000"
-      - "traefik.http.middlewares.finance-report-api-strip${ENV_SUFFIX:-}.stripprefix.prefixes=/api"
-      - "traefik.http.routers.finance-report-api${ENV_SUFFIX:-}.middlewares=finance-report-api-strip${ENV_SUFFIX:-}@docker"
     profiles: ["app"]
 
   frontend:
@@ -171,16 +162,6 @@ services:
       GIT_COMMIT_SHA: ${GIT_COMMIT_SHA:-}
     networks:
       - internal
-      - dokploy-network
-    labels:
-      - "traefik.enable=${TRAEFIK_ENABLE:-false}"
-      - "traefik.docker.network=dokploy-network"
-      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.rule=Host(`report${ENV_DOMAIN_SUFFIX:-}.${INTERNAL_DOMAIN:-localhost}`)"
-      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.priority=10"
-      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.entrypoints=websecure"
-      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.finance-report-web${ENV_SUFFIX:-}.service=finance-report-web${ENV_SUFFIX:-}"
-      - "traefik.http.services.finance-report-web${ENV_SUFFIX:-}.loadbalancer.server.port=3000"
     profiles: ["app"]
 
 volumes:
@@ -188,8 +169,5 @@ volumes:
   minio_data:
 
 networks:
-  dokploy-network:
-    name: dokploy-network
-    external: true
   internal:
     name: finance-report-internal${ENV_SUFFIX:-}

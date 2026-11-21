@@ -1,74 +1,186 @@
-import json; import sys; import pytest; from pathlib import Path; sys.path.insert(0, str(Path(__file__).parent.parent.parent)); from common.runtime import env_reference as gen; _committed_manifest = lambda: json.loads(gen.REQUIRED_ENV_MANIFEST_PATH.read_text(encoding='utf-8'))  # AC-runtime.env-empty-values.1
-def test_AC_runtime_guard_proofs_11_manifest_matches_live_config_bidirectionally(): 'AC-runtime.guard-proofs.11'; rendered = json.loads(gen.render_required_env_manifest(gen.collect_backend_fields())); committed = _committed_manifest(); assert committed == rendered, 'common/runtime/required-env.generated.json is out of date with apps/backend/src/config.py. Run: python tools/generate_env_reference.py'
+"""App-specific rules of the environment manifests. The infra2 SDK tests its own checks."""
+
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from common.runtime import env_manifests as gen  # noqa: E402
+
+HOOKS_PATH = gen.ROOT_DIR / "runtime-hooks.manifest.json"
+
+
+def _committed_manifest() -> dict:
+    return json.loads((gen.ROOT_DIR / gen.BACKEND_MANIFEST).read_text(encoding="utf-8"))
+
+
+def _by_env() -> dict:
+    return {field.env: field for field in gen.specs()[0].build().fields}
+
+
+def test_AC_runtime_guard_proofs_11_check_passes_on_the_committed_tree(capsys):
+    "AC-runtime.guard-proofs.11"
+    assert gen.main(["--check"]) == 0, capsys.readouterr().out
+    assert "env manifests: ok" in capsys.readouterr().out
+
+
+def test_check_reads_the_hand_written_frontend_manifest(tmp_path, monkeypatch, capsys):
+    frontend = json.loads((gen.ROOT_DIR / gen.FRONTEND_MANIFEST).read_text(encoding="utf-8"))
+    assert {f["env"] for f in frontend["fields"]} == {
+        "NEXT_PUBLIC_API_URL",
+        "NEXT_PUBLIC_DEPLOYMENT_ENVIRONMENT",
+        "NEXT_PUBLIC_GIT_SHA",
+        "NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OPENPANEL_SCRIPT_URL",
+    }
+    frontend["fields"][0]["aliases"] = ["ENV"]
+    bad = tmp_path / "required-env.manifest.json"
+    bad.write_text(json.dumps(frontend), encoding="utf-8")
+    monkeypatch.setattr(gen, "HAND_WRITTEN", (str(bad),))
+    assert gen.main(["--check"]) == 1
+    assert "ENV is deprecated: use ENVIRONMENT" in capsys.readouterr().out
+
+
+def test_check_reds_on_a_stale_env_example(tmp_path, monkeypatch, capsys):
+    stale = tmp_path / ".env.example"
+    stale.write_text(gen.ENV_EXAMPLE_PATH.read_text(encoding="utf-8").replace("DEBUG=true", "DEBUG=false"))
+    monkeypatch.setattr(gen, "ENV_EXAMPLE_PATH", stale)
+    assert gen.main(["--check"]) == 1
+    assert "+DEBUG=true" in capsys.readouterr().out
+
+
 def test_AC_runtime_guard_proofs_12_every_vault_field_reaches_manifest_and_env_example():
-    'AC-runtime.guard-proofs.12'; fields = gen.collect_backend_fields(); committed = _committed_manifest(); manifest_by_key = {entry['env']: entry for entry in committed['fields']}; env_example = gen.ENV_EXAMPLE_PATH.read_text(encoding='utf-8'); env_example_keys = gen.env_example_documented_keys(env_example); vault_fields = [f for f in fields if f['vault']]; assert vault_fields, 'no vault-tagged fields found — the gate would be vacuous'
-    for field in vault_fields: assert field['key'] in manifest_by_key, f"vault-tagged {field['key']} missing from manifest"; assert manifest_by_key[field['key']]['vault'] is True; assert field['key'] in env_example_keys, f"vault-tagged {field['key']} missing from .env.example"
-    live_by_key = {f['key']: f for f in fields}; settings_field_names = set(gen._settings_model().model_fields)
-    for entry in committed['fields']: assert entry['env'] in live_by_key, f"stale manifest entry {entry['env']} has no live config field"; assert entry['field'] in settings_field_names, f"manifest entry {entry['env']} names unknown Settings field {entry['field']!r}"; assert entry['field'] == live_by_key[entry['env']]['field']
-    _m1_committed = _committed_manifest(); assert _m1_committed['source'] == 'apps/backend/src/config.py::Settings'; assert _m1_committed['fields'], 'manifest has no entries'; assert _m1_committed['contract_version'] == 2; assert all((set(_m1_entry) >= {'field', 'env', 'aliases', 'group', 'vault', 'has_default', 'source', 'empty_ok', 'scope'} and isinstance(_m1_entry['vault'], bool) and isinstance(_m1_entry['has_default'], bool) and isinstance(_m1_entry['aliases'], list) for _m1_entry in _m1_committed['fields']))
-def test_write_mode_emits_the_manifest_artifact(tmp_path, monkeypatch): monkeypatch.setattr(gen, 'ROOT_DIR', tmp_path); monkeypatch.setattr(gen, 'ENV_EXAMPLE_PATH', tmp_path / '.env.example'); monkeypatch.setattr(gen, 'ENV_REFERENCE_DOC_PATH', tmp_path / 'env-reference.generated.md'); monkeypatch.setattr(gen, 'REQUIRED_ENV_MANIFEST_PATH', tmp_path / 'required-env.generated.json'); monkeypatch.setattr(sys, 'argv', ['generate_env_reference.py']); assert gen.main() == 0; written = (tmp_path / 'required-env.generated.json').read_text(encoding='utf-8'); assert written == gen.render_required_env_manifest(gen.collect_backend_fields()); assert json.loads(written)['fields']
-def test_check_mode_reds_on_stale_manifest(tmp_path, monkeypatch, capsys): stale = tmp_path / 'required-env.generated.json'; stale.write_text('{"fields": []}\n', encoding='utf-8'); monkeypatch.setattr(gen, 'REQUIRED_ENV_MANIFEST_PATH', stale); monkeypatch.setattr(sys, 'argv', ['generate_env_reference.py', '--check']); assert gen.main() == 1; assert 'required-env.generated.json' in capsys.readouterr().out
-def test_AC_runtime_guard_proofs_13_every_field_names_its_producer_and_the_offline_gate_is_green():
-    'AC-runtime.guard-proofs.13'; from infra2_sdk.ci import validate_manifest_offline; from infra2_sdk.runtime.config_schema import EnvironmentManifest; committed = _committed_manifest(); manifest = EnvironmentManifest.from_dict(committed); assert validate_manifest_offline(manifest) == []; by_env = {field.env: field for field in manifest.fields}; assert by_env['DATABASE_URL'].provided_by == 'finance_report/postgres:POSTGRES_PASSWORD'; assert by_env['LLM_API_KEY'].source == 'human' and by_env['LLM_API_KEY'].empty_ok and (by_env['LLM_API_KEY'].store_key == 'LLM_API_KEY') and by_env['LLM_API_KEY'].aliases == (); assert by_env['GIT_COMMIT_SHA'].source == 'release'
-    for env_name in ('ENVIRONMENT', 'CORS_ORIGINS', 'S3_ENDPOINT', 'PREFECT_API_URL', 'API_RATE_LIMIT_REQUESTS', 'OTEL_EXPORTER_OTLP_ENDPOINT', 'OPENPANEL_CLIENT_ID'): assert by_env[env_name].source == 'decision', env_name; assert by_env[env_name].injected and (not by_env[env_name].store_backed), env_name
-    assert by_env['OPENPANEL_CLIENT_ID'].empty_ok and by_env['S3_PUBLIC_BUCKET'].empty_ok
-    for model_env in ('LARGE_MODEL', 'SMALL_MODEL', 'MULTIMODAL_MODEL'): assert by_env[model_env].source == 'code', model_env
-    for retired in ('PRIMARY_MODEL', 'FALLBACK_MODELS', 'OCR_MODEL', 'VISION_MODEL', 'VISION_FALLBACK_MODELS'): assert retired not in by_env, retired
-    for entry in committed['fields']:
-        assert entry['source'] in {'human', 'runtime', 'release', 'decision', 'code'}, entry['env']
-        if entry['vault']: assert entry['source'] != 'code' or entry['injected'], entry['env']
-def test_AC_runtime_guard_proofs_13_unknown_source_class_name_exits_with_the_field_name(monkeypatch):
-    'AC-runtime.guard-proofs.13'; import types; real = gen._settings_module(); fake = types.SimpleNamespace(Settings=real.Settings, ENV_SOURCE_CLASSES={'not_a_setting': {'source': 'human'}}); monkeypatch.setattr(gen, '_settings_module', lambda: fake)
-    with pytest.raises(SystemExit) as stop: gen._environment_contract()
-    assert 'not_a_setting' in str(stop.value); assert str(stop.value).startswith('ENV_SOURCE_CLASSES:')
-def test_AC_runtime_guard_proofs_14_sensitive_credentials_and_filtered_consumer_validation(): 'AC-runtime.guard-proofs.14'; committed = _committed_manifest(); by_env = {entry['env']: entry for entry in committed['fields']}; assert by_env['DATABASE_URL']['sensitive'] is True; assert by_env['REDIS_URL']['sensitive'] is True; assert gen.manifest_gate_errors() == []; counterexample = json.loads(gen.render_required_env_manifest(gen.collect_backend_fields())); counterexample['fields'].append({'field': 'synthetic_downstream_url', 'env': 'SYNTHETIC_DOWNSTREAM_URL', 'aliases': [], 'required': False, 'injected': False, 'has_default': True, 'sensitive': False, 'group': 'Application', 'description': 'Synthetic service URL', 'source': 'runtime', 'empty_ok': False, 'scope': 'env', 'provided_by': '', 'composed_from': 'https://service:{SYNTHETIC_SECRET}@internal:8080', 'mirror_to_1password': False, 'ci': 'forbidden', 'store_key': '', 'vault': False}); errors = gen.manifest_gate_errors(counterexample); assert any(('composed_from references undeclared SYNTHETIC_SECRET' in err for err in errors)), f'Expected counterexample with dropped producer to fail offline gate, got: {errors}'
-@pytest.mark.parametrize('old_version', [1, 2])
-def test_runtime_hooks_gate_errors_rejects_old_schema(tmp_path, old_version):
-    payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
-    payload['schema_version'] = old_version
-    path = tmp_path / 'runtime-hooks.manifest.json'
-    path.write_text(json.dumps(payload), encoding='utf-8')
-    errors = gen.runtime_hooks_gate_errors(path)
-    assert len(errors) == 1 and 'schema_version 3' in errors[0], errors
+    "AC-runtime.guard-proofs.12"
+    fields = gen.collect_backend_fields()
+    by_env = {entry["env"]: entry for entry in _committed_manifest()["fields"]}
+    env_example_keys = gen.env_example_documented_keys(gen.ENV_EXAMPLE_PATH.read_text(encoding="utf-8"))
+    vault_fields = [f for f in fields if f["vault"]]
+    assert vault_fields, "no vault-tagged fields found — the gate would be vacuous"
+    for field in vault_fields:
+        assert by_env[field["key"]]["injected"] is True, field["key"]
+        assert field["key"] in env_example_keys, f"vault-tagged {field['key']} missing from .env.example"
+    assert _committed_manifest()["source"] == gen.MANIFEST_SOURCE
+
+
+def test_AC_runtime_guard_proofs_13_every_field_names_its_producer():
+    "AC-runtime.guard-proofs.13"
+    by_env = _by_env()
+    assert by_env["DATABASE_URL"].provided_by == "finance_report/postgres:POSTGRES_PASSWORD"
+    api_key = by_env["LLM_API_KEY"]
+    assert (api_key.source, api_key.empty_ok, api_key.store_key, api_key.aliases) == ("human", True, "LLM_API_KEY", ())
+    for env_name in ("GIT_COMMIT_SHA", "CONFIGURATION_SHA256"):
+        assert by_env[env_name].source == "release" and by_env[env_name].injected, env_name
+    for env_name in (
+        "ENVIRONMENT",
+        "CORS_ORIGINS",
+        "S3_ENDPOINT",
+        "PREFECT_API_URL",
+        "API_RATE_LIMIT_REQUESTS",
+        "OTEL_EXPORTER_OTLP_ENDPOINT",
+        "OPENPANEL_CLIENT_ID",
+    ):
+        assert by_env[env_name].source == "decision", env_name
+        assert by_env[env_name].injected and not by_env[env_name].store_backed, env_name
+    assert by_env["OPENPANEL_CLIENT_ID"].empty_ok and by_env["S3_PUBLIC_BUCKET"].empty_ok
+    for model_env in ("LLM_LARGE_MODEL", "LLM_SMALL_MODEL", "LLM_MULTIMODAL_MODEL", "PREFECT_WORKER_QUERY_SECONDS"):
+        assert by_env[model_env].source == "code", model_env
+    assert by_env["ENVIRONMENT"].aliases == ()
+    declared = {name for f in by_env.values() for name in (f.env, *f.aliases)}
+    for retired in ("ENV", "INFRA_ENVIRONMENT", "LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL", "PRIMARY_MODEL"):
+        assert retired not in declared, retired
+
+
+def test_AC_runtime_env_empty_values_1_no_field_declares_an_alias_chain():
+    """An empty value of one alias shadows the rest of its chain. With no chain, no shadow."""
+    "AC-runtime.env-empty-values.1"
+    chains = {f.env: f.aliases for f in _by_env().values() if f.aliases}
+    assert chains == {}, f"an alias chain is back; add an empty-value scan for it first: {chains}"
+
+
+def test_AC_runtime_guard_proofs_14_sensitive_credentials():
+    "AC-runtime.guard-proofs.14"
+    by_env = _by_env()
+    assert by_env["DATABASE_URL"].sensitive is True
+    assert by_env["REDIS_URL"].sensitive is True
+
+
+def test_canonical_model_names_reach_the_llm_settings():
+    real = gen.settings_module()
+    cfg = real.Settings(
+        _env_file=None,
+        LLM_PROVIDER="zai",
+        LLM_API_KEY="tok-canonical",
+        LLM_BASE_URL="https://api.example.com/v1",
+        LLM_SMALL_MODEL="custom-small",
+    )
+    llm = cfg.to_llm_settings()
+    assert (llm.api_key, llm.base_url, llm.small_model) == (
+        "tok-canonical",
+        "https://api.example.com/v1",
+        "custom-small",
+    )
+    legacy = real.Settings(_env_file=None, AI_API_KEY="tok-legacy", SMALL_MODEL="legacy-small", ENV="staging")
+    assert legacy.to_llm_settings().api_key == ""
+    assert legacy.small_model != "legacy-small"
+    assert legacy.environment == "development"
+
+
+def _hooks_payload() -> dict:
+    return json.loads(HOOKS_PATH.read_text(encoding="utf-8"))
+
+
+def _write(tmp_path: Path, payload: dict) -> Path:
+    path = tmp_path / "runtime-hooks.manifest.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
 
 def test_runtime_hooks_gate_errors_is_empty_for_the_committed_manifest():
     assert gen.runtime_hooks_gate_errors() == []
 
+
+@pytest.mark.parametrize("old_version", [1, 2])
+def test_runtime_hooks_gate_errors_rejects_old_schema(tmp_path, old_version):
+    payload = _hooks_payload()
+    payload["schema_version"] = old_version
+    errors = gen.runtime_hooks_gate_errors(_write(tmp_path, payload))
+    assert len(errors) == 1 and "schema_version" in errors[0], errors
+
+
 def test_runtime_hooks_gate_errors_reports_a_cell_without_checks(tmp_path):
-    payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
-    payload['checks'] = [c for c in payload['checks'] if c['id'] not in {'staging_core_e2e', 'ai_provider_connectivity', 'staging_ai_ocr'}]
-    path = tmp_path / 'runtime-hooks.manifest.json'
-    path.write_text(json.dumps(payload), encoding='utf-8')
-    assert gen.runtime_hooks_gate_errors(path) == ["runtime-hooks.manifest.json: no check runs in cell 'staging.post'"]
+    payload = _hooks_payload()
+    removed = {"staging_core_e2e", "ai_provider_connectivity", "staging_ai_ocr"}
+    payload["checks"] = [c for c in payload["checks"] if c["id"] not in removed]
+    assert gen.runtime_hooks_gate_errors(_write(tmp_path, payload)) == [
+        "runtime-hooks.manifest.json: no check runs in cell 'staging.post'"
+    ]
+
 
 def test_runtime_hooks_gate_errors_reports_prod_post_without_check(tmp_path):
-    payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
-    payload['checks'][0].pop('cells')
-    path = tmp_path / 'runtime-hooks.manifest.json'
-    path.write_text(json.dumps(payload), encoding='utf-8')
-    assert gen.runtime_hooks_gate_errors(path) == ["runtime-hooks.manifest.json: no check runs in cell 'prod.post'"]
+    payload = _hooks_payload()
+    payload["checks"][0].pop("cells")
+    assert gen.runtime_hooks_gate_errors(_write(tmp_path, payload)) == [
+        "runtime-hooks.manifest.json: no check runs in cell 'prod.post'"
+    ]
 
-def test_smoke_script_refuses_a_deployed_environment_without_a_version_ref():
-    import subprocess, os
-    script = gen.ROOT_DIR / 'common' / 'runtime' / 'shell' / 'smoke_test.sh'
-    base = {k: v for k, v in os.environ.items() if k not in {'APP_VERSION_REF', 'EXPECTED_SHA'}}
-    for env_name in ('preview', 'staging', 'production'):
-        res = subprocess.run(['bash', str(script), 'http://127.0.0.1:9'], env={**base, 'ENVIRONMENT': env_name}, capture_output=True, text=True, timeout=30)
-        assert res.returncode == 2 and 'APP_VERSION_REF' in res.stdout, (env_name, res.stdout)
 
 def test_runtime_hooks_gate_errors_reports_unknown_env_key(tmp_path):
-    payload = json.loads((gen.ROOT_DIR / 'runtime-hooks.manifest.json').read_text(encoding='utf-8'))
-    payload['checks'][1]['optional_env'] = [*payload['checks'][1].get('optional_env', []), 'NOT_A_REAL_KEY']
-    path = tmp_path / 'runtime-hooks.manifest.json'
-    path.write_text(json.dumps(payload), encoding='utf-8')
-    assert any("'NOT_A_REAL_KEY'" in e for e in gen.runtime_hooks_gate_errors(path))
+    payload = _hooks_payload()
+    payload["checks"][1]["optional_env"] = [*payload["checks"][1].get("optional_env", []), "NOT_A_REAL_KEY"]
+    assert any("'NOT_A_REAL_KEY'" in e for e in gen.runtime_hooks_gate_errors(_write(tmp_path, payload)))
 
-def test_settings_to_llm_settings_uses_sdk_from_mapping():
-    from infra2_sdk.runtime.environment import shared_env_contract
-    real = gen._settings_module()
-    cfg = real.Settings(_env_file=None, LLM_PROVIDER="zai", LLM_API_KEY="tok-canonical", LLM_BASE_URL="https://api.example.com/v1")
-    llm = cfg.to_llm_settings()
-    assert llm.api_key == "tok-canonical" and llm.base_url == "https://api.example.com/v1"
-    legacy = real.Settings(_env_file=None, ZAI_API_KEY="tok-legacy", AI_API_KEY="tok-legacy")
-    assert legacy.to_llm_settings().api_key == ""
-    assert any(entry["name"] == "LLM_API_KEY" for entry in shared_env_contract()["groups"]["llm"])
+
+def test_smoke_script_refuses_a_deployed_environment_without_a_version_ref():
+    script = gen.ROOT_DIR / "common" / "runtime" / "shell" / "smoke_test.sh"
+    base = {k: v for k, v in os.environ.items() if k != "APP_VERSION_REF"}
+    for env_name in ("preview", "staging", "production"):
+        # EXPECTED_SHA is retired: it does not satisfy the version-ref rule.
+        env = {**base, "ENVIRONMENT": env_name, "EXPECTED_SHA": "abc1234"}
+        res = subprocess.run(
+            ["bash", str(script), "http://127.0.0.1:9"], env=env, capture_output=True, text=True, timeout=30
+        )
+        assert res.returncode == 2 and "APP_VERSION_REF" in res.stdout, (env_name, res.stdout)

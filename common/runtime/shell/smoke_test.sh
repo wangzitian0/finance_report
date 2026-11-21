@@ -26,12 +26,12 @@ echo "Running smoke tests against $BASE_URL"
 echo "Mode: $MODE"
 echo "========================================"
 
-# The hook runner (infra2-sdk 4.0.0) sets APP_VERSION_REF; EXPECTED_SHA is the older name.
-EXPECTED_REF="${APP_VERSION_REF:-${EXPECTED_SHA:-}}"
+# The hook runner of infra2-sdk sets APP_VERSION_REF.
+EXPECTED_REF="${APP_VERSION_REF:-}"
 case "${ENVIRONMENT:-}" in
     preview|staging|prod|production)
         if [ -z "$EXPECTED_REF" ]; then
-            echo "✗ APP_VERSION_REF (or EXPECTED_SHA) must be set when ENVIRONMENT=${ENVIRONMENT}"
+            echo "✗ APP_VERSION_REF must be set when ENVIRONMENT=${ENVIRONMENT}"
             exit 2
         fi
         ;;

@@ -159,11 +159,16 @@ CHECKS: tuple[Check, ...] = (
         tier="heavy",
     ),
     _py_check(
-        "env-reference",
-        ("apps/backend/src/config.py",),
-        "tools/generate_env_reference.py",
+        "env-manifests",
+        (
+            "apps/backend/src/config.py",
+            "apps/frontend/required-env.manifest.json",
+            "common/runtime/env_manifests.py",
+            "runtime-hooks.manifest.json",
+        ),
+        "tools/env_manifests.py",
         "--check",
-        why="config.py changed: regenerate .env.example + env reference and assert no drift",
+        why="config.py or a manifest changed: the infra2 SDK manifest check and the .env.example block must pass",
     ),
     _py_check(
         "user-cases-doc",

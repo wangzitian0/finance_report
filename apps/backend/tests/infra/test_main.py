@@ -81,7 +81,7 @@ async def test_statement_routes_smoke_and_contracts(client: AsyncClient, monkeyp
         hasattr(AtomicTransaction, a) for a in ("dedup_hash", "source_documents", "balance_after")
     )
 
-    for key in ("S3_BUCKET", "LARGE_MODEL", "SMALL_MODEL", "MULTIMODAL_MODEL"):
+    for key in ("S3_BUCKET", "LLM_LARGE_MODEL", "LLM_SMALL_MODEL", "LLM_MULTIMODAL_MODEL"):
         monkeypatch.delenv(key, raising=False)
     s, sdk = Settings(_env_file=None), LlmSettings()
     assert (s.ai_provider, s.s3_bucket, s.large_model, s.small_model, s.multimodal_model) == (

@@ -75,7 +75,7 @@ def print_report(result: dict[str, Any], verbose: bool = False) -> None:
 def generate_fix_suggestions(result: dict[str, Any]) -> None:
     if result["undocumented_in_example"]:
         print(
-            "\n[FIX] Regenerate the backend block of .env.example:\n    python tools/generate_env_reference.py\n"
+            "\n[FIX] Regenerate the backend block of .env.example:\n    python tools/env_manifests.py\n"
             + "-" * 40
         )
         for key in sorted(result["undocumented_in_example"]):
