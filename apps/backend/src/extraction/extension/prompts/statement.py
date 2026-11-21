@@ -1,6 +1,7 @@
 """Prompt templates for statement parsing."""
 
 from src.audit import canonical_json_digest
+from src.extraction.base.findings import Finding, FindingCode, check_feedback_block
 from src.extraction.base.paged_extraction import (
     build_meta_prompt,
     build_paged_meta_prompt,
@@ -234,8 +235,9 @@ MariBank Singapore statement:
 
 
 # Raise this version in the same change that edits SYSTEM_PROMPT, BROKERAGE_POSITIONS_PROMPT, an entry of
-# INSTITUTION_HINTS, single-batch meta/rows templates, or the shared hints block (prompts/hints.py). A run stores it, so an audit can tell which prompt text a run used.
-PARSING_PROMPT_TEMPLATE_VERSION = "3"
+# INSTITUTION_HINTS, single-batch meta/rows templates, the shared hints block (prompts/hints.py), or the check
+# feedback block (base/findings.py). A run stores it, so an audit can tell which prompt text a run used.
+PARSING_PROMPT_TEMPLATE_VERSION = "4"
 
 _HINTS_PURPOSE = """It never changes the output schema, the field names, the signs or the amounts.
 Use it only to find rows and fields that the document shows. Never invent data.
@@ -259,8 +261,8 @@ def hints_apply_to_file_type(file_type: str) -> bool:
 def parsing_template_fingerprint() -> str:
     """Return one SHA-256 over every text part of the prompt template.
 
-    The parts are the two base prompts, every institution hint, the hints block (header and end line)
-    and the three paged prompts for a fixed input. A test pins this value to
+    The parts are the two base prompts, every institution hint, the hints block (header and end line),
+    the check feedback block (header and end line) and the three paged prompts for a fixed input. A test pins this value to
     ``PARSING_PROMPT_TEMPLATE_VERSION``. A new template part belongs in this function.
     """
     block = parsing_hints_block(RunHints(keywords=["keyword"], note="note"))
@@ -270,6 +272,7 @@ def parsing_template_fingerprint() -> str:
             "brokerage_prompt": BROKERAGE_POSITIONS_PROMPT,
             "institution_hints": INSTITUTION_HINTS,
             "hints_block": block,
+            "check_feedback": check_feedback_block([Finding(FindingCode.MISSING_FACT, "finding")]),
             "single_meta": build_meta_prompt("BASE", hints_block=block),
             "single_rows": build_rows_prompt("BASE", hints_block=block),
             "paged_meta": build_paged_meta_prompt("BASE", page_numbers=[1, 2, 6], total_pages=6, hints_block=block),

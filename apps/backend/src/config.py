@@ -76,7 +76,7 @@ ai_json_timeout_seconds|ai||Timeout (seconds) for AI JSON completion calls.
 ai_json_max_tokens|ai||Max tokens for AI JSON completion calls.
 ai_json_disable_thinking|ai||Request disabled thinking for AI JSON calls; reasoning-only models use their lowest supported effort.
 ai_json_seed|ai||Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models).
-ai_extract_max_attempts|ai||Max balance-aware re-extract attempts for bank statements (1 disables retry).
+ai_extract_max_attempts|ai||Max extraction passes for one bank statement; a later pass gets the failed checks (1 disables retry).
 llm_encryption_keys|ai|i|Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets.
 llm_cassette_engage|ai||Engage offline LLM cassette replay layer.
 llm_cassette_refresh|ai||Refresh recorded LLM cassettes in local runs.
@@ -264,7 +264,7 @@ class Settings(BaseSettings):
     ai_json_max_tokens: int = _f("ai_json_max_tokens", 32768)
     ai_json_disable_thinking: bool = _f("ai_json_disable_thinking", True)
     ai_json_seed: int | None = _f("ai_json_seed", None)
-    ai_extract_max_attempts: int = _f("ai_extract_max_attempts", 2, ge=1, le=5)
+    ai_extract_max_attempts: int = _f("ai_extract_max_attempts", 3, ge=1, le=5)
     llm_encryption_keys: str = _f("llm_encryption_keys", "")
     llm_cassette_engage: bool = _f("llm_cassette_engage", False)
     llm_cassette_refresh: bool = _f("llm_cassette_refresh", False)

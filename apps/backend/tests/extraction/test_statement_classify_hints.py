@@ -59,6 +59,7 @@ PINNED_PARSING_FINGERPRINTS = {
     "1": "844c54b091c42206fda57bc5fe51afc670ca4957c882fdf76f52c48ad70a25b8",
     "2": "02e35177dbe7a1b80d8b54eb7e0b15aa120d257fff4537e8ef64fa8b49f8ac19",
     "3": "c4f147d4957a4e75ccb61e716a2fef52f2b1c8aee5ba4b011b6096c83abe4da6",
+    "4": "d1d3ccf6312af425829fdf8cfb7f5a4dd70e1e702bdb1d7e393d6f56ee9b1023",
 }
 V2 = tc.POLICY_VERSIONS[-1]
 ROWS = [

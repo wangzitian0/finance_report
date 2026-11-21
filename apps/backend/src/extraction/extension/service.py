@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.money.currency import normalize_currency_code
+from src.extraction.base.findings import Finding, FindingCode, check_feedback_block, reading_findings
 from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.base.paged_extraction import (
     MultipleAccountsError,
@@ -930,13 +931,22 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         max_attempts = max(1, settings.ai_extract_max_attempts)
         base_seed = settings.ai_json_seed
         best: tuple[list[AccountExtractionSlice], bool | None] | None = None
-        best_diff: Decimal | None = None
-        last_parse: tuple[list[AccountExtractionSlice], bool | None] | None = None
+        best_rank: tuple[int, int, int, Decimal] | None = None
+        previous_findings: list[Finding] | None = None
+        best_evaluable = False
         last_error: Exception | None = None
         extract_overridden = (
             type(self).extract_financial_data is not _ORIGINAL_EXTRACT_FINANCIAL_DATA
             or "extract_financial_data" in self.__dict__
         )
+        source_text = (
+            await asyncio.to_thread(read_pdf_text_layer, file_content, max_pages=self.PDF_VISION_MAX_TOTAL_PAGES)
+            if file_type == "pdf" and file_content
+            else None
+        )
+        # The check results of the last pass. The next pass sends them to the model.
+        feedback = ""
+        read_text_layer = True
 
         for attempt in range(max_attempts):
             seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
@@ -952,8 +962,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         seed_override=seed_override,
                         filename=filename,
                         user_id=user_id,
-                        read_text_layer=attempt == 0,
+                        read_text_layer=read_text_layer,
                         hints=hints,
+                        feedback=feedback,
                     )
                     split_meta_agreed: bool | None = None
                 else:
@@ -966,14 +977,17 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         seed_override=seed_override,
                         filename=filename,
                         user_id=user_id,
-                        read_text_layer=attempt == 0,
+                        read_text_layer=read_text_layer,
                         split_single_batch=attempt == 0,
                         hints=hints,
+                        feedback=feedback,
                     )
                 slices = split_multi_account_extraction(raw_extracted)
+                findings: list[Finding] = []
                 for s in slices:
-                    bank_currency_balances(s.payload)
-                per_currency = bank_currency_balances(slices[0].payload) if len(slices) == 1 else None
+                    findings.extend(
+                        reading_findings(s.payload, source_text=source_text, institution_given=bool(institution))
+                    )
             except DuplicateCurrencyError as exc:
                 raise ExtractionError(
                     f"This statement lists several balances in {exc.currency}, usually several accounts in one PDF. "
@@ -988,11 +1002,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     error=str(exc)[:300],
                 )
                 last_error = exc
+                # A pass that gave no reading has no check result. The next pass reads the pages another way.
+                read_text_layer = False
                 continue
             finally:
                 structlog.contextvars.unbind_contextvars("extract_attempt")
             current_parse = (slices, split_meta_agreed)
-            last_parse = current_parse
 
             primary = slices[0].payload
             if looks_like_brokerage_payload(
@@ -1000,83 +1015,81 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             ):
                 return current_parse
 
-            if len(slices) > 1:
-                sub_results: list[dict[str, Any]] = []
-                any_evaluable = False
-                for s in slices:
-                    sub = s.payload
-                    sub_per_currency = bank_currency_balances(sub)
-                    if balance_is_evaluable(sub.get("opening_balance"), sub.get("closing_balance"), sub_per_currency):
-                        any_evaluable = True
-                        sub_results.append(
-                            evaluate_statement_balance(
-                                opening=self._safe_decimal(sub.get("opening_balance")),
-                                closing=self._safe_decimal(sub.get("closing_balance")),
-                                currency=sub.get("currency"),
-                                currency_balances=sub_per_currency,
-                                transactions=sub.get("transactions") or [],
-                            )
-                        )
-                if not any_evaluable:
-                    if best is not None:
-                        continue
-                    return current_parse
-                if all(r.get("balance_valid") for r in sub_results):
-                    return current_parse
-                total_diff = sum(
-                    (
-                        abs(Decimal(str(r.get("difference", "0") or "0")))
-                        for r in sub_results
-                        if r.get("balance_computable", True)
-                    ),
-                    start=Decimal("0"),
-                )
-                if best is None or best_diff is None or total_diff < best_diff:
-                    best, best_diff = current_parse, total_diff
-                continue
-
-            if not balance_is_evaluable(primary.get("opening_balance"), primary.get("closing_balance"), per_currency):
-                # The statement prints no balance: no later pass can reconcile it.
-                if best is not None:
-                    continue
-                return current_parse
-
-            result = evaluate_statement_balance(
-                opening=self._safe_decimal(primary.get("opening_balance")),
-                closing=self._safe_decimal(primary.get("closing_balance")),
-                currency=primary.get("currency"),
-                currency_balances=per_currency,
-                transactions=primary.get("transactions") or [],
+            logger.info(
+                "statement.extraction.pass_checked",
+                attempt=attempt + 1,
+                max_attempts=max_attempts,
+                finding_codes=[finding.code.value for finding in findings],
             )
-            if result.get("balance_valid"):
-                if attempt > 0:
-                    logger.info(
-                        "Balance reconciled on re-extract",
-                        attempt=attempt + 1,
-                        max_attempts=max_attempts,
-                        institution=institution or primary.get("institution"),
-                    )
+            evaluable = any(
+                balance_is_evaluable(
+                    s.payload.get("opening_balance"),
+                    s.payload.get("closing_balance"),
+                    bank_currency_balances(s.payload),
+                )
+                for s in slices
+            )
+            if best is not None and best_evaluable and not evaluable:
+                # A pass that lost the balances cannot replace a pass that has them, unless the text check
+                # showed that the document does not print them.
+                continue
+            if not findings:
                 return current_parse
-
-            if result.get("balance_computable", True):
-                try:
-                    diff = Decimal(str(result.get("difference", "0") or "0"))
-                except (ValueError, TypeError, InvalidOperation):
-                    diff = None
-                if diff is not None and (best is None or best_diff is None or diff < best_diff):
-                    best, best_diff = current_parse, diff
+            # A reading without rows is the worst, then a reading whose balance equation fails: the persist
+            # step rejects it. The number of findings and the size of the balance gap decide the rest.
+            codes = {finding.code for finding in findings}
+            rank = (
+                int(FindingCode.NO_ROWS in codes),
+                int(FindingCode.BALANCE_MISMATCH in codes),
+                len(findings),
+                self._balance_gap(slices),
+            )
+            if best is None or best_rank is None or rank < best_rank:
+                best, best_rank = current_parse, rank
+                best_evaluable = evaluable and not any(f.code in _BALANCE_NOT_PRINTED for f in findings)
+            if findings == previous_findings and FindingCode.BALANCE_MISMATCH not in codes:
+                # The same findings twice: the document does not print what the checks ask for.
+                break
+            previous_findings = findings
+            feedback = check_feedback_block(findings)
+            # The text checks judge the text, so the next pass reads the text again. A balance gap sends the
+            # last pass to the page images, and each pass after a second gap.
+            last_pass_is_next = attempt + 2 >= max_attempts
+            read_text_layer = FindingCode.BALANCE_MISMATCH not in codes or (attempt == 0 and not last_pass_is_next)
 
         if best is not None:
             if max_attempts > 1:
                 logger.info(
-                    "Balance did not reconcile after re-extract; keeping best parse",
+                    "Checks did not pass after re-extract; keeping the pass with the fewest findings",
                     attempts=max_attempts,
-                    best_difference=str(best_diff),
+                    finding_count=best_rank[2] if best_rank else None,
+                    best_difference=str(best_rank[3]) if best_rank else None,
                 )
             return best
-        if last_parse is not None:
-            return last_parse
         raise last_error or ExtractionError("Extraction failed after all retries")
+
+    def _balance_gap(self, slices: list[AccountExtractionSlice]) -> Decimal:
+        """Return the sum of the balance differences of the accounts. A balance that cannot be computed is the largest gap."""
+        total = Decimal("0")
+        for s in slices:
+            sub = s.payload
+            per_currency = bank_currency_balances(sub)
+            if not balance_is_evaluable(sub.get("opening_balance"), sub.get("closing_balance"), per_currency):
+                continue
+            result = evaluate_statement_balance(
+                opening=self._safe_decimal(sub.get("opening_balance")),
+                closing=self._safe_decimal(sub.get("closing_balance")),
+                currency=sub.get("currency"),
+                currency_balances=per_currency,
+                transactions=sub.get("transactions") or [],
+            )
+            if not result.get("balance_computable", True):
+                return Decimal("Infinity")
+            try:
+                total += abs(Decimal(str(result.get("difference", "0") or "0")))
+            except (ValueError, TypeError, InvalidOperation):
+                return Decimal("Infinity")
+        return total
 
     async def _extract_json_with_model(
         self,
@@ -1203,10 +1216,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         user_id: UUID | None = None,
         read_text_layer: bool = True,
         hints: RunHints | None = None,
+        feedback: str = "",
     ) -> dict[str, Any]:
         """Extract structured statement data from the PDF text layer, or from page images when it is unusable.
 
-        ``read_text_layer=False`` skips the text layer, so a second pass reads the pages another way.
+        ``read_text_layer=False`` skips the text layer, so a later pass reads the pages another way.
+        ``feedback`` is the block of check results of an earlier pass (``check_feedback_block``).
         """
         extracted, _ = await self._extract_financial_data_with_meta(
             file_content=file_content,
@@ -1220,6 +1235,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             read_text_layer=read_text_layer,
             split_single_batch=True,
             hints=hints,
+            feedback=feedback,
         )
         return extracted
 
@@ -1237,6 +1253,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         read_text_layer: bool = True,
         split_single_batch: bool = True,
         hints: RunHints | None = None,
+        feedback: str = "",
     ) -> tuple[dict[str, Any], bool | None]:
         if file_content is None and not file_url:
             raise ExtractionError("File content is required")
@@ -1274,7 +1291,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 file_type=file_type,
             )
         prompt = get_parsing_prompt(institution, document_kind=document_kind)
-        guidance = parsing_hints_block(hints)
+        # The check results come before the reviewer guidance, which is always the last block of a prompt.
+        guidance = feedback + parsing_hints_block(hints)
         model = force_model or self.multimodal_model
         if not model:
             raise ExtractionError("Multimodal model is not configured")
@@ -1296,7 +1314,9 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 allow_multiple_accounts=allow_multiple_accounts,
                 split_single_batch=False,
             )
-            if from_text.get("transactions") or (document_kind == "brokerage" and from_text.get("positions")):
+            # A reply with ``accounts`` holds the rows of several accounts, read from the text (#2983).
+            has_rows = from_text.get("transactions") or from_text.get("accounts")
+            if has_rows or (document_kind == "brokerage" and from_text.get("positions")):
                 return from_text, text_split_agreed
             logger.warning(
                 "PDF text layer gave no transactions or positions; reading the page images",
@@ -1450,13 +1470,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         except MultipleAccountsError as exc:
             logger.info("Multiple accounts in paged extraction", parts_by_account=exc.parts_by_account)
             account_parts = split_paged_extractions_by_account(parts)
-            return (
-                {
-                    "institution": next((p.get("institution") for p in account_parts if p.get("institution")), None),
-                    "accounts": account_parts,
-                },
-                meta_agreed,
-            )
+            # Each account takes the institution and the period of the document.
+            shared = {
+                key: next((p.get(key) for p in parts if p.get(key)), None)
+                for key in ("institution", "period_start", "period_end")
+            }
+            return {**shared, "accounts": account_parts}, meta_agreed
         logger.info(
             "Merged paged vision extraction",
             part_count=part_count,
@@ -1466,4 +1485,5 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         return merged, meta_agreed
 
 
+_BALANCE_NOT_PRINTED = frozenset({FindingCode.OPENING_NOT_IN_TEXT, FindingCode.CLOSING_NOT_IN_TEXT})
 _ORIGINAL_EXTRACT_FINANCIAL_DATA = ExtractionService.extract_financial_data
