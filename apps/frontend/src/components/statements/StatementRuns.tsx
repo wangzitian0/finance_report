@@ -62,6 +62,18 @@ const STATE_TONE: Record<string, string> = {
   running: "text-[var(--accent)]",
 };
 
+/** The outcome of a classify run that gave each asked row an answer (backend `ClassifyOutcome.CLASSIFIED`). */
+const FULL_CLASSIFY_OUTCOME = "classified";
+
+/**
+ * The state word of one attempt. A classify run can end `succeeded` with rows that have no answer; its
+ * outcome (for example `partial`) then replaces the state. Every other run shows its state.
+ */
+export function runStateKey(run: StatementRun): string {
+  const partial = run.kind === "classify" && run.state === "succeeded" && run.outcome && run.outcome !== FULL_CLASSIFY_OUTCOME;
+  return partial ? (run.outcome as string) : run.state;
+}
+
 export function ParsingAttempts({ runs }: { runs: readonly StatementRun[] }) {
   const newestFirst = [...runs].sort((a, b) => b.seq - a.seq);
   return (
@@ -74,13 +86,14 @@ export function ParsingAttempts({ runs }: { runs: readonly StatementRun[] }) {
           {newestFirst.map((run) => {
             const keywords = run.hints.keywords ?? [];
             const note = run.hints.note ?? "";
+            const stateKey = runStateKey(run);
             return (
               <li key={run.id} data-testid={`parsing-attempt-${run.seq}`} className="border-t border-[var(--border)] pt-3 text-sm first:border-t-0 first:pt-0">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="font-medium">Attempt {run.seq}</span>
                   <span data-testid={`parsing-attempt-kind-${run.seq}`} className="font-medium">{humanizeIdentifier(run.kind)}</span>
                   <span className="text-muted">{humanizeIdentifier(run.actor_kind)} · {humanizeIdentifier(run.trigger)}</span>
-                  <span className={`font-medium ${STATE_TONE[run.state] ?? "text-muted"}`}>{humanizeIdentifier(run.state)}</span>
+                  <span data-testid={`parsing-attempt-state-${run.seq}`} className={`font-medium ${STATE_TONE[stateKey] ?? "text-muted"}`}>{humanizeIdentifier(stateKey)}</span>
                   <time dateTime={run.requested_at} className="text-xs text-muted">{formatDateTimeDisplay(run.requested_at)}</time>
                 </div>
                 {keywords.length > 0 && (

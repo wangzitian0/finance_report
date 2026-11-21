@@ -46,6 +46,7 @@ from src.extraction import (
     StatementPostingStatus,
     StatementRunRecord,
     StatementSummary,
+    active_run_kinds,
     TransactionClassification,
     UploadedDocument,
     approve_statement_workflow,
@@ -299,10 +300,12 @@ async def _list_statements_by_where(
         order_by=(StatementSummary.created_at.desc(), StatementSummary.id.desc()),
     )
     documents = await _resolve_uploaded_documents(db, statements, user_id)
-    return BankStatementListResponse(
-        items=[compose_statement_list_item_response(s, documents[s.id]) for s in statements],
-        total=total,
-    )
+    run_kinds = await active_run_kinds(db, [s.id for s in statements])
+    items = [compose_statement_list_item_response(s, documents[s.id]) for s in statements]
+    for item in items:
+        kind = run_kinds.get(item.id)
+        item.active_run_kind = kind.value if kind is not None else None
+    return BankStatementListResponse(items=items, total=total)
 
 
 def _envelope_response(envelope, digest: str) -> ReviewedStatementEnvelopeResponse:
@@ -868,9 +871,12 @@ async def get_correction_loop_replay(ctx: ReadCtx) -> CorrectionLoopReplayRespon
 @router.get("/{statement_id}", response_model=BankStatementResponse)
 async def get_statement(statement_id: UUID, ctx: ReadCtx) -> BankStatementResponse:
     """Get a statement with all its transactions."""
-    return await _compose_statement_response(
+    response = await _compose_statement_response(
         ctx.db, await _get_statement_or_404(ctx.db, statement_id, ctx.user_id), ctx.user_id
     )
+    kind = (await active_run_kinds(ctx.db, [statement_id])).get(statement_id)
+    response.active_run_kind = kind.value if kind is not None else None
+    return response
 
 
 @router.get(

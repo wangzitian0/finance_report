@@ -18,8 +18,10 @@ from src.extraction import (
     RunKind,
     RunTrigger,
     StatementSummary,
+    claim_run,
     create_run,
     fail_run,
+    finish_run,
     hints_apply_to_file_type,
     list_runs,
 )
@@ -55,6 +57,7 @@ RUN_FIELDS = {
     "requested_at",
     "started_at",
     "finished_at",
+    "outcome",
 }
 
 
@@ -477,3 +480,63 @@ async def test_post_runs_preserves_explicit_default_multimodal_model(
     assert response.status_code == 202, response.text
     assert response.json()["model"] == default_model
     assert [job.model for job in jobs] == [default_model]
+
+
+async def _finished_run(db, user, statement_id, kind: RunKind, result_summary: dict):
+    run = await create_run(
+        db,
+        statement_id=statement_id,
+        user_id=user.id,
+        kind=kind,
+        actor_kind=RunActorKind.SYSTEM,
+        trigger=RunTrigger.UPLOAD,
+        hints=RunHints(),
+    )
+    await claim_run(db, run.id)
+    await finish_run(db, run.id, result_summary=result_summary)
+    await db.commit()
+    return run.id
+
+
+async def test_get_runs_returns_the_outcome_of_a_classify_run_and_null_for_an_extract_run(client, db, test_user):
+    """#3029 item 4: a classify run that ended `partial` has state `succeeded`; the list also returns the outcome."""
+    statement = await _statement(db, test_user)
+    await _finished_run(db, test_user, statement.id, RunKind.EXTRACT, {"auto_approve_candidate": True})
+    await _finished_run(db, test_user, statement.id, RunKind.CLASSIFY, {"outcome": "partial", "asked": 3})
+    await _finished_run(db, test_user, statement.id, RunKind.CLASSIFY, {"outcome": 7})
+
+    items = (await client.get(f"/statements/{statement.id}/runs")).json()["items"]
+
+    assert [(item["kind"], item["state"], item["outcome"]) for item in items] == [
+        ("extract", "succeeded", None),
+        ("classify", "succeeded", "partial"),
+        ("classify", "succeeded", None),
+    ]
+
+
+async def test_statement_list_returns_the_kind_of_the_active_run(client, db, test_user):
+    """#3029 item 1: a statement stays `parsed` during a classify run; the list item names the active run."""
+    active = await _statement(db, test_user, name="active.pdf")
+    ended = await _statement(db, test_user, name="ended.pdf")
+    idle = await _statement(db, test_user, name="idle.pdf")
+    await create_run(
+        db,
+        statement_id=active.id,
+        user_id=test_user.id,
+        kind=RunKind.CLASSIFY,
+        actor_kind=RunActorKind.SYSTEM,
+        trigger=RunTrigger.UPLOAD,
+        hints=RunHints(),
+    )
+    await _finished_run(db, test_user, ended.id, RunKind.CLASSIFY, {"outcome": "classified"})
+
+    items = (await client.get("/statements")).json()["items"]
+
+    assert {item["id"]: item["active_run_kind"] for item in items} == {
+        str(active.id): "classify",
+        str(ended.id): None,
+        str(idle.id): None,
+    }
+    # The detail route returns the same field.
+    assert (await client.get(f"/statements/{active.id}")).json()["active_run_kind"] == "classify"
+    assert (await client.get(f"/statements/{idle.id}")).json()["active_run_kind"] is None
