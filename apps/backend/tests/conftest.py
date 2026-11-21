@@ -141,7 +141,7 @@ async def _drop_test_database(db_url: str, db_name: str) -> None:
 @pytest_asyncio.fixture(scope='session')
 async def _schema_engine(test_database_url):
     import atexit
-    from tests._support.test_isolation import get_namespace, register_namespace, sanitize_namespace, unregister_namespace
+    from tests._support.test_isolation import get_namespace, is_droppable_test_db, register_namespace, sanitize_namespace, unregister_namespace
     raw_namespace = os.environ.get('TEST_NAMESPACE'); namespace = sanitize_namespace(raw_namespace) if raw_namespace else get_namespace()
     register_namespace(namespace); atexit.register(unregister_namespace, namespace)
     await ensure_database(test_database_url); import src.counter.extension.sql; import src.identity.extension.sql; import src.orm_registry; import src.platform.extension.sql; from src.database import Base, create_app_engine; engine = create_app_engine(test_database_url, echo=False, poolclass=NullPool)
@@ -160,7 +160,7 @@ async def _schema_engine(test_database_url):
         await engine.dispose()
         if os.environ.get('KEEP_TEST_DB') != '1':
             db_name = make_url(test_database_url).database
-            if db_name:
+            if is_droppable_test_db(db_name):
                 await _drop_test_database(test_database_url, db_name)
         unregister_namespace(namespace)
 _WRITE_STMT_PREFIXES = ('INSERT', 'UPDATE', 'DELETE', 'TRUNCATE'); _TABLE_EXTRACT_RE = re.compile('(?:INSERT\\s+INTO|UPDATE|DELETE\\s+FROM|TRUNCATE(?:\\s+TABLE)?)\\s+[\\"\'\\`]?([a-zA-Z0-9_]+)[\\"\'\\`]?', re.IGNORECASE); _DIRTY_TABLES: set[str] = set()

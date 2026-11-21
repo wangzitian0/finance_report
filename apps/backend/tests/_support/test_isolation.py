@@ -18,6 +18,16 @@ MAX_NAMESPACE_LENGTH = MAX_POSTGRES_IDENTIFIER_LENGTH - len(TEST_DB_PREFIX)
 MAX_S3_BUCKET_LENGTH = 63
 
 
+def is_droppable_test_db(name: str | None) -> bool:
+    """Return True only for a test database: the name starts with the test prefix.
+
+    A session teardown drops its database. With DATABASE_URL exported and no
+    TEST_NAMESPACE, the session database is the DATABASE_URL database, which
+    can be a development database. This check keeps the drop off that database.
+    """
+    return bool(name) and name.startswith(TEST_DB_PREFIX.rstrip("_"))
+
+
 def sanitize_namespace(name: str) -> str:
     """Convert a branch or workspace name to a safe identifier."""
     if not name or not name.strip():
