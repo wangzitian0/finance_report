@@ -251,12 +251,18 @@ def vcr_config() -> dict[str, Any]:
 @pytest.fixture
 def vcr_llm(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
     """Allow the model request of a replay test. `LLM_API_KEY` is needed only to record."""
-    from infra2_sdk.runtime import allow_vcr_model_requests
+    from infra2_sdk.runtime import LlmSettings, allow_vcr_model_requests
 
     from src.config import settings
     from tests._support.llm_replay import require_vcr_marker
 
     require_vcr_marker(request)
+    # A recording holds the request of the default provider and models: a variable of the developer must not change it.
+    defaults = LlmSettings()
+    monkeypatch.setattr(settings, "ai_provider", defaults.provider)
+    monkeypatch.setattr(settings, "ai_base_url", defaults.base_url)
+    for field in ("large_model", "small_model", "multimodal_model"):
+        monkeypatch.setattr(settings, field, getattr(defaults, field))
     monkeypatch.setattr(settings, "ai_api_key", os.environ.get("LLM_API_KEY") or "replay-key")
     with allow_vcr_model_requests():
         yield

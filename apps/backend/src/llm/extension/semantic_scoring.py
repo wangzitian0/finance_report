@@ -24,6 +24,7 @@ from __future__ import annotations
 import json
 
 from infra2_sdk.runtime import DecodingSpec
+from pydantic_ai.exceptions import AgentRunError
 
 from src.llm.extension.agent import CallSite, complete_text
 from src.observability import get_logger
@@ -55,7 +56,9 @@ async def ai_semantic_score(prompt: str) -> int:
         score = int(json.loads(content).get("similarity_score", 50))
         logger.debug("AI semantic score computed", score=score)
         return max(0, min(100, score))
-    except Exception as exc:
-        # The SDK already redacted a model error: its text holds the class, the HTTP status and the provider code.
+    except (AgentRunError, json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
+        # A model failure (the SDK redacted its text: class, HTTP status, provider code), a missing key or an
+        # unsupported provider (ValueError), or a reply that is not the expected JSON. Any other error, such as
+        # the guard of the tests against a model call inside an open transaction, is not a fallback case.
         logger.warning("AI semantic score failed, using fallback", error=str(exc)[:300], error_type=type(exc).__name__)
         return 50

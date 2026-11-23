@@ -12,18 +12,25 @@ from typing import Any
 import pytest
 
 
-def _body(request: Any) -> Any:
+def _body(request: Any) -> tuple[str, Any]:
+    """Return the body of a request in a form that compares exactly: JSON as canonical text, else the raw bytes.
+
+    ``True`` and ``1``, or ``20`` and ``20.0``, are different values of a request. An empty body and ``null`` are
+    different too.
+    """
     raw = request.body
-    if isinstance(raw, bytes):
-        raw = raw.decode("utf-8", errors="replace")
+    if raw is None:
+        return ("none", None)
+    if isinstance(raw, str):
+        raw = raw.encode("utf-8")
     try:
-        return json.loads(raw) if raw else None
+        return ("json", json.dumps(json.loads(raw), sort_keys=True, separators=(",", ":")))
     except ValueError:
-        return raw
+        return ("raw", bytes(raw))
 
 
 def llm_body_matches(recorded: Any, sent: Any) -> None:
-    """A recording answers only the request that it was recorded for: the JSON bodies must be equal.
+    """A recording answers only the request that it was recorded for: the bodies must be equal.
 
     The check raises by hand. An `assert` of a conftest module builds the full diff of two large bodies at each
     candidate of a recording.
@@ -45,4 +52,8 @@ def require_vcr_marker(request: Any) -> None:
     if request.node.get_closest_marker("vcr") is None:
         pytest.fail(
             "vcr_llm needs @pytest.mark.vcr on the test: without a cassette the request would go out", pytrace=False
+        )
+    if request.config.getoption("--disable-recording", default=False):
+        pytest.fail(
+            "--disable-recording turns the cassette off: a vcr_llm test would reach the provider", pytrace=False
         )

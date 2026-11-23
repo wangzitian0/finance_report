@@ -100,3 +100,60 @@ async def test_a_model_error_does_not_carry_the_prompt_or_the_provider_body(fake
     with pytest.raises(ModelHTTPError) as raised:
         await complete_text(SITE, "small", "SECRET-ACCOUNT-1234", decoding=DECODING, max_attempts=1)
     assert "SECRET-ACCOUNT-1234" not in str(raised.value) and "429" in str(raised.value)
+
+
+def test_a_file_part_with_a_bad_payload_is_refused_not_turned_into_an_empty_document() -> None:
+    import base64
+
+    good = base64.b64encode(b"%PDF").decode()
+    for bad in (
+        {"type": "file", "file": {"file_data": "data:application/pdf;base64,@@@@"}},
+        {"type": "file", "file": {"file_data": f"data:application/pdf;base64,{good[:4]}@{good[4:]}"}},
+        {"type": "file", "file": {"file_data": "data:application/pdf;base64,"}},
+        {"type": "file", "file": {"file_data": "data:application/pdf;base64"}},
+        {"type": "file", "file": {"file_data": f"data:;base64,{good}"}},
+        {"type": "file", "file": {"file_data": f"DATA:application/pdf;base64,{good}"}},
+        {"type": "file", "file": {}},
+        {"type": "file", "file": "text"},
+        {"type": "file"},
+        {"type": "image_url"},
+        {"type": "image_url", "image_url": "https://example.com/a.png"},
+    ):
+        with pytest.raises(ValueError):
+            to_user_content([bad])
+
+
+async def test_the_body_may_not_carry_thinking_or_a_second_token_cap(fake_llm) -> None:
+    fake_llm("ok")
+    with pytest.raises(ValueError, match="DecodingSpec.thinking"):
+        await complete_text(SITE, "small", "x", decoding=DECODING, extra_body={"thinking": {"type": "disabled"}})
+    with pytest.raises(ValueError, match="DecodingSpec.max_tokens"):
+        await complete_text(
+            SITE,
+            "small",
+            "x",
+            decoding=DecodingSpec("test.v1", thinking=False, max_tokens=20, timeout=5.0),
+            extra_body={"max_tokens": 99},
+        )
+
+
+async def test_the_cap_moves_to_the_body_for_z_ai_only(fake_llm, monkeypatch) -> None:
+    """Z.AI honours `max_tokens` in the body. Another provider keeps the cap in the field of the SDK."""
+    from src.config import settings
+
+    sent = fake_llm("ok")
+    spec = DecodingSpec("test.v1", thinking=False, max_tokens=77, timeout=5.0)
+    await complete_text(SITE, "small", "x", decoding=spec)
+    monkeypatch.setattr(settings, "ai_provider", "openai")
+    monkeypatch.setattr(settings, "ai_api_key", "a-key")
+    await complete_text(SITE, "small", "x", decoding=spec)
+    assert [d.max_tokens for d in sent.decodings] == [None, 77]
+    assert sent.extra_bodies == [{"max_tokens": 77}, None]
+
+
+async def test_the_iterator_of_stream_text_refuses_use_after_the_block(fake_llm) -> None:
+    fake_llm("one reply")
+    async with stream_text(SITE, "small", "x", decoding=DECODING) as pieces:
+        pass
+    with pytest.raises(RuntimeError, match="used after its block closed"):
+        [piece async for piece in pieces]

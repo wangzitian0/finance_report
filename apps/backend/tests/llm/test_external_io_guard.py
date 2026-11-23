@@ -8,6 +8,7 @@ from sqlalchemy import text
 from src.database import get_session_maker
 from src.llm.extension import client as llm_client
 from src.llm.extension.agent import CallSite, complete_text, stream_text
+from src.llm.extension.semantic_scoring import ai_semantic_score
 
 from infra2_sdk.runtime import DecodingSpec
 
@@ -45,3 +46,14 @@ async def test_a_model_call_through_the_entry_point_inside_an_open_app_transacti
     assert sent == []
     # The same calls pass once no transaction is open.
     assert await complete_text(CallSite.RECONCILIATION_SEMANTIC_SCORE, "small", "ping", decoding=_DECODING) == "reply"
+
+
+async def test_the_semantic_score_does_not_swallow_the_guard_of_the_open_transaction(db_engine, fake_llm) -> None:
+    """The caller `matching.score_single` runs this inline in the task that owns the session (review of #3194)."""
+    sent = fake_llm('{"similarity_score": 90}')
+    async with get_session_maker()() as open_session:
+        await open_session.execute(text("SELECT 1"))
+        with pytest.raises(RuntimeError, match=_GUARD_MESSAGE):
+            await ai_semantic_score("compare A with B")
+        await open_session.rollback()
+    assert sent == [] and await ai_semantic_score("compare A with B") == 90

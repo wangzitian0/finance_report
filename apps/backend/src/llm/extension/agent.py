@@ -4,6 +4,10 @@
 provider client, the retry of a model error, the redaction of an error and the telemetry. A caller gives the
 call site, the role, the content and the decoding.
 
+A ``thinking`` key or a ``max_tokens`` key in ``extra_body`` is refused: the SDK replaces the first, and the cap has
+one place (``DecodingSpec.max_tokens``). The SDK retries a model error before the first byte of the answer: a
+stream that fails after output has started is not retried.
+
 Wire facts that this module fixes (each one was measured against Z.AI on 2026-11-23, see ``tests/llm``):
 
 - The SDK sends ``DecodingSpec.max_tokens`` as ``max_completion_tokens``, and Z.AI ignores that field: a cap of 20
@@ -39,10 +43,25 @@ class CallSite(StrEnum):
 
 def _file_part(part: Mapping[str, Any]) -> BinaryContent:
     """Return a ``{"type": "file", "file": {"file_data": "data:<type>;base64,<data>"}}`` part as binary content."""
-    header, _, payload = str(part["file"]["file_data"]).partition(",")
-    if not header.startswith("data:") or ";base64" not in header:
+    try:
+        data_uri = str(part["file"]["file_data"])
+    except (KeyError, TypeError) as exc:
+        raise ValueError("A file part needs file.file_data") from exc
+    header, separator, payload = data_uri.partition(",")
+    if not separator or not header.startswith("data:") or ";base64" not in header:
         raise ValueError("A file part needs a base64 data URI")
-    return BinaryContent(data=base64.b64decode(payload), media_type=header[len("data:") : header.index(";")])
+    media_type = header[len("data:") : header.index(";")]
+    data = base64.b64decode(payload, validate=True)
+    if not media_type or not data:
+        raise ValueError("A file part needs a media type and data")
+    return BinaryContent(data=data, media_type=media_type)
+
+
+def _image_part(part: Mapping[str, Any]) -> ImageUrl:
+    try:
+        return ImageUrl(url=str(part["image_url"]["url"]))
+    except (KeyError, TypeError) as exc:
+        raise ValueError("An image part needs image_url.url") from exc
 
 
 def to_user_content(content: Content) -> str | list[Any]:
@@ -61,7 +80,7 @@ def to_user_content(content: Content) -> str | list[Any]:
         elif part.get("type") == "text":
             parts.append(str(part.get("text", "")))
         elif part.get("type") == "image_url":
-            parts.append(ImageUrl(url=str(part["image_url"]["url"])))
+            parts.append(_image_part(part))
         elif part.get("type") == "file":
             parts.append(_file_part(part))
         else:
@@ -78,12 +97,19 @@ def _agent(
     max_attempts: int,
 ) -> Any:
     body = dict(extra_body or {})
-    if decoding.max_tokens is not None:
-        # See the module docstring: Z.AI honours ``max_tokens`` and ignores ``max_completion_tokens``.
+    if "thinking" in body:
+        # The SDK replaces a ``thinking`` key of the body: the effort is set by ``DecodingSpec.thinking``.
+        raise ValueError("Set thinking with DecodingSpec.thinking, not in extra_body")
+    settings_for_sdk = src.config.settings.to_llm_settings()
+    if decoding.max_tokens is not None and settings_for_sdk.provider == "zai":
+        # See the module docstring: Z.AI honours ``max_tokens`` and ignores ``max_completion_tokens``. The other
+        # providers keep the cap in the SDK field.
+        if "max_tokens" in body:
+            raise ValueError("Set the cap with DecodingSpec.max_tokens, not in extra_body")
         body["max_tokens"] = decoding.max_tokens
         decoding = dataclasses.replace(decoding, max_tokens=None)
     return create_llm_agent(
-        src.config.settings.to_llm_settings(),
+        settings_for_sdk,
         role=role,
         call_site=call_site.value,
         decoding=decoding,
@@ -129,11 +155,25 @@ async def stream_text(
 
     ``async with stream_text(...) as pieces: async for piece in pieces: ...``. The block closes the stream at
     once, also when the loop stops early or raises. A plain async generator would close it later, in another
-    task, and cancel the task of the consumer.
+    task, and cancel the task of the consumer. The iterator refuses use after the block: it would give a reply
+    that stops where the buffer ended.
     """
     agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts)
     async with agent.run_stream(to_user_content(content)) as stream:
-        yield stream.stream_text(delta=True, debounce_by=None)
+        closed = False
+        inner = stream.stream_text(delta=True, debounce_by=None)
+
+        async def pieces() -> AsyncIterator[str]:
+            if closed:
+                raise RuntimeError("The iterator of stream_text was used after its block closed")
+            async for piece in inner:
+                yield piece
+
+        try:
+            yield pieces()
+        finally:
+            closed = True
+            await inner.aclose()
 
 
 __all__ = ["CallSite", "Content", "Role", "complete_text", "stream_text", "to_user_content"]
