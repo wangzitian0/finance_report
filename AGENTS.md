@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=8e1516a53883fe27407c3c1a51ea657bbed511c8cad746dac6484a0d48d89d22 -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=84e3ecf2bb717484004df61053452edaefe0e2f18d9e30ca298ee7e3182fbf0f -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -13,7 +13,7 @@
 - **Fix an owner hold by deletion:** Delete the rule or gate branch that holds non-production work. Do not add logic that reads a command to permit it. Such logic lets unsafe commands through.
 - **Define guard scope from what it must govern, not from today's passing tree.** Let the guard fail on existing violations, then repair them. A guard never seen failing is not yet evidence of protection.
 - **Worktree self-sufficiency:** Every worktree must resolve its dependencies, toolchain, skills, and configuration internally. Tools and tests must not navigate upward with `../..` to locate files in parent checkouts.
-- **Local and remote test segregation:** Inner-loop verification runs single-process focused tests (`pytest -n0 --no-cov -o addopts= <file>::<test> -x`). Full-suite regression runs on remote CI, or locally once before merge.
+- **Local and remote test segregation:** Before a PR, run only the focused tests of the change in one process (`pytest <file>::<test> -x`). The full suite, parallel runs and coverage run on remote CI only.
 - **Bounded file reads:** Pass `StartLine` and `EndLine` (`<= 800` lines per call) when reading existing files with `read_file` or `view_file`.
 
 ## Delivery and merge
@@ -27,7 +27,7 @@
 - **Conflict-free merge window:** Merge conflict-free PRs (`mergeable=MERGEABLE`) within 24 hours of `main` without rebasing; post-merge CI validates `main`. Rebase on conflicts or after 24 hours.
 - **Delivery state invariant:** Never declare complete, done, or finished before merge to main and a verified Business Reality Probe (`ws-delivery-status`). State labels are `'Draft'`, `'Local verified'`, `'In review'`, `'Stage 1 Landed'`, and `'VERIFIED_COMPLETE'`.
 - **Anti-exclusion and reality invariant:** Exclusion is not resolution. Never exclude failing entities or add exemptions to manufacture green checks. A task is complete only when a physical reality probe confirms non-empty execution.
-- **Three-stage deployment prerequisite:** Stage 1 (Merge to main) is a non-bypassable physical prerequisite for Stage 2 and Stage 3. If HEAD is not on main, fail closed and refuse any deployment request.
+- **Three-stage deployment prerequisite:** Stage 1 (merge to main) is a non-bypassable physical prerequisite for Stage 2 (staging) and Stage 3 (production). If HEAD is not on main, fail closed and refuse any deployment request.
 - **Deploy provenance invariant:** Before dispatching any deploy workflow, physically verify that the target ref or tag contains current branch commits (`git merge-base --is-ancestor HEAD <target>`). Never deploy an older tag as completion evidence for current work.
 
 ## Production reservation
@@ -68,7 +68,7 @@ Full rules: **[docs/agents/red-lines.md](docs/agents/red-lines.md)**
 
 - **Work order:** **MECE → User Case → Test → Code → Doc** (`common/meta/flows/user_cases_ssot.json` + EPIC in `docs/project/` — never mirror test tables into `docs/project/EPIC-*.md`; failing tests first; minimal code; update owning `common/<pkg>/readme.md`). Details: [docs/agents/orchestration.md](docs/agents/orchestration.md), [common/testing/tdd.md](common/testing/tdd.md).
 - **SSOT first:** Define bounded-context concepts in `common/<pkg>/readme.md` (and cross-cutting metadata in `common/*/data/` or `common/runtime/`); `docs/ssot/` is retired (#1823). Layering registry: [common/meta/readme.md](common/meta/readme.md).
-- **Pre-push gate parity:** `git push` runs `tools/preflight.py --tier=static` automatically via `pre-commit` (install hooks with `make install`; never invoke `moon run :lint && moon run :test` before every push — run focused tests locally and `--tier=static`, leaving full suites to CI). Cloud/sandbox agents without hooks run `--tier=full`. Use `--no-cov` inner-loop runs per Root (`make test-cov` for full branch coverage when needed).
+- **Pre-push gate parity:** `git push` runs `tools/preflight.py --tier=static` automatically via `pre-commit` (install hooks with `make install`; never invoke `moon run :lint && moon run :test` before every push — run focused tests locally and `--tier=static`, leaving full suites to CI).
 
 ## Branch, PR, and Merge Rules
 

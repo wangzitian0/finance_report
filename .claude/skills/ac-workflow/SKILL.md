@@ -25,4 +25,4 @@ See `docs/agents/orchestration.md` (work order) and `common/meta/migration-stand
 ## Verification
 
 - Focused TDD uses single-process, coverage-free pytest per Root rule.
-- `git push` runs `tools/preflight.py --tier=static` via `pre-commit` (cached per worktree tree/HEAD). Run `apps/backend/.venv/bin/python tools/preflight.py --tier=full` only in sandboxes without pre-push hooks or before final merge.
+- `git push` runs `tools/preflight.py --tier=static` via `pre-commit` (cached per worktree tree/HEAD).
