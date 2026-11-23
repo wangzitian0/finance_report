@@ -26,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.extraction.base.run_vocabulary import RunState, RunTrigger
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.types import RunHints
+from src.extraction.extension import transaction_classification
+from src.extraction.extension.correction_service import get_few_shot_examples
 from src.extraction.extension.statement_posting import (
     StatementPostingDependencies,
     auto_approve_parsed_candidate,
@@ -33,8 +35,6 @@ from src.extraction.extension.statement_posting import (
 )
 from src.extraction.extension.statement_runs import StaleRun, claim_run, fail_run, finish_run, heartbeat_run
 from src.extraction.extension.statement_validation import resolve_statement_transactions
-from src.extraction.extension import transaction_classification
-from src.extraction.extension.correction_service import get_few_shot_examples
 from src.extraction.extension.transaction_classification import (
     CLASSIFICATION_PHASE_DEADLINE_SECONDS,
     ClassificationOutcome,
@@ -44,13 +44,14 @@ from src.extraction.extension.transaction_classification import (
     model_batches,
     plan_classification,
     policy_buckets,
+    settle_drafts,
     summarize_outcomes,
     write_answers,
-    settle_drafts,
     write_rule_answers,
 )
 from src.extraction.orm.statement_run import StatementRun
 from src.extraction.orm.statement_summary import StatementSummary
+from src.llm import ModelCallFailed
 from src.observability import (
     get_logger,
     record_confidence_tier,
@@ -126,8 +127,12 @@ async def execute_classify_run(
         ask = RunAsk(run_id, statement_id, run.prompt_digest, reask, covered_by)
         async with deadline:
             outcome, summary = await _classify_in_phases(session_maker, run_id, statement_id, user_id, hints, ask)
+        if outcome is ClassifyOutcome.FAILED:
+            # Every model call failed: no auto-approve, the statement keeps its rows, and the run row says why.
+            if not await _fail(session_maker, run_id, outcome, detail=_failure_detail(summary)):
+                return 0
         # A candidate keeps its run active: the run ends in the transaction of the auto-approve.
-        if candidate:
+        elif candidate:
             posted = await _approve_and_finish(
                 session_maker, run_id, statement_id, user_id, summary, posting_dependencies
             )
@@ -247,18 +252,22 @@ async def _classify_in_phases(
     async def ask_batch(index: int, plan: ClassificationPlan, batch):
         async with slots:
             began = time.perf_counter()
-            return (
-                index,
-                plan,
-                batch,
-                await ask_model(user_id, batch, plan.policy, hints=hints, few_shot_examples=few_shot_examples),
-                _ms(began),
-            )
+            try:
+                proposals = await ask_model(user_id, batch, plan.policy, hints=hints, few_shot_examples=few_shot_examples)
+                failure = None
+            except ModelCallFailed as exc:
+                # The entry point counted and logged the failure. The rows of this batch get no answer, and the
+                # summary below counts the batch: a failed call is not an abstaining model.
+                proposals, failure = [None] * len(batch), exc.kind
+            return index, plan, batch, proposals, _ms(began), failure
 
     tasks = [asyncio.ensure_future(ask_batch(index, plan, batch)) for index, (plan, batch) in enumerate(batches)]
+    model_failures: Counter[str] = Counter()
     try:
         for finished in asyncio.as_completed(tasks):  # phase c: write each batch when its answer arrives
-            index, plan, batch, proposals, model_ms = await finished
+            index, plan, batch, proposals, model_ms, failure = await finished
+            if failure is not None:
+                model_failures[failure.value] += 1
             started = time.perf_counter()
             written = await _write_batch(session_maker, run_id, plan, batch, proposals, progress)
             outcomes += written
@@ -272,6 +281,7 @@ async def _classify_in_phases(
                 answers_written=sum(o.wrote_row for o in written),
                 by_disposition=dict(Counter(o.disposition for o in written)),
                 model_ms=model_ms,
+                model_failure=failure.value if failure is not None else None,
             )
     finally:
         for task in tasks:
@@ -285,6 +295,8 @@ async def _classify_in_phases(
         outcome = ClassifyOutcome.SKIPPED_DISABLED
     elif not asked:
         outcome = ClassifyOutcome.NOTHING_TO_CLASSIFY
+    elif batches and sum(model_failures.values()) == len(batches):
+        outcome = ClassifyOutcome.FAILED  # every model call failed: this is not a run that the model answered
     else:
         outcome = ClassifyOutcome.PARTIAL if any(not o.wrote_row for o in asked) else ClassifyOutcome.CLASSIFIED
     summary_stats = summarize_outcomes(outcomes)
@@ -296,7 +308,8 @@ async def _classify_in_phases(
     record_confidence_tier(
         tier="low", stage="classification", count=by_disp.get("tail", 0) + by_disp.get("fallback", 0)
     )
-    return outcome, {"outcome": outcome.value, **summary_stats, **progress}
+    failures = {"model_failures": dict(model_failures)} if model_failures else {}
+    return outcome, {"outcome": outcome.value, **summary_stats, **progress, **failures}
 
 
 async def _write_batch(
@@ -345,9 +358,20 @@ async def _finish(session_maker: async_sessionmaker[AsyncSession], run_id: UUID,
         await session.commit()
 
 
-async def _fail(session_maker: async_sessionmaker[AsyncSession], run_id: UUID, outcome: ClassifyOutcome) -> bool:
+def _failure_detail(summary: Mapping[str, object]) -> str:
+    """Return the sentence of a run in which every model call failed: the kinds and their counts, never row text."""
+    kinds = summary.get("model_failures")
+    if not isinstance(kinds, Mapping) or not kinds:
+        return ""
+    return " Every model call failed: " + ", ".join(f"{kind} x{count}" for kind, count in sorted(kinds.items())) + "."
+
+
+async def _fail(
+    session_maker: async_sessionmaker[AsyncSession], run_id: UUID, outcome: ClassifyOutcome, detail: str = ""
+) -> bool:
     """End the run as failed. Return False when the run already left the active states or the write failed."""
     code, message = _FAILURES[outcome]
+    message += detail
     try:
         async with session_maker() as session:
             await fail_run(session, run_id, error_code=code, error_message=message)

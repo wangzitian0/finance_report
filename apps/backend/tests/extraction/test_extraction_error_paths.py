@@ -17,7 +17,7 @@ from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.orm.statement_summary import StatementSummary
-from src.llm import AIStreamError
+from src.llm import AIStreamError, ModelCallFailed, ModelFailureKind
 from tests._support.fake_llm import install_fake_model
 from tests.extraction._statement_run_helpers import (
     assert_stream_extract_case,
@@ -261,7 +261,7 @@ async def test_extract_json_timeout_and_ai_csv_empty(monkeypatch):
             messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
         )
     install_fake_model(monkeypatch, "  ")
-    with pytest.raises(ExtractionError, match="AI CSV mapping returned empty response"):
+    with pytest.raises(ModelCallFailed) as empty:
         await service._ai_parse_csv(
             headers=["Date", "Description", "Amount"],
             rows=[{"Date": "2026-01-01", "Description": "Test", "Amount": "1.00"}],
@@ -269,6 +269,7 @@ async def test_extract_json_timeout_and_ai_csv_empty(monkeypatch):
             parse_date=date.fromisoformat,
             parse_amount=Decimal,
         )
+    assert empty.value.kind is ModelFailureKind.BAD_REPLY
 
 
 @pytest.mark.parametrize(

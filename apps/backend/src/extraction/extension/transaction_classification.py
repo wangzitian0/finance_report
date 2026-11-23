@@ -33,12 +33,12 @@ from src.extraction.extension.prompts import classification as templates
 from src.extraction.extension.prompts.hints import hints_block
 from src.extraction.orm.ai_feedback import AiFeedback
 from src.extraction.orm.correction import CorrectionLog
-from src.platform import ConflictError, ValidationFailedError
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_run import StatementRun
 from src.ledger import Account, AccountType
 from src.observability import get_logger
+from src.platform import ConflictError, ValidationFailedError
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -402,44 +402,38 @@ async def _propose_batch(
 ) -> list[CategoryProposal | None]:
     from infra2_sdk.runtime import DecodingSpec
 
-    from src.llm.extension.agent import CallSite, complete_text
+    from src.llm import ModelFailureKind
+    from src.llm.extension.agent import CallSite, complete_text, model_call_failed
 
     prompt = build_classification_prompt(transactions, policy, hints=hints, few_shot_examples=few_shot_examples)
 
+    # A failed call raises ModelCallFailed (counted and logged at the entry point). The run decides what a failed
+    # batch means; a bug in this code is not caught here.
+    content = await complete_text(
+        CallSite.CLASSIFICATION_PROPOSE,
+        "small",
+        prompt,
+        decoding=DecodingSpec(
+            "extraction.classification.v1",
+            thinking=False if settings.ai_json_disable_thinking else None,
+            temperature=0.0,
+            max_tokens=settings.ai_json_max_tokens,
+            timeout=60.0,
+        ),
+        extra_body={"do_sample": False},
+    )
     try:
-        content = await complete_text(
+        parsed = json.loads(content)
+    except json.JSONDecodeError:
+        parsed = _recover_json_array(content)
+    if not isinstance(parsed, list):
+        # No answer at all is a failed call, not an abstaining model: an abstaining model returns a list whose
+        # items are null or omit rows (those rows stay None below).
+        raise model_call_failed(
             CallSite.CLASSIFICATION_PROPOSE,
-            "small",
-            prompt,
-            decoding=DecodingSpec(
-                "extraction.classification.v1",
-                thinking=False if settings.ai_json_disable_thinking else None,
-                temperature=0.0,
-                max_tokens=settings.ai_json_max_tokens,
-                timeout=60.0,
-            ),
-            extra_body={"do_sample": False},
+            ModelFailureKind.BAD_REPLY,
+            f"the reply is not a JSON array ({len(content)} characters, fenced={content.lstrip().startswith('`')})",
         )
-        if not content or not content.strip():
-            logger.warning("transaction classification proposal returned empty response")
-            return [None] * len(transactions)
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
-            parsed = _recover_json_array(content)
-        if not isinstance(parsed, list):
-            logger.warning(
-                "transaction classification proposal failed",
-                error="unparseable model response",
-                content_length=len(content),
-                looks_fenced=content.lstrip().startswith("`"),
-            )
-            return [None] * len(transactions)
-    except Exception as e:
-        # A failed batch leaves its rows to review. The SDK redacts the text of a model error; the log still
-        # carries the class only, because a programming error can echo a row of the prompt.
-        logger.warning("transaction classification proposal failed", error_type=type(e).__name__)
-        return [None] * len(transactions)
 
     items = _align_indexed_items(parsed, len(transactions))
     if not any(items):

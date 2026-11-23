@@ -7,11 +7,13 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError
 
 from src.extraction.base.result import StatementExtractionResult
 from src.extraction.base.reviewed_statement_envelope import supports_reviewed_statement_envelope
 from src.extraction.base.types import DocumentSource
-from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.llm import ModelCallFailed, ModelFailureKind
 from tests._support.fake_llm import install_fake_model
 
 DECLARED_HEADER = "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
@@ -150,13 +152,24 @@ async def test_ai_csv_parsing_variants(monkeypatch: pytest.MonkeyPatch) -> None:
     ) == (1, "IN", 2, "OUT", "IN")
 
     def provider_down(_prompt: str) -> str:
-        raise RuntimeError("API error")
+        raise ModelHTTPError(503, "test-small-model", {"error": "provider down"})
 
+    # A failed model call names the model as the cause: it is not the error of a model that found no rows.
     install_fake_model(monkeypatch, provider_down)
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        pytest.raises(Exception, match="No valid transactions found"),
+        pytest.raises(ExtractionError, match=r"^AI column mapping unavailable \(unavailable\)$") as failed,
+    ):
+        await svc._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+    assert isinstance(failed.value.__cause__, ModelCallFailed) and failed.value.__cause__.kind is ModelFailureKind.UNAVAILABLE
+
+    # A model that answers with a mapping that matches no row is not a failed call.
+    install_fake_model(monkeypatch, '{"date": "Col1", "description": "Col2", "amount": "Col3"}')
+    with (
+        patch.object(svc, "api_key", "test-key"),
+        patch.object(svc, "small_model", "test-model"),
+        pytest.raises(ExtractionError, match="No valid transactions found"),
     ):
         await svc._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
 

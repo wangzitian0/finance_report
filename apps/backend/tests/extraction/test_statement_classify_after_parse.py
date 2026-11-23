@@ -40,6 +40,7 @@ from tests.extraction._statement_run_helpers import (
     user_classification_rows,
     verify_each_row_gets_own_date_policy,
     verify_failed_run_leaves_rows_to_review,
+    verify_one_failed_batch_leaves_a_partial_run,
     verify_provider_no_call_at_approve,
     verify_shared_rows_answered_once,
     verify_source_bytes_released_before_model,
@@ -84,9 +85,9 @@ async def test_AC_extraction_statement_classify_1_parse_classifies_and_pdf_paylo
     assert (outcome.status, (await _statement(db, stmt.id)).status, pdf_proposer.rows_asked, len(await user_classification_rows(db, test_user.id))) == (StatementIngestionStatus.COMPLETED, BankStatementStatus.PARSED, 3, 15)
 
 
-@pytest.mark.parametrize(("failure", "label"), [("provider-error", "partial"), ("unexpected-error", "failed"), ("driver-timeout", "failed")])
-async def test_AC_extraction_statement_classify_2_a_failed_run_leaves_the_rows_to_the_economic_review(client, db, test_user, monkeypatch, failure, label):
-    await verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeypatch, failure, label)
+@pytest.mark.parametrize(("failure", "label"), [("provider-error", "failed"), ("unexpected-error", "failed"), ("driver-timeout", "failed")])
+async def test_AC_extraction_statement_classify_2_a_failed_run_leaves_the_rows_to_the_economic_review(client, db, test_user, monkeypatch, caplog, failure, label):
+    await verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeypatch, failure, label, caplog)
 
 
 @pytest.mark.parametrize(
@@ -96,6 +97,7 @@ async def test_AC_extraction_statement_classify_2_a_failed_run_leaves_the_rows_t
         (verify_source_bytes_released_before_model, False),
         (verify_shared_rows_answered_once, False),
         (verify_each_row_gets_own_date_policy, False),
+        (verify_one_failed_batch_leaves_a_partial_run, False),
         (verify_unresolved_currency_and_covered_rows, True),
         (verify_state_after_parse_classify_approve, True),
     ],
