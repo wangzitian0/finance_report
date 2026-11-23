@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import re
 from datetime import date
 from decimal import Decimal
 from pathlib import Path
@@ -61,7 +63,18 @@ async def test_transfer_leg_direction_and_idempotency(db: AsyncSession, test_use
     assert len((await db.execute(select(ReconciliationMatch).where(ReconciliationMatch.atomic_txn_id == txn.id, ReconciliationMatch.status != ReconciliationStatus.SUPERSEDED))).scalars().all()) == 1
 
 
-async def test_transfer_unlinked_auto_pair_and_mixed_transactions(db: AsyncSession, test_user):
+# The model judgement of this test is explicit (#3153): a failed model call keeps the algorithmic score, so a weak
+# pair (62 points) stays a review candidate unless the model says that the two texts do not match.
+_SAME_PAIRS = {("OFFICE DEPOT STORE #123", "Office supplies purchase"), ("NTUC FAIRPRICE #512", "Supermarket purchase")}
+
+
+def _judge_pair(prompt: str) -> str:
+    pair = (re.search(r'Bank Transaction: "(.*)"', prompt).group(1), re.search(r'Journal Entry: "(.*)"', prompt).group(1))
+    return json.dumps({"similarity_score": 90 if pair in _SAME_PAIRS else 10})
+
+
+async def test_transfer_unlinked_auto_pair_and_mixed_transactions(db: AsyncSession, test_user, fake_llm):
+    sent = fake_llm(_judge_pair)
     uid = test_user.id
     unlinked_doc = await _seed_statement(db, uid, account_id=None, file_hash="test_hash_no_account")
     await _seed_txn(db, uid, unlinked_doc, description="TRANSFER TO CHECKING", amount=Decimal("150.00"), direction="OUT")
@@ -100,6 +113,7 @@ async def test_transfer_unlinked_auto_pair_and_mixed_transactions(db: AsyncSessi
     assert len(m_mix) == 2 and xfer.match_score == 100 and UUID(groc.journal_entry_ids[0]) == e2.id
     p_lines = await _lines_for(db, proc.id)
     assert len(p_lines) == 4 and any(line.amount == Decimal("400.00") for line in p_lines)
+    assert sent, "The model was never asked: the 60-84 band of this test must reach the model"
 
 
 async def test_reconciliation_reads_layer2_and_is_idempotent(db: AsyncSession, test_user):
