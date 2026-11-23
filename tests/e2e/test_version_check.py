@@ -15,17 +15,17 @@ logger = logging.getLogger(__name__)
 @pytest.mark.smoke
 @pytest.mark.e2e
 async def test_deployed_version_matches_source(config: TestConfig) -> None:
-    if not config.EXPECTED_SHA:
+    if not config.EXPECTED_VERSION:
         if (
             _strict_e2e_gates_enabled()
             or os.getenv("CI") == "true"
             or config.TEST_ENV != "local"
         ):
             pytest.fail(
-                "Fatal: EXPECTED_SHA or APP_VERSION_REF must be explicitly set in CI, staging, and strict gate environments"
+                "Fatal: APP_VERSION_REF must be explicitly set in CI, staging, and strict gate environments"
             )
-        logger.warning("Skipping version check: EXPECTED_SHA and APP_VERSION_REF not set in environment")
-        pytest.skip("EXPECTED_SHA not set")
+        logger.warning("Skipping version check: APP_VERSION_REF not set in environment")
+        pytest.skip("APP_VERSION_REF not set")
     health_url = f"{config.APP_URL.rstrip('/')}/api/health"
     async with httpx.AsyncClient(verify=False, timeout=10.0) as client:
         resp = await client.get(health_url)
@@ -34,5 +34,5 @@ async def test_deployed_version_matches_source(config: TestConfig) -> None:
         assert payload.get("git_sha") is not None, "Response missing 'git_sha' field"
         # A release tag must match exactly; an observed SHA must name the tag's commit.
         assert_pinned_deployment(
-            payload, config.EXPECTED_SHA, resolve_expected_commit(config.EXPECTED_SHA)
+            payload, config.EXPECTED_VERSION, resolve_expected_commit(config.EXPECTED_VERSION)
         )

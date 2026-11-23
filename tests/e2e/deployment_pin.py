@@ -11,11 +11,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def expected_version_from_env() -> str | None:
-    """Return the deployment ref a live proof must match: EXPECTED_SHA, else APP_VERSION_REF (set by the hook runner)."""
-    for key in ("EXPECTED_SHA", "APP_VERSION_REF"):
-        if val := os.getenv(key, "").strip():
-            return val
-    return None
+    """Return the deployment ref a live proof must match: APP_VERSION_REF (set by the hook runner)."""
+    return os.getenv("APP_VERSION_REF", "").strip() or None
 
 
 def resolve_expected_commit(expected_version: str, repo_root: Path = REPO_ROOT) -> str | None:
@@ -25,8 +22,7 @@ def resolve_expected_commit(expected_version: str, repo_root: Path = REPO_ROOT) 
         if (val := os.getenv(env_key, "").strip()) and val not in candidates:
             candidates.append(val)
     if os.getenv("HOOK_SLOT", "").strip():
-        hook_refs = {val for k in ("EXPECTED_SHA", "APP_VERSION_REF") if (val := os.getenv(k, "").strip())}
-        if expected_version in hook_refs and "HEAD" not in candidates:
+        if expected_version == expected_version_from_env() and "HEAD" not in candidates:
             candidates.append("HEAD")
     for ref in candidates:
         cmd = ["git", "rev-parse", "--verify", "--end-of-options", f"{ref}^{{commit}}"]

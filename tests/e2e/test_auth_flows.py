@@ -101,7 +101,7 @@ async def test_browser_cookie_logout_lifecycle(
     page: Page, viewport: str, record_property
 ) -> None:
     expected = expected_version_from_env()
-    assert expected, "Authentication lifecycle proof requires explicit EXPECTED_SHA or APP_VERSION_REF"
+    assert expected, "Authentication lifecycle proof requires explicit APP_VERSION_REF"
     await assert_pinned_via_page(page, record_property)
     await page.set_viewport_size(
         {"width": 390, "height": 844}

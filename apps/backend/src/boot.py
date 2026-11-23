@@ -9,8 +9,6 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from pydantic import AliasChoices
-
 from infra2_sdk.runtime.config_schema import (
     EnvironmentConflictError,
     environment_manifest_from_model,
@@ -56,8 +54,6 @@ _PROBE_METHODS = {
 def _env_names(field: str) -> tuple[str, ...]:
     """Return the env var names that set a settings field (its validation alias, else the upper-case field name)."""
     alias = Settings.model_fields[field].validation_alias
-    if isinstance(alias, AliasChoices):
-        return tuple(c for c in alias.choices if isinstance(c, str))
     return (alias,) if isinstance(alias, str) else (field.upper(),)
 
 

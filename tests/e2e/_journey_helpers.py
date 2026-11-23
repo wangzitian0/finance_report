@@ -71,7 +71,7 @@ def verify_session_target(
 ) -> None:
     if not expected_sha:
         pytest.exit(
-            "Fatal: EXPECTED_SHA or APP_VERSION_REF must be explicitly set in CI, staging, and strict gate environments",
+            "Fatal: APP_VERSION_REF must be explicitly set in CI, staging, and strict gate environments",
             returncode=1,
         )
     health_url, ctx = api_url("/health", app_url), ssl.create_default_context()
@@ -311,7 +311,7 @@ async def assert_pinned_via_client(
     reason: str = "core-journey proof",
 ) -> dict[str, Any]:
     expected_version = expected_version_from_env()
-    assert expected_version, f"{reason} requires an explicit EXPECTED_SHA or APP_VERSION_REF"
+    assert expected_version, f"{reason} requires an explicit APP_VERSION_REF"
     expected_commit = resolve_expected_commit(expected_version)
     health = await get_json(client, "/health", base_url=base_url, reconnects=reconnects)
     fe_url = get_url("/frontend-version.json", base_url)
@@ -343,7 +343,7 @@ async def assert_pinned_via_page(
     base_url: str = APP_URL,
 ) -> None:
     expected_version = expected_version_from_env()
-    assert expected_version, "live browser proof requires an explicit EXPECTED_SHA or APP_VERSION_REF"
+    assert expected_version, "live browser proof requires an explicit APP_VERSION_REF"
     expected_commit = resolve_expected_commit(expected_version)
     for path in ("/api/health", "/frontend-version.json"):
         resp = await page.request.get(get_url(path, base_url))
