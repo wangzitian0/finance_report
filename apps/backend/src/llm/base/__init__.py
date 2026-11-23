@@ -14,6 +14,8 @@ from src.llm.base.errors import (
     LLMBudgetExceeded,
     LLMConfigError,
     LLMError,
+    ModelCallFailed,
+    ModelFailureKind,
     ModelCatalogError,
 )
 from src.llm.base.protocols import LLMClient
@@ -41,6 +43,8 @@ __all__ = [
     "ConfigSource",
     # errors
     "LLMError",
+    "ModelCallFailed",
+    "ModelFailureKind",
     "LLMConfigError",
     "LLMBudgetExceeded",
     "ModelCatalogError",

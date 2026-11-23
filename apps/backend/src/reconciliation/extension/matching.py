@@ -20,7 +20,7 @@ from src.ledger import (
     JournalEntryStatus,
     find_transfer_pairs,
 )
-from src.llm import ai_semantic_score
+from src.llm import ModelCallFailed, ai_semantic_score
 from src.observability import get_logger, record_reconciliation_match_outcome
 from src.reconciliation.base.config import (
     MatchCandidate,
@@ -57,7 +57,7 @@ class MatchingContext:
     entries_by_id: dict[str, JournalEntry]
     get_candidates_for_date: Callable[[date], list[JournalEntry]]
     get_cached_pattern_score: Callable[[AtomicTransaction], Awaitable[float]]
-    semantic_scores: Mapping[str, int] | None = None
+    semantic_scores: Mapping[str, int | None] | None = None
 
 
 def _build_candidate_semantic_prompt(
@@ -79,6 +79,14 @@ def _build_candidate_semantic_prompt(
     )
 
 
+async def _score_or_none(prompt: str) -> tuple[int | None, bool]:
+    """Return the semantic score and False, or None and True when the model call failed (it is counted at the source)."""
+    try:
+        return await ai_semantic_score(prompt), False
+    except ModelCallFailed:
+        return None, True
+
+
 async def _calculate_candidate_score(
     db: AsyncSession,
     transaction: AtomicTransaction,
@@ -89,7 +97,7 @@ async def _calculate_candidate_score(
     amount: Decimal,
     is_group: bool,
     history_score: float | None,
-    semantic_scores: Mapping[str, int] | None = None,
+    semantic_scores: Mapping[str, int | None] | None = None,
 ) -> MatchCandidate:
     """Calculate the common score after the public mode selected semantics."""
     if history_score is None:
@@ -111,12 +119,20 @@ async def _calculate_candidate_score(
         if prompt is not None:
             # llm's ai_semantic_score is generic (prompt in, score out); the
             # reconciliation-specific prompt is built here, package-side.
-            semantic = semantic_scores.get(prompt) if semantic_scores is not None else await ai_semantic_score(prompt)
+            if semantic_scores is not None:
+                semantic = semantic_scores.get(prompt)
+                unavailable = prompt in semantic_scores and semantic is None
+            else:
+                semantic, unavailable = await _score_or_none(prompt)
             if semantic is not None:
                 # Hybrid formula: 70% algorithmic + 30% AI semantic
                 total = int(round(Decimal("0.7") * total + Decimal("0.3") * semantic, 0))
                 scores["ai_semantic"] = float(semantic)
                 scores["hybrid_applied"] = 1.0
+            elif unavailable:
+                # The model gave no score. The algorithmic total stays and the breakdown says why: no neutral
+                # score is blended in, so a failed call cannot change a decision as if the model had judged.
+                scores["ai_semantic_unavailable"] = 1.0
 
     candidate.score = total
     return candidate
@@ -130,7 +146,7 @@ async def score_single(
     user_id: UUID,
     *,
     history_score: float | None = None,
-    semantic_scores: Mapping[str, int] | None = None,
+    semantic_scores: Mapping[str, int | None] | None = None,
 ) -> MatchCandidate:
     """Score a normal single- or multi-entry candidate against one transaction."""
     return await _calculate_candidate_score(
@@ -155,7 +171,7 @@ async def score_group(
     *,
     group_amount: Decimal,
     history_score: float | None = None,
-    semantic_scores: Mapping[str, int] | None = None,
+    semantic_scores: Mapping[str, int | None] | None = None,
 ) -> MatchCandidate:
     """Score a many-transactions-to-one-entry candidate with its group total."""
     return await _calculate_candidate_score(
@@ -259,19 +275,28 @@ async def _resolve_semantic_scores(
     prompts: Sequence[str],
     *,
     max_concurrency: int = 5,
-) -> dict[str, int]:
-    """Evaluate unique semantic prompts concurrently outside database transactions."""
+) -> dict[str, int | None]:
+    """Evaluate unique semantic prompts concurrently outside database transactions.
+
+    A prompt whose model call failed maps to None. Any other error is a bug: it cancels the other calls and leaves.
+    """
     unique_prompts = list(dict.fromkeys(prompts))
     if not unique_prompts:
         return {}
     semaphore = asyncio.Semaphore(max(1, max_concurrency))
 
-    async def _evaluate(prompt: str) -> tuple[str, int]:
+    async def _evaluate(prompt: str) -> tuple[str, int | None]:
         async with semaphore:
-            return prompt, await ai_semantic_score(prompt)
+            score, _unavailable = await _score_or_none(prompt)
+            return prompt, score
 
-    pairs = await asyncio.gather(*(_evaluate(prompt) for prompt in unique_prompts))
-    return dict(pairs)
+    try:
+        async with asyncio.TaskGroup() as group:
+            tasks = [group.create_task(_evaluate(prompt)) for prompt in unique_prompts]
+    except BaseExceptionGroup as failure:
+        # One error of the group is the error of the run: re-raise it as it is, so that a caller sees its type.
+        raise failure.exceptions[0] from None
+    return dict(task.result() for task in tasks)
 
 
 async def accepted_transfer_txn_ids(db: AsyncSession, txn_ids: Sequence[UUID]) -> set[UUID]:
@@ -354,7 +379,7 @@ async def execute_matching(
         pattern_score_cache[token] = score
         return score
 
-    semantic_scores: dict[str, int] | None = None
+    semantic_scores: dict[str, int | None] | None = None
     if config.enable_ai_reconciliation:
         history_scores = {txn.id: await get_cached_pattern_score(txn) for txn in transactions}
         prompts = _collect_ambiguous_semantic_prompts(
@@ -365,13 +390,7 @@ async def execute_matching(
             history_scores=history_scores,
         )
         if prompts:
-            if (
-                release_session_for_llm
-                and repository is None
-                and not db.new
-                and not db.dirty
-                and not db.deleted
-            ):
+            if release_session_for_llm and repository is None and not db.new and not db.dirty and not db.deleted:
                 await db.rollback()
                 semantic_scores = await _resolve_semantic_scores(prompts)
                 transactions = await repo.list_pending_transactions(user_id, limit)
@@ -475,7 +494,7 @@ async def execute_matching(
             threshold=85,
             exclude_entry_ids=paired_ids,
         )
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - the pairing runs after the matches are durable; the failure is an ERROR below
         logger.error(
             "Failed to auto-pair transfers",
             user_id=str(user_id),

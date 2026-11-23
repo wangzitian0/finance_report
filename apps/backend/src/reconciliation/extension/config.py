@@ -76,7 +76,7 @@ def load_reconciliation_config(force_reload: bool = False) -> ReconciliationConf
                         )
                     ),
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - an unreadable file gives the defaults, and the warning names the file
                 logger.warning(
                     "Failed to load reconciliation config - using defaults",
                     config_path=str(config_path),

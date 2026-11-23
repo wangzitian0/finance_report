@@ -7,6 +7,7 @@ from pydantic_ai.exceptions import ModelHTTPError
 from infra2_sdk.runtime import DecodingSpec
 from pydantic_ai import BinaryContent
 
+from src.llm import ModelCallFailed, ModelFailureKind
 from src.llm.extension.agent import CallSite, complete_text, stream_text, to_user_content
 
 DECODING = DecodingSpec("test.v1", thinking=False, timeout=5.0)
@@ -97,9 +98,12 @@ async def test_a_model_error_does_not_carry_the_prompt_or_the_provider_body(fake
         )
 
     fake_llm(fail)
-    with pytest.raises(ModelHTTPError) as raised:
+    with pytest.raises(ModelCallFailed) as raised:
         await complete_text(SITE, "small", "SECRET-ACCOUNT-1234", decoding=DECODING, max_attempts=1)
-    assert "SECRET-ACCOUNT-1234" not in str(raised.value) and "429" in str(raised.value)
+    error = raised.value
+    assert error.kind is ModelFailureKind.RATE_LIMIT and "429" in str(error)
+    # Neither the message of the error nor the text of its cause holds the prompt.
+    assert "SECRET-ACCOUNT-1234" not in str(error) and "SECRET-ACCOUNT-1234" not in str(error.__cause__)
 
 
 def test_a_file_part_with_a_bad_payload_is_refused_not_turned_into_an_empty_document() -> None:

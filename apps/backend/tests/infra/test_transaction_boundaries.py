@@ -95,18 +95,20 @@ async def test_external_io_inside_open_app_transaction_raises_and_ingestion_pass
     from src.extraction.base.validation import split_multi_account_extraction
     from src.extraction.extension.service import ExtractionService
     from src.runtime.extension.storage import StorageService
+    from tests._support.guards import UnexpectedExternalIO, acknowledge_violations
     from tests.conftest import active_guarded_app_transactions
     from tests.extraction._statement_run_helpers import create_test_run
 
     maker = get_session_maker()
     async with maker() as open_session:
         await open_session.execute(text("SELECT 1"))
-        with pytest.raises(RuntimeError, match="External I/O attempted while an application AsyncSession transaction is open"):
+        with pytest.raises(UnexpectedExternalIO, match="External I/O attempted while an application AsyncSession transaction is open"):
             StorageService("test-bucket")._run_s3(lambda: b"", log_msg="probe", err_msg="err")
         async with httpx.AsyncClient() as http_client:
-            with pytest.raises(RuntimeError, match="External I/O attempted while an application AsyncSession transaction is open"):
+            with pytest.raises(UnexpectedExternalIO, match="External I/O attempted while an application AsyncSession transaction is open"):
                 await http_client.get("https://example.com/")
         await open_session.rollback()
+    assert len(acknowledge_violations()) == 2
 
     pdf_bytes = b"%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n"
     file_hash = hashlib.sha256(pdf_bytes).hexdigest()

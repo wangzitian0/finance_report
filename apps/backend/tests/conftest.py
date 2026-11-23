@@ -32,7 +32,10 @@ def active_guarded_app_transactions(*, task_scoped: bool = True) -> int:
 
 def _assert_no_open_app_txn(operation: str) -> None:
     if active_guarded_app_transactions(task_scoped=True) > 0:
-        raise RuntimeError(
+        from tests._support.guards import UnexpectedExternalIO, record_violation
+
+        record_violation(operation)
+        raise UnexpectedExternalIO(
             f"External I/O attempted while an application AsyncSession transaction is open ({operation})"
         )
 
@@ -40,6 +43,8 @@ def _assert_no_open_app_txn(operation: str) -> None:
 @pytest.fixture(autouse=True)
 def _guard_external_io_during_open_transaction():
     from functools import wraps
+
+    from tests._support.guards import acknowledge_violations, fail_on_unacknowledged_violations
     from src.llm.extension import client as llm_client
     from src.runtime.extension.storage import StorageService
 
@@ -87,7 +92,9 @@ def _guard_external_io_during_open_transaction():
         patch.object(StorageService, "_run_s3", guarded_run_s3),
         patch.object(AsyncClient, "send", guarded_httpx_send),
     ):
+        acknowledge_violations()
         yield
+    fail_on_unacknowledged_violations()
 def pytest_addoption(parser): parser.addoption('--llm-record', action='store_true', default=False, help='Re-record LLM cassettes (layer refresh knob; real provider call + write cassette).')
 def pytest_configure(config):
     os.environ.setdefault('LLM_CASSETTE_ENGAGE', '1')

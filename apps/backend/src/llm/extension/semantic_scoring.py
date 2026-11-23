@@ -24,9 +24,9 @@ from __future__ import annotations
 import json
 
 from infra2_sdk.runtime import DecodingSpec
-from pydantic_ai.exceptions import AgentRunError
 
-from src.llm.extension.agent import CallSite, complete_text
+from src.llm.base.errors import ModelFailureKind
+from src.llm.extension.agent import CallSite, complete_text, model_call_failed
 from src.observability import get_logger
 
 logger = get_logger(__name__)
@@ -38,27 +38,21 @@ _DECODING = DecodingSpec("reconciliation.semantic_score.v1", thinking=False, tim
 async def ai_semantic_score(prompt: str) -> int:
     """Send ``prompt`` to the small model; return a 0-100 score.
 
-    ``prompt`` must instruct the model to reply with a JSON object carrying a
-    ``similarity_score`` field (0-100); this function parses and clamps that
-    field. Falls back to 50 (neutral) on any error: a provider failure, an empty
-    response, or malformed JSON never blocks the caller.
+    ``prompt`` must instruct the model to reply with a JSON object carrying a ``similarity_score`` field (0-100);
+    this function parses and clamps that field.
+
+    Raises ``ModelCallFailed`` when the model gives no score: a failed call, an empty reply, a reply that is not
+    the JSON object, or an object without the field. There is no neutral score: a caller that cannot use the
+    model decides what its result is, and a score of 50 always means that the model said 50.
     """
+    content = await complete_text(CallSite.RECONCILIATION_SEMANTIC_SCORE, "small", prompt, decoding=_DECODING)
     try:
-        content = await complete_text(
+        score = int(json.loads(content)["similarity_score"])
+    except (ValueError, TypeError, KeyError, AttributeError, OverflowError) as exc:
+        raise model_call_failed(
             CallSite.RECONCILIATION_SEMANTIC_SCORE,
-            "small",
-            prompt,
-            decoding=_DECODING,
-        )
-        if not content or not content.strip():
-            logger.warning("AI semantic score returned empty response")
-            return 50
-        score = int(json.loads(content).get("similarity_score", 50))
-        logger.debug("AI semantic score computed", score=score)
-        return max(0, min(100, score))
-    except (AgentRunError, json.JSONDecodeError, ValueError, TypeError, KeyError) as exc:
-        # A model failure (the SDK redacted its text: class, HTTP status, provider code), a missing key or an
-        # unsupported provider (ValueError), or a reply that is not the expected JSON. Any other error, such as
-        # the guard of the tests against a model call inside an open transaction, is not a fallback case.
-        logger.warning("AI semantic score failed, using fallback", error=str(exc)[:300], error_type=type(exc).__name__)
-        return 50
+            ModelFailureKind.BAD_REPLY,
+            f"the reply holds no similarity_score ({type(exc).__name__}, {len(content)} characters)",
+        ) from exc
+    logger.debug("AI semantic score computed", score=score)
+    return max(0, min(100, score))

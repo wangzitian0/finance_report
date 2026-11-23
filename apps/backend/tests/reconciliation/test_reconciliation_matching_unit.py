@@ -523,3 +523,88 @@ async def test_execute_matching_deduplicates_and_runs_ambiguous_prompts_concurre
     monkeypatch.setattr(matching_mod, "ai_semantic_score", bounded_ai_semantic)
     resolved = await matching_mod._resolve_semantic_scores(["p1", "p2", "p3", "p4", "p1"], max_concurrency=2)
     assert len(resolved) == 4 and cap_max <= 2 and cap_max == 2
+
+
+
+async def _ambiguous_matching(db: AsyncSession, monkeypatch, fake_ai_semantic):
+    """One ambiguous candidate (the algorithmic total is 75): run the matching with the given model function."""
+    from src.reconciliation.extension import matching as matching_mod
+
+    uid = (await UserFactory.create_async(db)).id
+    exp = await AccountFactory.create_async(db, user_id=uid, name="Ambiguous Exp", type=AccountType.EXPENSE)
+    await _seed_scenario(
+        db,
+        uid,
+        txn_desc="Alpha ZZZ",
+        txn_amount="100.00",
+        txn_date=date(2024, 1, 10),
+        pair_specs=[("100.00", "QQQ")],
+        credit_account=exp,
+    )
+    monkeypatch.setattr(matching_mod, "ai_semantic_score", fake_ai_semantic)
+    monkeypatch.setattr(matching_mod, "load_reconciliation_config", lambda: _cfg(enable_ai_reconciliation=True))
+    return uid
+
+
+async def test_a_failed_model_call_keeps_the_algorithmic_score_and_says_so(db: AsyncSession, monkeypatch) -> None:
+    """A failed call must not be blended in as a score of 50: that changed a decision as if the model had judged."""
+    from src.llm import ModelCallFailed, ModelFailureKind
+
+    async def failing(_prompt: str) -> int:
+        raise ModelCallFailed(ModelFailureKind.UNAVAILABLE, "ModelServerError (http=500)")
+
+    uid = await _ambiguous_matching(db, monkeypatch, failing)
+    matches = await execute_matching(db, user_id=uid, currency="SGD", release_session_for_llm=True)
+    assert len(matches) == 1 and matches[0].match_score == 75
+    assert matches[0].score_breakdown["ai_semantic_unavailable"] == 1.0
+    assert "hybrid_applied" not in matches[0].score_breakdown and "ai_semantic" not in matches[0].score_breakdown
+
+
+async def test_a_model_score_of_50_is_blended_and_is_not_marked_unavailable(db: AsyncSession, monkeypatch) -> None:
+    async def says_fifty(_prompt: str) -> int:
+        return 50
+
+    uid = await _ambiguous_matching(db, monkeypatch, says_fifty)
+    matches = await execute_matching(db, user_id=uid, currency="SGD", release_session_for_llm=True)
+    assert matches[0].match_score == 68
+    assert matches[0].score_breakdown["ai_semantic"] == 50.0 and matches[0].score_breakdown["hybrid_applied"] == 1.0
+    assert "ai_semantic_unavailable" not in matches[0].score_breakdown
+
+
+async def test_an_error_that_is_not_a_model_failure_leaves_the_matching_run(db: AsyncSession, monkeypatch) -> None:
+    """A bug is not a fallback case: it leaves with its own type, and no sibling call goes on."""
+
+    async def buggy(_prompt: str) -> int:
+        raise ZeroDivisionError("a bug")
+
+    uid = await _ambiguous_matching(db, monkeypatch, buggy)
+    with pytest.raises(ZeroDivisionError):
+        await execute_matching(db, user_id=uid, currency="SGD", release_session_for_llm=True)
+
+
+async def test_resolve_semantic_scores_maps_a_failed_prompt_to_none_and_stops_siblings_on_a_bug(monkeypatch) -> None:
+    from src.llm import ModelCallFailed, ModelFailureKind
+    from src.reconciliation.extension import matching as matching_mod
+
+    async def partly_failing(prompt: str) -> int:
+        if prompt == "p2":
+            raise ModelCallFailed(ModelFailureKind.RATE_LIMIT, "ModelRateLimitError (http=429)")
+        return 80
+
+    monkeypatch.setattr(matching_mod, "ai_semantic_score", partly_failing)
+    assert await matching_mod._resolve_semantic_scores(["p1", "p2", "p3"]) == {"p1": 80, "p2": None, "p3": 80}
+
+    finished: list[str] = []
+
+    async def bug_then_slow(prompt: str) -> int:
+        if prompt == "bug":
+            raise ZeroDivisionError("a bug")
+        await asyncio.sleep(0.5)
+        finished.append(prompt)
+        return 80
+
+    monkeypatch.setattr(matching_mod, "ai_semantic_score", bug_then_slow)
+    with pytest.raises(ZeroDivisionError):
+        await matching_mod._resolve_semantic_scores(["slow1", "bug", "slow2"])
+    await asyncio.sleep(0.6)
+    assert finished == []
