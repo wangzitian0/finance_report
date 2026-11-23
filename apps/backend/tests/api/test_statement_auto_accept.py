@@ -21,7 +21,6 @@ from src.extraction.extension.statement_posting import try_auto_approve_high_con
 from src.extraction.extension.transaction_classification import CategoryProposal
 from src.extraction.orm.layer3 import TransactionClassification
 from src.ledger import PROCESSING_ACCOUNT_CODE, Account, Direction, JournalEntry
-from src.llm import AIStreamError
 from src.reconciliation.orm.reconciliation import ReconciliationMatch, ReconciliationStatus
 from tests.api._statement_router_fixtures import (
     add_txn,
@@ -29,6 +28,7 @@ from tests.api._statement_router_fixtures import (
     create_statement_with_bank,
     leg_and_entry_for,
 )
+from tests._support.fake_llm import install_fake_model
 from tests.statement_ingestion import classify_statement_rows, classify_transactions
 
 pytestmark = pytest.mark.asyncio
@@ -38,13 +38,11 @@ class _Model:
     def __init__(self, answers: dict[str, tuple[str, int] | None], *, fail: bool = False):
         self.answers, self.fail, self.calls = answers, fail, 0
 
-    def __call__(self, **kwargs):
+    def reply(self, prompt: str) -> str:
         self.calls += 1
         if self.fail:
-            raise AIStreamError("provider down")
-        rows = [
-            json.loads(line) for line in kwargs["messages"][0]["content"].splitlines() if line.startswith('{"index"')
-        ]
+            raise RuntimeError("provider down")
+        rows = [json.loads(line) for line in prompt.splitlines() if line.startswith('{"index"')]
         items = [
             {"index": row["index"]}
             if self.answers[row["description"]] is None
@@ -56,11 +54,7 @@ class _Model:
             }
             for row in rows
         ]
-
-        async def stream():
-            yield json.dumps(items)
-
-        return stream()
+        return json.dumps(items)
 
 
 @pytest.fixture(autouse=True)
@@ -72,7 +66,7 @@ def _automatic_path(monkeypatch):
 
 async def _install_and_classify(db, monkeypatch, statement, answers, *, fail: bool = False):
     model = _Model(answers, fail=fail)
-    monkeypatch.setattr("src.llm.stream_ai_json", model)
+    install_fake_model(monkeypatch, model.reply)
     await classify_statement_rows(db, statement)
     await db.commit()
     return model
@@ -135,7 +129,7 @@ async def test_outage_setting_off_and_observe_mode_do_not_post(
         if case == "outage"
         else _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90)} if case == "observe" else {"Lunch": ("DINING", 66)})
     )
-    monkeypatch.setattr("src.llm.stream_ai_json", model)
+    install_fake_model(monkeypatch, model.reply)
     if case == "outage":
         await classify_statement_rows(db, statement)
         await db.commit()
@@ -256,7 +250,7 @@ async def test_high_confidence_statement_posts_when_parsed(db, test_user, monkey
     lunch = await add_txn(
         db, statement, txn_date=date(2025, 1, 4), description="Lunch", amount=Decimal("15.00"), direction="OUT"
     )
-    monkeypatch.setattr("src.llm.stream_ai_json", _Model({"Lunch": ("DINING", 66)}))
+    install_fake_model(monkeypatch, _Model({"Lunch": ("DINING", 66)}).reply)
     await classify_statement_rows(db, statement)
 
     assert (
@@ -298,7 +292,7 @@ async def test_leg_survives_review_stop_and_only_fill_posts_the_rest(client: Asy
     ).scalars().all() == [wallet.id]
 
     answering = _Model({"Payment to GrabPay Wallet": ("TRANSFER", 90), "Lunch": ("DINING", 66)})
-    monkeypatch.setattr("src.llm.stream_ai_json", answering)
+    install_fake_model(monkeypatch, answering.reply)
     retry = await client.post(f"/statements/{statement.id}/approvals")
     assert (
         retry.status_code == 409

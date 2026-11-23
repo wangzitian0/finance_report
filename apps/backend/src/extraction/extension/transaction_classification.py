@@ -400,22 +400,26 @@ async def _propose_batch(
     hints: RunHints | None = None,
     few_shot_examples: Sequence[Mapping[str, object]] = (),
 ) -> list[CategoryProposal | None]:
-    from src.llm import AIStreamError, accumulate_stream, stream_ai_json
+    from infra2_sdk.runtime import DecodingSpec
+
+    from src.llm.extension.agent import CallSite, complete_text
 
     prompt = build_classification_prompt(transactions, policy, hints=hints, few_shot_examples=few_shot_examples)
 
     try:
-        stream = stream_ai_json(
-            messages=[{"role": "user", "content": prompt}],
-            model=settings.small_model,
-            timeout=60.0,
-            user_id=owner,
-            max_tokens=settings.ai_json_max_tokens,
-            temperature=0.0,
-            do_sample=False,
-            thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
+        content = await complete_text(
+            CallSite.CLASSIFICATION_PROPOSE,
+            "small",
+            prompt,
+            decoding=DecodingSpec(
+                "extraction.classification.v1",
+                thinking=False if settings.ai_json_disable_thinking else None,
+                temperature=0.0,
+                max_tokens=settings.ai_json_max_tokens,
+                timeout=60.0,
+            ),
+            extra_body={"do_sample": False},
         )
-        content = await accumulate_stream(stream)
         if not content or not content.strip():
             logger.warning("transaction classification proposal returned empty response")
             return [None] * len(transactions)
@@ -431,8 +435,9 @@ async def _propose_batch(
                 looks_fenced=content.lstrip().startswith("`"),
             )
             return [None] * len(transactions)
-    except (AIStreamError, ValueError, TypeError) as e:
-        # The text of the error can echo a row of the prompt: the log carries the class only.
+    except Exception as e:
+        # A failed batch leaves its rows to review. The SDK redacts the text of a model error; the log still
+        # carries the class only, because a programming error can echo a row of the prompt.
         logger.warning("transaction classification proposal failed", error_type=type(e).__name__)
         return [None] * len(transactions)
 

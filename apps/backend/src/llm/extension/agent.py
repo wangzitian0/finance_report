@@ -65,6 +65,8 @@ class CallSite(StrEnum):
     """The name of a model call site. It is the agent name and the telemetry attribute ``infra.llm.call_site``."""
 
     RECONCILIATION_SEMANTIC_SCORE = "reconciliation.semantic_score"
+    CLASSIFICATION_PROPOSE = "extraction.classification"
+    CSV_COLUMN_MAPPING = "extraction.csv_mapping"
 
 
 def _file_part(part: Mapping[str, Any]) -> BinaryContent:

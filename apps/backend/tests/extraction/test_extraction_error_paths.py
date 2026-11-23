@@ -18,6 +18,7 @@ from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.orm.statement_summary import StatementSummary
 from src.llm import AIStreamError
+from tests._support.fake_llm import install_fake_model
 from tests.extraction._statement_run_helpers import (
     assert_stream_extract_case,
     mock_statement_payload,
@@ -249,7 +250,7 @@ async def test_extract_financial_data_stream_outcomes(
     )
 
 
-async def test_extract_json_timeout_and_ai_csv_empty():
+async def test_extract_json_timeout_and_ai_csv_empty(monkeypatch):
     service = ExtractionService()
     service.api_key = "test-key"
     with (
@@ -259,11 +260,8 @@ async def test_extract_json_timeout_and_ai_csv_empty():
         await service._extract_json_with_model(
             messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
         )
-    with (
-        patch("src.extraction.extension._csv.stream_ai_json"),
-        patch("src.extraction.extension._csv.accumulate_stream", new_callable=AsyncMock, return_value="  "),
-        pytest.raises(ExtractionError, match="AI CSV mapping returned empty response"),
-    ):
+    install_fake_model(monkeypatch, "  ")
+    with pytest.raises(ExtractionError, match="AI CSV mapping returned empty response"):
         await service._ai_parse_csv(
             headers=["Date", "Description", "Amount"],
             rows=[{"Date": "2026-01-01", "Description": "Test", "Amount": "1.00"}],

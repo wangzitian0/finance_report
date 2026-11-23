@@ -142,7 +142,6 @@ from src.ledger.extension.account_service import (
     get_or_create_opening_balance_equity_account,
     get_or_create_unexplained_gap_equity_account,
 )
-from src.llm import AIStreamError
 from src.platform import DomainError
 from src.pricing import FxRate, PricingError
 from src.reporting.extension.balance_sheet import generate_balance_sheet
@@ -153,6 +152,7 @@ from src.routers.statements import get_review_conflicts
 from src.runtime import StorageError
 from src.runtime.extension import storage_sweep
 from src.schemas.reconciliation import ConsistencyCheckRunRequest, ReconciliationRunRequest
+from tests._support.fake_llm import install_fake_model
 from tests.api._statement_router_fixtures import approve_reviewed
 from tests.factories import (
     AccountFactory,
@@ -920,7 +920,7 @@ async def draft_via_review_path(db, user, txn, category: str, confidence: int) -
 
 
 def mock_model_answers(monkeypatch, items: list[dict]) -> None:
-    monkeypatch.setattr("src.llm.stream_ai_json", lambda **_kwargs: fake_stream(json.dumps(items)))
+    install_fake_model(monkeypatch, json.dumps(items))
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
 
 
@@ -1999,26 +1999,22 @@ async def verify_two_writers_keyword_rule_serialize(db, test_user) -> None:
 async def verify_provider_no_call_at_approve(client, db, test_user, monkeypatch) -> None:
     provider_calls: list[int] = []
 
-    def stream_ai_json(**kwargs):
-        lines = [
-            json.loads(line) for line in kwargs["messages"][0]["content"].splitlines() if line.startswith('{"index"')
-        ]
+    def reply(prompt: str) -> str:
+        lines = [json.loads(line) for line in prompt.splitlines() if line.startswith('{"index"')]
         provider_calls.append(len(lines))
-        return fake_stream(
-            json.dumps(
-                [
-                    {
-                        "index": line["index"],
-                        "category": EXTENDED_ANSWERS[line["description"].split()[0]][0].value,
-                        "confidence": EXTENDED_ANSWERS[line["description"].split()[0]][1],
-                        "reason": "fixture",
-                    }
-                    for line in lines
-                ]
-            )
+        return json.dumps(
+            [
+                {
+                    "index": line["index"],
+                    "category": EXTENDED_ANSWERS[line["description"].split()[0]][0].value,
+                    "confidence": EXTENDED_ANSWERS[line["description"].split()[0]][1],
+                    "reason": "fixture",
+                }
+                for line in lines
+            ]
         )
 
-    monkeypatch.setattr("src.llm.stream_ai_json", stream_ai_json)
+    install_fake_model(monkeypatch, reply)
     rows = make_rows(8)
     statement_id = await ingest_csv_statement(db, test_user.id, "provider.csv", rows)
     assert provider_calls == [8]
@@ -3358,10 +3354,12 @@ async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeyp
         ),
     )
     if failure == "provider-error":
-        monkeypatch.setattr(
-            "src.llm.stream_ai_json",
-            lambda **_kw: (provider_calls.append(1), (_ for _ in ()).throw(AIStreamError("provider down")))[1],
-        )
+
+        def provider_down(_prompt: str) -> str:
+            provider_calls.append(1)
+            raise RuntimeError("provider down")
+
+        install_fake_model(monkeypatch, provider_down)
     else:
         install_proposer(monkeypatch, failing)
     rows = make_rows(6)

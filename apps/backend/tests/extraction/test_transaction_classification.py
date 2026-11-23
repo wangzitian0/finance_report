@@ -15,7 +15,8 @@ from src.extraction.extension import transaction_classification as tc
 from src.extraction.extension.transaction_classification import POLICY_VERSIONS, CategoryProposal, TransactionCategory, classification_suggestions, policy_for, propose_categories
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, AccountType
-from tests.extraction._statement_run_helpers import _count, fake_stream as _fake_stream, make_classification_policy as _policy, stub_proposer as _stub_proposer, verify_no_classify_writer_uninvoked
+from tests._support.fake_llm import install_fake_model
+from tests.extraction._statement_run_helpers import _count, make_classification_policy as _policy, stub_proposer as _stub_proposer, verify_no_classify_writer_uninvoked
 from tests.factories import AtomicTransactionFactory
 from tests.statement_ingestion import classify_transactions
 
@@ -127,18 +128,18 @@ async def test_AC18_15_3_proposer_parsing_clamping_recovery_and_non_pnl_prompts(
     ]
     for api_key, raw, expected in cases:
         monkeypatch.setattr(settings, "ai_api_key", api_key)
-        monkeypatch.setattr("src.llm.stream_ai_json", lambda *_a, r=raw, **_kw: _fake_stream(r))
+        install_fake_model(monkeypatch, raw)
         txns = [AtomicTransactionFactory.build(user_id=None, description=d) for d in (["ACME PAYROLL", "???"] if len(expected) == 2 else ["ACME PAYROLL"])]
         assert [None if p is None else (p.category, p.confidence) for p in await tc.propose_categories(txns, policy_for(date.today()))] == expected
 
     seen: list[str] = []
 
-    async def fake_stream(messages, model, **_kwargs):
-        seen.append(messages[0]["content"])
-        yield json.dumps([{"index": 0, "category": "TRANSFER", "confidence": 90, "reason": "own account"}])
+    def reply(prompt: str) -> str:
+        seen.append(prompt)
+        return json.dumps([{"index": 0, "category": "TRANSFER", "confidence": 90, "reason": "own account"}])
 
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
-    monkeypatch.setattr("src.llm.stream_ai_json", fake_stream)
+    install_fake_model(monkeypatch, reply)
     proposals = await propose_categories([AtomicTransactionFactory.build(description="Funds transfer between own accounts")], policy_for(date(2026, 6, 1)))
     assert [p.category for p in proposals if p] == ["TRANSFER"] and all(s in seen[0] for s in (*NON_PNL_NAMES, "Do NOT wrap it in markdown or code fences", "ONLY the raw JSON array", "between the user's own accounts", "OTHER_INCOME or OTHER_EXPENSE only"))
 

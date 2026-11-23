@@ -12,9 +12,7 @@ from typing import Any
 from src.extraction.extension._base import (
     ExtractionError,
     _tolerant_parse_date,
-    accumulate_stream,
     logger,
-    stream_ai_json,
 )
 from src.extraction.extension.brokerage_positions import (
     UnsupportedBrokerageCsvError,
@@ -231,7 +229,7 @@ def _append_bank_csv_rows(
     period_end: date | None = None
 
     for row in rows:
-        date_raw = (row.get(cols.date, "") if cols.date else "")
+        date_raw = row.get(cols.date, "") if cols.date else ""
         if emit_skip_warnings:
             date_raw = date_raw.strip()
         if profile.date_time_split and "T" in date_raw:
@@ -492,7 +490,11 @@ class _CsvMixin:
 
         used_ai_mapping = False
         if not transactions:
-            logger.info("No transactions from heuristic parsing, trying AI CSV mapping", institution=institution, headers=headers)
+            logger.info(
+                "No transactions from heuristic parsing, trying AI CSV mapping",
+                institution=institution,
+                headers=headers,
+            )
             try:
                 transactions, period_start, period_end = await self._ai_parse_csv(
                     headers, rows, institution, parse_date, parse_amount
@@ -507,7 +509,9 @@ class _CsvMixin:
                 )
 
         if not transactions:
-            logger.warning("CSV parsing found no valid transactions", institution=institution, headers=headers, row_count=len(rows))
+            logger.warning(
+                "CSV parsing found no valid transactions", institution=institution, headers=headers, row_count=len(rows)
+            )
             raise ExtractionError(f"No valid transactions found in CSV for {institution}")
 
         logger.info(
@@ -556,8 +560,16 @@ class _CsvMixin:
 
         sample_rows = [[row.get(h, "") for h in headers] for row in rows[:5]]
         prompt = build_csv_mapping_prompt(headers, sample_rows)
-        stream = stream_ai_json(messages=[{"role": "user", "content": prompt}], model=self.small_model, timeout=30.0)
-        content = await accumulate_stream(stream)
+        from infra2_sdk.runtime import DecodingSpec
+
+        from src.llm.extension.agent import CallSite, complete_text
+
+        content = await complete_text(
+            CallSite.CSV_COLUMN_MAPPING,
+            "small",
+            prompt,
+            decoding=DecodingSpec("extraction.csv_mapping.v1", thinking=False, timeout=30.0),
+        )
         if not content or not content.strip():
             raise ExtractionError("AI CSV mapping returned empty response")
 

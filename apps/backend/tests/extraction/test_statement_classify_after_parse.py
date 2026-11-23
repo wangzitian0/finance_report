@@ -18,6 +18,7 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import AccountType
+from tests._support.fake_llm import install_fake_model
 from tests.extraction._statement_run_helpers import (
     EXTENDED_ANSWERS as ANSWERS,
     Proposer,
@@ -180,12 +181,7 @@ async def test_AC_extraction_statement_classify_4_5_empty_unresolvable_and_revie
 async def test_AC_extraction_2813_3_propose_batch_pins_deterministic_decode(db, test_user, monkeypatch):
     from src.extraction.extension.transaction_classification import POLICY_VERSIONS, _propose_batch
 
-    captured: dict = {}
-
-    async def _stream():
-        yield '[{"index": 0, "category": "DINING", "confidence": 92, "reason": "coffee"}]'
-
-    monkeypatch.setattr("src.llm.stream_ai_json", lambda **kw: (captured.update(kw), _stream())[1])
+    sent = install_fake_model(monkeypatch, '[{"index": 0, "category": "DINING", "confidence": 92, "reason": "coffee"}]')
     dummy = AtomicTransaction(id=uuid4(), user_id=test_user.id, txn_date=date(2026, 1, 2), amount=Decimal("12.50"), direction=TransactionDirection.OUT, description="Coffee 000", currency="SGD", dedup_hash="a" * 64, source_documents=[])
     proposals = await _propose_batch([dummy], POLICY_VERSIONS[-1], test_user.id)
-    assert proposals[0] is not None and proposals[0].category == "DINING" and (captured.get("temperature"), captured.get("do_sample"), captured.get("max_tokens"), "thinking" in captured) == (0.0, False, settings.ai_json_max_tokens, True)
+    assert proposals[0] is not None and proposals[0].category == "DINING" and (sent.decodings[0].temperature, sent.extra_bodies[0], sent.decodings[0].thinking) == (0.0, {"do_sample": False, "max_tokens": settings.ai_json_max_tokens}, False)

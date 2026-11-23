@@ -12,6 +12,7 @@ from src.extraction.base.result import StatementExtractionResult
 from src.extraction.base.reviewed_statement_envelope import supports_reviewed_statement_envelope
 from src.extraction.base.types import DocumentSource
 from src.extraction.extension.service import ExtractionService
+from tests._support.fake_llm import install_fake_model
 
 DECLARED_HEADER = "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
 RECONCILED = f"{DECLARED_HEADER}\nSGD,2025-01-01,2025-01-31,100.00,125.00,2025-01-15,Interest,25.00\n"
@@ -75,15 +76,14 @@ async def test_AC_extraction_2504_1_and_2822_1_csv_balance_and_confidence() -> N
     )
 
 
-async def test_ai_csv_parsing_variants() -> None:
+async def test_ai_csv_parsing_variants(monkeypatch: pytest.MonkeyPatch) -> None:
     svc = ExtractionService()
     ai_map = '{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit", "balance": "Balance", "reference": null, "currency": null, "date_format": "%d/%m/%Y", "has_header": true, "institution_guess": "Unknown Bank"}'
     csv1 = b"Txn Date,Narration,Debit,Credit,Balance\n15/01/2025,Coffee Shop,25.00,,975.00\n16/01/2025,Salary,,3000.00,3975.00\n"
+    install_fake_model(monkeypatch, ai_map)
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
-        patch("src.extraction.extension._csv.accumulate_stream", AsyncMock(return_value=ai_map)),
     ):
         res1 = await svc._parse_csv_content(csv1, "UnknownBank")
     assert (
@@ -101,16 +101,13 @@ async def test_ai_csv_parsing_variants() -> None:
         {"Txn Date": "16/01/2025", "Narration": "Empty Amount", "Amount": ""},
         {"Txn Date": "17/01/2025", "Narration": "Refund", "Amount": "-4.50"},
     ]
+    install_fake_model(
+        monkeypatch,
+        '{"date": "Txn Date", "description": "Narration", "amount": "Amount", "debit": null, "credit": null}',
+    )
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
-        patch(
-            "src.extraction.extension._csv.accumulate_stream",
-            AsyncMock(
-                return_value='{"date": "Txn Date", "description": "Narration", "amount": "Amount", "debit": null, "credit": null}'
-            ),
-        ),
     ):
         t1, ps, pe = await svc._ai_parse_csv(
             headers=["Txn Date", "Narration", "Amount"],
@@ -125,16 +122,13 @@ async def test_ai_csv_parsing_variants() -> None:
         {"Txn Date": "15/01/2025", "Narration": "No Amount", "Debit": "", "Credit": ""},
         {"Txn Date": "16/01/2025", "Narration": "Salary", "Debit": "", "Credit": "3000.00"},
     ]
+    install_fake_model(
+        monkeypatch,
+        '{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit"}',
+    )
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
-        patch(
-            "src.extraction.extension._csv.accumulate_stream",
-            AsyncMock(
-                return_value='{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit"}'
-            ),
-        ),
     ):
         t2, _, _ = await svc._ai_parse_csv(
             headers=["Txn Date", "Narration", "Debit", "Credit"],
@@ -155,10 +149,13 @@ async def test_ai_csv_parsing_variants() -> None:
         res_dbs["transactions"][1]["direction"],
     ) == (1, "IN", 2, "OUT", "IN")
 
+    def provider_down(_prompt: str) -> str:
+        raise RuntimeError("API error")
+
+    install_fake_model(monkeypatch, provider_down)
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        patch("src.extraction.extension._csv.stream_ai_json", MagicMock(side_effect=Exception("API error"))),
         pytest.raises(Exception, match="No valid transactions found"),
     ):
         await svc._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")

@@ -43,6 +43,7 @@ from src.extraction.extension.transaction_classification import (
     build_classification_prompt,
     classification_template_fingerprint,
 )
+from tests._support.fake_llm import install_fake_model
 from tests.api._statement_router_fixtures import create_statement_account
 from tests.extraction._statement_run_helpers import ScriptedModel, _runs, _statement, _worker
 from tests.extraction.test_statement_classify_run import ANSWERS, _answers, _install, _model_on, _rows, _run, _seed  # noqa: F401
@@ -81,8 +82,7 @@ class HintsModel(ScriptedModel):
 def _capturing_provider(monkeypatch, *, empty: bool = False) -> list[str]:
     prompts: list[str] = []
 
-    def stream_ai_json(**kwargs):
-        content = kwargs["messages"][0]["content"]
+    def reply(content: str) -> str:
         prompts.append(content)
         items = (
             []
@@ -97,13 +97,9 @@ def _capturing_provider(monkeypatch, *, empty: bool = False) -> list[str]:
                 for line in (json.loads(ln) for ln in content.splitlines() if ln.startswith('{"index"'))
             ]
         )
+        return json.dumps(items)
 
-        async def stream():
-            yield json.dumps(items)
-
-        return stream()
-
-    monkeypatch.setattr("src.llm.stream_ai_json", stream_ai_json)
+    install_fake_model(monkeypatch, reply)
     return prompts
 
 
