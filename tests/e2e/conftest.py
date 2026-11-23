@@ -41,7 +41,7 @@ class TestConfig:
         os.getenv("APP_URL") or os.getenv("FRONTEND_URL") or "http://localhost:3000"
     )
     TEST_ENV = os.getenv("TEST_ENV", "staging").lower()
-    EXPECTED_SHA = expected_version_from_env()
+    EXPECTED_VERSION = expected_version_from_env()
     HEADLESS = os.getenv("HEADLESS", "true").lower() == "true"
     TIMEOUT_MS = int(os.getenv("TIMEOUT_MS", "30000"))
     SLOW_MO = int(os.getenv("SLOW_MO", "0"))
@@ -59,7 +59,7 @@ def is_strict_or_ci() -> bool:
 def pytest_sessionstart(session) -> None:
     if is_strict_or_ci() and TestConfig.TEST_ENV != "local":
         verify_session_target(
-            session, app_url=TestConfig.APP_URL, expected_sha=TestConfig.EXPECTED_SHA
+            session, app_url=TestConfig.APP_URL, expected_sha=TestConfig.EXPECTED_VERSION
         )
 
 

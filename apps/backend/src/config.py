@@ -5,7 +5,7 @@ from functools import cached_property
 from typing import Any, Literal
 
 from infra2_sdk.runtime.llm import LlmSettings
-from pydantic import AliasChoices, Field, field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (
     BaseSettings,
@@ -54,7 +54,7 @@ secret_key|sec|i|Application secret key. CRITICAL: must be set to a secure rando
 jwt_algorithm|sec||JWT signing algorithm.
 access_token_expire_minutes|sec||Access token lifetime in minutes.
 trust_proxy|sec||Trust X-Forwarded-For headers from reverse proxies.
-ai_provider|ai|i,ac:LLM_PROVIDER|AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults).
+ai_provider|ai|i,al:LLM_PROVIDER|AI provider id. Required for document extraction and the AI advisor (Z.AI/GLM defaults).
 ai_api_key|ai|i,al:LLM_API_KEY|AI provider API key (empty key = AI features disabled).
 environment|app|i|Logical environment name (used to differentiate environments).
 debug|app|na|Enable debug mode.
@@ -66,11 +66,11 @@ redis_url|app||Optional Redis URL for staging/production background coordination
 next_public_app_url|app|i|Backend reference to the frontend URL; should match the frontend NEXT_PUBLIC_APP_URL and is used by backend components when they link back to the frontend app.
 cors_origins_str|sec|i,al:CORS_ORIGINS|Comma-separated CORS origins, e.g. http://localhost:3000,http://localhost:3001.
 cors_origin_regex|sec|na|CORS origin regex for dynamic subdomains (PR deployments and staging).
-ai_base_url|ai|ac:LLM_BASE_URL|AI provider base URL (provider-neutral; default targets Z.AI/GLM).
+ai_base_url|ai|al:LLM_BASE_URL|AI provider base URL (provider-neutral; default targets Z.AI/GLM).
 ai_chat_completions_path|ai||Chat completions path appended to the AI base URL.
-large_model|ai||Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production.
-small_model|ai||Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production.
-multimodal_model|ai||Multimodal-role AI model id for vision and OCR (image, PDF and file input). Unset: the infra2 SDK default; set it only to customize production.
+large_model|ai|al:LLM_LARGE_MODEL|Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production.
+small_model|ai|al:LLM_SMALL_MODEL|Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production.
+multimodal_model|ai|al:LLM_MULTIMODAL_MODEL|Multimodal-role AI model id for vision and OCR (image, PDF and file input). Unset: the infra2 SDK default; set it only to customize production.
 prefect_api_url|ai||EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed).
 ai_json_timeout_seconds|ai||Timeout (seconds) for AI JSON completion calls.
 ai_json_max_tokens|ai||Max tokens for AI JSON completion calls.
@@ -110,16 +110,6 @@ register_rate_limit_window|rl||Per-IP registration rate-limit window in seconds.
     _FIELD_SPECS[_n] = (_GROUPS[_g], set(filter(None, _fl.split(","))), _d)
 
 
-_SDK_LLM_KEY_ALIASES: dict[str, tuple[str, ...]] = {
-    "ai_provider": ("LLM_PROVIDER",),
-    "ai_api_key": ("LLM_API_KEY",),
-    "ai_base_url": ("LLM_BASE_URL",),
-    "large_model": ("LLM_LARGE_MODEL",),
-    "small_model": ("LLM_SMALL_MODEL",),
-    "multimodal_model": ("LLM_MULTIMODAL_MODEL",),
-}
-
-
 def _f(
     name: str, default: Any, *, ex: str | None = None, ge: int | None = None, le: int | None = None, **extra: Any
 ) -> Any:
@@ -131,13 +121,8 @@ def _f(
         schema_extra["example"] = ex
     schema_extra.update(extra)
     kw: dict[str, Any] = {"default": default, "description": desc, "json_schema_extra": schema_extra}
-    ac = next((x[3:] for x in flags if x.startswith("ac:")), None)
     al = next((x[3:] for x in flags if x.startswith("al:")), None)
-    if name in _SDK_LLM_KEY_ALIASES:
-        kw["validation_alias"] = AliasChoices(*_SDK_LLM_KEY_ALIASES[name])
-    elif ac is not None:
-        kw["validation_alias"] = AliasChoices(*ac.split("+"))
-    elif al is not None:
+    if al is not None:
         kw["validation_alias"] = al
     elif "na" not in flags:
         kw["validation_alias"] = name.upper()
@@ -150,8 +135,6 @@ def _f(
 
 def _extract_env_candidate_names(field: FieldInfo, field_name: str) -> list[str]:
     alias = field.validation_alias
-    if isinstance(alias, AliasChoices):
-        return [c for c in alias.choices if isinstance(c, str)]
     return [alias] if isinstance(alias, str) else [field_name]
 
 

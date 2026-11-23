@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from pydantic import AliasChoices
 from pydantic_settings import BaseSettings
 
 from src.runtime.base.manifest import DEPENDENCY_MANIFEST, DependencyManifest
@@ -47,8 +46,6 @@ def settings_env_keys(settings_cls: type[BaseSettings], field_name: str) -> froz
     alias = settings_cls.model_fields[field_name].validation_alias
     if alias is None:
         return frozenset({field_name.upper()})
-    if isinstance(alias, AliasChoices):
-        return frozenset(str(choice) for choice in alias.choices)
     return frozenset({str(alias)})
 
 

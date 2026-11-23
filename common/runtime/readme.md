@@ -7,7 +7,7 @@ Owns dependency declarations (`DependencyManifest`), fail-closed probes (`Depend
 1. **Declared => asserted**: Every declared dependency per `EnvTier` has a check, substitute (`code-dominant` light substitute vs `model-dominant` input-keyed CI recording / real staging check), and smoke assertion.
 2. **Absent => fail**: Missing declared dependencies fail `/health` (503) and smoke checks; no `skipped` fallback.
 3. **Prod-required => SLA-bearing**: `DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)` declares mandatory production probes independently of feature flags.
-4. **Empty env vars are values**: Shipped `.env.example` / compose files must not assign empty values in `AliasChoices` chains (`tests/tooling/test_env_empty_value_producers.py`).
+4. **One env name per field**: No `Settings` field declares an alias chain, so an empty value cannot shadow another name (`tests/tooling/test_required_env_manifest.py::test_AC_runtime_env_empty_values_1_no_field_declares_an_alias_chain`).
 
 ## Background Jobs Manifest (`BACKGROUND_JOBS`)
 

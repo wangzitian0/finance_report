@@ -34,7 +34,7 @@ class _Client:
 def _run(monkeypatch: pytest.MonkeyPatch, payload: dict, expected: str) -> None:
     monkeypatch.setattr(module.httpx, "AsyncClient", lambda **_kw: _Client(payload))
     monkeypatch.setattr(module, "resolve_expected_commit", lambda _ref: COMMIT)
-    config = SimpleNamespace(APP_URL="https://report-staging.example", EXPECTED_SHA=expected, TEST_ENV="staging")
+    config = SimpleNamespace(APP_URL="https://report-staging.example", EXPECTED_VERSION=expected, TEST_ENV="staging")
     asyncio.run(module.test_deployed_version_matches_source(config))
 
 
@@ -50,3 +50,13 @@ def test_a_served_short_sha_of_the_tag_commit_matches(monkeypatch: pytest.Monkey
 def test_another_release_fails(monkeypatch: pytest.MonkeyPatch, served: str) -> None:
     with pytest.raises(AssertionError, match="does not match pinned target v0.2.92"):
         _run(monkeypatch, {"git_sha": served, "version": served}, "v0.2.92")
+
+
+def test_the_live_proof_reads_only_app_version_ref(monkeypatch: pytest.MonkeyPatch) -> None:
+    from tests.e2e.deployment_pin import expected_version_from_env
+
+    monkeypatch.delenv("APP_VERSION_REF", raising=False)
+    monkeypatch.setenv("EXPECTED_SHA", "abc1234")
+    assert expected_version_from_env() is None
+    monkeypatch.setenv("APP_VERSION_REF", "v0.2.94")
+    assert expected_version_from_env() == "v0.2.94"

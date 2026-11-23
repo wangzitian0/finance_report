@@ -239,7 +239,7 @@ E2E_ROWS: tuple[E2ERow, ...] = (
     ),
     _e2e(
         "test_version_check.py",
-        reason="API-only GET /api/health comparing git_sha with EXPECTED_SHA (#1547).",
+        reason="API-only GET /api/health comparing git_sha with APP_VERSION_REF (#1547).",
         frontend_paths=("apps/frontend/src/app/frontend-version.json/",),
     ),
     _e2e(
