@@ -9,7 +9,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError, ModelTimeoutError
+from pydantic_ai.exceptions import ModelHTTPError, ModelTimeoutError, UnexpectedModelBehavior, UsageLimitExceeded
 from sqlalchemy import text
 
 from src.config import settings
@@ -239,6 +239,31 @@ async def test_extract_financial_data_stream_outcomes(
     await assert_stream_extract_case(
         monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
     )
+
+
+@pytest.mark.parametrize(
+    ("error", "kind", "model_kind"),
+    [
+        (UsageLimitExceeded("the request limit"), "rate_limit", ModelFailureKind.USAGE_LIMIT),
+        (ModelHTTPError(status_code=401, model_name="m", body={"error": "bad key"}), "http_error", ModelFailureKind.REJECTED),
+        (ModelHTTPError(status_code=503, model_name="m", body="down"), "http_error", ModelFailureKind.UNAVAILABLE),
+        (UnexpectedModelBehavior("no text in the reply"), "model_error", ModelFailureKind.BAD_REPLY),
+        (RuntimeError("a bug of the model adapter"), "model_error", ModelFailureKind.UNCLASSIFIED),
+    ],
+    ids=lambda value: value.value if isinstance(value, ModelFailureKind) else None,
+)
+async def test_extraction_error_kind_follows_the_failure_kind_of_the_model_call(monkeypatch, error, kind, model_kind):
+    """The extraction reads `ModelCallFailed.kind`, never the class of an SDK error, and chains the cause."""
+
+    def fails(_content) -> str:
+        raise error
+
+    install_fake_model(monkeypatch, fails)
+    with pytest.raises(ExtractionError, match=f"^Extraction failed \\({kind}\\)") as raised:
+        await ExtractionService()._extract_json_with_model(
+            messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
+        )
+    assert isinstance(raised.value.__cause__, ModelCallFailed) and raised.value.__cause__.kind is model_kind
 
 
 async def test_extract_json_timeout_and_ai_csv_empty(monkeypatch):

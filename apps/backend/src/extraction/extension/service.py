@@ -11,14 +11,6 @@ from uuid import UUID
 
 import structlog
 from infra2_sdk.runtime import DecodingSpec
-from pydantic_ai.exceptions import (
-    ModelAPIError,
-    ModelQuotaExceededError,
-    ModelRateLimitError,
-    ModelRequestTimeout,
-    ModelTimeoutError,
-    UsageLimitExceeded,
-)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,9 +45,9 @@ from src.extraction.base.source_capability import SOURCE_CAPABILITIES
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow, RunHints
 from src.extraction.base.validation import (
+    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     AccountExtractionSlice,
     DuplicateCurrencyError,
-    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     balance_gap_suspect_rows,
     balance_is_evaluable,
     bank_currency_balances,
@@ -72,7 +64,6 @@ from src.extraction.extension._base import (
     _tolerant_parse_date,
     logger,
 )
-from src.llm.extension.agent import CallSite, complete_text
 from src.extraction.extension._coerce import _CoerceMixin
 from src.extraction.extension._csv import _CsvMixin
 from src.extraction.extension._llm_led_gate import evaluate_llm_led_extraction_gate
@@ -98,9 +89,22 @@ from src.extraction.extension.result_contract import build_statement_extraction_
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import AccountType
+from src.llm import ModelCallFailed, ModelFailureKind
+from src.llm.extension.agent import CallSite, complete_text
 from src.observability import record_financial_invariant_violation
 
 settings = src.config.settings
+
+# What a failed pass raises when the model failed (`ExtractionError`) or its reading has the wrong shape: a field of
+# the wrong type, a missing key, a number that does not parse. The loop keeps the earlier pass for these. Any other
+# error is a bug and ends the loop.
+_PASS_FAILURES = (ExtractionError, ValueError, ArithmeticError, LookupError, AttributeError, TypeError)
+
+# The failure kinds of a model call, grouped by the `ExtractionError` kind that the caller and the run report.
+_EXTRACTION_RATE_LIMITED = frozenset({ModelFailureKind.RATE_LIMIT, ModelFailureKind.USAGE_LIMIT})
+_EXTRACTION_PROVIDER_FAULTS = frozenset(
+    {ModelFailureKind.UNAVAILABLE, ModelFailureKind.REJECTED, ModelFailureKind.NOT_CONFIGURED}
+)
 
 
 # A review reason names at most this many rows; the log line holds every row number.
@@ -996,9 +1000,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 is_brokerage = looks_like_brokerage_payload(
                     readings[0], filename=filename, institution=institution or readings[0].get("institution")
                 )
-            except Exception as exc:
-                # A later pass that raises never discards the kept pass. Without a kept pass, two balances in
-                # one currency end the loop with a message for the user, and an unknown error is raised.
+            except _PASS_FAILURES as exc:
+                # A later pass that fails this way never discards the kept pass. Without a kept pass, two
+                # balances in one currency end the loop with a message for the user, and an unknown error is
+                # raised. An error of another class is a bug: it ends the loop with that error.
                 if best is None and isinstance(exc, DuplicateCurrencyError):
                     raise ExtractionError(
                         f"This statement lists several balances in {exc.currency}, usually several accounts in "
@@ -1053,6 +1058,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 logger.info(
                     "Checks did not pass after re-extract; keeping the best pass",
                     attempts=max_attempts,
+                    ended_on_failure=last_error is not None,
+                    failed_pass=type(last_error).__name__ if last_error is not None else None,
                     finding_count=best_score.finding_count,
                     best_difference=str(best_score.gap),
                     rows=best_score.rows,
@@ -1135,39 +1142,22 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     "Please retry with a different model.",
                 ) from e
 
-        except (ModelAPIError, UsageLimitExceeded) as e:
-            # The SDK redacted the text of the error: it holds the class, the HTTP status and the provider code.
-            error_msg = str(e)
-            if isinstance(e, (ModelRateLimitError, ModelQuotaExceededError)) or getattr(e, "status_code", None) == 429:
+        except ModelCallFailed as e:
+            # The entry point counted and logged the failure and redacted its text; the kind is the cause.
+            if e.kind in _EXTRACTION_RATE_LIMITED:
                 logger.warning("AI extraction rate limited", error_id=ErrorIds.OPENROUTER_HTTP_ERROR, model=model)
-                raise failed("rate_limit", f"Model {model} rate limited: {error_msg}") from e
-            if isinstance(e, (ModelTimeoutError, ModelRequestTimeout)):
+                raise failed("rate_limit", f"Model {model} rate limited: {e.summary}") from e
+            if e.kind is ModelFailureKind.TIMEOUT:
                 logger.warning(
                     "AI extraction timed out",
                     error_id=ErrorIds.OPENROUTER_TIMEOUT,
                     model=model,
                     timeout_seconds=settings.ai_json_timeout_seconds,
                 )
-                raise failed("timeout", f"Model {model} timed out: {error_msg}") from e
-            logger.error(
-                "AI extraction HTTP error",
-                error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
-                model=model,
-                error=error_msg,
-                error_type=type(e).__name__,
-                http_status=getattr(e, "status_code", None),
-            )
-            raise failed("http_error", f"Model {model} failed: {error_msg}") from e
-        except RuntimeError as e:
-            # The SDK re-raises an error that is not a model API error as a RuntimeError with a redacted text.
-            logger.error(
-                "AI extraction failed",
-                error_id=ErrorIds.EXTRACTION_ALL_MODELS_FAILED,
-                model=model,
-                error_type=type(e).__name__,
-                error=str(e)[:300],
-            )
-            raise failed("model_error", f"Model {model} failed: {e}") from e
+                raise failed("timeout", f"Model {model} timed out: {e.summary}") from e
+            if e.kind in _EXTRACTION_PROVIDER_FAULTS:
+                raise failed("http_error", f"Model {model} failed: {e.summary}") from e
+            raise failed("model_error", f"Model {model} failed: {e.summary}") from e
         except ExtractionError:
             raise
         except (ValueError, TypeError, KeyError, AttributeError) as e:
