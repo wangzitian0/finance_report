@@ -12,7 +12,8 @@ import src.routers.statements
 from src.extraction import DocumentSource
 from src.extraction.base.validation import evaluate_statement_balance, validate_completeness
 from src.extraction.extension.service import ExtractionError, ExtractionService
-from src.llm import AIStreamError
+from pydantic_ai.exceptions import ModelHTTPError, ModelTimeoutError
+from tests._support.fake_llm import install_fake_model
 
 
 def make_upload_file(name: str, content: bytes) -> UploadFile:
@@ -92,7 +93,7 @@ async def test_upload_file_size_limit(client, monkeypatch):
     assert at_limit.status_code != 413
 
 
-async def test_parsing_stream_errors_and_api_key_guard():
+async def test_parsing_stream_errors_and_api_key_guard(monkeypatch):
     service = ExtractionService()
     service.api_key = None
     with pytest.raises(ExtractionError, match="API key not configured"):
@@ -100,13 +101,15 @@ async def test_parsing_stream_errors_and_api_key_guard():
 
     service.api_key = "test-key"
     for err, match in [
-        (AIStreamError("Connection timed out"), None),
-        (AIStreamError("HTTP 429: Rate limit exceeded"), "429"),
+        (ModelTimeoutError("m", "Connection timed out"), "timeout"),
+        (ModelHTTPError(status_code=429, model_name="m", body="Rate limit exceeded"), "429"),
     ]:
-        with (
-            patch("src.extraction.extension.service.stream_ai_json", side_effect=err),
-            pytest.raises(ExtractionError, match=match),
-        ):
+
+        def fail(_content, err=err):
+            raise err
+
+        install_fake_model(monkeypatch, fail)
+        with pytest.raises(ExtractionError, match=match):
             await service.extract_financial_data(b"content", "DBS", "pdf", file_url="https://example.com/file.pdf")
 
 

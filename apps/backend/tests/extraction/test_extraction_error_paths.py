@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError, ModelTimeoutError
 from sqlalchemy import text
 
 from src.config import settings
@@ -17,7 +18,7 @@ from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.orm.statement_summary import StatementSummary
-from src.llm import AIStreamError, ModelCallFailed, ModelFailureKind
+from src.llm import ModelCallFailed, ModelFailureKind
 from tests._support.fake_llm import install_fake_model
 from tests.extraction._statement_run_helpers import (
     assert_stream_extract_case,
@@ -121,7 +122,7 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
     ("stream_exc", "accum_val", "file_content", "file_type", "file_url", "force_model", "expected", "err_match"),
     [
         (
-            AIStreamError("HTTP 429: Quota Exceeded"),
+            ModelHTTPError(status_code=429, model_name="m", body={"error": "quota"}),
             None,
             b"content",
             "pdf",
@@ -131,7 +132,7 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "Extraction failed \\(rate_limit\\): Model .* rate limited",
         ),
         (
-            AIStreamError("Request timed out after 30s"),
+            ModelTimeoutError("m", "Request timed out after 30s"),
             None,
             b"content",
             "pdf",
@@ -141,14 +142,14 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "timed out",
         ),
         (
-            AIStreamError("HTTP 502: Bad Gateway"),
+            ModelHTTPError(status_code=502, model_name="m", body="Bad Gateway"),
             None,
             b"content",
             "pdf",
             "https://example.com/file.pdf",
             None,
             None,
-            "failed.*HTTP 502",
+            "Extraction failed \\(http_error\\): Model .* failed: .*502",
         ),
         (
             None,
@@ -198,7 +199,7 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "https://example.com/file.pdf",
             None,
             None,
-            "Internal error: ValueError",
+            "Extraction failed \\(model_error\\): Model .* failed: ValueError",
         ),
         (
             None,
@@ -209,16 +210,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             None,
             None,
             "strict JSON object.*no arrays",
-        ),
-        (
-            None,
-            ExtractionError("Custom extraction failure"),
-            b"content",
-            "pdf",
-            "https://example.com/file.pdf",
-            None,
-            None,
-            "Custom extraction failure",
         ),
         (
             None,
@@ -243,20 +234,22 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
     ],
 )
 async def test_extract_financial_data_stream_outcomes(
-    stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+    monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
 ):
     await assert_stream_extract_case(
-        stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+        monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
     )
 
 
 async def test_extract_json_timeout_and_ai_csv_empty(monkeypatch):
     service = ExtractionService()
     service.api_key = "test-key"
-    with (
-        patch("src.extraction.extension.service.stream_ai_json", side_effect=httpx.TimeoutException("slow")),
-        pytest.raises(ExtractionError, match="Extraction failed \\(timeout\\): Model test-vision-model timed out"),
-    ):
+
+    def slow(_content):
+        raise ModelTimeoutError("test-vision-model", "slow")
+
+    install_fake_model(monkeypatch, slow)
+    with pytest.raises(ExtractionError, match="Extraction failed \\(timeout\\): Model test-vision-model timed out"):
         await service._extract_json_with_model(
             messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
         )
@@ -342,7 +335,7 @@ async def test_parse_document_normalizes_descriptions_and_direction(txns, expect
     ) == (expected_descriptions, expected_direction, len(txns))
 
 
-async def test_vision_paths_and_role_guards():
+async def test_vision_paths_and_role_guards(monkeypatch):
     service = ExtractionService()
     service.api_key, service.multimodal_model = "test-key", "test-vision-model"
     mock_extract = AsyncMock(return_value={"transactions": []})
@@ -356,35 +349,34 @@ async def test_vision_paths_and_role_guards():
     )
 
     service.multimodal_model = ""
+    sent = install_fake_model(monkeypatch, "{}")
     with (
         patch.object(service, "_build_vision_media_payload_batches") as bm,
-        patch("src.extraction.extension.service.stream_ai_json") as sm,
         pytest.raises(ExtractionError, match="Multimodal model is not configured"),
     ):
         await service.extract_financial_data(file_content=b"content", institution="DBS", file_type="pdf")
     bm.assert_not_called()
-    sm.assert_not_called()
+    assert sent == []
 
     service = ExtractionService()
     service.api_key, service.multimodal_model = "test-key", "test-vision-model"
-    attempted: list[str] = []
 
-    def fake_stream(*, model, **_kwargs):
-        attempted.append(model)
-        raise AIStreamError(
-            'provider=zai model=test-vision-model status_code=400 {"code":"1210","message":"Invalid API parameter"}',
-            retryable=False,
+    def refuse(_content):
+        raise ModelHTTPError(
+            status_code=400,
+            model_name="test-vision-model",
+            body={"code": "1210", "message": "Invalid API parameter"},
         )
 
+    sent = install_fake_model(monkeypatch, refuse)
     with (
         patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]),
-        patch("src.extraction.extension.service.stream_ai_json", side_effect=fake_stream),
         pytest.raises(ExtractionError, match="Extraction failed \\(http_error\\): Model test-vision-model failed"),
     ):
         await service.extract_financial_data(b"content", "DBS", "pdf")
     assert (
-        set(attempted) == {"test-vision-model"}
-        and 1 <= len(attempted) <= 2
+        set(sent.models) == {"test-vision-model"}
+        and 1 <= len(sent) <= 2
         and service.multimodal_model == "test-vision-model"
     )
     assert all(
@@ -483,12 +475,6 @@ def test_extraction_service_low_level_helpers():
             (cast(str, object()), False),
         ]
     )
-    assert (
-        service._extract_status_code("HTTP 429: Quota Exceeded"),
-        service._extract_status_code("HTTP 500 Internal Server Error"),
-        service._extract_status_code("no status code here"),
-        service._extract_status_code(""),
-    ) == ("429", "500", None, None)
     assert service._build_media_payload(file_type="png", mime_type="image/png", data="data:image/png;base64,iVBOR") == {
         "type": "image_url",
         "image_url": {"url": "data:image/png;base64,iVBOR"},
@@ -566,3 +552,22 @@ async def test_parse_document_multicurrency_bank_balance_self_check_failure(test
         res.transactions,
         any("llm_led_balance_chain_unreconciled" in reason for reason in res.review_reasons),
     ) == ({"SGD", "USD"}, False, (), True)
+
+
+async def test_a_transient_model_error_is_retried_once_by_the_sdk(monkeypatch):
+    """#3153: the SDK retries a server error of the model; the loop of passes is a different layer."""
+    from pydantic_ai.exceptions import ModelServerError
+
+    service = ExtractionService()
+    service.api_key = "test-key"
+    replies = iter([ModelServerError("m", "upstream"), '{"transactions": []}'])
+
+    def answer(_content):
+        outcome = next(replies)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    sent = install_fake_model(monkeypatch, answer)
+    result = await service._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model")
+    assert result == {"transactions": []} and len(sent) == 2

@@ -174,16 +174,3 @@ async def test_AC_extraction_2985_5_6_7_watchdog_attempt_and_silent_atomic_upser
         and not [e for e in txn_logs if "atomic transaction" in str(e["event"]).lower()]
         and "123.45" not in str(txn_logs)
     )
-
-
-@pytest.mark.parametrize(
-    ("message", "expected"),
-    [
-        ("HTTP 400 occurred, retry returned HTTP 500", "400"),
-        ("HTTP 429: Rate limit exceeded", "429"),
-        ("Connection timeout", None),
-        ("HTTPS 200", None),
-    ],
-)
-def test_extract_status_code(message: str, expected: str | None) -> None:
-    assert ExtractionService()._extract_status_code(message) == expected

@@ -9,8 +9,16 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import httpx
 import structlog
+from infra2_sdk.runtime import DecodingSpec
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    ModelQuotaExceededError,
+    ModelRateLimitError,
+    ModelRequestTimeout,
+    ModelTimeoutError,
+    UsageLimitExceeded,
+)
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -62,10 +70,9 @@ from src.extraction.base.validation import (
 from src.extraction.extension._base import (
     ExtractionError,
     _tolerant_parse_date,
-    accumulate_stream,
     logger,
-    stream_ai_json,
 )
+from src.llm.extension.agent import CallSite, complete_text
 from src.extraction.extension._coerce import _CoerceMixin
 from src.extraction.extension._csv import _CsvMixin
 from src.extraction.extension._llm_led_gate import evaluate_llm_led_extraction_gate
@@ -105,12 +112,6 @@ def rows_not_in_text_review_reason(rows: list[int]) -> str:
     named = ", ".join(str(number) for number in rows[:MAX_ROWS_NAMED_IN_REVIEW_REASON])
     more = len(rows) - MAX_ROWS_NAMED_IN_REVIEW_REASON
     return f"Rows not found in the document text: {named}" + (f" and {more} more" if more > 0 else "")
-
-
-def _ai_stream_error() -> type[Exception]:
-    from src.llm import AIStreamError
-
-    return AIStreamError
 
 
 def _institution_class(*, is_brokerage: bool) -> str:
@@ -1079,18 +1080,22 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         try:
             logger.info("Attempting AI extraction (streaming)", model=model)
-            stream = stream_ai_json(
-                messages=messages,
+            content = await complete_text(
+                CallSite.EXTRACTION_STATEMENT,
+                "multimodal",
+                messages[-1]["content"],
                 model=model,
-                user_id=user_id,
-                timeout=settings.ai_json_timeout_seconds,
-                max_tokens=settings.ai_json_max_tokens,
-                temperature=0.0,
-                do_sample=False,
-                seed=seed_override if seed_override is not None else settings.ai_json_seed,
-                thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
+                decoding=DecodingSpec(
+                    "extraction.statement.v1",
+                    thinking=False if settings.ai_json_disable_thinking else None,
+                    temperature=0.0,
+                    seed=seed_override if seed_override is not None else settings.ai_json_seed,
+                    max_tokens=settings.ai_json_max_tokens,
+                    timeout=settings.ai_json_timeout_seconds,
+                ),
+                extra_body={"do_sample": False},
+                max_attempts=2,
             )
-            content = await accumulate_stream(stream)
             if not content or not content.strip():
                 logger.error("AI returned empty response", error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE, model=model)
                 raise failed(
@@ -1130,18 +1135,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     "Please retry with a different model.",
                 ) from e
 
-        except _ai_stream_error() as e:
+        except (ModelAPIError, UsageLimitExceeded) as e:
+            # The SDK redacted the text of the error: it holds the class, the HTTP status and the provider code.
             error_msg = str(e)
-            if "429" in error_msg or "quota" in error_msg.lower():
-                logger.warning(
-                    "AI extraction rate limited",
-                    error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
-                    model=model,
-                    retryable=getattr(e, "retryable", False),
-                )
+            if isinstance(e, (ModelRateLimitError, ModelQuotaExceededError)) or getattr(e, "status_code", None) == 429:
+                logger.warning("AI extraction rate limited", error_id=ErrorIds.OPENROUTER_HTTP_ERROR, model=model)
                 raise failed("rate_limit", f"Model {model} rate limited: {error_msg}") from e
-            if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-                logger.warning("AI extraction timed out", error_id=ErrorIds.OPENROUTER_TIMEOUT, model=model)
+            if isinstance(e, (ModelTimeoutError, ModelRequestTimeout)):
+                logger.warning(
+                    "AI extraction timed out",
+                    error_id=ErrorIds.OPENROUTER_TIMEOUT,
+                    model=model,
+                    timeout_seconds=settings.ai_json_timeout_seconds,
+                )
                 raise failed("timeout", f"Model {model} timed out: {error_msg}") from e
             logger.error(
                 "AI extraction HTTP error",
@@ -1149,18 +1155,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 model=model,
                 error=error_msg,
                 error_type=type(e).__name__,
-                retryable=getattr(e, "retryable", False),
-                http_status=self._extract_status_code(error_msg),
+                http_status=getattr(e, "status_code", None),
             )
             raise failed("http_error", f"Model {model} failed: {error_msg}") from e
-        except httpx.TimeoutException as e:
-            logger.warning(
-                "AI extraction timed out",
-                error_id=ErrorIds.OPENROUTER_TIMEOUT,
+        except RuntimeError as e:
+            # The SDK re-raises an error that is not a model API error as a RuntimeError with a redacted text.
+            logger.error(
+                "AI extraction failed",
+                error_id=ErrorIds.EXTRACTION_ALL_MODELS_FAILED,
                 model=model,
-                timeout_seconds=settings.ai_json_timeout_seconds,
+                error_type=type(e).__name__,
+                error=str(e)[:300],
             )
-            raise failed("timeout", f"Model {model} timed out after {settings.ai_json_timeout_seconds}s") from e
+            raise failed("model_error", f"Model {model} failed: {e}") from e
         except ExtractionError:
             raise
         except (ValueError, TypeError, KeyError, AttributeError) as e:
