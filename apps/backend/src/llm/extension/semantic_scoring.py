@@ -24,7 +24,6 @@ from __future__ import annotations
 import json
 
 from infra2_sdk.runtime import DecodingSpec
-from pydantic_ai.usage import UsageLimits
 
 from src.llm.extension.agent import CallSite, complete_text
 from src.observability import get_logger
@@ -33,7 +32,6 @@ logger = get_logger(__name__)
 
 # GLM maps ``thinking=False`` to the lowest reasoning effort, which is what the small role used before.
 _DECODING = DecodingSpec("reconciliation.semantic_score.v1", thinking=False, timeout=30.0)
-_USAGE_LIMITS = UsageLimits(request_limit=3)
 
 
 async def ai_semantic_score(prompt: str) -> int:
@@ -50,7 +48,6 @@ async def ai_semantic_score(prompt: str) -> int:
             "small",
             prompt,
             decoding=_DECODING,
-            usage_limits=_USAGE_LIMITS,
         )
         if not content or not content.strip():
             logger.warning("AI semantic score returned empty response")

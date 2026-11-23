@@ -12,11 +12,13 @@ Owns the `LLMClient` protocol (`LitellmClient`, `DecodeParams`, `estimate_tokens
 
 ## <a id="agent"></a>The model entry point (#3153, switch in progress)
 
-`apps/backend/src/llm/extension/agent.py` is the one place that calls `infra2_sdk.runtime.create_llm_agent`. `complete_text(call_site, role, content, decoding=...)` returns the reply text; `stream_text(...)` yields it in pieces. `CallSite` names each call site; the SDK puts it on the telemetry as `infra.llm.call_site`. The SDK owns the provider client, the retry of a model error, the redaction of an error and the `gen_ai.*` telemetry.
+`apps/backend/src/llm/extension/agent.py` is the one place that calls `infra2_sdk.runtime.create_llm_agent`. `complete_text(call_site, role, content, decoding=...)` returns the reply text; `async with stream_text(...) as pieces:` gives it in pieces and closes the stream at the end of the block. Both stream the reply, so `DecodingSpec.timeout` is the longest wait for the next chunk. `CallSite` names each call site; the SDK puts it on the telemetry as `infra.llm.call_site`. The SDK owns the provider client, the retry of a model error (`max_attempts`), the redaction of an error and the `gen_ai.*` telemetry.
+
+Facts measured against Z.AI that the entry point fixes: the SDK sends `DecodingSpec.max_tokens` as `max_completion_tokens`, which Z.AI ignores (a cap of 20 gave 504 tokens), so the entry point sends it as `max_tokens` in `extra_body`; a reply without text is an error and not a second request (`retries=0`). The provider comes from `settings.to_llm_settings()` only: the DB layer of providers (`llm_providers`) is not read by a moved call site.
 
 Moved call sites: `reconciliation.semantic_score`. The other call sites still use the `litellm` path and the cassettes below until their PR of #3153.
 
-Tests: `apps/backend/tests/conftest.py` sets `pydantic_ai.models.ALLOW_MODEL_REQUESTS = False`, so no test reaches a provider. A test gives a fake model with the fixture `fake_llm`, or replays a recording with `@pytest.mark.vcr` and the fixture `vcr_llm`. A recording answers only the request body that it was recorded for. Record again: `LLM_API_KEY=<key> pytest --record-mode=rewrite <test>`. Product code imports no fake model and no recorder (`tests/tooling/test_llm_cassette_boundary.py`).
+Tests: `apps/backend/tests/conftest.py` sets `pydantic_ai.models.ALLOW_MODEL_REQUESTS = False`, so no test reaches a provider, and its guard refuses a model call while an application transaction is open (it covers the entry point, because the SDK sends through `httpx2`). A test gives a fake model with `install_fake_model` (fixture `fake_llm`, `tests/_support/fake_llm.py`; a reply function cannot fail the test with `assert`: check what was sent), or replays a recording with `@pytest.mark.vcr` and the fixture `vcr_llm` (it fails without the marker). A recording answers only the request body that it was recorded for. Record again: `LLM_API_KEY=<key> pytest --record-mode=rewrite <test>`. Product code imports no fake model and no recorder (`tests/tooling/test_llm_cassette_boundary.py`).
 
 ## <a id="cassettes"></a>Record/Replay Cassettes
 

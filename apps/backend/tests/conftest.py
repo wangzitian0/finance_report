@@ -43,6 +43,9 @@ def _guard_external_io_during_open_transaction():
     from src.llm.extension import client as llm_client
     from src.runtime.extension.storage import StorageService
 
+    import src.llm.extension.agent as llm_agent
+
+    orig_agent = llm_agent._agent
     orig_stream_dispatch = llm_client._cassette_stream_dispatch
     orig_completion = llm_client.cassette_completion
     orig_run_s3 = StorageService._run_s3
@@ -59,6 +62,13 @@ def _guard_external_io_during_open_transaction():
         _assert_no_open_app_txn("LLM completion")
         return await orig_completion(*args, **kwargs)
 
+    @wraps(orig_agent)
+    def guarded_agent(*args, **kwargs):
+        # The SDK sends its HTTP through httpx2, which the patch of `AsyncClient.send` below does not cover, and a
+        # fake model sends nothing. The entry point is the one place that each call passes, in the task of the caller.
+        _assert_no_open_app_txn("LLM call")
+        return orig_agent(*args, **kwargs)
+
     @wraps(orig_run_s3)
     def guarded_run_s3(self, *args, **kwargs):
         _assert_no_open_app_txn("S3 storage")
@@ -73,6 +83,7 @@ def _guard_external_io_during_open_transaction():
     with (
         patch.object(llm_client, "_cassette_stream_dispatch", guarded_stream_dispatch),
         patch.object(llm_client, "cassette_completion", guarded_completion),
+        patch.object(llm_agent, "_agent", guarded_agent),
         patch.object(StorageService, "_run_s3", guarded_run_s3),
         patch.object(AsyncClient, "send", guarded_httpx_send),
     ):
@@ -224,79 +235,39 @@ _pydantic_ai_models.ALLOW_MODEL_REQUESTS = False
 os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
 
-def _llm_body_matches(recorded: Any, sent: Any) -> None:
-    """A recording answers only the request that it was recorded for: the JSON bodies must be equal."""
-    import json
-
-    def body(request: Any) -> Any:
-        raw = request.body
-        if isinstance(raw, bytes):
-            raw = raw.decode("utf-8", errors="replace")
-        try:
-            return json.loads(raw) if raw else None
-        except ValueError:
-            return raw
-
-    assert body(recorded) == body(sent), "the request body differs from the recorded request body"
-
-
 def pytest_recording_configure(config: Any, vcr: Any) -> None:
-    vcr.register_matcher("llm_body", _llm_body_matches)
+    from tests._support.llm_replay import llm_body_matches
+
+    vcr.register_matcher("llm_body", llm_body_matches)
 
 
 @pytest.fixture(scope="module")
 def vcr_config() -> dict[str, Any]:
-    from infra2_sdk.runtime import vcr_llm_config
+    from tests._support.llm_replay import llm_vcr_config
 
-    config = vcr_llm_config()
-    config["match_on"] = (*config["match_on"], "llm_body")
-    # A recording holds requests to the model provider only.
-    config["ignore_hosts"] = ("raw.githubusercontent.com",)
-    return config
+    return llm_vcr_config()
 
 
 @pytest.fixture
-def vcr_llm(monkeypatch: pytest.MonkeyPatch):
+def vcr_llm(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
     """Allow the model request of a replay test. `LLM_API_KEY` is needed only to record."""
     from infra2_sdk.runtime import allow_vcr_model_requests
 
     from src.config import settings
+    from tests._support.llm_replay import require_vcr_marker
 
+    require_vcr_marker(request)
     monkeypatch.setattr(settings, "ai_api_key", os.environ.get("LLM_API_KEY") or "replay-key")
     with allow_vcr_model_requests():
         yield
 
 
 @pytest.fixture
-def fake_llm():
-    """Return a function that installs a fake model for the test: `fake_llm(lambda prompt: "reply")`.
+def fake_llm(monkeypatch: pytest.MonkeyPatch):
+    """Return a function that installs a fake model: `fake_llm(lambda prompt: "reply")` returns what was sent.
 
-    The reply function gets the last user content (a string, or the list of parts). It returns the reply
-    text, or raises. The returned list holds each content that the code sent.
+    See `tests/_support/fake_llm.py`. A test without a fixture argument calls `install_fake_model` itself.
     """
-    from contextlib import ExitStack
+    from tests._support.fake_llm import install_fake_model
 
-    from pydantic_ai.messages import ModelResponse, TextPart
-    from pydantic_ai.models.function import FunctionModel
-
-    from src.llm.extension.agent import override_model
-
-    with ExitStack() as stack:
-
-        def install(reply: Any) -> list[Any]:
-            sent: list[Any] = []
-
-            def respond(messages: Any, _info: Any) -> ModelResponse:
-                content = messages[-1].parts[-1].content
-                sent.append(content)
-                return ModelResponse(parts=[TextPart(reply(content) if callable(reply) else reply)])
-
-            async def respond_stream(messages: Any, _info: Any):
-                content = messages[-1].parts[-1].content
-                sent.append(content)
-                yield reply(content) if callable(reply) else reply
-
-            stack.enter_context(override_model(FunctionModel(respond, stream_function=respond_stream)))
-            return sent
-
-        yield install
+    return lambda reply: install_fake_model(monkeypatch, reply)
