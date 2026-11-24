@@ -229,7 +229,7 @@ class Bootloader:
     def _check_llm_roles(environment: str) -> bool:
         """Refuse an invalid model role at start, and a pinned role outside production, development and test."""
         try:
-            settings.to_llm_settings()  # the SDK refuses an empty model, an empty effort and a bad base URL
+            settings.to_llm_settings()  # the SDK refuses an empty provider or role model and a bad base URL
         except ValueError as exc:
             logger.error("LLM settings are invalid", error=str(exc))
             return False
@@ -241,7 +241,7 @@ class Bootloader:
         ]
         if pinned:
             logger.error(
-                "Only production may pin a model role: unset the variable to use the SDK default",
+                "Only production, development and test may pin a model role: unset the variable to use the SDK default",
                 environment=environment,
                 variables=", ".join(pinned),
             )

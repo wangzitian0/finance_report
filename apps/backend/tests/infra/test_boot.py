@@ -216,7 +216,7 @@ _PINNED = {
 }
 
 
-@pytest.mark.parametrize("environment", ("staging", "ci", "preview", "prod-eu"))
+@pytest.mark.parametrize("environment", ("staging", "ci", "preview", "prod-eu", "pr-123", "testing"))
 @pytest.mark.parametrize("role", sorted(_PINNED))
 def test_AC_llm_2953_a_pinned_model_role_stops_every_deployed_environment_but_production(
     mock_settings, environment: str, role: str
@@ -232,7 +232,7 @@ def test_AC_llm_2953_a_pinned_model_role_stops_every_deployed_environment_but_pr
     assert pinned_env in str(log.error.call_args)
 
 
-@pytest.mark.parametrize("environment", ("production", "development", "test"))
+@pytest.mark.parametrize("environment", ("production", "development", "test", " Production ", "DEVELOPMENT"))
 def test_AC_llm_2953_production_and_local_runs_may_pin_every_model_role(mock_settings, environment: str) -> None:
     _configure(mock_settings, environment, "http://localhost:3000", **_PINNED)
     assert Bootloader._check_static_config() is True
@@ -257,6 +257,14 @@ def test_AC_llm_2953_a_blank_role_variable_is_refused_by_the_real_settings(monke
     monkeypatch.setenv("LLM_LARGE_MODEL", blank)
     real = Settings(_env_file=None)
     assert real.large_model == blank
+    with patch("src.boot.settings", real):
+        assert Bootloader._check_llm_roles("production") is False
+
+
+def test_AC_llm_2953_a_blank_base_url_variable_is_refused_by_the_real_settings(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_BASE_URL", "")
+    real = Settings(_env_file=None)
+    assert real.ai_base_url == ""
     with patch("src.boot.settings", real):
         assert Bootloader._check_llm_roles("production") is False
 
