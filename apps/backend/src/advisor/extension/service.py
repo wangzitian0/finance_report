@@ -15,6 +15,7 @@ from enum import Enum
 from typing import Any, cast
 from uuid import UUID
 
+from infra2_sdk.runtime import DecodingSpec
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -47,17 +48,17 @@ from src.ledger import (
 )
 from src.llm import (
     LLMError,
-    ReasoningEffort,
+    ModelCallFailed,
     Scene,
     SceneBinding,
     estimate_tokens,
     get_config_source,
     get_llm_client,
-    stream_ai_chat,
 )
+from src.llm.extension.agent import CallSite, stream_text
+from src.observability import get_logger
 from src.platform import require_base_currency
 from src.platform.base.errors import DomainError
-from src.observability import get_logger
 from src.portfolio import PortfolioNotFoundError, PortfolioService, active_stock_symbols
 from src.pricing import MarketDataScopeStatus, get_market_data_status
 from src.reconciliation import get_reconciliation_stats
@@ -108,8 +109,24 @@ async def _bound_scene_binding(user_id: UUID | None) -> SceneBinding | None:
         return None
 
 
-def _large_role_reasoning() -> ReasoningEffort:
-    return ReasoningEffort(settings.to_llm_settings().role_reasoning_effort("large"))
+def _advisor_decoding() -> DecodingSpec:
+    """The answers of the advisor use the large role with its reasoning effort (#2572). One chunk may take 2 minutes.
+
+    The SDK sends no ``reasoning_effort`` when ``thinking`` is None (measured on the wire, 2026-11-24): the effort of the
+    role is set here, from the one setting of the role.
+    """
+    return DecodingSpec(
+        "advisor.chat.v1", thinking=settings.to_llm_settings().role_reasoning_effort("large"), timeout=120.0
+    )
+
+
+def _split_conversation(messages: list[dict[str, str]]) -> tuple[str | None, list[dict[str, str]], str]:
+    """Return the system prompt, the earlier turns and the last user message of a chat message list."""
+    system = messages[0]["content"] if messages and messages[0]["role"] == "system" else None
+    turns = messages[1:] if system is not None else messages
+    if not turns or turns[-1]["role"] != "user":
+        raise ValueError("A chat message list ends with a user message")
+    return system, turns[:-1], turns[-1]["content"]
 
 
 def _line_confidence_tier(line: dict[str, Any]) -> str | None:
@@ -794,16 +811,10 @@ class AIAdvisorService:
                 if safe_chunk := redactor.process(chunk):
                     chunks.append(safe_chunk)
                     yield safe_chunk
-        except Exception as exc:
-            detail = str(exc)
-            low = detail.lower()
-            is_unavailable = isinstance(exc, LLMError) or any(
-                token in low for token in ("api key", "aistreamerror", "llmerror")
-            )
-            raise AIAdvisorError(
-                "AI service temporarily unavailable." if is_unavailable else detail,
-                status_code=503 if is_unavailable else 400,
-            ) from exc
+        except LLMError as exc:
+            # A failed model call (`ModelCallFailed`, counted and logged at the entry point) or a bad configuration.
+            # The status follows the kind of the failure; the text of the failure stays out of the answer.
+            raise AIAdvisorError("AI service temporarily unavailable.", status_code=exc.status_code or 503) from exc
 
         if tail := redactor.flush():
             chunks.append(tail)
@@ -866,7 +877,6 @@ class AIAdvisorService:
         from src.llm import AIStreamError
         from src.observability import ErrorIds
 
-        models = [self.large_model]
         if bound is not None:
             try:
                 async for chunk in get_llm_client(user_id).stream(Scene.ADVISOR_CHAT, messages):
@@ -874,67 +884,48 @@ class AIAdvisorService:
                 return
             except AIStreamError as exc:
                 logger.warning(
-                    "Bound advisor scene failed, trying environment fallbacks",
+                    "Bound advisor scene failed, trying the environment model",
                     error_id=ErrorIds.AI_STREAMING_FAILED,
                     model=bound.model_id,
                     error=str(exc),
                     retryable=exc.retryable,
                 )
-        reasoning: ReasoningEffort | None = bound.reasoning if bound else _large_role_reasoning()
-        max_tokens = bound.max_tokens if bound else None
-        last_error: Exception | None = None
 
-        for i, model in enumerate(models):
-            try:
-                async for chunk in self._stream_model(model, messages, user_id, reasoning, max_tokens):
-                    yield chunk, model
-                return
-            except AIStreamError as exc:
-                logger.warning(
-                    "AI model failed, trying fallback",
-                    error_id=ErrorIds.AI_STREAMING_FAILED,
-                    model=model,
-                    attempt=i + 1,
-                    total=len(models),
-                    error=str(exc),
-                    retryable=getattr(exc, "retryable", False),
-                )
-                last_error = exc
-            except (ValueError, TypeError, KeyError, AttributeError) as exc:
-                logger.exception(
-                    "Programming error in AI streaming",
-                    error_id=ErrorIds.AI_STREAMING_FAILED,
-                    model=model,
-                    error_type=type(exc).__name__,
-                )
-                raise AIAdvisorError(f"Internal error: {type(exc).__name__}") from exc
-
-        if last_error:
-            logger.error(
-                "All AI models failed",
+        try:
+            async for chunk in self._stream_model(messages):
+                yield chunk, self.large_model
+        except ModelCallFailed as exc:
+            # `ModelCallFailed` is a `ValueError` too: it is caught before the programming errors below.
+            logger.warning(
+                "AI model failed",
                 error_id=ErrorIds.AI_ALL_MODELS_FAILED,
-                models_tried=len(models),
-                last_error=str(last_error),
+                model=self.large_model,
+                kind=exc.kind.value,
+                retryable=exc.retryable,
             )
-            raise last_error
+            raise
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            logger.exception(
+                "Programming error in AI streaming",
+                error_id=ErrorIds.AI_STREAMING_FAILED,
+                model=self.large_model,
+                error_type=type(exc).__name__,
+            )
+            raise AIAdvisorError(f"Internal error: {type(exc).__name__}") from exc
 
-    async def _stream_model(
-        self,
-        model: str,
-        messages: list[dict[str, str]],
-        user_id: UUID | None = None,
-        reasoning: ReasoningEffort | None = None,
-        max_tokens: int | None = None,
-    ) -> AsyncIterator[str]:
-        async for chunk in stream_ai_chat(
-            messages=messages,
-            model=model,
-            user_id=user_id,
-            reasoning=reasoning,
-            max_tokens=max_tokens,
-            timeout=120.0,
-        ):
-            yield chunk
+    async def _stream_model(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
+        """Stream the answer of the large role through the one model entry point."""
+        system, history, prompt = _split_conversation(messages)
+        async with stream_text(
+            CallSite.ADVISOR_CHAT,
+            "large",
+            prompt,
+            system=system,
+            history=history,
+            decoding=_advisor_decoding(),
+        ) as pieces:
+            async for piece in pieces:
+                yield piece
 
     def _format_money(self, amount: Decimal, currency: str) -> str:
         return f"{currency} {to_money(amount)}"

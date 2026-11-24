@@ -1,14 +1,12 @@
 """The one model entry point: content parts, the fake model, the request guard and the error text (#3153)."""
 
 import pytest
-from pydantic_ai import ImageUrl
+from infra2_sdk.runtime import DecodingSpec
+from pydantic_ai import BinaryContent, ImageUrl
 from pydantic_ai.exceptions import ModelHTTPError
 
-from infra2_sdk.runtime import DecodingSpec
-from pydantic_ai import BinaryContent
-
 from src.llm import ModelCallFailed, ModelFailureKind
-from src.llm.extension.agent import CallSite, complete_text, stream_text, to_user_content
+from src.llm.extension.agent import CallSite, complete_text, stream_text, to_message_history, to_user_content
 
 DECODING = DecodingSpec("test.v1", thinking=False, timeout=5.0)
 SITE = CallSite.RECONCILIATION_SEMANTIC_SCORE
@@ -161,3 +159,25 @@ async def test_the_iterator_of_stream_text_refuses_use_after_the_block(fake_llm)
         pass
     with pytest.raises(RuntimeError, match="used after its block closed"):
         [piece async for piece in pieces]
+
+
+async def test_system_and_history_reach_the_model_as_instructions_and_earlier_turns(fake_llm) -> None:
+    sent = fake_llm("reply")
+    history = [{"role": "user", "content": "q1"}, {"role": "assistant", "content": "a1"}]
+    assert await complete_text(SITE, "small", "q2", decoding=DECODING, system="Be brief.", history=history) == "reply"
+    request = sent.requests[0]
+    assert sent == ["q2"] and request[-1].instructions == "Be brief."
+    assert [type(message).__name__ for message in request] == ["ModelRequest", "ModelResponse", "ModelRequest"]
+    assert (request[0].parts[0].content, request[1].parts[0].content) == ("q1", "a1")
+    async with stream_text(SITE, "small", "q3", decoding=DECODING, system="Be brief.", history=history) as pieces:
+        assert "".join([piece async for piece in pieces]) == "reply"
+    assert sent.requests[1][-1].instructions == "Be brief." and len(sent.requests[1]) == 3
+    # No system and no history is the same call as before.
+    await complete_text(SITE, "small", "plain", decoding=DECODING)
+    assert len(sent.requests[2]) == 1 and sent.requests[2][0].instructions is None
+
+
+def test_history_accepts_user_and_assistant_turns_only() -> None:
+    assert to_message_history([]) == []
+    with pytest.raises(ValueError, match="Unsupported history role: 'system'"):
+        to_message_history([{"role": "system", "content": "a system prompt is not a turn"}])

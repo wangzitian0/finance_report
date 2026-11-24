@@ -38,7 +38,7 @@ from src.audit import JournalEntrySourceType
 from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, worst_confidence_tier
-from src.llm import AIStreamError, ReasoningEffort, estimate_tokens
+from src.llm import AIStreamError, ModelCallFailed, ModelFailureKind, ReasoningEffort, estimate_tokens
 from src.llm.base import ProtocolFamily, ProviderRef, Scene, SceneBinding
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
@@ -124,18 +124,19 @@ async def test_chat_stream_refusal_and_cache(db: AsyncSession, test_user, monkey
     assert cached_chat.cached is True and "cached response" in body and body.endswith(DISCLAIMER_EN)
 
 
-@pytest.mark.parametrize(("expected_model", "expected_effort", "raised_exc", "expected_cls", "match"), [
-    ("large", ReasoningEffort.HIGH, None, None, None),
-    ("large", None, AIStreamError(message="fail large", retryable=True), AIStreamError, "fail large"),
-    ("large", None, ValueError("bad internal state"), AIAdvisorError, "Internal error: ValueError"),
+@pytest.mark.parametrize(("raised_exc", "expected_cls", "match"), [
+    (None, None, None),
+    (ModelCallFailed(ModelFailureKind.RATE_LIMIT, "ModelRateLimitError (http=429)"), ModelCallFailed, "rate_limit"),
+    (ValueError("bad internal state"), AIAdvisorError, "Internal error: ValueError"),
 ])
-async def test_stream_openrouter_model_selection_and_errors(monkeypatch: pytest.MonkeyPatch, expected_model: str, expected_effort: ReasoningEffort | None, raised_exc: Exception | None, expected_cls: type[Exception] | None, match: str | None) -> None:
+async def test_stream_openrouter_environment_path_and_errors(monkeypatch: pytest.MonkeyPatch, raised_exc: Exception | None, expected_cls: type[Exception] | None, match: str | None) -> None:
+    """A failed model call leaves as `ModelCallFailed`. It is also a `ValueError`: it must not become an "Internal error"."""
     service = AIAdvisorService()
-    service.small_model, service.large_model = "small", "large"
-    calls: list[tuple[str, ReasoningEffort | None]] = []
+    service.large_model = "large"
+    calls: list[list[dict[str, str]]] = []
 
-    async def fake_stream_model(model: str, _messages, _user_id=None, reasoning=None, _max_tokens=None):
-        calls.append((model, reasoning))
+    async def fake_stream_model(messages):
+        calls.append(messages)
         if raised_exc is not None:
             raise raised_exc
         yield "hello"
@@ -145,10 +146,26 @@ async def test_stream_openrouter_model_selection_and_errors(monkeypatch: pytest.
         with pytest.raises(expected_cls, match=match):
             async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
                 pass
-        assert calls[0][0] == expected_model
+        assert len(calls) == 1
     else:
-        assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], None)] == [("hello", expected_model)]
-        assert calls[0][0] == expected_model and (expected_effort is None or calls[0][1] == expected_effort)
+        assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], None)] == [("hello", "large")]
+
+
+async def test_a_failed_bound_scene_falls_back_to_the_environment_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    service, uid = AIAdvisorService(), uuid4()
+    service.large_model = "large"
+    bound = SceneBinding(scene=Scene.ADVISOR_CHAT, model_id="provider1/user-glm-4.6", reasoning=ReasoningEffort.HIGH, max_tokens=4096)
+
+    async def failing_bound():
+        raise AIStreamError(message="bound provider down", retryable=True)
+        yield ""
+
+    async def environment(messages):
+        yield "from the environment"
+
+    monkeypatch.setattr(ai_advisor_service, "get_llm_client", lambda user_id: SimpleNamespace(stream=lambda scene, messages: failing_bound()))
+    monkeypatch.setattr(service, "_stream_model", environment)
+    assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], uid, bound)] == [("from the environment", "large")]
 
 
 async def test_chat_stream_requires_api_key_unless_configured_source(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -280,7 +297,7 @@ async def test_session_history_and_record_message(db: AsyncSession, test_user, m
     assert await service._record_message(db, session, ChatMessageRole.USER, "hello refresh error") is not None
 
 
-async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch, fake_llm) -> None:
     service = AIAdvisorService()
     session, messages = await service._get_or_create_session(db, test_user.id, None, "Hello"), [{"role": "user", "content": "Hello"}]
     ai_advisor_service._CACHE._store.clear()
@@ -293,9 +310,22 @@ async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_use
     monkeypatch.setattr(service, "_stream_openrouter", lambda *_a, **_k: fake_openrouter(False))
     assert (await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))).endswith(DISCLAIMER_EN) and ai_advisor_service._CACHE.get("cache-key") is not None
 
+    # A bug is not a model failure: it leaves unchanged, not as a 400 with its text.
     monkeypatch.setattr(service, "_stream_openrouter", lambda *_a, **_k: fake_openrouter(True))
-    with pytest.raises(AIAdvisorError, match="stream failed"):
+    with pytest.raises(RuntimeError, match="stream failed"):
         await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))
+
+    # The status of a failed model call follows its kind, and the text of the failure stays out of the answer.
+    for kind, status in ((ModelFailureKind.RATE_LIMIT, 429), (ModelFailureKind.TIMEOUT, 504), (ModelFailureKind.UNAVAILABLE, 503), (ModelFailureKind.BAD_REPLY, 502)):
+
+        async def failing(*_a, _kind=kind, **_k):
+            raise ModelCallFailed(_kind, "ModelHTTPError (http=500) secret-detail")
+            yield ("", "")
+
+        monkeypatch.setattr(service, "_stream_openrouter", failing)
+        with pytest.raises(AIAdvisorError, match="AI service temporarily unavailable.") as raised:
+            await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))
+        assert raised.value.status_code == status and "secret-detail" not in str(raised.value)
 
     service.api_key = "test-key"
     _stub_context(service, monkeypatch)
@@ -308,8 +338,22 @@ async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_use
     chat = await service.chat_stream(db, test_user.id, "What is my balance?", base_currency="SGD")
     assert (chat.cached, await _drain_stream(chat.stream)) == (False, "chunk")
 
-    monkeypatch.setattr(ai_advisor_service, "stream_ai_chat", lambda **_k: yield_items("chunk-a", "chunk-b"))
-    assert [c async for c in service._stream_model("some-model", [{"role": "user", "content": "hi"}])] == ["chunk-a", "chunk-b"]
+    sent = fake_llm("the answer")
+    conversation = [
+        {"role": "system", "content": "You are the advisor."},
+        {"role": "user", "content": "first question"},
+        {"role": "assistant", "content": "first answer"},
+        {"role": "user", "content": "second question"},
+    ]
+    assert "".join([c async for c in service._stream_model(conversation)]) == "the answer"
+    request = sent.requests[0]
+    assert sent == ["second question"] and request[-1].instructions == "You are the advisor."
+    assert [type(message).__name__ for message in request] == ["ModelRequest", "ModelResponse", "ModelRequest"]
+    assert (request[0].parts[0].content, request[1].parts[0].content) == ("first question", "first answer")
+    decoding = sent.decodings[0]
+    assert (decoding.decoding_version, decoding.timeout, decoding.thinking) == ("advisor.chat.v1", 120.0, "high")
+    with pytest.raises(ValueError, match="ends with a user message"):
+        [c async for c in service._stream_model([{"role": "system", "content": "s"}, {"role": "assistant", "content": "a"}])]
 
 
 async def test_get_financial_context_user_isolation_rollforward_and_active_month(db: AsyncSession, test_user) -> None:

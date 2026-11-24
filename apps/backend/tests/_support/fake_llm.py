@@ -25,6 +25,7 @@ class SentToModel(list):
         self.decodings: list[Any] = []
         self.extra_bodies: list[Any] = []
         self.max_attempts: list[Any] = []
+        self.requests: list[list[Any]] = []  # the pydantic-ai messages of each call: history and instructions
         self.models: list[Any] = []
         self.roles: list[Any] = []
 
@@ -44,9 +45,11 @@ def install_fake_model(monkeypatch: pytest.MonkeyPatch, reply: Callable[[Any], s
         return reply(content) if callable(reply) else reply
 
     def respond(messages: Any, _info: Any) -> ModelResponse:
+        sent.requests.append(list(messages))
         return ModelResponse(parts=[TextPart(answer(messages[-1].parts[-1].content))])
 
     async def respond_stream(messages: Any, _info: Any):
+        sent.requests.append(list(messages))
         yield answer(messages[-1].parts[-1].content)
 
     model = FunctionModel(respond, stream_function=respond_stream)
