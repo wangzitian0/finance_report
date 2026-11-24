@@ -58,13 +58,13 @@ Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`). 
 
 ### Domain 1: Setup, Identity & Chart of Accounts (UC-01–UC-05)
 
-Governs tenant registration, session isolation, base reporting currency, three-tier AI model bindings, chart of accounts, and opening balances.
+Governs tenant registration, session isolation, base reporting currency, environment AI model roles, chart of accounts, and opening balances.
 
 | UC ID | User Case (EN / 中文) | UI Surface | Frontend Component | Backend Endpoint | Invariant / Accounting Rule | Proof Tier | Test Reference |
 |---|---|---|---|---|---|---|---|
 | **UC-01** | Multi-Tenant Registration, Login & Session Isolation<br>*(注册登录与多租户隔离)* | `/login` | `LoginPage` | `POST /auth/register` | `Every user session, account, statement, and report query is strictly isolated by user_id` | `L1_PARTIAL (#2978)` | [`apps/backend/tests/identity/test_auth_router.py`](../../apps/backend/tests/identity/test_auth_router.py) |
 | **UC-02** | Base Reporting Currency Configuration<br>*(设定个人基准报告币种)* | `/settings?tab=general` | `GeneralSettingsPanel` | `PUT /users/me/settings/base-currency` | `Base currency is a valid ISO 4217 code and governs consolidated net worth and report conversion` | `L1_PARTIAL (#3156)` | [`apps/backend/tests/api/test_app_config_router.py`](../../apps/backend/tests/api/test_app_config_router.py) |
-| **UC-03** | Three-Tier AI Model & Scene Binding Configuration<br>*(配置三角色 AI 模型与场景绑定)* | `/settings?tab=llm` | `LlmSettingsPanel` | `PUT /llm/scenes` | `Provider credentials stay masked at rest and unconfigured scenes fail closed with explicit readiness status` | `L1_PARTIAL (#2953)` | [`apps/backend/tests/api/test_app_config_router.py`](../../apps/backend/tests/api/test_app_config_router.py) |
+| **UC-03** | Three-Role AI Models From The Environment<br>*(三角色 AI 模型由部署环境决定)* | `/chat` | `ChatPanel` | `POST /chat` | `Every chat answer uses the large role and every upload uses the multimodal role of the environment; no user setting, request field or stored row changes the model, and an upload does not need a model catalog` | `L1_PARTIAL (#2953)` | [`apps/backend/tests/ai/test_ai_advisor_service.py`](../../apps/backend/tests/ai/test_ai_advisor_service.py) |
 | **UC-04** | Chart of Accounts Creation & Hierarchy Management<br>*(自定义会计科目表)* | `/settings?tab=accounts` | `AccountFormModal` | `POST /accounts` | `Account hierarchy is acyclic, tenant-owned, and protects system clearing/equity accounts` | `L1_PARTIAL (#2957)` | [`apps/backend/tests/accounting/test_accounts_endpoints.py`](../../apps/backend/tests/accounting/test_accounts_endpoints.py) |
 | **UC-05** | Opening Balance Initialization<br>*(录入各账户期初余额)* | `/settings?tab=accounts` | `OpeningBalanceModal` | `POST /accounts/opening-balances` | `Opening balance posting generates balanced entries against OpeningBalanceEquity and rejects prior-activity conflicts` | `L3_E2E` | [`apps/backend/tests/integration/test_statement_opening_balance_auto_post.py`](../../apps/backend/tests/integration/test_statement_opening_balance_auto_post.py) |
 

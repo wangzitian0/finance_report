@@ -105,18 +105,6 @@ class DecodeParams:
 
 
 @dataclass(frozen=True, slots=True)
-class Encrypted:
-    """A provider secret at rest: ciphertext plus the key version that sealed it.
-
-    ``key_version`` lets the DB layer (EPIC B) tell, during a key rotation pass,
-    which rows still hold the old key. See :mod:`src.llm.base.secrets`.
-    """
-
-    ciphertext: str
-    key_version: int
-
-
-@dataclass(frozen=True, slots=True)
 class ProviderRef:
     """A configured provider instance with its API key already decrypted.
 

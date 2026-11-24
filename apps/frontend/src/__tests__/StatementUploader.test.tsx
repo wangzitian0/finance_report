@@ -21,7 +21,7 @@ describe("AC3.5.3 StatementUploader", () => {
   beforeEach(() => { up.mockReset(); tr.mockReset(); showToastMock.mockReset(); });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  it("PDF uploads without model picker or /llm/catalog lookup", async () => {
+  it("PDF uploads without a model picker or a model field", async () => {
     ren(<P />); noLbl(U.aiLbl);
     await userEvent.type(lbl(U.bankLbl), "DBS Bank"); await put(U.pdf("statement.pdf"));
     clk(/upload & parse/i); await F.wFor(() => cN(up, 1));

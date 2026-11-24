@@ -21,7 +21,6 @@ from tests.e2e._journey_helpers import (
     api_url,
     auth_headers,
     create_manual_valuation,
-    default_image_model,
     get_json,
     get_url,
     import_brokerage_and_holdings,
@@ -169,7 +168,6 @@ async def test_personal_financial_report_package_post_merge_journey(
             )
         await reconcile_twice_and_assert_clean(client, bank_id)
 
-        model = await default_image_model(client)
         pdf_path = unique_pdf_copy(
             generated_pdf_path(PACKAGE_FIXTURE.brokerage.source, period_end=p_end)
         )
@@ -179,7 +177,6 @@ async def test_personal_financial_report_package_post_merge_journey(
             content=pdf_path.read_bytes(),
             content_type="application/pdf",
             institution=PACKAGE_FIXTURE.brokerage.institution,
-            model=model,
             label=PACKAGE_FIXTURE.brokerage.source,
         )
         parsed_brokerage = await wait_for_statement(

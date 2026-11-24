@@ -14,9 +14,9 @@ test.describe("AC22.21.7 mobile/PWA bottom-tab IA smoke", () => {
     for (const [n, h] of [[/Reconciliation/, "/reconciliation"], [/Journal/, "/journal"], [/Statements/, "/upload"]] as const) await att(lnk(page, n), "href", h);
     await noHScroll(page, false);
   });
-  test("the merged Settings page exposes General/AI/LLM tabs", async ({ page }) => {
+  test("the merged Settings page exposes General/AI/Accounts tabs", async ({ page }) => {
     await gotoReady(page, "/settings"); await vis(page.getByRole("tablist", { name: "Settings sections" }));
-    for (const n of ["General", "AI", "LLM Models", "Accounts"]) await expect(page.getByRole("tab", { name: n })).toBeVisible();
+    for (const n of ["General", "AI", "Accounts"]) await expect(page.getByRole("tab", { name: n })).toBeVisible();
     await noHScroll(page, false);
   });
 });

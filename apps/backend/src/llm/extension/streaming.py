@@ -2,9 +2,8 @@
 
 EPIC-023 PR3: the transport is litellm (via :mod:`src.llm.extension.client`), not raw
 httpx. These functions keep their signatures for the existing call sites
-(extraction, the AI advisor, reconciliation scoring), but provider selection now
-comes from the layered config (DB providers first, env fallback) and litellm
-handles provider routing + dropping model-rejected params (e.g. Z.AI/GLM
+(extraction, the AI advisor, reconciliation scoring), but provider selection comes
+from the environment (``LLM_API_KEY``) and litellm handles provider routing + dropping model-rejected params (e.g. Z.AI/GLM
 ``seed``). When a caller passes an explicit ``api_key``/``base_url`` those win
 (back-compat / tests); otherwise the configured default provider is resolved.
 """
@@ -12,12 +11,10 @@ handles provider routing + dropping model-rejected params (e.g. Z.AI/GLM
 import time
 from collections.abc import AsyncIterator, Sequence
 from typing import Any
-from uuid import UUID
 
 from src.config import settings
 from src.llm.base import (
     DecodeParams,
-    LLMConfigError,
     LLMError,
     Message,
     ProviderRef,
@@ -25,8 +22,8 @@ from src.llm.base import (
     estimate_tokens,
     estimate_tokens_from_chars,
 )
-from src.llm.extension.env_config import protocol_for
-from src.llm.extension.factory import get_config_source, get_usage_meter
+from src.llm.base.usage import get_usage_meter
+from src.llm.extension.env_config import EnvConfigSource, protocol_for
 from src.observability import get_logger, record_ai_provider_call
 
 logger = get_logger(__name__)
@@ -66,14 +63,11 @@ def _estimate_prompt_tokens(messages: list[dict[str, Any]]) -> int:
     return total
 
 
-async def _resolve_provider(api_key: str | None, base_url: str | None, user_id: UUID | None = None) -> ProviderRef:
+async def _resolve_provider(api_key: str | None, base_url: str | None) -> ProviderRef:
     """Resolve the provider for a transport call.
 
     Explicit ``api_key`` wins (its protocol is taken from ``LLM_PROVIDER``);
-    otherwise resolve the configured default provider for ``user_id`` — the user's
-    own provider if they configured one, else the deployment default, else the env
-    fallback (see :func:`get_config_source`). ``user_id=None`` keeps the original
-    deployment/env-only behaviour for background/user-less callers.
+    otherwise the provider comes from the environment (``LLM_API_KEY``).
     """
     if api_key:
         return ProviderRef(
@@ -83,16 +77,9 @@ async def _resolve_provider(api_key: str | None, base_url: str | None, user_id: 
             api_key=api_key,
             api_base=base_url or getattr(settings, "ai_base_url", None) or None,
         )
-    providers = await get_config_source(user_id).list_providers()
+    providers = await EnvConfigSource().list_providers()
     if not providers:
         raise AIStreamError("AI provider not configured", retryable=False)
-    if len(providers) > 1:
-        # This scene-less path can't disambiguate; fail closed rather than route a
-        # prompt to a nondeterministically-chosen provider. Multi-provider use must
-        # go through the scene-keyed client (provider_id/model bindings).
-        raise AIStreamError(
-            "Multiple AI providers configured; this path needs exactly one default provider", retryable=False
-        )
     return providers[0]
 
 
@@ -102,7 +89,6 @@ async def _stream_ai_base(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
-    user_id: UUID | None = None,
     timeout: float,
     decode: DecodeParams = DecodeParams(),
     mode_label: str = "streaming",
@@ -111,43 +97,31 @@ async def _stream_ai_base(
 
     ``DecodeParams.extra_body`` carries Z.AI/GLM-specific knobs; ``seed`` is a
     native param litellm drops for models that reject it. JSON mode stays
-    prompt-driven and litellm owns the transport. ``user_id`` scopes provider
-    resolution to that user's configured provider (else deployment default,
-    else env).
+    prompt-driven and litellm owns the transport.
     """
     # Deferred: src.llm.extension.client imports litellm at module level, and
     # importing this module must not (the no-litellm-at-root invariant in
     # src/llm/__init__.py extends to this module too, since it is imported
     # eagerly from llm.extension).
-    from src.llm.extension.client import litellm_stream, resolve_provider_and_model
+    from src.llm.extension.client import litellm_stream
 
     resolved_lazily: list[ProviderRef] = []
 
     async def _lazy_provider() -> ProviderRef:
-        prov = await _resolve_provider(api_key, base_url, user_id)
+        prov = await _resolve_provider(api_key, base_url)
         resolved_lazily.append(prov)
         return prov
 
-    provider: ProviderRef | None = None
-    if api_key is None and user_id is not None:
-        # Per-user path: honour a binding's ``provider_id/model`` qualifier so a
-        # user with several providers resolves the exact one (the scene-less
-        # ``_resolve_provider`` fails closed on >1). ``model`` becomes the bare model.
-        try:
-            provider, model = await resolve_provider_and_model(get_config_source(user_id), model)
-        except LLMConfigError as exc:
-            raise AIStreamError(str(exc), retryable=False) from exc
-    # All other paths resolve LAZILY inside the llm layer (a cassette HIT never
-    # needs credentials); an explicit api_key still resolves through the same
-    # lazy closure on first network need.
+    # The provider resolves LAZILY inside the llm layer (a cassette HIT never
+    # needs credentials), through the closure above on first network need.
 
     def _metric_provider_label() -> str:
-        prov = provider or (resolved_lazily[0] if resolved_lazily else None)
+        prov = resolved_lazily[0] if resolved_lazily else None
         # "frozen" = the llm layer served a cassette; bounded label, never PII.
         return prov.protocol.value if prov is not None else "frozen"
 
     def _log_provider() -> tuple[str, str]:
-        prov = provider or (resolved_lazily[0] if resolved_lazily else None)
+        prov = resolved_lazily[0] if resolved_lazily else None
         return (prov.label, prov.id) if prov is not None else ("frozen", "-")
 
     completion_chars = 0
@@ -158,8 +132,8 @@ async def _stream_ai_base(
     try:
         async for content in litellm_stream(
             messages,
-            provider=provider,
-            provider_resolver=_lazy_provider if provider is None else None,
+            provider=None,
+            provider_resolver=_lazy_provider,
             model_id=model,
             decode=decode,
             timeout=timeout,
@@ -179,7 +153,7 @@ async def _stream_ai_base(
         _label, _pid = _log_provider()
         logger.error(
             "AI provider streaming failed",
-            provider=_label,  # resolved provider (DB or env), not the env LLM_PROVIDER
+            provider=_label,  # resolved provider, not the env LLM_PROVIDER
             provider_id=_pid,
             model=model,
             mode=mode_label,
@@ -215,7 +189,6 @@ async def stream_ai_json(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
-    user_id: UUID | None = None,
     timeout: float = 180.0,
     max_tokens: int | None = None,
     temperature: float | None = None,
@@ -229,7 +202,6 @@ async def stream_ai_json(
         model=model,
         api_key=api_key,
         base_url=base_url,
-        user_id=user_id,
         timeout=timeout,
         decode=DecodeParams(
             max_tokens=max_tokens,
@@ -250,7 +222,6 @@ async def stream_ai_chat(
     *,
     api_key: str | None = None,
     base_url: str | None = None,
-    user_id: UUID | None = None,
     reasoning: ReasoningEffort | None = None,
     max_tokens: int | None = None,
     timeout: float = 120.0,
@@ -264,7 +235,6 @@ async def stream_ai_chat(
         model=model,
         api_key=api_key,
         base_url=base_url,
-        user_id=user_id,
         timeout=timeout,
         decode=DecodeParams(reasoning=reasoning, max_tokens=max_tokens),
         mode_label="chat mode",

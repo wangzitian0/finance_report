@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `contract`
-- Endpoint count: `112`
-- Schema count: `263`
+- Endpoint count: `105`
+- Schema count: `249`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -20,7 +20,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `auth` | 4 |
 | `chat` | 4 |
 | `journal-entries` | 7 |
-| `llm` | 7 |
 | `portfolio` | 11 |
 | `pricing` | 7 |
 | `reconciliation` | 16 |
@@ -79,18 +78,6 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/journal-entries/{entry_id}/audit` | yes | `entry_id`* (path), `limit` (query), `offset` (query) | - | `200` `AuditTrailResponse` | Get Journal Entry Audit |
 | `POST` | `/journal-entries/{entry_id}/postings` | yes | `entry_id`* (path) | - | `200` `JournalEntryResponse` | Post Entry |
 | `POST` | `/journal-entries/{entry_id}/voidings` | yes | `entry_id`* (path) | `VoidJournalEntryRequest` | `200` `JournalEntryResponse` | Void Entry |
-
-### llm
-
-| Method | Path | Auth | Params | Request | Success responses | Summary |
-|---|---|---|---|---|---|---|
-| `GET` | `/llm/catalog` | no | `modality` (query), `free_only` (query) | - | `200` `LlmCatalogResponse` | Get Catalog |
-| `GET` | `/llm/config/status` | yes | - | - | `200` `LlmConfigStatusResponse` | Get Config Status |
-| `GET` | `/llm/providers` | yes | - | - | `200` `LlmProviderListResponse` | List Providers |
-| `POST` | `/llm/providers` | yes | - | `LlmProviderCreate` | `201` `LlmProviderResponse` | Create Provider |
-| `DELETE` | `/llm/providers/{provider_id}` | yes | `provider_id`* (path) | - | `200` `LlmProviderDeleteResponse` | Delete Provider |
-| `GET` | `/llm/scenes` | yes | - | - | `200` `LlmScenesResponse` | Get Scenes |
-| `PUT` | `/llm/scenes` | yes | - | `LlmScenesUpdate` | `200` `LlmScenesResponse` | Put Scenes |
 
 ### portfolio
 

@@ -47,6 +47,6 @@
     { "path": "/review", "state": "redirect", "into": "/upload" },
     { "path": "/settings/general", "state": "redirect", "into": "/settings?tab=general" },
     { "path": "/settings/ai", "state": "redirect", "into": "/settings?tab=ai" },
-    { "path": "/settings/llm", "state": "redirect", "into": "/settings?tab=llm" }
+    { "path": "/settings/llm", "state": "redirect", "into": "/settings?tab=ai" }
   ]
 }

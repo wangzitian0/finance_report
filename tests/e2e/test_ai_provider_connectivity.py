@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import json
 import os
 
-import httpx
 import pytest
 from playwright.async_api import Page
 
@@ -14,19 +12,10 @@ PROVIDER_CONNECTIVITY_TIMEOUT_MS = int(
 )
 
 
-def _sdk_default_model_ids() -> frozenset[str]:
+def _sdk_large_model() -> str:
     from infra2_sdk.runtime.llm import LlmSettings
 
-    sdk = LlmSettings()
-    return frozenset(
-        m
-        for m in (
-            sdk.role_model("large"),
-            sdk.role_model("small"),
-            sdk.role_model("multimodal"),
-        )
-        if m
-    )
+    return LlmSettings().role_model("large")
 
 
 @pytest.mark.e2e
@@ -47,20 +36,8 @@ async def test_staging_ai_provider_chat_connectivity(
         f"AI provider chat connectivity failed: {resp.status} {body[:500]}"
     )
     assert body.strip(), "AI provider chat connectivity returned an empty response"
-
-
-@pytest.mark.e2e
-@pytest.mark.critical
-@pytest.mark.llm
-async def test_staging_catalog_serves_the_sdk_default_models() -> None:
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.get(api_url("/llm/catalog"))
-    assert resp.status_code == 200, (
-        f"model catalog failed: {resp.status_code} {resp.text[:500]}"
-    )
-    model_ids = {m["id"].split("/")[-1] for m in json.loads(resp.text)["models"]}
-    assert model_ids, f"the deployed catalog lists no model: {resp.text[:500]}"
-    expected = _sdk_default_model_ids()
-    assert model_ids == expected, (
-        f"staging must serve {sorted(expected)}, got {sorted(model_ids)}"
+    # Staging pins no model (#2566): the answer comes from the SDK default of the large role.
+    answered_by = resp.headers.get("x-model-name")
+    assert answered_by == _sdk_large_model(), (
+        f"staging must answer with {_sdk_large_model()}, got {answered_by}"
     )

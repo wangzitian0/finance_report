@@ -63,10 +63,8 @@ def pytest_sessionstart(session) -> None:
         )
 
 
-def format_ai_ocr_gate_failure(
-    message: str, *, statement: dict | None = None, model: str | None = None
-) -> str:
-    details = [f"model={model}"] if model else []
+def format_ai_ocr_gate_failure(message: str, *, statement: dict | None = None) -> str:
+    details: list[str] = []
     if statement:
         details.extend(
             f"{k}={v}"
@@ -83,12 +81,8 @@ def format_ai_ocr_gate_failure(
     return f"{message}. Details: {'; '.join(details)}" if details else message
 
 
-def fail_or_skip_ai_ocr_gate(
-    message: str, *, statement: dict | None = None, model: str | None = None
-) -> None:
-    failure_message = format_ai_ocr_gate_failure(
-        message, statement=statement, model=model
-    )
+def fail_or_skip_ai_ocr_gate(message: str, *, statement: dict | None = None) -> None:
+    failure_message = format_ai_ocr_gate_failure(message, statement=statement)
     if _strict_e2e_gates_enabled():
         pytest.fail(failure_message)
     pytest.skip(

@@ -725,25 +725,6 @@
       "store_key": ""
     },
     {
-      "field": "llm_encryption_keys",
-      "env": "LLM_ENCRYPTION_KEYS",
-      "aliases": [],
-      "required": false,
-      "injected": true,
-      "has_default": true,
-      "sensitive": true,
-      "group": "AI Provider",
-      "description": "Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets.",
-      "source": "runtime",
-      "empty_ok": true,
-      "scope": "env",
-      "provided_by": "",
-      "composed_from": "",
-      "mirror_to_1password": false,
-      "ci": "forbidden",
-      "store_key": ""
-    },
-    {
       "field": "llm_cassette_engage",
       "env": "LLM_CASSETTE_ENGAGE",
       "aliases": [],

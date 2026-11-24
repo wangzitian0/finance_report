@@ -26,16 +26,8 @@ from src.llm.extension.cassette import (
     fingerprint,
     miss_summary,
 )
-from src.llm.extension.db_config import DbConfigSource
 from src.llm.extension.env_config import EnvConfigSource, protocol_for
-from src.llm.extension.factory import (
-    LayeredConfigSource,
-    get_config_source,
-    get_llm_client,
-    get_usage_meter,
-)
 from src.llm.extension.routing import LitellmCall, build_call
-from src.llm.extension.scene_client import LitellmClient
 from src.llm.extension.semantic_scoring import ai_semantic_score
 from src.llm.extension.streaming import (
     AIStreamError,
@@ -54,18 +46,12 @@ __all__ = [
     "CassetteStore",
     "CassetteTag",
     "CassetteValidationError",
-    "DbConfigSource",
     "EnvConfigSource",
-    "LayeredConfigSource",
-    "LitellmClient",
     "LitellmCall",
     "accumulate_stream",
     "ai_semantic_score",
     "build_call",
     "fingerprint",
-    "get_config_source",
-    "get_llm_client",
-    "get_usage_meter",
     "miss_summary",
     "protocol_for",
     "stream_ai_chat",

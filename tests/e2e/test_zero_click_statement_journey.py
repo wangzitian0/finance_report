@@ -19,7 +19,6 @@ from tests.e2e._journey_helpers import (
     assert_pinned_via_client,
     assert_statement_rows_equal,
     auth_headers,
-    default_image_model,
     get_json,
     recording_hook,
     upload_statement,
@@ -95,8 +94,6 @@ async def test_upload_alone_produces_the_base_tables_and_the_three_statements(
             client, record_property, reason="the zero-click proof"
         )
         await assert_default_ai_settings(client)
-        model = await default_image_model(client)
-        record_property("selected_ocr_model", model)
         pdf = tmp_path / "gxs-zero-click.pdf"
         pdf.write_bytes(
             committed_fixture_pdf("gxs_statement_fixture.pdf").read_bytes()
@@ -108,7 +105,6 @@ async def test_upload_alone_produces_the_base_tables_and_the_three_statements(
             filename=pdf.name,
             content=pdf.read_bytes(),
             content_type="application/pdf",
-            model=model,
         )
         checkpoint(record_property, "U1")
 

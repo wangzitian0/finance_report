@@ -59,36 +59,33 @@ async def test_stream_ai_json_provider_knobs_and_credentials(litellm_stub, monke
     assert "extra_body" not in gkw and (gkw.get("reasoning_effort"), gkw["model"]) == ("disable", "gemini/gemini-3-flash-preview")
 
 
-@pytest.mark.parametrize(
-    "providers",
-    [
-        [],
-        [ProviderRef(id="a", label="a", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k1"), ProviderRef(id="b", label="b", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k2")],
-    ],
-)
-async def test_stream_fails_closed_unless_single_provider(monkeypatch, providers: list[ProviderRef]) -> None:
-    monkeypatch.setattr(streaming, "get_config_source", lambda *_a, **_k: SimpleNamespace(list_providers=lambda: aret(providers)))
+async def test_stream_fails_closed_without_a_configured_provider(monkeypatch) -> None:
+    monkeypatch.setattr(streaming, "EnvConfigSource", lambda: SimpleNamespace(list_providers=lambda: aret([])))
     with pytest.raises(AIStreamError):
         await accumulate_stream(stream_ai_json([{"role": "user", "content": "x"}], "glm-5.1"))
 
 
-async def test_stream_resolves_default_and_qualified_providers_and_usage(litellm_stub, monkeypatch) -> None:
-    prov_a = ProviderRef(id="a", label="a", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k1", api_base="https://a")
-    prov_b = ProviderRef(id="b", label="b", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2", api_base="https://b")
-    cfg = lambda items: SimpleNamespace(list_providers=lambda: aret(items), get_provider=lambda pid: aret(next((p for p in items if p.id == pid), None)))
-
-    monkeypatch.setattr(streaming, "get_config_source", lambda *_a, **_k: cfg([prov_a]))
-    assert (await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hi"}], "glm-5.1")), litellm_stub["kwargs"]["model"]) == ('{"ok": true}', "openai/glm-5.1")
-
-    monkeypatch.setattr(streaming, "get_config_source", lambda *_a, **_k: cfg([prov_a, prov_b]))
-    assert (await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hi"}], "b/glm-4.6", user_id=uuid4())), litellm_stub["kwargs"]["model"], litellm_stub["kwargs"]["api_base"]) == (
-        '{"ok": true}', "openai/glm-4.6", "https://b",
+async def test_stream_resolves_the_environment_provider_and_usage(litellm_stub, monkeypatch) -> None:
+    prov = ProviderRef(id="env", label="env", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k1", api_base="https://a")
+    monkeypatch.setattr(streaming, "EnvConfigSource", lambda: SimpleNamespace(list_providers=lambda: aret([prov])))
+    assert (await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hi"}], "glm-5.1")), litellm_stub["kwargs"]["model"], litellm_stub["kwargs"]["api_base"]) == (
+        '{"ok": true}', "openai/glm-5.1", "https://a",
     )
 
     meter = LlmUsageMeter()
     monkeypatch.setattr(streaming, "get_usage_meter", lambda: meter)
     await accumulate_stream(stream_ai_chat([{"role": "user", "content": "hello there"}], "glm-5.1", api_key="k"))
     assert meter.requests_today == 1 and meter.tokens_today > 0 and "stream_options" not in litellm_stub["kwargs"]
+
+
+async def test_the_provider_comes_from_the_environment_key(monkeypatch) -> None:
+    monkeypatch.setattr(streaming.settings, "ai_api_key", "sk-env-key", raising=False)
+    provider = await streaming._resolve_provider(None, None)
+    assert (provider.id, provider.api_key) == ("env", "sk-env-key")
+
+    monkeypatch.setattr(streaming.settings, "ai_api_key", "", raising=False)
+    with pytest.raises(AIStreamError, match="not configured"):
+        await streaming._resolve_provider(None, None)
 
 
 async def test_litellm_error_and_provider_metrics(litellm_stub, monkeypatch) -> None:

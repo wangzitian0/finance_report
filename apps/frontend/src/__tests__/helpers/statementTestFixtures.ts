@@ -714,8 +714,6 @@ export const WB_DATA = {
 };
 
 export const UP_DATA = {
-  noDef: "We couldn't find a default AI model. Refresh and try again.",
-  netErr: "Unable to load AI models. Please try again.",
   invCat: "Please select or enter a category.",
 };
 

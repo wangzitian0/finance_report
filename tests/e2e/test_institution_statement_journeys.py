@@ -27,7 +27,6 @@ from tests.e2e._journey_helpers import (
     assert_statement_rows_equal,
     auth_headers,
     create_opening_balances,
-    default_image_model,
     get_json,
     get_url,
     post_json,
@@ -195,9 +194,6 @@ async def _run_institution_journey(
     async with httpx.AsyncClient(
         headers=await auth_headers(page), verify=False, timeout=120.0
     ) as client:
-        model = await default_image_model(client, reconnects=active_reconnects)
-        if record_property:
-            record_property("selected_ocr_model", model)
         pdf_copy = unique_pdf_copy(pdf_path)
         statement_id = await upload_statement(
             client,
@@ -205,7 +201,6 @@ async def _run_institution_journey(
             content=pdf_copy.read_bytes(),
             content_type="application/pdf",
             institution=institution,
-            model=model,
             label=institution,
         )
         if record_property:
@@ -215,7 +210,6 @@ async def _run_institution_journey(
             statement_id,
             poll_seconds=5,
             gate_name="institution journey",
-            model=model,
             reconnects=active_reconnects,
         )
         transactions = parsed.get("transactions") or []

@@ -73,7 +73,6 @@
 | `POST` | `/api/statements/{id}/rejections` | Stage 1 reject (optionally triggers extract rerun) |
 | `POST`/`GET` | `/api/statements/{id}/runs` | Start or list `StatementRun` attempts (`extract` / `classify`) |
 | `GET` | `/api/statements/evidence-lineage` | Trace evidence lineage across source documents, statements, ledger, and reports |
-| `GET` | `/api/llm/catalog` | Configured provider model catalog (supersedes retired `/api/ai/models`) |
 
 ## Brokerage Position Import
 

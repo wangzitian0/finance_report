@@ -57,7 +57,6 @@ async def test_gxs_browser_upload_to_saved_package(
         page,
         institution="GXS Generated Browser Proof",
         file_path=pdf,
-        select_model=False,
     )
     record_property("source_statement_id", statement_id)
     checkpoint(record_property, "U1")

@@ -15,8 +15,6 @@ from pydantic_ai.exceptions import ModelHTTPError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import src.llm.extension.client as client_mod
-import src.llm.extension.streaming as streaming
 from src.advisor import (
     DISCLAIMER_EN,
     AIAdvisorError,
@@ -49,8 +47,9 @@ from src.ledger import (
     JournalLine,
     worst_confidence_tier,
 )
-from src.llm import AIStreamError, LLMConfigError, ModelCallFailed, ModelFailureKind, ReasoningEffort, estimate_tokens
-from src.llm.base import ProtocolFamily, ProviderRef, Scene, SceneBinding
+from src.llm import LLMConfigError, ModelCallFailed, ModelFailureKind, estimate_tokens
+from src.llm.base import ProtocolFamily, Scene
+from src.llm.orm.config import LlmProvider, LlmSceneBinding
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
 from tests.ai.conftest import (
@@ -162,41 +161,49 @@ async def test_stream_openrouter_environment_path_and_errors(monkeypatch: pytest
     monkeypatch.setattr(service, "_stream_model", fake_stream_model)
     if expected_cls is not None:
         with pytest.raises(expected_cls, match=match):
-            async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
+            async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}]):
                 pass
         assert len(calls) == 1
     else:
-        assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], None)] == [("hello", "large")]
+        assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}])] == [("hello", "large")]
 
 
-async def test_a_failed_bound_scene_falls_back_to_the_environment_model(monkeypatch: pytest.MonkeyPatch) -> None:
-    service, uid = AIAdvisorService(), uuid4()
-    service.large_model = "large"
-    bound = SceneBinding(scene=Scene.ADVISOR_CHAT, model_id="provider1/user-glm-4.6", reasoning=ReasoningEffort.HIGH, max_tokens=4096)
-
-    async def failing_bound():
-        raise AIStreamError(message="bound provider down", retryable=True)
-        yield ""
-
-    async def environment(messages):
-        yield "from the environment"
-
-    monkeypatch.setattr(ai_advisor_service, "get_llm_client", lambda user_id: SimpleNamespace(stream=lambda scene, messages: failing_bound()))
-    monkeypatch.setattr(service, "_stream_model", environment)
-    assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], uid, bound)] == [("from the environment", "large")]
-
-
-async def test_chat_stream_requires_api_key_unless_configured_source(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_chat_stream_requires_the_environment_api_key(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
     service = AIAdvisorService()
     _stub_context(service, monkeypatch)
     assert not service.api_key
-    with pytest.raises(AIAdvisorError, match="AI provider API key not configured"):
+    with pytest.raises(AIAdvisorError, match="AI provider API key not configured") as refused:
         await service.chat_stream(db, test_user.id, "How much did I save this month?", base_currency="SGD")
+    assert refused.value.status_code == 503
 
-    monkeypatch.setattr(ai_advisor_service, "get_config_source", lambda _uid=None: SimpleNamespace(is_configured=lambda: aret(True), get_binding=lambda _s: aret(None)))
+    service.api_key = "test-key"
     result = await service.chat_stream(db, test_user.id, "How much did I save this month?", base_currency="SGD")
     assert result.cached is False and result.session_id is not None
     await result.stream.aclose()
+
+
+async def test_chat_stream_ignores_a_stored_scene_binding(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A row of `llm_scene_bindings` for `advisor.chat` does not change the model of the answer (#2953)."""
+    provider = LlmProvider(
+        user_id=test_user.id, label="stored", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key_ciphertext="x", api_key_version=1
+    )
+    db.add(provider)
+    await db.flush()
+    db.add(LlmSceneBinding(user_id=test_user.id, scene=Scene.ADVISOR_CHAT, provider_id=provider.id, model="stored-user-model"))
+    await db.commit()
+    service, seen = AIAdvisorService(), []
+    service.api_key, service.large_model = "test-key", "env-large"
+    _stub_context(service, monkeypatch)
+
+    async def environment(messages):
+        seen.append("environment")
+        yield "answer"
+
+    monkeypatch.setattr(service, "_stream_model", environment)
+    chat = await service.chat_stream(db, test_user.id, "How much did I save this month?", base_currency="SGD")
+    await _drain_stream(chat.stream)
+    stored = (await db.execute(select(ChatMessage).where(ChatMessage.session_id == chat.session_id, ChatMessage.role == ChatMessageRole.ASSISTANT))).scalar_one()
+    assert (chat.model_name, stored.model_name, seen) == ("env-large", "env-large", ["environment"])
 
 
 async def test_get_financial_context_handles_report_errors(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -263,7 +270,7 @@ async def test_AC21_2_3_chat_stream_redacts_sensitive_numbers_before_provider_an
     service, captured_messages = AIAdvisorService(), []
     service.api_key = "test-key"
 
-    async def fake_stream_and_store(_db, _session, messages, _lang, _ck, _uid=None, _bound=None):
+    async def fake_stream_and_store(_db, _session, messages, _lang, _ck, **_kwargs):
         captured_messages.extend(messages)
         yield "ok"
 
@@ -460,31 +467,6 @@ async def test_get_financial_context_user_isolation_rollforward_and_active_month
         "SGD 24200.00", "SGD 0.00", "SGD 15450.75", "SGD 8749.25", "SGD 24200.00", "SGD 24200.00",
     )
     assert all(s in prompt for s in ("Net worth: SGD 24200.00", "Opening equity: SGD 15450.75", "Cumulative net income: SGD 8749.25"))
-
-
-async def test_AC23_4_5_advisor_user_scoped_model_and_provider(monkeypatch: pytest.MonkeyPatch) -> None:
-    service, uid, seen, seen_prov = AIAdvisorService(), uuid4(), {}, {}
-    service.small_model = "env-small"
-    bound = SceneBinding(scene=Scene.ADVISOR_CHAT, model_id="provider1/user-glm-4.6", reasoning=ReasoningEffort.HIGH, max_tokens=4096)
-
-    async def _gen():
-        yield "ok"
-
-    client = SimpleNamespace(stream=lambda scene, messages: (seen.update({"scene": scene, "messages": messages}) or _gen()))
-    monkeypatch.setattr(ai_advisor_service, "get_llm_client", lambda user_id: seen.setdefault("user_id", user_id) and client)
-    async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}], uid, bound):
-        pass
-    assert seen == {"user_id": uid, "scene": Scene.ADVISOR_CHAT, "messages": [{"role": "user", "content": "hi"}]}
-
-    async def empty_gen():
-        if False:
-            yield ""
-
-    monkeypatch.setattr(streaming, "get_config_source", lambda user_id=None: seen_prov.setdefault("user_id", user_id) and SimpleNamespace(list_providers=lambda: aret([ProviderRef(id="u1", label="user", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="sk-u")])))
-    monkeypatch.setattr(client_mod, "litellm_stream", lambda *a, **k: empty_gen())
-    async for _ in streaming.stream_ai_chat([{"role": "user", "content": "hi"}], "m", user_id=uid):
-        pass
-    assert seen_prov["user_id"] == uid
 
 
 @pytest.mark.no_db

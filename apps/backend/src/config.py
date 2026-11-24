@@ -20,7 +20,7 @@ EMPTY_FALLBACK_FIELDS = frozenset(
     """
     ai_api_key cors_origins_str next_public_app_url otel_resource_attributes
     api_rate_limit_requests api_rate_limit_window register_rate_limit_requests
-    llm_encryption_keys s3_public_access_key s3_public_secret_key
+    s3_public_access_key s3_public_secret_key
     reconciliation_auto_accept_threshold reconciliation_review_threshold
     """.split()
 )
@@ -77,7 +77,6 @@ ai_json_max_tokens|ai||Max tokens for AI JSON completion calls.
 ai_json_disable_thinking|ai||Request disabled thinking for AI JSON calls; reasoning-only models use their lowest supported effort.
 ai_json_seed|ai||Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models).
 ai_extract_max_attempts|ai||Max extraction passes for one bank statement; a later pass gets the failed checks (1 disables retry).
-llm_encryption_keys|ai|i|Comma-separated Fernet keys (urlsafe base64, 32 bytes) for encrypting LLM provider API keys at rest; newest first. Empty disables DB-backed provider storage. Rotate by prepending a new key and re-encrypting all secrets.
 llm_cassette_engage|ai||Engage offline LLM cassette replay layer.
 llm_cassette_refresh|ai||Refresh recorded LLM cassettes in local runs.
 llm_live|ai||Force live LLM provider calls.
@@ -253,7 +252,6 @@ class Settings(BaseSettings):
     ai_json_disable_thinking: bool = _f("ai_json_disable_thinking", True)
     ai_json_seed: int | None = _f("ai_json_seed", None)
     ai_extract_max_attempts: int = _f("ai_extract_max_attempts", 3, ge=1, le=5)
-    llm_encryption_keys: str = _f("llm_encryption_keys", "")
     llm_cassette_engage: bool = _f("llm_cassette_engage", False)
     llm_cassette_refresh: bool = _f("llm_cassette_refresh", False)
     llm_live: bool = _f("llm_live", False)
@@ -344,10 +342,6 @@ class Settings(BaseSettings):
             self.cors_origins_str, ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"]
         )
 
-    @cached_property
-    def llm_encryption_key_list(self) -> list[str]:
-        return parse_comma_list(self.llm_encryption_keys, [])
-
     def to_llm_settings(self) -> LlmSettings:
         return LlmSettings(
             provider=self.ai_provider,
@@ -379,7 +373,7 @@ ENV_SOURCE_CLASSES: dict[str, dict[str, object]] = {
     **{k: {"source": "runtime", "sensitive": True} for k in ("s3_access_key", "s3_secret_key", "secret_key")},
     **{
         k: {"source": "runtime", "sensitive": True, "empty_ok": True}
-        for k in ("s3_public_access_key", "s3_public_secret_key", "llm_encryption_keys")
+        for k in ("s3_public_access_key", "s3_public_secret_key")
     },
     **{
         k: {"source": "decision"}

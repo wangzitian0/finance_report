@@ -6,7 +6,7 @@ const replaceMock = vi.fn(), S = screen, E = expect, tab = (n: string) => S.getB
 vi.mock("next/navigation", () => ({ useSearchParams: () => nav.searchParams, useRouter: () => ({ replace: replaceMock }) }));
 vi.mock("@/components/settings/SettingsPanels", () => ({
 GeneralSettingsPanel: () => <div data-testid="general-settings" />, AiSettingsPanel: () => <div data-testid="ai-settings" />,
-LlmSettingsPanel: () => <div data-testid="llm-settings" />, AccountsPanel: () => <div data-testid="accounts-settings" />,
+AccountsPanel: () => <div data-testid="accounts-settings" />,
 }));
 beforeEach(() => { nav.searchParams = new URLSearchParams(); replaceMock.mockReset(); });
 it("EPIC-022 AC22.21.4 tabs, ARIA, keyboard nav", () => {
@@ -17,11 +17,10 @@ E(gen).toHaveAttribute("aria-controls", "settings-panel-general");
 E(S.getByRole("tabpanel")).toHaveAttribute("aria-labelledby", "settings-tab-general");
 E(S.getByTestId("general-settings")).toBeInTheDocument();
 E(S.queryByTestId("ai-settings")).toBeNull();
-for (const [name, q, tid] of [["AI", "ai", "ai-settings"], ["LLM Models", "llm", "llm-settings"]] as const) {
-fireEvent.click(tab(name));
-E(S.getByTestId(tid)).toBeInTheDocument();
-E(replaceMock).toHaveBeenCalledWith(`/settings?tab=${q}`, { scroll: false });
-}
+E(S.getAllByRole("tab").map((t) => t.textContent)).toEqual(["General", "AI", "Accounts"]);
+fireEvent.click(tab("AI"));
+E(S.getByTestId("ai-settings")).toBeInTheDocument();
+E(replaceMock).toHaveBeenCalledWith("/settings?tab=ai", { scroll: false });
 fireEvent.click(gen);
 const list = S.getByRole("tablist", { name: "Settings sections" });
 fireEvent.keyDown(list, { key: "ArrowRight" });
@@ -43,4 +42,15 @@ E(S.queryByTestId("accounts-settings")).toBeNull();
 fireEvent.click(tab("Accounts"));
 E(replaceMock).toHaveBeenLastCalledWith("/settings?tab=accounts", { scroll: false });
 }
+});
+it("AC22.21.4 the retired ?tab=llm opens the AI tab", () => {
+nav.searchParams = new URLSearchParams("tab=llm");
+render(<SettingsPage />);
+E(tab("AI")).toHaveAttribute("aria-selected", "true");
+E(S.getByTestId("ai-settings")).toBeInTheDocument();
+E(S.queryByRole("tab", { name: "LLM Models" })).toBeNull();
+});
+it("AC22.21.4 the Portfolio Holdings link points at /portfolio", () => {
+render(<SettingsPage />);
+E(S.getByRole("link", { name: "Portfolio Holdings" })).toHaveAttribute("href", "/portfolio");
 });

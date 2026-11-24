@@ -19,7 +19,6 @@ from tests.e2e._journey_helpers import (
     assert_pinned_via_client,
     assert_statement_rows_equal,
     auth_headers,
-    default_image_model,
     get_json,
     recording_hook,
     upload_statement,
@@ -188,8 +187,6 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
             client, record_property, reason="the Stage 1 routing proof"
         )
         await assert_default_ai_settings(client)
-        model = await default_image_model(client)
-        record_property("selected_ocr_model", model)
 
         clean_pdf = _render_statement_pdf(
             tmp_path / "stage1_clean.pdf",
@@ -202,7 +199,6 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
             content=clean_pdf.read_bytes(),
             content_type="application/pdf",
             institution=INSTITUTION,
-            model=model,
         )
         clean, posted = await _wait_for_auto_accept(client, clean_id)
         assert (
@@ -270,7 +266,6 @@ async def test_stage1_accepts_clean_source_and_reviews_broken_source(
             content=broken_pdf.read_bytes(),
             content_type="application/pdf",
             institution=INSTITUTION,
-            model=model,
         )
         await wait_for_statement(
             client,

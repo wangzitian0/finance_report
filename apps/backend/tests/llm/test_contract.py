@@ -4,11 +4,8 @@ from collections.abc import AsyncIterator
 from datetime import date
 from decimal import Decimal
 
-from cryptography.fernet import Fernet
-
 from src.llm.base import (
     ConfigSource,
-    FernetCipher,
     LLMBudgetExceeded,
     LLMClient,
     LLMConfigError,
@@ -21,7 +18,6 @@ from src.llm.base import (
     ReasoningEffort,
     Scene,
     SceneBinding,
-    SecretCipher,
 )
 from src.llm.base.usage import LlmUsageMeter, estimate_tokens
 
@@ -39,13 +35,11 @@ class _FakeClient:
 
 
 async def test_AC23_1_and_2_base_protocols_types_errors_and_usage() -> None:
-    cipher = FernetCipher([Fernet.generate_key().decode("ascii")])
     assert (
         isinstance(_FakeConfigSource(), ConfigSource),
         isinstance(_FakeClient(), LLMClient),
-        isinstance(cipher, SecretCipher),
         isinstance(type("_NotCfg", (), {"list_providers": lambda _s: None})(), ConfigSource),
-    ) == (True, True, True, False)
+    ) == (True, True, False)
     assert {f.value for f in ProtocolFamily} == {"openai-compatible", "anthropic-compatible", "openrouter-compatible", "google-gemini"}
     assert {s.value for s in Scene} == {"extraction.ocr", "extraction.vision", "extraction.json", "advisor.chat", "statement.summary"}
 

@@ -53,11 +53,6 @@ export interface paths {
   "/journal-entries/{entry_id}/postings": _P<{ post: _O["post_entry_journal_entries__entry_id__postings_post"] }>;
   "/journal-entries/{entry_id}/voidings": _P<{ post: _O["void_entry_journal_entries__entry_id__voidings_post"] }>;
   "/livez": _P<{ get: _O["livez_livez_get"] }>;
-  "/llm/catalog": _P<{ get: _O["get_catalog_llm_catalog_get"] }>;
-  "/llm/config/status": _P<{ get: _O["get_config_status_llm_config_status_get"] }>;
-  "/llm/providers": _P<{ get: _O["list_providers_llm_providers_get"]; post: _O["create_provider_llm_providers_post"] }>;
-  "/llm/providers/{provider_id}": _P<{ delete: _O["delete_provider_llm_providers__provider_id__delete"] }>;
-  "/llm/scenes": _P<{ get: _O["get_scenes_llm_scenes_get"]; put: _O["put_scenes_llm_scenes_put"] }>;
   "/portfolio/allocation/asset-class": _P<{ get: _O["get_asset_class_allocation_portfolio_allocation_asset_class_get"] }>;
   "/portfolio/allocation/geography": _P<{ get: _O["get_geography_allocation_portfolio_allocation_geography_get"] }>;
   "/portfolio/allocation/sector": _P<{ get: _O["get_sector_allocation_portfolio_allocation_sector_get"] }>;
@@ -1015,56 +1010,6 @@ export interface components {
     ListResponse_ProcessingPendingItem_: _LR<_S["ProcessingPendingItem"]>;
     ListResponse_ReconciliationMatchResponse_: _LR<_S["ReconciliationMatchResponse"]>;
     ListResponse_StatementRunRecord_: _LR<_S["StatementRunRecord"]>;
-    LlmCatalogResponse: {
-      models: _S["LlmModelResponse"][];
-    };
-    LlmConfigStatusResponse: {
-      configured: boolean;
-    };
-    LlmModelResponse: {
-      id: string;
-      input_price_per_mtok?: string | null;
-      is_free: boolean;
-      modalities: _S["Modality"][];
-      output_price_per_mtok?: string | null;
-      provider_id: string;
-      supports_reasoning: boolean;
-    };
-    LlmProviderCreate: {
-      api_base?: string | null;
-      api_key: string;
-      label: string;
-      protocol: _S["ProtocolFamily"];
-    };
-    LlmProviderDeleteResponse: {
-      deleted: boolean;
-      id: string;
-    };
-    LlmProviderListResponse: {
-      providers: _S["LlmProviderResponse"][];
-    };
-    LlmProviderResponse: {
-      api_base?: string | null;
-      created_at: string;
-      has_api_key: boolean;
-      id: string;
-      label: string;
-      protocol: _S["ProtocolFamily"];
-      updated_at: string;
-    };
-    LlmSceneBindingItem: {
-      max_tokens?: number | null;
-      model: string;
-      provider_id: string;
-      reasoning: _S["ReasoningEffort"];
-      scene: _S["Scene"];
-    };
-    LlmScenesResponse: {
-      bindings: _S["LlmSceneBindingItem"][];
-    };
-    LlmScenesUpdate: {
-      bindings: _S["LlmSceneBindingItem"][];
-    };
     LoginRequest: {
       email: string;
       password: string;
@@ -1126,7 +1071,6 @@ export interface components {
     MaterializationEdgeProperties: {
       [key: string]: unknown;
     };
-    Modality: "text" | "image" | "pdf" | "file";
     MonthContinuityBucket: {
       closing_balance?: string | null;
       has_gap: boolean;
@@ -1552,7 +1496,6 @@ export interface components {
       pending_count: number;
       pending_total: string;
     };
-    ProtocolFamily: "openai-compatible" | "anthropic-compatible" | "openrouter-compatible" | "google-gemini";
     ProviderDisagreementResponse: {
       asset: string;
       observed_date: string;
@@ -1584,7 +1527,6 @@ export interface components {
       quantity: string;
       sold_date: string;
     };
-    ReasoningEffort: "none" | "low" | "medium" | "high";
     ReconciliationAdjustmentRequest: {
       account_id: string;
       bank_balance: number | string;
@@ -1742,7 +1684,6 @@ export interface components {
     RunKind: "extract" | "classify";
     RunState: "requested" | "running" | "succeeded" | "failed" | "cancelled";
     RunTrigger: "upload" | "rerun" | "auto_classify" | "auto_retry" | "backfill";
-    Scene: "extraction.ocr" | "extraction.vision" | "extraction.json" | "advisor.chat" | "statement.summary";
     SourceDocumentProperties: {
       [key: string]: unknown;
     };
@@ -2109,26 +2050,6 @@ export interface operations {
       200: _J<_S["ProbeResponse"]>;
     };
   };
-  get_catalog_llm_catalog_get: {
-    parameters: _QP<{
-        modality?: _S["Modality"] | null;
-        free_only?: boolean;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["LlmCatalogResponse"]>;
-  };
-  get_config_status_llm_config_status_get: _OpN<_S["LlmConfigStatusResponse"]>;
-  list_providers_llm_providers_get: _OpN<_S["LlmProviderListResponse"]>;
-  create_provider_llm_providers_post: _Op<_S["LlmProviderResponse"], _NP, _S["LlmProviderCreate"], 201>;
-  delete_provider_llm_providers__provider_id__delete: {
-    parameters: _PP<{
-        provider_id: string;
-      }>;
-    requestBody?: never;
-    responses: _R<_S["LlmProviderDeleteResponse"]>;
-  };
-  get_scenes_llm_scenes_get: _OpN<_S["LlmScenesResponse"]>;
-  put_scenes_llm_scenes_put: _Op<_S["LlmScenesResponse"], _NP, _S["LlmScenesUpdate"]>;
   get_asset_class_allocation_portfolio_allocation_asset_class_get: {
     parameters: _QP<{
         as_of_date?: string | null;

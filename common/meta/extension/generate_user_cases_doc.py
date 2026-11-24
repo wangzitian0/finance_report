@@ -30,7 +30,7 @@ REGISTRY_PATH = REPO_ROOT / "common" / "meta" / "flows" / "user_cases_ssot.json"
 OUTPUT_PATH = REPO_ROOT / "docs" / "reference" / "user-cases.md"
 
 _DOMAIN_SUMMARIES: dict[int, str] = {
-    1: "Governs tenant registration, session isolation, base reporting currency, three-tier AI model bindings, chart of accounts, and opening balances.",
+    1: "Governs tenant registration, session isolation, base reporting currency, environment AI model roles, chart of accounts, and opening balances.",
     2: "Focuses on multi-source ingestion (PDF statements, CSV, multi-currency balances, idempotency, hint-guided re-runs, and workflow status tracking).",
     3: "Governs Stage-1 fact validation, mismatch defense, deduplication, rejection triage, inline AI feedback, auto-accept, and correction replay.",
     4: "Governs Stage-2 economic intent allocation, on-the-fly counter accounts, batch rule commits, payroll gross-to-net splits, and mortgage amortization.",

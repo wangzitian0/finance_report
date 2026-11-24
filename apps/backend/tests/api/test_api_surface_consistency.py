@@ -423,13 +423,12 @@ def test_issue3123_domain_aligned_routes_and_router_boundaries(openapi_schema: d
     assert "post" in paths["/portfolio/brokerage-imports"]
     assert paths["/portfolio/brokerage-imports"]["post"]["tags"] == ["portfolio"]
 
-    # 4) exact 11 domain router modules under src/routers
+    # 4) exact 10 domain router modules under src/routers (the `llm` router is gone, #2953)
     router_modules = {path.stem for path in sorted(_ROUTER_DIR.glob("*.py")) if path.name != "__init__.py"}
     assert router_modules == {
         "accounts",
         "chat",
         "journal",
-        "llm",
         "portfolio",
         "pricing",
         "reconciliation",
