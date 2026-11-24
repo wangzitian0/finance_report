@@ -961,7 +961,7 @@ requires-dist = [
     { name = "email-validator", specifier = ">=2.1.0" },
     { name = "fastapi", specifier = ">=0.162.2" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "infra2-sdk", extras = ["otel", "pydantic-ai"], url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.3.0/infra2_sdk-4.3.0-py3-none-any.whl" },
+    { name = "infra2-sdk", extras = ["otel", "pydantic-ai"], url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.6.0/infra2_sdk-4.6.0-py3-none-any.whl" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.24.0" },
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.45b0" },
     { name = "opentelemetry-instrumentation-sqlalchemy", specifier = ">=0.45b0" },
@@ -1521,13 +1521,13 @@ wheels = [
 
 [[package]]
 name = "infra2-sdk"
-version = "4.3.0"
-source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.3.0/infra2_sdk-4.3.0-py3-none-any.whl" }
+version = "4.6.0"
+source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.6.0/infra2_sdk-4.6.0-py3-none-any.whl" }
 dependencies = [
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.3.0/infra2_sdk-4.3.0-py3-none-any.whl", hash = "sha256:a41a8dde6db9b5d42d013dbbf3d04106940781eb373d3d887ec982b92e7c494e" },
+    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.6.0/infra2_sdk-4.6.0-py3-none-any.whl", hash = "sha256:df52da82df5ab4345cbf1c5d93ad3ba9aba3cb3c2b7cc124f2fa68cc83365e72" },
 ]
 
 [package.optional-dependencies]
