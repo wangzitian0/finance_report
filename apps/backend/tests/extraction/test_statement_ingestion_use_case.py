@@ -260,13 +260,7 @@ async def test_AC_extraction_1913_8_retry_does_not_duplicate_financial_effects(d
     assert (first, second, len(entries)) == (1, 0, 1)
 
 
-async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db, test_user, monkeypatch):
-    # The model abstains for every row: the rows stay without an answer and the statement waits for the economic review.
-    # (With no model configured the classify run fails instead: that case has tests of its own.)
-    monkeypatch.setattr(
-        "src.extraction.extension.transaction_classification.propose_categories",
-        lambda txns, _p: asyncio.sleep(0, result=[None] * len(txns)),
-    )
+async def test_AC_extraction_ingestion_trace_1_is_atomic_with_statement_facts(db, test_user):
     content = _interest_pdf("atomic-trace-statement")
     fail_content = _interest_pdf("trace-failure")
     file_hash = hashlib.sha256(content).hexdigest()

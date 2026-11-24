@@ -9,6 +9,7 @@ from uuid import UUID
 
 import pytest
 
+from src.extraction.base.source_vocabulary import TransactionDirection
 from src.extraction.extension.transaction_classification import (
     POLICY_VERSIONS,
     TransactionCategory,
@@ -17,7 +18,6 @@ from src.extraction.extension.transaction_classification import (
     policy_for,
 )
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.extraction.base.source_vocabulary import TransactionDirection
 
 ROWS = (
     ("ACME PTE LTD SALARY JAN", TransactionDirection.IN, "4200.00"),
@@ -58,7 +58,7 @@ def test_the_prompt_of_the_recording_is_the_prompt_that_production_sends() -> No
 @pytest.mark.vcr
 async def test_a_recorded_answer_parses_into_one_proposal_for_each_row(vcr_llm) -> None:
     """The real answer of the model to the indexed prompt: each row gets a known category and a 0-100 score."""
-    proposals = await _propose_batch(_transactions(), POLICY_VERSIONS[-1], UUID(int=99))
+    proposals = await _propose_batch(_transactions(), POLICY_VERSIONS[-1])
     assert len(proposals) == len(ROWS) and all(proposal is not None for proposal in proposals)
     known = {category.value for category in TransactionCategory}
     assert all(proposal.category in known and 0 <= proposal.confidence <= 100 for proposal in proposals)

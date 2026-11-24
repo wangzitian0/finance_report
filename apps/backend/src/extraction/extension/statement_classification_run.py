@@ -51,7 +51,7 @@ from src.extraction.extension.transaction_classification import (
 )
 from src.extraction.orm.statement_run import StatementRun
 from src.extraction.orm.statement_summary import StatementSummary
-from src.llm import ModelCallFailed
+from src.llm import ModelCallFailed, ModelFailureKind
 from src.observability import (
     get_logger,
     record_confidence_tier,
@@ -72,7 +72,7 @@ class ClassifyOutcome(StrEnum):
     PARTIAL = "partial"  # an asked row has no answer: the approve sends it to the economic review
     NOTHING_TO_CLASSIFY = "nothing_to_classify"  # every row had an answer or a rule, or no row qualified
     SKIPPED_STATE = "skipped_state"  # the statement is gone, not PARSED, or its rows cannot be resolved
-    SKIPPED_DISABLED = "skipped_disabled"  # the user turned the model off: keyword rules still answered
+    SKIPPED_DISABLED = "skipped_disabled"  # no model: the user turned it off, or the deployment has none (not_configured)
     TIMED_OUT = "timed_out"  # past the deadline: the batches written stay
     FAILED = "failed"  # an error: the batches written stay
 
@@ -129,6 +129,15 @@ async def execute_classify_run(
             outcome, summary = await _classify_in_phases(session_maker, run_id, statement_id, user_id, hints, ask)
         if outcome is ClassifyOutcome.FAILED:
             # Every model call failed: no auto-approve, the statement keeps its rows, and the run row says why.
+            logger.warning(
+                "statement.classification.failed",
+                audit_event="statement.classification.failed",
+                statement_id=str(statement_id),
+                run_id=str(run_id),
+                outcome=outcome.value,
+                error_type="ModelCallFailed",
+                model_failures=summary.get("model_failures"),
+            )
             if not await _fail(session_maker, run_id, outcome, detail=_failure_detail(summary)):
                 return 0
         # A candidate keeps its run active: the run ends in the transaction of the auto-approve.
@@ -253,7 +262,7 @@ async def _classify_in_phases(
         async with slots:
             began = time.perf_counter()
             try:
-                proposals = await ask_model(user_id, batch, plan.policy, hints=hints, few_shot_examples=few_shot_examples)
+                proposals = await ask_model(batch, plan.policy, hints=hints, few_shot_examples=few_shot_examples)
                 failure = None
             except ModelCallFailed as exc:
                 # The entry point counted and logged the failure. The rows of this batch get no answer, and the
@@ -296,7 +305,14 @@ async def _classify_in_phases(
     elif not asked:
         outcome = ClassifyOutcome.NOTHING_TO_CLASSIFY
     elif batches and sum(model_failures.values()) == len(batches):
-        outcome = ClassifyOutcome.FAILED  # every model call failed: this is not a run that the model answered
+        # Every model call failed. With no model configured (a deployment with no key) it is the state of a model that
+        # is off: keyword rules still answered, and the rows wait for the economic review as before. Any other kind
+        # (or a mix) is a failed run: the model could have answered.
+        outcome = (
+            ClassifyOutcome.SKIPPED_DISABLED
+            if set(model_failures) == {ModelFailureKind.NOT_CONFIGURED.value}
+            else ClassifyOutcome.FAILED
+        )
     else:
         outcome = ClassifyOutcome.PARTIAL if any(not o.wrote_row for o in asked) else ClassifyOutcome.CLASSIFIED
     summary_stats = summarize_outcomes(outcomes)

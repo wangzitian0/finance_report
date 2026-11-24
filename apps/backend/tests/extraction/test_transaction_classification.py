@@ -147,7 +147,7 @@ async def test_AC18_15_3_proposer_parsing_clamping_recovery_and_non_pnl_prompts(
 
     # A reply that is no JSON array is a failed call (bad_reply), not an abstaining model: an abstaining model gives
     # a list whose items are null or left out, which the cases above show as None.
-    for raw in ("{nope", "", '{"index": 0}'):
+    for raw in ("{nope", "", '{"index": 0}', "[" + "1" * 5000 + "]"):
         monkeypatch.setattr(settings, "ai_api_key", "test-key")
         install_fake_model(monkeypatch, raw)
         with pytest.raises(ModelCallFailed) as failed:

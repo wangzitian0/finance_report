@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelHTTPError, ModelTimeoutError, UnexpectedModelBehavior, UsageLimitExceeded
 
 from src.config import settings
 from src.extraction.base.result import StatementExtractionResult
@@ -173,6 +173,37 @@ async def test_ai_csv_parsing_variants(monkeypatch: pytest.MonkeyPatch) -> None:
         pytest.raises(ExtractionError, match="No valid transactions found"),
     ):
         await svc._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+
+
+_CSV_FAILURES = [
+    (ModelHTTPError(status_code=429, model_name="m", body="x"), ModelFailureKind.RATE_LIMIT),
+    (ModelTimeoutError("m", "slow"), ModelFailureKind.TIMEOUT),
+    (ModelHTTPError(status_code=503, model_name="m", body="x"), ModelFailureKind.UNAVAILABLE),
+    (ModelHTTPError(status_code=401, model_name="m", body="x"), ModelFailureKind.REJECTED),
+    (UsageLimitExceeded("limit"), ModelFailureKind.USAGE_LIMIT),
+    (UnexpectedModelBehavior("no text"), ModelFailureKind.BAD_REPLY),
+    (RuntimeError("a bug of the adapter"), ModelFailureKind.UNCLASSIFIED),
+]
+
+
+@pytest.mark.parametrize(("error", "kind"), _CSV_FAILURES, ids=lambda value: value.value if isinstance(value, ModelFailureKind) else None)
+async def test_csv_every_failure_kind_but_not_configured_names_the_model_as_the_cause(monkeypatch, error, kind) -> None:
+    """Review of #3198: no kind may fall through to the generic error, except a deployment with no AI configured."""
+
+    def fails(_prompt: str) -> str:
+        raise error
+
+    install_fake_model(monkeypatch, fails)
+    with pytest.raises(ExtractionError, match=rf"^AI column mapping unavailable \({kind.value}\)$") as raised:
+        await ExtractionService()._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+    assert isinstance(raised.value.__cause__, ModelCallFailed) and raised.value.__cause__.kind is kind
+
+
+@pytest.mark.parametrize("reply", ['["a"]', "null", '{"date": ["x"]}', '{"date": 3}', "```json\n{}\n```", ""])
+async def test_csv_a_reply_that_is_no_column_mapping_is_a_bad_reply(monkeypatch, reply) -> None:
+    install_fake_model(monkeypatch, reply)
+    with pytest.raises(ExtractionError, match=r"^AI column mapping unavailable \(bad_reply\)$"):
+        await ExtractionService()._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
 
 
 async def test_csv_with_no_ai_configured_keeps_the_generic_error(monkeypatch: pytest.MonkeyPatch) -> None:

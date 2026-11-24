@@ -125,7 +125,7 @@ async def classify_transactions(
     if plan.to_propose:
         with patch.object(transaction_classification, "propose_categories", proposer) if proposer else nullcontext():
             try:
-                proposals = await ask_model(user_id, plan.to_propose, plan.policy)
+                proposals = await ask_model(plan.to_propose, plan.policy)
             except ModelCallFailed:
                 # The classify run leaves the rows of a failed batch without an answer (and counts the batch).
                 proposals = [None] * len(plan.to_propose)

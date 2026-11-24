@@ -3400,14 +3400,14 @@ async def verify_failed_run_leaves_rows_to_review(
     ) == (409, True, 0)
 
 
-async def verify_one_failed_batch_leaves_a_partial_run(db, test_user, monkeypatch) -> None:
-    """One of three batches fails at the provider: the run is partial, and its summary counts the failure by kind."""
+async def verify_failed_batches_leave_a_partial_run(db, test_user, monkeypatch, failing: int) -> None:
+    """`failing` of three batches fail at the provider: the run is partial, and its summary counts them by kind."""
     monkeypatch.setattr(transaction_classification, "CLASSIFICATION_BATCH_SIZE", 2)
     healthy, asked = Proposer(answers=EXTENDED_ANSWERS, timeout_gate=True), []
 
     async def flaky(transactions, policy):
         asked.append(len(transactions))
-        if len(asked) == 1:
+        if len(asked) <= failing:
             raise model_call_failed(CallSite.CLASSIFICATION_PROPOSE, ModelFailureKind.RATE_LIMIT, "429 from the test")
         return await healthy(transactions, policy)
 
@@ -3422,9 +3422,14 @@ async def verify_one_failed_batch_leaves_a_partial_run(db, test_user, monkeypatc
     assert (run.state, run.result_summary["outcome"], run.result_summary["model_failures"]) == (
         RunState.SUCCEEDED,
         "partial",
-        {"rate_limit": 1},
+        {"rate_limit": failing},
     )
-    assert (len(asked), healthy.rows_asked, len(await user_classification_rows(db, test_user.id))) == (3, 4, 4)
+    answered = (3 - failing) * 2
+    assert (len(asked), healthy.rows_asked, len(await user_classification_rows(db, test_user.id))) == (
+        3,
+        answered,
+        answered,
+    )
 
 
 async def verify_each_row_gets_own_date_policy(db, test_user, monkeypatch) -> None:

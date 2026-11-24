@@ -24,6 +24,7 @@ class SentToModel(list):
         super().__init__()
         self.decodings: list[Any] = []
         self.extra_bodies: list[Any] = []
+        self.max_attempts: list[Any] = []
 
 
 def install_fake_model(monkeypatch: pytest.MonkeyPatch, reply: Callable[[Any], str] | str) -> SentToModel:
@@ -51,6 +52,7 @@ def install_fake_model(monkeypatch: pytest.MonkeyPatch, reply: Callable[[Any], s
     def create(*args: Any, **kwargs: Any) -> Any:
         sent.decodings.append(kwargs.get("decoding"))
         sent.extra_bodies.append((kwargs.get("model_settings") or {}).get("extra_body"))
+        sent.max_attempts.append(kwargs.get("max_attempts"))
         return _create_llm_agent(*args, **{**kwargs, "model": model})
 
     monkeypatch.setattr(agent_module, "create_llm_agent", create)
