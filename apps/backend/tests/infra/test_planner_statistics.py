@@ -18,7 +18,7 @@ from sqlalchemy.pool import NullPool
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.identity import User
 from src.reporting import generate_cash_flow
-from tests._support.test_isolation import get_test_db_name, sanitize_namespace
+from tests._support.db_isolation import get_test_db_name, sanitize_namespace
 from tests.factories import seed_year_of_journal_entries
 
 YEAR_TABLES = ("accounts", "journal_entries", "journal_lines")

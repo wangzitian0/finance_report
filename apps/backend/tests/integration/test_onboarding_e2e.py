@@ -1,7 +1,10 @@
 from decimal import Decimal
 from uuid import UUID
 
+import pytest
 from httpx import AsyncClient
+
+pytestmark = pytest.mark.integration
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.ledger import verify_accounting_equation
 

@@ -1,7 +1,10 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+
+pytestmark = pytest.mark.integration
 from src.audit import JournalEntrySourceType
 from src.identity import User
 from src.ledger import AccountType, post_journal_entry

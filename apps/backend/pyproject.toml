@@ -142,6 +142,8 @@ markers = [
     "integration: Backend cross-module integration tests with infrastructure and service boundaries",
     "e2e: End-to-end tests, including backend API scenarios and browser UI flows",
     "no_db: Pure tests that must not initialize the autouse database fixture",
+    "db: Tests requiring database access",
+    "vcr: Tests replaying recorded HTTP cassettes via pytest-recording",
 ]
 
 # A test that never returns must fail by name inside the PR budget, not at the 15-minute
@@ -154,12 +156,12 @@ timeout_method = "thread"
 # stderr of the worker 15 s before the timeout ends it (#2398).
 faulthandler_timeout = 45
 
-# Default: run non-slow, non-perf, non-e2e tests in a single process without coverage.
+# Default: run non-slow, non-perf, non-e2e, non-integration tests in a single process without coverage.
 # Pass explicit -n auto/4 and --cov flags for CI shards and full coverage verification.
 addopts = [
     "-v",
     "-ra",
-    "-m", "not e2e and not slow and not perf",
+    "-m", "not e2e and not slow and not perf and not integration",
 ]
 
 [tool.coverage.run]

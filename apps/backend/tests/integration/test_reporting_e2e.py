@@ -1,7 +1,10 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+
+pytestmark = pytest.mark.integration
 from src.ledger import AccountType, post_journal_entry
 from src.pricing.orm.market_data import FxRate
 from src.reporting import generate_balance_sheet, generate_cash_flow, generate_income_statement

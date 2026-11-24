@@ -10,7 +10,10 @@ from unittest.mock import AsyncMock
 from uuid import UUID
 
 import fitz
+import pytest
 import pytest_asyncio
+
+pytestmark = pytest.mark.integration
 from moto import mock_aws
 from pydantic_ai import BinaryContent, ImageUrl
 from sqlalchemy import select

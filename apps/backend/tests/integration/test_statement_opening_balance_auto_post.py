@@ -4,7 +4,10 @@ from decimal import Decimal
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import pytest
 from sqlalchemy import select
+
+pytestmark = pytest.mark.integration
 from src.config_app import set_base_currency
 from src.extraction import (
     BankStatementStatus,

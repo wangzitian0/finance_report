@@ -5,7 +5,10 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from sqlalchemy import select
+
+pytestmark = pytest.mark.integration
 from src.audit.orm.trace_record import TraceRecordRow
 from src.config import settings
 from src.extraction import DocumentSource, RuleType, StatementPostingStatus

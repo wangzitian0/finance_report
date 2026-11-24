@@ -8,6 +8,8 @@ from uuid import uuid4
 
 import pytest
 from common.audit.base import TraceRecord as CommonTraceRecord
+
+pytestmark = pytest.mark.integration
 from common.audit.extension import TraceRecordCodec as CommonTraceRecordCodec
 from common.testing.ac_proof import PROOF_ATTR, ac_proof
 from sqlalchemy import select
