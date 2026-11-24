@@ -177,13 +177,13 @@ async def test_create_statement_run_and_report_error_handlers(db, test_user, mon
     with patch("src.routers.statements.StorageService") as mock_storage_cls:
         mock_storage_cls.return_value.get_object.side_effect = StorageError("S3 Fail")
         with pytest.raises(DomainError) as exc:
-            await create_statement_run(sid, StatementRunRequest(model=None), ctx=RequestContext(db, uid))
+            await create_statement_run(sid, StatementRunRequest(), ctx=RequestContext(db, uid))
         assert exc.value.status_code == 503
         mock_storage_cls.return_value.get_object.side_effect, mock_storage_cls.return_value.get_object.return_value = (
             None,
             b"content",
         )
-        resp = await create_statement_run(sid, StatementRunRequest(model=None), ctx=RequestContext(db, uid))
+        resp = await create_statement_run(sid, StatementRunRequest(), ctx=RequestContext(db, uid))
     await db.refresh(statement)
     assert resp.state in ("requested", "running") and statement.status == BankStatementStatus.PARSING
 
