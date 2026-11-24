@@ -37,8 +37,6 @@ BASELINE_PUBLIC_ORM_EXPORTS: frozenset[str] = frozenset(
         "ledger::JournalLine",
         "ledger::derive_confidence_tier",
         "ledger::worst_confidence_tier",
-        "llm::LlmProvider",
-        "llm::LlmSceneBinding",
         "platform::AppConfig",
         "platform::BASE_CURRENCY_KEY",
         "platform::TimestampMixin",

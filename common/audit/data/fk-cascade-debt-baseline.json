@@ -18,8 +18,6 @@
     "extraction/orm/reviewed_statement_envelope.py::StatementExtractionResultRecord.user_id->users.id",
     "ledger/orm/account.py::Account.user_id->users.id",
     "ledger/orm/journal.py::JournalEntry.user_id->users.id",
-    "llm/orm/config.py::LlmProvider.user_id->users.id",
-    "llm/orm/config.py::LlmSceneBinding.user_id->users.id",
     "portfolio/orm/portfolio.py::DividendIncome.user_id->users.id",
     "portfolio/orm/portfolio.py::InvestmentLot.opening_transaction_id->investment_transactions.id",
     "portfolio/orm/portfolio.py::InvestmentLot.user_id->users.id",
