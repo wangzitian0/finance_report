@@ -1,4 +1,4 @@
-.PHONY: help install dev lint format check pre-commit clean llm-record
+.PHONY: help install dev lint format check pre-commit clean
 
 help:
 	@echo "Finance Report - Development Commands"
@@ -16,7 +16,6 @@ help:
 	@echo "  make lint         Run linters (ruff + eslint)"
 	@echo "  make format       Auto-format code"
 	@echo "  make check        Run all checks (lint + env-check)"
-	@echo "  make llm-record   Re-record LLM cassettes (record mode; any provider key)"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  make env-check    Validate env var consistency"
@@ -57,26 +56,6 @@ format:
 
 check: lint env-check
 	@echo "✅ All checks passed"
-
-# Re-record the LLM cassettes against a live provider. Provider-agnostic: it uses
-# whatever provider key the env config resolves (any provider, not only the GLM
-# plan). Records in `record` mode (real call + write/update cassette under
-# tests/fixtures/llm_cassettes); commit the resulting diff. CI runs
-# the same tests in `replay` mode with no key. Pass extra args via ARGS=...
-#
-# Covers the AC23.5 non-streaming layer and the AC23.6 streaming bridge. To record
-# the (currently skipped) extraction scaffold cassettes — the real text/vision/
-# #1254-class statements — add the marker and flip the skip:
-#   make llm-record ARGS='tests/extraction/test_extraction_cassette_replay.py -m needs_real_cassette'
-# then remove the `needs_real_cassette` module skip so the dedicated replay CI
-# step runs them with no key.
-#
-# After re-recording a statement cassette, raise the GRADED field-accuracy floor
-# (EPIC-023 AC23.8) so the ratchet adopts the new (>=) scores; commit cassettes +
-# baseline together:
-#   python tools/check_cassette_graded_eval.py --update
-llm-record:
-	cd apps/backend && LLM_CASSETTE_REFRESH=1 uv run pytest tests/llm/test_cassette.py tests/llm/test_streaming_cassette.py --llm-record $(ARGS)
 
 env-check:
 	python tools/check_env_keys.py

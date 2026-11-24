@@ -11,6 +11,7 @@ import pytest
 from fastapi import status
 from httpx import AsyncClient
 from sqlalchemy import func, select
+
 from src.config import settings
 from src.extraction import (
     BankStatementStatus,
@@ -262,25 +263,6 @@ async def test_upload_ocr_pipeline_source_and_audit_logs(
         ),
     ):
         assert by_event[event].items() >= expected.items()
-
-
-async def test_upload_reaches_parsing_while_the_model_catalog_fails(client: AsyncClient, monkeypatch, storage_stub, test_user):
-    """A PDF upload gives a PARSING statement while every catalog lookup fails (#2953 AC2)."""
-    from src.llm.extension.catalog import LitellmCatalog
-
-    async def catalog_down(self, *args, **kwargs):
-        raise AssertionError("The upload route read the model catalog.")
-
-    monkeypatch.setattr(LitellmCatalog, "get", catalog_down)
-    monkeypatch.setattr(LitellmCatalog, "list_models", catalog_down)
-    monkeypatch.setattr(
-        "src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(AsyncMock(return_value=None))
-    )
-
-    response = await _post_upload(client, "catalog-down.pdf", b"catalog-down-input")
-
-    assert response.status_code == status.HTTP_202_ACCEPTED, response.text
-    assert response.json()["status"] == BankStatementStatus.PARSING.value
 
 
 async def test_upload_storage_failure_logs_safe_audit_context(client: AsyncClient, monkeypatch):
@@ -609,6 +591,7 @@ async def test_get_statement_for_review_omits_unused_presigned_pdf_url(client: A
 async def test_approve_statement_rejects_stale_source_result_digest(client: AsyncClient, db, test_user):
     """#3025: Stale tab digest returns 409 Conflict instead of posting an unseen extraction result."""
     from pathlib import Path
+
     from src.composition import compose_statement_posting_dependencies
     from src.extraction.extension.extraction_trace import build_extraction_trace_records
     from src.extraction.extension.reviewed_statement_envelope import persist_statement_extraction_result

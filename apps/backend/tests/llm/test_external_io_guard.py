@@ -12,7 +12,6 @@ from infra2_sdk.runtime import DecodingSpec
 from sqlalchemy import text
 
 from src.database import get_session_maker
-from src.llm.extension import client as llm_client
 from src.llm.extension.agent import CallSite, complete_text, stream_text
 from src.llm.extension.semantic_scoring import ai_semantic_score
 from tests._support.guards import (
@@ -37,20 +36,6 @@ def test_the_teardown_check_fails_a_test_that_went_on_after_a_refusal() -> None:
     with pytest.raises(pytest.fail.Exception, match="the test went on"):
         fail_on_unacknowledged_violations()
     fail_on_unacknowledged_violations()  # the failure took the record
-
-
-async def test_llm_completion_inside_open_app_transaction_raises(db_engine) -> None:
-    async with get_session_maker()() as open_session:
-        await open_session.execute(text("SELECT 1"))
-        with pytest.raises(UnexpectedExternalIO, match=_GUARD_MESSAGE):
-            await llm_client.cassette_completion(
-                [{"role": "user", "content": "ping"}],
-                role="test",
-                provider=MagicMock(),
-                model_id="test-model",
-            )
-        await open_session.rollback()
-    assert len(acknowledge_violations()) == 1
 
 
 async def test_a_model_call_through_the_entry_point_inside_an_open_app_transaction_raises(db_engine, fake_llm) -> None:

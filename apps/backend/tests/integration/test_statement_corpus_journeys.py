@@ -17,7 +17,7 @@ from tests.api._statement_router_fixtures import approve_reviewed
 from tests.factories import AccountFactory, seed_parsed_statement
 
 pytestmark = [pytest.mark.integration, pytest.mark.e2e]
-CASSETTE_DIR = Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "llm_cassettes"
+READINGS_DIR = Path(__file__).resolve().parents[4] / "tests" / "fixtures" / "readings"
 
 CORPUS_FINGERPRINTS: tuple[str, ...] = (
     "d69fbafcecb481e614651b1178a5fb9d9e3724718ef7bf623502120bcd27db30",
@@ -59,13 +59,9 @@ class CorpusCase:
 
 
 def load_corpus_case(fingerprint: str) -> CorpusCase:
-    cassette = json.loads((CASSETTE_DIR / f"{fingerprint}.json").read_text())
-    out = Path(__file__).resolve().parents[2] / "test-results"
-    out.mkdir(exist_ok=True)
-    with (out / f"served-cassettes-{os.getpid()}.txt").open("a", encoding="utf-8") as fh:
-        fh.write(f"{fingerprint}\n")
-    truth = json.loads((CASSETTE_DIR / "ground_truth" / f"{fingerprint}.truth.json").read_text())
-    payload = json.loads(cassette["response"]["stream_text"])
+    reading = json.loads((READINGS_DIR / f"{fingerprint}.json").read_text())
+    truth = json.loads((READINGS_DIR / "ground_truth" / f"{fingerprint}.truth.json").read_text())
+    payload = json.loads(reading["response"]["stream_text"])
     rows, unpostable = [], 0
     for index, txn in enumerate(payload["transactions"]):
         if txn["amount"] is None or Decimal(str(txn["amount"])) == 0:
@@ -74,7 +70,7 @@ def load_corpus_case(fingerprint: str) -> CorpusCase:
         amount = Decimal(str(txn["amount"]))
         raw_dir = str(txn.get("direction", "IN" if amount >= 0 else "OUT")).upper()
         if raw_dir not in ("IN", "OUT"):
-            raise ValueError(f"{fingerprint[:8]}: unknown direction {txn['direction']!r} in cassette row {index}")
+            raise ValueError(f"{fingerprint[:8]}: unknown direction {txn['direction']!r} in reading row {index}")
         rows.append(
             {
                 "description": txn["description"] or f"corpus txn {index}",

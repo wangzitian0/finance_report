@@ -470,15 +470,8 @@ async def test_classify_run_dispatch_failure_and_rejections_validation(client, d
     ).status_code == 422 and {"loc", "msg", "type"} <= set(bad.json()["detail"][0])
 
 
-async def test_post_runs_does_not_read_the_model_catalog(client, db, monkeypatch, storage_stub, test_user):
-    """A rerun starts while every catalog lookup fails (#2953 AC2). The request has no model to check."""
-    from src.llm.extension.catalog import LitellmCatalog
-
-    async def catalog_down(self, *args, **kwargs):
-        raise AssertionError("The rerun route read the model catalog.")
-
-    monkeypatch.setattr(LitellmCatalog, "get", catalog_down)
-    monkeypatch.setattr(LitellmCatalog, "list_models", catalog_down)
+async def test_post_runs_starts_a_rerun_with_no_model(client, db, monkeypatch, storage_stub, test_user):
+    """A rerun has no model field: the run records none and the job carries none (#2953)."""
     statement = await _statement(db, test_user, status=BankStatementStatus.REJECTED)
     jobs = _capture_dispatch(monkeypatch)
 

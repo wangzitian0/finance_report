@@ -47,11 +47,11 @@ Implementation facts live in code and executable tests rather than prose.
 
 ### LLM & Data-Driven Verification Guardrail
 
-- **Persist real LLM outputs (`tests/fixtures/llm_cassettes/`)**: Generalization belongs to the LLM; committed cassettes freeze real provider responses to verify full-pipeline wiring. **Never hand-write LLM cassettes** — always record via real execution (`make llm-record`).
-- **Zero-token deterministic PR CI (`github_ci.merge_authority`)**: Development/PR CI runs with `LLM_CASSETTE_MODE=replay` (zero network, zero API key) through the real extraction/conform/approval pipeline. Never bypass extraction post-processing when testing corpus replay.
+- **Persist real LLM outputs (`tests/**/cassettes/`)**: Generalization belongs to the LLM; a committed VCR recording freezes one real provider exchange to verify the request body and the wiring. **Never hand-write a recording** — always record it through real execution (`pytest --record-mode=rewrite <test>`).
+- **Zero-token deterministic PR CI (`github_ci.merge_authority`)**: Development/PR CI runs the recorded tests with `--record-mode=none` (zero network, zero API key) and a fake model elsewhere, through the real extraction/conform/approval pipeline. Never bypass extraction post-processing when testing a stored reading.
 - **Live-token Staging E2E, Smoke & 3-Statement Oracle (`staging_gate` / `scheduled_audit`)**: Deployed Staging hooks (`runtime-hooks.manifest.json`) run with real tokens (`AI_API_KEY`, `glm-5.3-flash`) to execute live E2E journeys, the 20-PDF 7-invariant 3-Statement Oracle (`tests/benchmarks/pdf_corpus_oracle.py`), and the Business Scenario Benchmark (`tests/benchmarks/run_financial_scenario_benchmark.py`).
 
-See [`common/llm/readme.md#cassettes`](common/llm/readme.md#cassettes) and [`common/testing/ci-cd.md`](common/testing/ci-cd.md).
+See [`common/llm/readme.md#recordings`](common/llm/readme.md#recordings) and [`common/testing/ci-cd.md`](common/testing/ci-cd.md).
 
 ## EPIC Map
 
@@ -81,7 +81,7 @@ CI outputs.
 | [EPIC-020](docs/project/EPIC-020.framework-aware-personal-reporting.md) | Framework-aware personal financial reporting |
 | [EPIC-021](docs/project/EPIC-021.application-ai-advisor.md) | Application-layer AI Advisor |
 | [EPIC-022](docs/project/EPIC-022.everyday-user-ia.md) | Everyday-user information architecture |
-| [EPIC-023](docs/project/EPIC-023.llm-provider-abstraction.md) | LLM provider abstraction (litellm) |
+| [EPIC-023](docs/project/EPIC-023.llm-provider-abstraction.md) | LLM provider abstraction (infra2-sdk agent) |
 | [EPIC-024](docs/project/EPIC-024.frontend-observability.md) | Frontend browser observability |
 | [EPIC-025](docs/project/EPIC-025.dry-ssot-simplification.md) | DRY/SSOT simplification (reporting, statements, FE contracts, tests) |
 | [EPIC-026](docs/project/EPIC-026.ac-authority-tiers.md) | AC authority tiers (`CODE-ONLY/CODE-LED/HU/LLM-LED/LLM-ONLY`) and tier-import separation |

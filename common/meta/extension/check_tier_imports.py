@@ -39,7 +39,7 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
 FORBIDDEN_IMPORT_PREFIXES: tuple[str, ...] = (
     "src.llm",
     "apps.backend.src.llm",
-    "litellm",
+    "pydantic_ai",
     "openrouter",
     "anthropic",
     "openai",
@@ -197,7 +197,7 @@ def _main(argv: Sequence[str] | None = None) -> int:
     n_files = len(resolve_protected_files(repo_root))
     print(
         f"[TIER-IMPORTS] PASSED: {n_files} protected CODE-ONLY/financial-truth module(s) "
-        "import no LLM layer (src.llm / litellm / openrouter / anthropic / openai)."
+        "import no LLM layer (src.llm / pydantic_ai / openrouter / anthropic / openai)."
     )
     return 0
 

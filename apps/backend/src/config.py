@@ -67,19 +67,12 @@ next_public_app_url|app|i|Backend reference to the frontend URL; should match th
 cors_origins_str|sec|i,al:CORS_ORIGINS|Comma-separated CORS origins, e.g. http://localhost:3000,http://localhost:3001.
 cors_origin_regex|sec|na|CORS origin regex for dynamic subdomains (PR deployments and staging).
 ai_base_url|ai|al:LLM_BASE_URL|AI provider base URL (provider-neutral; default targets Z.AI/GLM).
-ai_chat_completions_path|ai||Chat completions path appended to the AI base URL.
 large_model|ai|al:LLM_LARGE_MODEL|Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production.
 small_model|ai|al:LLM_SMALL_MODEL|Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production.
 multimodal_model|ai|al:LLM_MULTIMODAL_MODEL|Multimodal-role AI model id for vision and OCR (image, PDF and file input). Unset: the infra2 SDK default; set it only to customize production.
 prefect_api_url|ai||EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed).
-ai_json_timeout_seconds|ai||Timeout (seconds) for AI JSON completion calls.
-ai_json_max_tokens|ai||Max tokens for AI JSON completion calls.
-ai_json_disable_thinking|ai||Request disabled thinking for AI JSON calls; reasoning-only models use their lowest supported effort.
 ai_json_seed|ai||Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models).
 ai_extract_max_attempts|ai||Max extraction passes for one bank statement; a later pass gets the failed checks (1 disables retry).
-llm_cassette_engage|ai||Engage offline LLM cassette replay layer.
-llm_cassette_refresh|ai||Refresh recorded LLM cassettes in local runs.
-llm_live|ai||Force live LLM provider calls.
 s3_region|s3|na|S3 region.
 s3_presign_expiry_seconds|s3|na|Presigned URL TTL (seconds) for general S3 access.
 otel_exporter_otlp_endpoint|obs|i|OTLP exporter endpoint. Optional: set in production to ship telemetry to the OTLP collector (infra2-owned).
@@ -242,19 +235,12 @@ class Settings(BaseSettings):
     cors_origins_str: str | None = _f("cors_origins_str", None, ex="http://localhost:3000,http://localhost:3001")
     cors_origin_regex: str = _f("cors_origin_regex", "^$", ex='r"https://report(-pr-\\d+|-staging)?\\.zitian\\.party"')
     ai_base_url: str = _f("ai_base_url", "https://api.z.ai/api/coding/paas/v4")
-    ai_chat_completions_path: str = _f("ai_chat_completions_path", "/chat/completions")
     large_model: str = _f("large_model", _SDK_LLM_DEFAULTS.large_model)
     small_model: str = _f("small_model", _SDK_LLM_DEFAULTS.small_model)
     multimodal_model: str = _f("multimodal_model", _SDK_LLM_DEFAULTS.multimodal_model)
     prefect_api_url: str | None = _f("prefect_api_url", None)
-    ai_json_timeout_seconds: float = _f("ai_json_timeout_seconds", 360.0, ex="360")
-    ai_json_max_tokens: int = _f("ai_json_max_tokens", 32768)
-    ai_json_disable_thinking: bool = _f("ai_json_disable_thinking", True)
     ai_json_seed: int | None = _f("ai_json_seed", None)
     ai_extract_max_attempts: int = _f("ai_extract_max_attempts", 3, ge=1, le=5)
-    llm_cassette_engage: bool = _f("llm_cassette_engage", False)
-    llm_cassette_refresh: bool = _f("llm_cassette_refresh", False)
-    llm_live: bool = _f("llm_live", False)
     s3_region: str = _f("s3_region", "us-east-1")
     s3_presign_expiry_seconds: int = _f("s3_presign_expiry_seconds", 300, ex="900")
     otel_exporter_otlp_endpoint: str | None = _f(

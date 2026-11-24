@@ -10,17 +10,20 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestSelectChecks:
-    def test_AC_testing_preflight_1_structural_and_cassette_checks_selected(self):
+    def test_AC_testing_preflight_1_structural_and_readings_checks_selected(self):
         assert "public-orm-exports" in {
             c.name for c in preflight.select_checks(["apps/backend/src/ledger/__init__.py"], tier="static")
         }
         assert "toolchain-contract" in {
             c.name for c in preflight.select_checks([".github/workflows/ci.yml"], tier="static")
         }
-        _m7_c_fixture = "tests/fixtures/llm_" + "cas" + "settes/example.json"
-        _m7_names = {_m7_c.name for _m7_c in preflight.select_checks([_m7_c_fixture])}
-        _m7_expected = {"llm-" + "cas" + "settes", "cas" + "sette-graded-eval"}
-        assert _m7_expected.issubset(_m7_names)
+        _m7_names = {_m7_c.name for _m7_c in preflight.select_checks(["tests/fixtures/readings/example.json"])}
+        assert "readings-eval" in _m7_names
+        # A change of the parser that the readings are graded by selects the same check.
+        assert "readings-eval" in {
+            _m7_c.name
+            for _m7_c in preflight.select_checks(["apps/backend/src/extraction/base/validation.py"])
+        }
         _m11_names = [
             _m11_c.name
             for _m11_c in preflight.select_checks(

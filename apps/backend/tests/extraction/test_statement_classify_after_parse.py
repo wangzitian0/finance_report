@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 
 from src.config import settings
 from src.extraction import BankStatementStatus, StatementIngestionStatus, TransactionDirection
+from src.extraction.base.decoding import JSON_MAX_TOKENS
 from src.extraction.extension import statement_classification_run, transaction_classification
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.transaction_classification import CategoryProposal
@@ -191,6 +192,6 @@ async def test_AC_extraction_2813_3_propose_batch_pins_deterministic_decode(db, 
     sent = install_fake_model(monkeypatch, '[{"index": 0, "category": "DINING", "confidence": 92, "reason": "coffee"}]')
     dummy = AtomicTransaction(id=uuid4(), user_id=test_user.id, txn_date=date(2026, 1, 2), amount=Decimal("12.50"), direction=TransactionDirection.OUT, description="Coffee 000", currency="SGD", dedup_hash="a" * 64, source_documents=[])
     proposals = await _propose_batch([dummy], POLICY_VERSIONS[-1])
-    assert proposals[0] is not None and proposals[0].category == "DINING" and (sent.decodings[0].temperature, sent.extra_bodies[0], sent.decodings[0].thinking) == (0.0, {"do_sample": False, "max_tokens": settings.ai_json_max_tokens}, False)
+    assert proposals[0] is not None and proposals[0].category == "DINING" and (sent.decodings[0].temperature, sent.extra_bodies[0], sent.decodings[0].thinking) == (0.0, {"do_sample": False, "max_tokens": JSON_MAX_TOKENS}, False)
     # Two attempts of 60 s stay inside the deadline of the run (180 s); the SDK default of three do not (review of #3198).
     assert sent.max_attempts == [2]

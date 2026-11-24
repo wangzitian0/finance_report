@@ -54,28 +54,13 @@ def _assert_no_open_app_txn(operation: str, *, inherited: bool = False) -> None:
 def _guard_external_io_during_open_transaction():
     from functools import wraps
 
-    from tests._support.guards import acknowledge_violations, fail_on_unacknowledged_violations
-    from src.llm.extension import client as llm_client
-    from src.runtime.extension.storage import StorageService
-
     import src.llm.extension.agent as llm_agent
+    from src.runtime.extension.storage import StorageService
+    from tests._support.guards import acknowledge_violations, fail_on_unacknowledged_violations
 
     orig_agent = llm_agent._agent
-    orig_stream_dispatch = llm_client._cassette_stream_dispatch
-    orig_completion = llm_client.cassette_completion
     orig_run_s3 = StorageService._run_s3
     orig_httpx_send = AsyncClient.send
-
-    @wraps(orig_stream_dispatch)
-    async def guarded_stream_dispatch(*args, **kwargs):
-        _assert_no_open_app_txn("LLM stream")
-        async for chunk in orig_stream_dispatch(*args, **kwargs):
-            yield chunk
-
-    @wraps(orig_completion)
-    async def guarded_completion(*args, **kwargs):
-        _assert_no_open_app_txn("LLM completion")
-        return await orig_completion(*args, **kwargs)
 
     @wraps(orig_agent)
     def guarded_agent(*args, **kwargs):
@@ -97,8 +82,6 @@ def _guard_external_io_during_open_transaction():
         return await orig_httpx_send(self, request, *args, **kwargs)
 
     with (
-        patch.object(llm_client, "_cassette_stream_dispatch", guarded_stream_dispatch),
-        patch.object(llm_client, "cassette_completion", guarded_completion),
         patch.object(llm_agent, "_agent", guarded_agent),
         patch.object(StorageService, "_run_s3", guarded_run_s3),
         patch.object(AsyncClient, "send", guarded_httpx_send),
@@ -106,14 +89,6 @@ def _guard_external_io_during_open_transaction():
         acknowledge_violations()
         yield
     fail_on_unacknowledged_violations()
-def pytest_addoption(parser): parser.addoption('--llm-record', action='store_true', default=False, help='Re-record LLM cassettes (layer refresh knob; real provider call + write cassette).')
-def pytest_configure(config):
-    os.environ.setdefault('LLM_CASSETTE_ENGAGE', '1')
-    if config.getoption('--llm-record'): os.environ['LLM_CASSETTE_REFRESH'] = '1'
-def pytest_sessionfinish(session, exitstatus):
-    from src.llm.extension.cassette import session_served_keys; served = session_served_keys()
-    if not served: return
-    out = Path(__file__).resolve().parents[1] / 'test-results'; out.mkdir(exist_ok=True); (out / f'served-cassettes-{os.getpid()}.txt').write_text(''.join((f'{k}\n' for k in sorted(served))), encoding='utf-8')
 @pytest.fixture(autouse=True)
 def mock_bootloader_checks():
     from src.boot import ServiceStatus
@@ -170,7 +145,14 @@ async def _drop_test_database(db_url: str, db_name: str) -> None:
 @pytest_asyncio.fixture(scope='session')
 async def _schema_engine(test_database_url):
     import atexit
-    from tests._support.test_isolation import get_namespace, is_droppable_test_db, register_namespace, sanitize_namespace, unregister_namespace
+
+    from tests._support.test_isolation import (
+        get_namespace,
+        is_droppable_test_db,
+        register_namespace,
+        sanitize_namespace,
+        unregister_namespace,
+    )
     raw_namespace = os.environ.get('TEST_NAMESPACE'); namespace = sanitize_namespace(raw_namespace) if raw_namespace else get_namespace()
     register_namespace(namespace); atexit.register(unregister_namespace, namespace)
     await ensure_database(test_database_url); import src.counter.extension.sql; import src.identity.extension.sql; import src.orm_registry; import src.platform.extension.sql; from src.database import Base, create_app_engine; engine = create_app_engine(test_database_url, echo=False, poolclass=NullPool)
@@ -248,9 +230,6 @@ def openapi_schema() -> dict[str, Any]: from src.main import app; return app.ope
 from pydantic_ai import models as _pydantic_ai_models  # noqa: E402
 
 _pydantic_ai_models.ALLOW_MODEL_REQUESTS = False
-# litellm downloads its price table on import. A recording must hold the model request only. This line goes
-# away with litellm (#3153).
-os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
 
 
 def pytest_recording_configure(config: Any, vcr: Any) -> None:

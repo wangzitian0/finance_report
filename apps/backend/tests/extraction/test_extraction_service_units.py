@@ -8,12 +8,13 @@ from uuid import uuid4
 
 import pytest
 
-from tests._support.fake_llm import install_fake_model
 from src.config import Settings, settings
 from src.extraction import DocumentSource
+from src.extraction.base.decoding import JSON_MAX_TOKENS
 from src.extraction.extension import service as extraction_mod
 from src.extraction.extension.prompts.statement import get_parsing_prompt
 from src.extraction.extension.service import ExtractionError, ExtractionService, _tolerant_parse_date
+from tests._support.fake_llm import install_fake_model
 
 
 def test_AC13_19_tolerant_dates_and_prompt():
@@ -48,7 +49,7 @@ async def test_seed_determinism_and_decode_parameters(monkeypatch):
     assert (sent.decodings[1].temperature, sent.decodings[1].seed, sent.extra_bodies[1]) == (
         0.0,
         7,
-        {"do_sample": False, "max_tokens": settings.ai_json_max_tokens},
+        {"do_sample": False, "max_tokens": JSON_MAX_TOKENS},
     )
 
     assert (Settings(AI_JSON_SEED="").ai_json_seed, Settings(AI_JSON_SEED="   ").ai_json_seed, Settings(AI_JSON_SEED="7").ai_json_seed) == (None, None, 7)

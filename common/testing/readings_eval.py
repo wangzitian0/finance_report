@@ -1,25 +1,24 @@
-"""Cassette GRADED field-accuracy eval + drift ratchet.
+"""Graded field-accuracy eval of the frozen model readings, with a drift ratchet.
 
-EPIC-023 AC23.8 / issue #1307. The balance-chain gate
-(:mod:`common.testing.check_llm_cassettes`, AC23.7) catches INCONSISTENCY, not
-INACCURACY: an LLM that reads ``50`` as ``150`` still passes as long as the chain
-balances. This module scores each committed statement cassette PER FIELD against
-a sibling SYNTHETIC ground-truth artifact (``<fingerprint>.truth.json``), yields
-a numeric ``[0,1]`` score per case, and ratchets a persisted per-case floor that
-may only go UP. The gate FAILS when a refreshed cassette regresses a case below
-its floor — including the "balance passes but a field is now wrong" case the
-AC23.7 gate cannot see.
+EPIC-023 AC23.8 / issue #1307. A *reading* is the stored reply text of a model for one statement
+(``tests/fixtures/readings/<fingerprint>.json``, field ``response.stream_text``). The module scores each reading PER
+FIELD against a sibling SYNTHETIC ground-truth artifact (``<fingerprint>.truth.json``), yields a numeric ``[0,1]``
+score per case, and ratchets a persisted per-case floor that may only go UP. A change of the parser or of a
+normaliser that makes a case worse than its floor fails the gate, including the "balance passes but a field is
+wrong" case.
 
-Pure Python: no network, no API key, no DB. Scoring is deterministic on committed
-fixtures; refresh is the local ``make llm-record`` path.
+Pure Python: no network, no API key, no DB, and no model call. The readings are frozen: no tool in the repository
+records them again (they came from prompts that the code no longer sends), so the gate grades the code that reads
+them, not the model.
 
-**Scope (anti-overclaim):** drift-detection power is bounded by the eval-set
-breadth documented in ``common/llm/readme.md#cassette-graded-eval`` — CI green is NOT a
-correctness guarantee on an unseen statement (the staging ``-m llm`` gate's job).
+**Scope (anti-overclaim):** drift-detection power is bounded by the eval-set breadth documented in
+``common/llm/readme.md#readings-eval``. CI green is NOT a correctness guarantee on an unseen statement (the staging
+``-m llm`` gate's job).
 """
 
 from __future__ import annotations
 
+import ast
 import json
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -27,14 +26,85 @@ from pathlib import Path
 from typing import Any
 
 from common.testing.jsonl_baseline import ratcheted_raise_only_merge
-from common.testing.cassette_eval_baseline import (
+from common.testing.readings_eval_baseline import (
     CORPUS_COUNT_BASELINE,
     DEFAULT_BASELINE,
     load_jsonl,
 )
-from common.testing.check_llm_cassettes import CASSETTE_DIR, _response_text
 
-GROUND_TRUTH_DIR = CASSETTE_DIR / "ground_truth"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+READINGS_DIR = REPO_ROOT / "tests" / "fixtures" / "readings"
+GROUND_TRUTH_DIR = READINGS_DIR / "ground_truth"
+TOLERANCE = Decimal("0.01")
+VALIDATION_SOURCE = REPO_ROOT / "apps/backend/src/extraction/base/validation.py"
+
+
+def production_direction_aliases(
+    source: Path = VALIDATION_SOURCE,
+) -> tuple[frozenset[str], frozenset[str]]:
+    """Read the production IN/OUT alias literals; the lint job cannot import the backend."""
+    names = ("IN_DIRECTION_ALIASES", "OUT_DIRECTION_ALIASES")
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    literals = {
+        target.id: frozenset(ast.literal_eval(node.value))
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        for target in node.targets
+        if isinstance(target, ast.Name) and target.id in names
+    }
+    return literals[names[0]], literals[names[1]]
+
+
+_IN_DIRECTIONS, _OUT_DIRECTIONS = production_direction_aliases()
+
+
+def _response_text(response: object) -> str | None:
+    """Extract the frozen reply text across the stored response shapes."""
+    if isinstance(response, str):
+        return response
+    if isinstance(response, dict):
+        for key in ("stream_text", "text"):
+            value = response.get(key)
+            if isinstance(value, str):
+                return value
+        try:
+            content = response["choices"][0]["message"]["content"]
+            return content if isinstance(content, str) else None
+        except (KeyError, IndexError, TypeError):
+            return None
+    return None
+
+
+def _as_decimal(value: object) -> Decimal | None:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError):
+        return None
+
+
+def balance_violation(payload: dict) -> str | None:
+    """Return a violation message if the statement payload breaks the balance chain ``opening + sum = closing``."""
+    opening = _as_decimal(payload.get("opening_balance"))
+    closing = _as_decimal(payload.get("closing_balance"))
+    txns = payload.get("transactions")
+    if opening is None or closing is None or not isinstance(txns, list):
+        return "unparseable opening/closing/transactions"
+    net = Decimal("0")
+    for txn in txns:
+        amount = _as_decimal(txn.get("amount")) if isinstance(txn, dict) else None
+        if amount is None:
+            return "transaction with unparseable amount"
+        direction = str(txn.get("direction") or "").strip().upper() if isinstance(txn, dict) else ""
+        if direction in _IN_DIRECTIONS:
+            net += abs(amount)
+        elif direction in _OUT_DIRECTIONS:
+            net -= abs(amount)
+        else:
+            net += amount  # no direction -> trust the sign of the amount
+    diff = abs((opening + net) - closing)
+    if diff > TOLERANCE:
+        return f"balance chain broken: opening {opening} + net {net} != closing {closing} (diff {diff})"
+    return None
 
 # Floating-point slack so an identical re-measurement never trips the ratchet.
 EPSILON = 1e-6
@@ -183,7 +253,7 @@ def reliability_score(samples: list[dict[str, Any]], truth: dict[str, Any]) -> f
     """Mean per-field score over N recordings of the same case (AC23.8.7).
 
     One recording yields a single point estimate, NOT a reliability measure — the
-    limitation is documented in ``common/llm/readme.md#cassette-graded-eval``. With N>=2
+    limitation is documented in ``common/llm/readme.md#readings-eval``. With N>=2
     samples the case score is the mean, smoothing per-run nondeterminism.
     """
     if not samples:
@@ -193,11 +263,11 @@ def reliability_score(samples: list[dict[str, Any]], truth: dict[str, Any]) -> f
 
 
 # --------------------------------------------------------------------------- #
-# Loading cassettes + ground truth into scored cases.
+# Loading readings + ground truth into scored cases.
 # --------------------------------------------------------------------------- #
 @dataclass
 class EvalCase:
-    """One eval case: a committed cassette paired with its ground truth."""
+    """One eval case: a committed reading paired with its ground truth."""
 
     case_id: str
     modality: str
@@ -213,13 +283,13 @@ class EvalCase:
         return case_score(self.extracted, self.truth)[0]
 
 
-def _parse_extraction(cassette_path: Path) -> dict[str, Any] | None:
-    """Return the parsed JSON extraction from a cassette response, or None."""
+def _parse_extraction(reading_path: Path) -> dict[str, Any] | None:
+    """Return the parsed JSON extraction from a stored reading, or None."""
     try:
-        cassette = json.loads(cassette_path.read_text(encoding="utf-8"))
+        reading = json.loads(reading_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return None
-    text = _response_text(cassette.get("response"))
+    text = _response_text(reading.get("response"))
     if not text:
         return None
     try:
@@ -231,23 +301,23 @@ def _parse_extraction(cassette_path: Path) -> dict[str, Any] | None:
 
 def load_cases(
     ground_truth_dir: Path = GROUND_TRUTH_DIR,
-    cassette_dir: Path = CASSETTE_DIR,
+    readings_dir: Path = READINGS_DIR,
 ) -> list[EvalCase]:
-    """Load every cassette that has a sibling ``<id>.truth.json`` ground truth.
+    """Load every reading that has a sibling ``<id>.truth.json`` ground truth.
 
     The ground-truth file is the case manifest: it carries the coverage-matrix
     metadata (modality / institution_class / edge_condition), the synthetic flag,
-    and the known-correct ``expected`` fields. The matching cassette
+    and the known-correct ``expected`` fields. The matching reading
     (``<id>.json``) supplies the LLM's frozen extraction to score.
     """
     cases: list[EvalCase] = []
     for truth_path in sorted(ground_truth_dir.glob("*.truth.json")):
         case_id = truth_path.name[: -len(".truth.json")]
         truth_doc = json.loads(truth_path.read_text(encoding="utf-8"))
-        extracted = _parse_extraction(cassette_dir / f"{case_id}.json")
+        extracted = _parse_extraction(readings_dir / f"{case_id}.json")
         if extracted is None:
             raise ValueError(
-                f"ground truth {truth_path.name} has no scorable cassette "
+                f"ground truth {truth_path.name} has no scorable reading "
                 f"{case_id}.json (extraction unreadable)"
             )
         cases.append(
@@ -265,7 +335,7 @@ def load_cases(
 
 # --------------------------------------------------------------------------- #
 # Corpus-count floor (#1681 / #1686): independent of the per-case ratchet
-# below — see common.testing.cassette_eval_baseline's module docstring for why
+# below — see common.testing.readings_eval_baseline's module docstring for why
 # a separate, explicitly-raised floor is needed.
 # --------------------------------------------------------------------------- #
 def corpus_shrink_findings(
@@ -304,7 +374,7 @@ def evaluate(
     *,
     baseline_path: Path = DEFAULT_BASELINE,
     ground_truth_dir: Path = GROUND_TRUTH_DIR,
-    cassette_dir: Path = CASSETTE_DIR,
+    readings_dir: Path = READINGS_DIR,
     overrides: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, list[str]]:
     """Compare current per-case scores to the persisted floors.
@@ -315,7 +385,7 @@ def evaluate(
     """
     baseline = load_jsonl(baseline_path)
     base_cases = baseline.get("cases", {})
-    cases = load_cases(ground_truth_dir, cassette_dir)
+    cases = load_cases(ground_truth_dir, readings_dir)
     overrides = overrides or {}
 
     regressions: list[str] = []
@@ -345,7 +415,7 @@ def evaluate(
     for case_id in base_cases:
         if case_id not in seen:
             missing.append(
-                f"{case_id}: baselined case has no cassette/ground-truth in this run"
+                f"{case_id}: baselined case has no reading or ground truth in this run"
             )
 
     return {

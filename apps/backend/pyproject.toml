@@ -27,7 +27,6 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.45b0",
     "bcrypt==4.0.1",
     "pymupdf>=1.24.0",
-    "litellm>=1.55.0",
     # EPIC-019: a base dependency, not an optional extra — the repo's
     # promote-not-rebuild release model ships ONE image to every environment,
     # and that same image now runs both roles: the API (submits flow runs when
@@ -143,7 +142,6 @@ markers = [
     "integration: Backend cross-module integration tests with infrastructure and service boundaries",
     "e2e: End-to-end tests, including backend API scenarios and browser UI flows",
     "no_db: Pure tests that must not initialize the autouse database fixture",
-    "needs_real_cassette: Cassette-backed extraction tests pending real recording (run make llm-record); skipped in PR CI until the operator records them",
 ]
 
 # A test that never returns must fail by name inside the PR budget, not at the 15-minute

@@ -11,11 +11,7 @@ from common.meta.base.gate_cli import run_gate
 from common.meta.extension.base_purity import discover_impurities
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-BASELINE_BASE_IMPURITIES: frozenset[str] = frozenset(
-    {
-        "llm/base/usage.py::from src.observability import get_logger",
-    }
-)
+BASELINE_BASE_IMPURITIES: frozenset[str] = frozenset()
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
