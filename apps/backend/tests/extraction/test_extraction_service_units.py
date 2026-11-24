@@ -8,6 +8,7 @@ from uuid import uuid4
 
 import pytest
 
+from tests._support.fake_llm import install_fake_model
 from src.config import Settings, settings
 from src.extraction import DocumentSource
 from src.extraction.extension import service as extraction_mod
@@ -33,27 +34,23 @@ async def test_AC13_19_2_3_chinese_dates_and_quarantine():
         await service.parse_document(DocumentSource.resolve(path=Path("mixed.pdf"), content=b"content"), institution="DBS", user_id=uuid4())
 
 
-async def test_seed_determinism_and_user_id_threading(monkeypatch):
+async def test_seed_determinism_and_decode_parameters(monkeypatch):
     service = ExtractionService()
-    with patch.object(service, "api_key", "test-key"), patch.object(settings, "ai_json_seed", 1234), patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()) as fn1, patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')):
+    sent = install_fake_model(monkeypatch, '{"ok": true}')
+    with patch.object(service, "api_key", "test-key"), patch.object(settings, "ai_json_seed", 1234):
         res = await service._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model")
-    assert res == {"ok": True} and fn1.call_args.kwargs["seed"] == 1234
+    assert res == {"ok": True} and sent.decodings[0].seed == 1234
 
-    with patch.object(service, "api_key", "test-key"), patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()) as fn2, patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='{"ok": true}')):
-        await service._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model")
-    assert (fn2.call_args.kwargs["temperature"], fn2.call_args.kwargs["do_sample"]) == (0.0, False)
+    with patch.object(service, "api_key", "test-key"):
+        await service._extract_json_with_model(
+            messages=[{"role": "user", "content": "x"}], model="test-model", seed_override=7
+        )
+    assert (sent.decodings[1].temperature, sent.decodings[1].seed, sent.extra_bodies[1]) == (
+        0.0,
+        7,
+        {"do_sample": False, "max_tokens": settings.ai_json_max_tokens},
+    )
 
     assert (Settings(AI_JSON_SEED="").ai_json_seed, Settings(AI_JSON_SEED="   ").ai_json_seed, Settings(AI_JSON_SEED="7").ai_json_seed) == (None, None, 7)
     monkeypatch.delenv("AI_JSON_SEED", raising=False)
     assert Settings(_env_file=None).ai_json_seed is None
-
-    captured: dict[str, object] = {}
-
-    async def fake_stream(messages, model, *, user_id=None, **_kw):
-        captured["user_id"] = user_id
-        yield '{"transactions": [], "institution": "X"}'
-
-    uid = uuid4()
-    with patch.object(extraction_mod, "stream_ai_json", fake_stream), contextlib.suppress(Exception):
-        await ExtractionService()._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model", user_id=uid)
-    assert captured.get("user_id") == uid

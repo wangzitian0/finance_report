@@ -12,7 +12,9 @@ from uuid import UUID
 import fitz
 import pytest_asyncio
 from moto import mock_aws
+from pydantic_ai import BinaryContent, ImageUrl
 from sqlalchemy import select
+
 from src.audit.orm.trace_record import TraceRecordRow
 from src.config import settings
 from src.extraction import UploadedDocument, wait_for_parse_tasks
@@ -23,8 +25,8 @@ from src.extraction.orm.reviewed_statement_envelope import StatementExtractionRe
 from src.extraction.orm.statement_summary import StatementSummary
 from src.identity import create_access_token
 from src.ledger import JournalEntry
-from src.llm.extension import streaming
 from src.runtime import StorageService
+from tests._support.fake_llm import install_fake_model
 from tests.factories import UserFactory
 
 
@@ -60,15 +62,9 @@ async def uploaded_pdf(client, db, test_user, monkeypatch):
         ("statement_disposition_mode", "enforce"),
     ):
         monkeypatch.setattr(settings, attr, val)
-    seen_text: list[str] = []
-
-    async def extraction_response(*, messages, **kwargs):
-        assert kwargs["user_id"] == user_id
-        for part in (p for m in messages if isinstance(m.get("content"), list) for p in m["content"]):
-            assert part.get("type") != "image_url"
-            if part.get("type") == "text":
-                seen_text.append(part["text"])
-        yield json.dumps(
+    sent = install_fake_model(
+        monkeypatch,
+        json.dumps(
             {
                 "institution": "Generated Checkpoint Bank",
                 "account_last4": "1234",
@@ -96,9 +92,8 @@ async def uploaded_pdf(client, db, test_user, monkeypatch):
                     },
                 ],
             }
-        )
-
-    monkeypatch.setattr(streaming, "_stream_ai_base", extraction_response)
+        ),
+    )
     monkeypatch.setattr(
         transaction_classification,
         "propose_categories",
@@ -132,9 +127,12 @@ async def uploaded_pdf(client, db, test_user, monkeypatch):
                 and statement.account_id is not None
                 and statement.validation_error is None
             )
-            assert len(
-                [t for t in seen_text if t.startswith("[Page 1]")]
-            ) == 1 and "GENERATED CHECKPOINT BANK" in "".join(seen_text)
+            parts = [part for content in sent for part in (content if isinstance(content, list) else [content])]
+            seen_text = [part for part in parts if isinstance(part, str)]
+            assert not any(isinstance(part, (ImageUrl, BinaryContent)) for part in parts)  # a text PDF sends text only
+            assert len([t for t in seen_text if t.startswith("[Page 1]")]) == 1 and "GENERATED CHECKPOINT BANK" in "".join(
+                seen_text
+            )
             yield PdfCheckpoint(statement_id, user_id, statement.account_id, content)
     finally:
         StorageService._checked_buckets.clear()

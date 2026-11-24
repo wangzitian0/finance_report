@@ -990,51 +990,29 @@ async def parse_mock_payload(payload: dict, *, institution: str = "CMB"):
 
 
 async def assert_stream_extract_case(
-    stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+    monkeypatch, outcome_exc, reply, file_content, file_type, file_url, force_model, expected, err_match
 ) -> None:
+    """One extraction call where the fake model raises ``outcome_exc`` or answers ``reply``."""
     service = ExtractionService()
     service.api_key = "test-key"
-    if stream_exc is not None:
-        with (
-            patch("src.extraction.extension.service.stream_ai_json", side_effect=stream_exc),
-            pytest.raises(ExtractionError, match=err_match),
-        ):
-            await service.extract_financial_data(file_content, "DBS", file_type, file_url=file_url)
+
+    def answer(_content):
+        outcome = outcome_exc if outcome_exc is not None else reply
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    sent = install_fake_model(monkeypatch, answer)
+    kwargs = {"file_content": file_content, "institution": "DBS", "file_type": file_type, "file_url": file_url}
+    if force_model:
+        kwargs["force_model"] = force_model
+    if err_match:
+        with pytest.raises(ExtractionError, match=err_match):
+            await service.extract_financial_data(**kwargs)
         return
-    if (
-        isinstance(accum_val, str)
-        and force_model is None
-        and (not err_match or ("strict JSON object" in err_match and "no arrays" not in err_match))
-    ):
-        with patch(
-            "src.extraction.extension.service.stream_ai_json",
-            side_effect=lambda **_kw: fake_stream(accum_val),
-        ):
-            if err_match:
-                with pytest.raises(ExtractionError, match=err_match):
-                    await service.extract_financial_data(file_content, "DBS", file_type, file_url=file_url)
-            else:
-                assert (
-                    await service.extract_financial_data(file_content, "DBS", file_type, file_url=file_url) == expected
-                )
-        return
-    accum_kw = {"side_effect": accum_val} if isinstance(accum_val, Exception) else {"return_value": accum_val}
-    with (
-        patch("src.extraction.extension.service.stream_ai_json") as mock_stream,
-        patch("src.extraction.extension.service.accumulate_stream", new_callable=AsyncMock, **accum_kw),
-    ):
-        kwargs = {"file_content": file_content, "institution": "DBS", "file_type": file_type, "file_url": file_url}
-        if force_model:
-            kwargs["force_model"] = force_model
-        if err_match:
-            with pytest.raises(ExtractionError, match=err_match):
-                await service.extract_financial_data(**kwargs)
-        else:
-            assert await service.extract_financial_data(**kwargs) == expected
-            if force_model:
-                assert (
-                    mock_stream.call_args.kwargs.get("model") or mock_stream.call_args[1].get("model")
-                ) == force_model
+    assert await service.extract_financial_data(**kwargs) == expected
+    if force_model:
+        assert sent.models[0] == force_model
 
 
 def integrity_payload(**changes) -> dict:

@@ -222,7 +222,10 @@ class _MediaMixin:
             _MediaMixin.PDF_VISION_MAX_PAGE_IMAGE_BYTES,
         )
 
-        page = document.load_page(page_index)
+        try:
+            page = document.load_page(page_index)
+        except (RuntimeError, ValueError) as exc:
+            raise ExtractionError(f"Failed to render page {page_index + 1}: {type(exc).__name__}") from exc
         try:
             pixmap = page.get_pixmap(matrix=fitz.Matrix(scale, scale), alpha=False)
             image_bytes = pixmap.tobytes("png")
@@ -258,6 +261,10 @@ class _MediaMixin:
                     if len(compact_bytes) < len(image_bytes):
                         image_bytes = compact_bytes
                     del compact_bytes
+        except (RuntimeError, ValueError) as exc:
+            # MuPDF raises RuntimeError for a page that it cannot draw. A typed error lets the retry loop keep an
+            # earlier pass that read the text layer, instead of ending the upload with a bare RuntimeError.
+            raise ExtractionError(f"Failed to render page {page_index + 1}: {type(exc).__name__}") from exc
         finally:
             del page
             fitz.TOOLS.store_shrink(100)

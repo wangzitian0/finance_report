@@ -10,7 +10,7 @@ import pytest
 from src.config import settings
 from src.extraction.base.paged_extraction import merge_paged_extractions
 from src.extraction.base.validation import balance_is_evaluable
-from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
 
 
 def _bank(diff: str = "0") -> dict:
@@ -41,6 +41,40 @@ async def _run(attempts: list, *, max_attempts: int = 2):
             file_content=b"x", institution=None, file_type="pdf", file_url=None, force_model=None, filename="s.pdf"
         )
         return slices[0].payload, mock
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ExtractionError("model failed"), ValueError("v"), KeyError("k"), TypeError("t"), AttributeError("a"), ArithmeticError("n")],
+    ids=lambda error: type(error).__name__,
+)
+async def test_AC_extraction_later_pass_failure_keeps_the_kept_pass_and_says_so(error, caplog):
+    """A failed model call or a reading of the wrong shape in a later pass keeps the earlier pass, and the log says that the loop ended on a failure."""
+    first = _bank("12.50")
+    result, mock = await _run([first, error])
+    assert result is first and mock.await_count == 2
+    messages = [record.getMessage() for record in caplog.records if "keeping the best pass" in record.getMessage()]
+    assert len(messages) == 1
+    assert "'ended_on_failure': True" in messages[0] and f"'failed_pass': '{type(error).__name__}'" in messages[0]
+
+
+async def test_AC_extraction_log_says_ended_on_failure_only_when_the_last_pass_failed(caplog):
+    """Review of #3202: a failed pass 2 followed by a completed pass 3 is not a loop that ended on a failure."""
+    result, mock = await _run([_bank("12.50"), ExtractionError("model failed"), _bank("4.00")], max_attempts=3)
+    assert mock.await_count == 3 and result["transactions"][0]["amount"] == "96.00"
+    messages = [record.getMessage() for record in caplog.records if "keeping the best pass" in record.getMessage()]
+    assert len(messages) == 1 and "'ended_on_failure': False" in messages[0] and "'failed_pass': None" in messages[0]
+
+
+@pytest.mark.parametrize(
+    "error",
+    [RuntimeError("bug"), AssertionError("bug"), OSError("disk"), NameError("bug"), ImportError("bug")],
+    ids=lambda error: type(error).__name__,
+)
+async def test_AC_extraction_later_pass_bug_ends_the_loop_with_its_error(error):
+    """An error of another class is a bug: it does not hide behind the kept pass."""
+    with pytest.raises(type(error), match="bug|disk"):
+        await _run([_bank("12.50"), error])
 
 
 async def test_AC_extraction_retry_guard_cases():

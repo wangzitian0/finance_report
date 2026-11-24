@@ -1,6 +1,5 @@
 """Value coercion and balanced JSON recovery helpers."""
 
-import re
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
@@ -88,10 +87,6 @@ class _CoerceMixin:
             return Decimal(str(value))
         except (ValueError, TypeError, InvalidOperation) as exc:
             raise ValueError(f"Invalid decimal value: {value}") from exc
-
-    def _extract_status_code(self, error_msg: str) -> str | None:
-        match = re.search(r"HTTP (\d{3})", error_msg)
-        return match.group(1) if match else None
 
     @staticmethod
     def _repair_json_object(content: str) -> str | None:

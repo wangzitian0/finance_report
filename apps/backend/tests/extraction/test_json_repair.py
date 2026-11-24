@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests._support.fake_llm import install_fake_model
 from src.config import Settings
 from src.extraction.extension.service import ExtractionError, ExtractionService
 
@@ -33,13 +34,15 @@ def test_repair_json_object_returns_none_when_unrecoverable(raw):
     assert ExtractionService._repair_json_object(raw) is None
 
 
-async def test_extraction_salvages_and_rejects_fenced_and_truncated_responses():
+async def test_extraction_salvages_and_rejects_fenced_and_truncated_responses(monkeypatch):
     service = ExtractionService()
-    with patch.object(service, "api_key", "test-key"), patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()), patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value='```json\n{"institution": "DBS", "transactions": []}\n```')):
+    install_fake_model(monkeypatch, '```json\n{"institution": "DBS", "transactions": []}\n```')
+    with patch.object(service, "api_key", "test-key"):
         assert await service._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model") == {"institution": "DBS", "transactions": []}
 
     truncated = '{"institution": "DBS POSB", "account_last4": "8123", "currency": "SGD", "opening_balance": "124781.91", "closing_balance": null, "transactions": [{"date": "2024-11-01", "description": "PayNow Transfer", "amount": "15.00", "direction": "OUT", "currency": "SGD", "balance_after": "124766.91"}, {"date": "2024-11-02", "description": "Truncated mid-row'
     assert Settings().ai_json_max_tokens == 32768 and ExtractionService._repair_json_object(truncated) is None
     for bad, match in [("not json at all", None), (truncated, "json_parse")]:
-        with patch.object(service, "api_key", "test-key"), patch("src.extraction.extension.service.stream_ai_json", return_value=MagicMock()), patch("src.extraction.extension.service.accumulate_stream", AsyncMock(return_value=bad)), pytest.raises(ExtractionError, match=match):
+        install_fake_model(monkeypatch, bad)
+        with patch.object(service, "api_key", "test-key"), pytest.raises(ExtractionError, match=match):
             await service._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model")

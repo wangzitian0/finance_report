@@ -1,8 +1,6 @@
 """Shared extraction constants, date parsing, and ExtractionError."""
 
-from collections.abc import AsyncIterator
 from datetime import date, datetime
-from typing import Any
 
 from src.observability import get_logger
 
@@ -60,22 +58,3 @@ class ExtractionError(Exception):
     """Raised when extraction fails."""
 
     pass
-
-
-def stream_ai_json(*args: Any, **kwargs: Any) -> AsyncIterator[str]:
-    """Thin lazy proxy over ``src.llm.stream_ai_json``.
-
-    Module-level so tests can monkeypatch it (via this module or the modules
-    that re-export it), but the import happens on first call to keep this
-    package root's import graph minimal.
-    """
-    from src.llm import stream_ai_json as _stream_ai_json
-
-    return _stream_ai_json(*args, **kwargs)
-
-
-async def accumulate_stream(*args: Any, **kwargs: Any) -> str:
-    """Thin lazy proxy over ``src.llm.accumulate_stream`` (see above)."""
-    from src.llm import accumulate_stream as _accumulate_stream
-
-    return await _accumulate_stream(*args, **kwargs)

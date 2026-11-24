@@ -65,6 +65,7 @@ class CallSite(StrEnum):
     """The name of a model call site. It is the agent name and the telemetry attribute ``infra.llm.call_site``."""
 
     RECONCILIATION_SEMANTIC_SCORE = "reconciliation.semantic_score"
+    EXTRACTION_STATEMENT = "extraction.statement"
     CLASSIFICATION_PROPOSE = "extraction.classification"
     CSV_COLUMN_MAPPING = "extraction.csv_mapping"
 
@@ -189,6 +190,7 @@ def _agent(
     usage_limits: UsageLimits | None,
     extra_body: Mapping[str, Any] | None,
     max_attempts: int,
+    model: str | None = None,
 ) -> Any:
     body = dict(extra_body or {})
     if "thinking" in body:
@@ -210,6 +212,7 @@ def _agent(
         return create_llm_agent(
             settings_for_sdk,
             role=role,
+            model=model,
             call_site=call_site.value,
             decoding=decoding,
             usage_limits=usage_limits,
@@ -232,13 +235,14 @@ async def complete_text(
     usage_limits: UsageLimits | None = None,
     extra_body: Mapping[str, Any] | None = None,
     max_attempts: int = 3,
+    model: str | None = None,
 ) -> str:
     """Send one user message and return the text of the reply.
 
     The reply is streamed and joined, so ``decoding.timeout`` limits the wait for the next chunk. A failure of the
     call is a ``ModelCallFailed``.
     """
-    agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts)
+    agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts, model)
     user_content = to_user_content(content)  # an error of our own argument is not a failure of the call
     try:
         async with agent.run_stream(user_content) as stream:
@@ -257,6 +261,7 @@ async def stream_text(
     usage_limits: UsageLimits | None = None,
     extra_body: Mapping[str, Any] | None = None,
     max_attempts: int = 3,
+    model: str | None = None,
 ) -> AsyncIterator[AsyncIterator[str]]:
     """Send one user message and give the text of the reply piece by piece.
 
@@ -266,7 +271,7 @@ async def stream_text(
     that stops where the buffer ended. A failure of the call, while the stream opens or while the consumer reads
     it, is a ``ModelCallFailed``; an error of the consumer's own code in the block passes unchanged.
     """
-    agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts)
+    agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts, model)
     stream_cm = agent.run_stream(to_user_content(content))
     try:
         stream = await stream_cm.__aenter__()

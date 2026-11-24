@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import httpx
 import structlog
+from infra2_sdk.runtime import DecodingSpec
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -45,9 +45,9 @@ from src.extraction.base.source_capability import SOURCE_CAPABILITIES
 from src.extraction.base.source_vocabulary import BankStatementStatus, DocumentType, Stage1Status, TransactionDirection
 from src.extraction.base.types import DocumentSource, ExtractedTransactionRow, RunHints
 from src.extraction.base.validation import (
+    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     AccountExtractionSlice,
     DuplicateCurrencyError,
-    HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOLD,
     balance_gap_suspect_rows,
     balance_is_evaluable,
     bank_currency_balances,
@@ -62,9 +62,7 @@ from src.extraction.base.validation import (
 from src.extraction.extension._base import (
     ExtractionError,
     _tolerant_parse_date,
-    accumulate_stream,
     logger,
-    stream_ai_json,
 )
 from src.extraction.extension._coerce import _CoerceMixin
 from src.extraction.extension._csv import _CsvMixin
@@ -91,9 +89,22 @@ from src.extraction.extension.result_contract import build_statement_extraction_
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import AccountType
+from src.llm import ModelCallFailed, ModelFailureKind
+from src.llm.extension.agent import CallSite, complete_text
 from src.observability import record_financial_invariant_violation
 
 settings = src.config.settings
+
+# What a failed pass raises when the model failed (`ExtractionError`) or its reading has the wrong shape: a field of
+# the wrong type, a missing key, a number that does not parse. The loop keeps the earlier pass for these. Any other
+# error is a bug and ends the loop.
+_PASS_FAILURES = (ExtractionError, ValueError, ArithmeticError, LookupError, AttributeError, TypeError)
+
+# The failure kinds of a model call, grouped by the `ExtractionError` kind that the caller and the run report.
+_EXTRACTION_RATE_LIMITED = frozenset({ModelFailureKind.RATE_LIMIT, ModelFailureKind.USAGE_LIMIT})
+_EXTRACTION_PROVIDER_FAULTS = frozenset(
+    {ModelFailureKind.UNAVAILABLE, ModelFailureKind.REJECTED, ModelFailureKind.NOT_CONFIGURED}
+)
 
 
 # A review reason names at most this many rows; the log line holds every row number.
@@ -105,12 +116,6 @@ def rows_not_in_text_review_reason(rows: list[int]) -> str:
     named = ", ".join(str(number) for number in rows[:MAX_ROWS_NAMED_IN_REVIEW_REASON])
     more = len(rows) - MAX_ROWS_NAMED_IN_REVIEW_REASON
     return f"Rows not found in the document text: {named}" + (f" and {more} more" if more > 0 else "")
-
-
-def _ai_stream_error() -> type[Exception]:
-    from src.llm import AIStreamError
-
-    return AIStreamError
 
 
 def _institution_class(*, is_brokerage: bool) -> str:
@@ -941,6 +946,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         best_score: PassScore | None = None
         best_findings: list[Finding] = []
         last_error: Exception | None = None
+        last_pass_error: Exception | None = None  # the error of the last pass; None when the last pass completed
         extract_overridden = (
             type(self).extract_financial_data is not _ORIGINAL_EXTRACT_FINANCIAL_DATA
             or "extract_financial_data" in self.__dict__
@@ -995,9 +1001,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 is_brokerage = looks_like_brokerage_payload(
                     readings[0], filename=filename, institution=institution or readings[0].get("institution")
                 )
-            except Exception as exc:
-                # A later pass that raises never discards the kept pass. Without a kept pass, two balances in
-                # one currency end the loop with a message for the user, and an unknown error is raised.
+            except _PASS_FAILURES as exc:
+                # A later pass that fails this way never discards the kept pass. Without a kept pass, two
+                # balances in one currency end the loop with a message for the user, and an unknown error is
+                # raised. An error of another class is a bug: it ends the loop with that error.
                 if best is None and isinstance(exc, DuplicateCurrencyError):
                     raise ExtractionError(
                         f"This statement lists several balances in {exc.currency}, usually several accounts in "
@@ -1012,13 +1019,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     error_type=type(exc).__name__,
                     error=str(exc)[:300],
                 )
-                last_error = exc
+                last_error = last_pass_error = exc
                 # A pass that gave no reading has no check result. The next pass reads the pages another way.
                 read_text_layer = False
                 continue
             finally:
                 structlog.contextvars.unbind_contextvars("extract_attempt")
             current_parse = (slices, split_meta_agreed)
+            last_pass_error = None
 
             if is_brokerage and (best_score is None or best_score.balance_fails or best_score.unusable):
                 # A brokerage reading is judged by its positions, not by the checks of a bank account. It
@@ -1052,6 +1060,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 logger.info(
                     "Checks did not pass after re-extract; keeping the best pass",
                     attempts=max_attempts,
+                    ended_on_failure=last_pass_error is not None,
+                    failed_pass=type(last_pass_error).__name__ if last_pass_error is not None else None,
                     finding_count=best_score.finding_count,
                     best_difference=str(best_score.gap),
                     rows=best_score.rows,
@@ -1079,18 +1089,22 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         try:
             logger.info("Attempting AI extraction (streaming)", model=model)
-            stream = stream_ai_json(
-                messages=messages,
+            content = await complete_text(
+                CallSite.EXTRACTION_STATEMENT,
+                "multimodal",
+                messages[-1]["content"],
                 model=model,
-                user_id=user_id,
-                timeout=settings.ai_json_timeout_seconds,
-                max_tokens=settings.ai_json_max_tokens,
-                temperature=0.0,
-                do_sample=False,
-                seed=seed_override if seed_override is not None else settings.ai_json_seed,
-                thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
+                decoding=DecodingSpec(
+                    "extraction.statement.v1",
+                    thinking=False if settings.ai_json_disable_thinking else None,
+                    temperature=0.0,
+                    seed=seed_override if seed_override is not None else settings.ai_json_seed,
+                    max_tokens=settings.ai_json_max_tokens,
+                    timeout=settings.ai_json_timeout_seconds,
+                ),
+                extra_body={"do_sample": False},
+                max_attempts=2,
             )
-            content = await accumulate_stream(stream)
             if not content or not content.strip():
                 logger.error("AI returned empty response", error_id=ErrorIds.EXTRACTION_EMPTY_RESPONSE, model=model)
                 raise failed(
@@ -1103,7 +1117,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     raise ExtractionError("AI response must be a strict JSON object (no arrays).")
                 logger.info("AI extraction successful (streaming)", model=model)
                 return parsed
-            except json.JSONDecodeError as e:
+            except (json.JSONDecodeError, RecursionError) as e:  # nesting of 100000 brackets is a reply that cannot be read
                 repaired = self._repair_json_object(content)
                 if repaired is not None:
                     try:
@@ -1111,7 +1125,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         if isinstance(parsed, dict):
                             logger.info("AI extraction recovered via JSON repair", model=model)
                             return parsed
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, RecursionError):
                         pass
 
                 logger.error(
@@ -1130,37 +1144,22 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     "Please retry with a different model.",
                 ) from e
 
-        except _ai_stream_error() as e:
-            error_msg = str(e)
-            if "429" in error_msg or "quota" in error_msg.lower():
+        except ModelCallFailed as e:
+            # The entry point counted and logged the failure and redacted its text; the kind is the cause.
+            if e.kind in _EXTRACTION_RATE_LIMITED:
+                logger.warning("AI extraction rate limited", error_id=ErrorIds.OPENROUTER_HTTP_ERROR, model=model)
+                raise failed("rate_limit", f"Model {model} rate limited: {e.summary}") from e
+            if e.kind is ModelFailureKind.TIMEOUT:
                 logger.warning(
-                    "AI extraction rate limited",
-                    error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
+                    "AI extraction timed out",
+                    error_id=ErrorIds.OPENROUTER_TIMEOUT,
                     model=model,
-                    retryable=getattr(e, "retryable", False),
+                    timeout_seconds=settings.ai_json_timeout_seconds,
                 )
-                raise failed("rate_limit", f"Model {model} rate limited: {error_msg}") from e
-            if "timeout" in error_msg.lower() or "timed out" in error_msg.lower():
-                logger.warning("AI extraction timed out", error_id=ErrorIds.OPENROUTER_TIMEOUT, model=model)
-                raise failed("timeout", f"Model {model} timed out: {error_msg}") from e
-            logger.error(
-                "AI extraction HTTP error",
-                error_id=ErrorIds.OPENROUTER_HTTP_ERROR,
-                model=model,
-                error=error_msg,
-                error_type=type(e).__name__,
-                retryable=getattr(e, "retryable", False),
-                http_status=self._extract_status_code(error_msg),
-            )
-            raise failed("http_error", f"Model {model} failed: {error_msg}") from e
-        except httpx.TimeoutException as e:
-            logger.warning(
-                "AI extraction timed out",
-                error_id=ErrorIds.OPENROUTER_TIMEOUT,
-                model=model,
-                timeout_seconds=settings.ai_json_timeout_seconds,
-            )
-            raise failed("timeout", f"Model {model} timed out after {settings.ai_json_timeout_seconds}s") from e
+                raise failed("timeout", f"Model {model} timed out: {e.summary}") from e
+            if e.kind in _EXTRACTION_PROVIDER_FAULTS:
+                raise failed("http_error", f"Model {model} failed: {e.summary}") from e
+            raise failed("model_error", f"Model {model} failed: {e.summary}") from e
         except ExtractionError:
             raise
         except (ValueError, TypeError, KeyError, AttributeError) as e:

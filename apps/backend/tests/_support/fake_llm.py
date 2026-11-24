@@ -16,8 +16,8 @@ import src.llm.extension.agent as agent_module
 class SentToModel(list):
     """The contents that code sent to the fake model, and the decoding of each call.
 
-    ``decodings`` holds the ``DecodingSpec`` that reached the SDK and ``extra_bodies`` the ``extra_body`` of the
-    request. ``max_tokens`` is in ``extra_bodies``: the entry point moves it there (Z.AI ignores the other field).
+    ``decodings`` holds the ``DecodingSpec`` that reached the SDK, ``extra_bodies`` the ``extra_body`` of the
+    request and ``models`` the model name that the caller asked for (None: the model of the role). ``max_tokens`` is in ``extra_bodies``: the entry point moves it there (Z.AI ignores the other field).
     """
 
     def __init__(self) -> None:
@@ -25,6 +25,8 @@ class SentToModel(list):
         self.decodings: list[Any] = []
         self.extra_bodies: list[Any] = []
         self.max_attempts: list[Any] = []
+        self.models: list[Any] = []
+        self.roles: list[Any] = []
 
 
 def install_fake_model(monkeypatch: pytest.MonkeyPatch, reply: Callable[[Any], str] | str) -> SentToModel:
@@ -53,6 +55,8 @@ def install_fake_model(monkeypatch: pytest.MonkeyPatch, reply: Callable[[Any], s
         sent.decodings.append(kwargs.get("decoding"))
         sent.extra_bodies.append((kwargs.get("model_settings") or {}).get("extra_body"))
         sent.max_attempts.append(kwargs.get("max_attempts"))
+        sent.models.append(kwargs.get("model"))
+        sent.roles.append(kwargs.get("role"))
         return _create_llm_agent(*args, **{**kwargs, "model": model})
 
     monkeypatch.setattr(agent_module, "create_llm_agent", create)

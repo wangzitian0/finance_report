@@ -9,6 +9,13 @@ from uuid import uuid4
 
 import httpx
 import pytest
+from pydantic_ai.exceptions import (
+    ModelHTTPError,
+    ModelTimeoutError,
+    UnexpectedModelBehavior,
+    UsageLimitExceeded,
+    UserError,
+)
 from sqlalchemy import text
 
 from src.config import settings
@@ -17,7 +24,7 @@ from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.orm.statement_summary import StatementSummary
-from src.llm import AIStreamError, ModelCallFailed, ModelFailureKind
+from src.llm import ModelCallFailed, ModelFailureKind
 from tests._support.fake_llm import install_fake_model
 from tests.extraction._statement_run_helpers import (
     assert_stream_extract_case,
@@ -121,7 +128,7 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
     ("stream_exc", "accum_val", "file_content", "file_type", "file_url", "force_model", "expected", "err_match"),
     [
         (
-            AIStreamError("HTTP 429: Quota Exceeded"),
+            ModelHTTPError(status_code=429, model_name="m", body={"error": "quota"}),
             None,
             b"content",
             "pdf",
@@ -131,7 +138,7 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "Extraction failed \\(rate_limit\\): Model .* rate limited",
         ),
         (
-            AIStreamError("Request timed out after 30s"),
+            ModelTimeoutError("m", "Request timed out after 30s"),
             None,
             b"content",
             "pdf",
@@ -141,14 +148,14 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "timed out",
         ),
         (
-            AIStreamError("HTTP 502: Bad Gateway"),
+            ModelHTTPError(status_code=502, model_name="m", body="Bad Gateway"),
             None,
             b"content",
             "pdf",
             "https://example.com/file.pdf",
             None,
             None,
-            "failed.*HTTP 502",
+            "Extraction failed \\(http_error\\): Model .* failed: .*502",
         ),
         (
             None,
@@ -198,7 +205,7 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "https://example.com/file.pdf",
             None,
             None,
-            "Internal error: ValueError",
+            "Extraction failed \\(model_error\\): Model .* failed: ValueError",
         ),
         (
             None,
@@ -209,16 +216,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             None,
             None,
             "strict JSON object.*no arrays",
-        ),
-        (
-            None,
-            ExtractionError("Custom extraction failure"),
-            b"content",
-            "pdf",
-            "https://example.com/file.pdf",
-            None,
-            None,
-            "Custom extraction failure",
         ),
         (
             None,
@@ -243,20 +240,76 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
     ],
 )
 async def test_extract_financial_data_stream_outcomes(
-    stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+    monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
 ):
     await assert_stream_extract_case(
-        stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+        monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
     )
+
+
+@pytest.mark.parametrize(
+    ("error", "kind", "model_kind"),
+    [
+        (UsageLimitExceeded("the request limit"), "rate_limit", ModelFailureKind.USAGE_LIMIT),
+        (ModelHTTPError(status_code=401, model_name="m", body={"error": "bad key"}), "http_error", ModelFailureKind.REJECTED),
+        (ModelHTTPError(status_code=503, model_name="m", body="down"), "http_error", ModelFailureKind.UNAVAILABLE),
+        (UserError("a bad setting"), "http_error", ModelFailureKind.NOT_CONFIGURED),
+        (UnexpectedModelBehavior("no text in the reply"), "model_error", ModelFailureKind.BAD_REPLY),
+        (RuntimeError("a bug of the model adapter"), "model_error", ModelFailureKind.UNCLASSIFIED),
+    ],
+    ids=lambda value: value.value if isinstance(value, ModelFailureKind) else None,
+)
+async def test_extraction_error_kind_follows_the_failure_kind_of_the_model_call(monkeypatch, error, kind, model_kind):
+    """The extraction reads `ModelCallFailed.kind`, never the class of an SDK error, and chains the cause."""
+
+    def fails(_content) -> str:
+        raise error
+
+    install_fake_model(monkeypatch, fails)
+    with pytest.raises(ExtractionError, match=f"^Extraction failed \\({kind}\\)") as raised:
+        await ExtractionService()._extract_json_with_model(
+            messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
+        )
+    assert isinstance(raised.value.__cause__, ModelCallFailed) and raised.value.__cause__.kind is model_kind
+
+
+async def test_the_extraction_call_sends_the_settings_that_the_old_call_sent(monkeypatch):
+    """Review of #3202: the role, the timeout, the attempts, the seed and the cap are the contract of the call."""
+    sent = install_fake_model(monkeypatch, '{"institution": "DBS", "transactions": []}')
+    await ExtractionService()._extract_json_with_model(
+        messages=[{"role": "user", "content": "Extract"}], model="forced-model", seed_override=7
+    )
+    decoding = sent.decodings[0]
+    assert (sent.roles, sent.models, sent.max_attempts, sent.extra_bodies[0]["do_sample"]) == (
+        ["multimodal"],
+        ["forced-model"],
+        [2],
+        False,
+    )
+    assert (decoding.timeout, decoding.seed, decoding.temperature) == (settings.ai_json_timeout_seconds, 7, 0.0)
+
+
+@pytest.mark.parametrize("reply", ["[" * 100000, '{"a":' * 100000], ids=["arrays", "objects"])
+async def test_a_reply_nested_too_deep_is_a_json_parse_error_not_a_recursion_error(monkeypatch, reply):
+    """Review of #3202: `json.loads` raises RecursionError for 100000 nested brackets; the retry loop would not catch it."""
+    install_fake_model(monkeypatch, reply)
+    # The repair scan is not the subject here (it is slow on 100000 brackets): the parse is.
+    monkeypatch.setattr(ExtractionService, "_repair_json_object", staticmethod(lambda _content: None))
+    with pytest.raises(ExtractionError, match=r"^Extraction failed \(json_parse\)"):
+        await ExtractionService()._extract_json_with_model(
+            messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
+        )
 
 
 async def test_extract_json_timeout_and_ai_csv_empty(monkeypatch):
     service = ExtractionService()
     service.api_key = "test-key"
-    with (
-        patch("src.extraction.extension.service.stream_ai_json", side_effect=httpx.TimeoutException("slow")),
-        pytest.raises(ExtractionError, match="Extraction failed \\(timeout\\): Model test-vision-model timed out"),
-    ):
+
+    def slow(_content):
+        raise ModelTimeoutError("test-vision-model", "slow")
+
+    install_fake_model(monkeypatch, slow)
+    with pytest.raises(ExtractionError, match="Extraction failed \\(timeout\\): Model test-vision-model timed out"):
         await service._extract_json_with_model(
             messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
         )
@@ -342,7 +395,7 @@ async def test_parse_document_normalizes_descriptions_and_direction(txns, expect
     ) == (expected_descriptions, expected_direction, len(txns))
 
 
-async def test_vision_paths_and_role_guards():
+async def test_vision_paths_and_role_guards(monkeypatch):
     service = ExtractionService()
     service.api_key, service.multimodal_model = "test-key", "test-vision-model"
     mock_extract = AsyncMock(return_value={"transactions": []})
@@ -356,35 +409,34 @@ async def test_vision_paths_and_role_guards():
     )
 
     service.multimodal_model = ""
+    sent = install_fake_model(monkeypatch, "{}")
     with (
         patch.object(service, "_build_vision_media_payload_batches") as bm,
-        patch("src.extraction.extension.service.stream_ai_json") as sm,
         pytest.raises(ExtractionError, match="Multimodal model is not configured"),
     ):
         await service.extract_financial_data(file_content=b"content", institution="DBS", file_type="pdf")
     bm.assert_not_called()
-    sm.assert_not_called()
+    assert sent == []
 
     service = ExtractionService()
     service.api_key, service.multimodal_model = "test-key", "test-vision-model"
-    attempted: list[str] = []
 
-    def fake_stream(*, model, **_kwargs):
-        attempted.append(model)
-        raise AIStreamError(
-            'provider=zai model=test-vision-model status_code=400 {"code":"1210","message":"Invalid API parameter"}',
-            retryable=False,
+    def refuse(_content):
+        raise ModelHTTPError(
+            status_code=400,
+            model_name="test-vision-model",
+            body={"code": "1210", "message": "Invalid API parameter"},
         )
 
+    sent = install_fake_model(monkeypatch, refuse)
     with (
         patch.object(service, "_build_vision_media_payload_batches", return_value=[[image_payload]]),
-        patch("src.extraction.extension.service.stream_ai_json", side_effect=fake_stream),
         pytest.raises(ExtractionError, match="Extraction failed \\(http_error\\): Model test-vision-model failed"),
     ):
         await service.extract_financial_data(b"content", "DBS", "pdf")
     assert (
-        set(attempted) == {"test-vision-model"}
-        and 1 <= len(attempted) <= 2
+        set(sent.models) == {"test-vision-model"}
+        and 1 <= len(sent) <= 2
         and service.multimodal_model == "test-vision-model"
     )
     assert all(
@@ -483,12 +535,6 @@ def test_extraction_service_low_level_helpers():
             (cast(str, object()), False),
         ]
     )
-    assert (
-        service._extract_status_code("HTTP 429: Quota Exceeded"),
-        service._extract_status_code("HTTP 500 Internal Server Error"),
-        service._extract_status_code("no status code here"),
-        service._extract_status_code(""),
-    ) == ("429", "500", None, None)
     assert service._build_media_payload(file_type="png", mime_type="image/png", data="data:image/png;base64,iVBOR") == {
         "type": "image_url",
         "image_url": {"url": "data:image/png;base64,iVBOR"},
@@ -566,3 +612,22 @@ async def test_parse_document_multicurrency_bank_balance_self_check_failure(test
         res.transactions,
         any("llm_led_balance_chain_unreconciled" in reason for reason in res.review_reasons),
     ) == ({"SGD", "USD"}, False, (), True)
+
+
+async def test_a_transient_model_error_is_retried_once_by_the_sdk(monkeypatch):
+    """#3153: the SDK retries a server error of the model; the loop of passes is a different layer."""
+    from pydantic_ai.exceptions import ModelServerError
+
+    service = ExtractionService()
+    service.api_key = "test-key"
+    replies = iter([ModelServerError("m", "upstream"), '{"transactions": []}'])
+
+    def answer(_content):
+        outcome = next(replies)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    sent = install_fake_model(monkeypatch, answer)
+    result = await service._extract_json_with_model(messages=[{"role": "user", "content": "x"}], model="test-model")
+    assert result == {"transactions": []} and len(sent) == 2
