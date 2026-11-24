@@ -218,8 +218,10 @@ def test_a_row_that_commits_while_the_upgrade_waits_for_the_lock_is_not_dropped(
             text=True,
         )
         try:
-            deadline = time.monotonic() + 60
+            deadline = time.monotonic() + 30
             while time.monotonic() < deadline:
+                if upgrade.poll() is not None:
+                    pytest.fail(f"the upgrade ended before it waited for a lock: {upgrade.communicate()[0]}")
                 with engine.connect() as probe:
                     waiting = probe.execute(
                         text("SELECT COUNT(*) FROM pg_stat_activity WHERE datname = :n AND wait_event_type = 'Lock'"),
