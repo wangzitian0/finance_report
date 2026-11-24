@@ -30,7 +30,6 @@ import src.advisor  # noqa: F401,E402
 import src.audit  # noqa: F401,E402
 import src.extraction  # noqa: F401,E402
 import src.ledger  # noqa: F401,E402
-import src.llm  # noqa: F401,E402
 import src.platform  # noqa: F401,E402
 import src.portfolio  # noqa: F401,E402
 import src.pricing  # noqa: F401,E402

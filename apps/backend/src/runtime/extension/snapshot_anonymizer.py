@@ -110,8 +110,6 @@ STRING_KEEP_COLUMNS: frozenset[str] = _expand(
         "journal_audit_log": "action",
         "journal_entries": "base_currency source_type status",
         "journal_lines": "currency direction event_type",
-        "llm_providers": "protocol",
-        "llm_scene_bindings": "fallback_model_ids model reasoning scene",
         "managed_positions": "cost_basis_method currency status",
         "manual_valuation_snapshots": "component_type currency liquidity_class valuation_basis",
         "market_data_override": "currency source",
@@ -159,7 +157,6 @@ STRING_PSEUDONYM_COLUMNS: dict[str, str] = {
                 "correction_logs": "corrected_category original_category transaction_description",
                 "journal_audit_log": "actor",
                 "journal_entries": "memo void_reason",
-                "llm_providers": "api_base label",
                 "manual_valuation_snapshots": "notes source",
                 "outbox": "last_error",
                 "reviewed_statement_envelopes": "institution rationale",
@@ -211,7 +208,7 @@ STRING_PSEUDONYM_COLUMNS: dict[str, str] = {
     "users.email": "email",
 }
 
-SECRET_COLUMNS: frozenset[str] = frozenset({"llm_providers.api_key_ciphertext", "users.hashed_password"})
+SECRET_COLUMNS: frozenset[str] = frozenset({"users.hashed_password"})
 
 REDACTED_JSON = {"anonymized": True}
 REDACTED_SECRET = "!anonymized"
