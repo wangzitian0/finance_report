@@ -12,7 +12,6 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.advisor import is_write_request
 from src.advisor.base.prompt import DISCLAIMER_EN, get_ai_advisor_prompt
 from src.audit import JournalEntrySourceType
 from src.extraction import BankStatementStatus, TransactionDirection
@@ -868,19 +867,13 @@ async def test_flow_4_6_7_8_9_10_18_24_25_27_29_30_triage_and_audit(db: AsyncSes
             "Statement stmt_2025_03_carson: Carson Bank",
             "12500.00 USD",
             DISCLAIMER_EN,
-            "You can only read the user's financial data",
+            "2. Stay read-only",
         )
     )
     assert diagnose_equation_imbalance(Decimal("0.00")).primary_category == EquationDiagnosticCategory.BALANCED
     assert (
         diagnose_equation_imbalance(Decimal("450.00"), unposted_draft_count=1).primary_category
         == EquationDiagnosticCategory.UNPOSTED_DRAFT
-    )
-    assert all(
-        is_write_request(p) for p in ("create a journal entry", "delete journal entry 123", "post a journal entry")
-    ) and not any(
-        is_write_request(p)
-        for p in ("What is my current balance sheet equation delta?", "Summarize my income statement for Q1")
     )
 
     for i in range(30):

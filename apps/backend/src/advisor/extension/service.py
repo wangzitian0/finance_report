@@ -7,7 +7,7 @@ import calendar
 import hashlib
 import json
 import re
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 from contextlib import aclosing
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
@@ -24,13 +24,8 @@ import src.config
 from src.advisor.base.constants import CHAT_METADATA_SAFE_HREFS, MAX_CONTEXT_MESSAGES
 from src.advisor.base.guardrails import (
     StreamRedactor,
-    build_refusal,
     detect_language,
     ensure_disclaimer,
-    is_non_financial,
-    is_prompt_injection,
-    is_sensitive_request,
-    is_write_request,
     normalize_question,
     redact_sensitive,
 )
@@ -74,12 +69,6 @@ from src.workflow import get_workflow_status, stored_package_readiness
 settings = src.config.settings
 logger = get_logger("src.advisor")
 
-_REFUSAL_CHECKS: tuple[tuple[Callable[[str], bool], str], ...] = (
-    (is_prompt_injection, "injection"),
-    (is_sensitive_request, "sensitive"),
-    (is_write_request, "write"),
-    (is_non_financial, "non_financial"),
-)
 _BALANCE_TOKENS = ("net worth", "assets", "asset", "liabilities", "liability", "balance", "equity", "worth")
 _CASH_FLOW_TOKENS = ("expense", "expenses", "spending", "income", "cash flow", "cash-flow", "cashflow", "month")
 
@@ -155,12 +144,6 @@ class AIAdvisorService:
 
         session = await self._get_or_create_session(db, user_id, session_id, message)
         await self._record_message(db, session, ChatMessageRole.USER, message)
-
-        for predicate, kind in _REFUSAL_CHECKS:
-            if predicate(raw_message):
-                refusal = build_refusal(kind, language)
-                await self._record_message(db, session, ChatMessageRole.ASSISTANT, refusal)
-                return self._cached_stream(session.id, refusal, model_name=None)
 
         context_kwargs = {"base_currency": base_currency} if base_currency is not None else {}
         context = await self.get_financial_context(db, user_id, **context_kwargs)

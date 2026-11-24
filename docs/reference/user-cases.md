@@ -171,7 +171,7 @@ Governs recurring subscription tracking, anomaly detection, and read-only natura
 | UC ID | User Case (EN / 中文) | UI Surface | Frontend Component | Backend Endpoint | Invariant / Accounting Rule | Proof Tier | Test Reference |
 |---|---|---|---|---|---|---|---|
 | **UC-46** | Recurring Subscriptions & Anomaly Alerts<br>*(周期扣费/重复扣款异常告警)* | `/upload` | `WorkflowNotices` | `GET /reconciliation/transactions/{txn_id}/anomalies` | `Identifies recurring cadence and flags unexpected amount increases or duplicate runs` | `L3_BENCH` | [`apps/backend/tests/reconciliation/test_anomaly_detection.py`](../../apps/backend/tests/reconciliation/test_anomaly_detection.py) |
-| **UC-47** | Natural Language Financial AI Assistant with Tool Calling<br>*(自然语言财务 AI 顾问)* | `/chat` | `ChatPageClient` | `POST /chat` | `AI operates in read-only sandbox calling accounting queries with streaming response` | `L4_FULL` | [`apps/backend/tests/ai/test_ai_advisor_service.py`](../../apps/backend/tests/ai/test_ai_advisor_service.py) |
+| **UC-47** | Natural Language Financial AI Assistant with Tool Calling<br>*(自然语言财务 AI 顾问)* | `/chat` | `ChatPageClient` | `POST /chat` | `AI operates in read-only sandbox calling accounting queries with streaming response; every message reaches the model, and the rules (secrets, read-only, finance scope, data limits) stand in the system prompt in priority order, with no keyword list that refuses a message` | `L4_FULL` | [`apps/backend/tests/ai/test_ai_advisor_service.py`](../../apps/backend/tests/ai/test_ai_advisor_service.py) |
 
 ---
 

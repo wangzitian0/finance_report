@@ -1,4 +1,4 @@
-"""Prompt guardrails: language, injection/sensitive/non-financial checks, redaction, disclaimer.
+"""Prompt guardrails: language, redaction, disclaimer.
 
 Moved from ``src/services/ai_advisor/_guardrails.py`` (#1671 Wave B) — pure
 text predicates and transforms, no I/O, so they live in ``base/``.
@@ -9,14 +9,7 @@ from __future__ import annotations
 import hashlib
 import re
 
-from src.advisor.base.constants import (
-    DISCLAIMER_BY_LANG,
-    INJECTION_PATTERNS,
-    NON_FINANCIAL_PATTERNS,
-    REFUSAL_BY_REASON,
-    SENSITIVE_NUMBER_RE,
-    SENSITIVE_PATTERNS,
-)
+from src.advisor.base.constants import DISCLAIMER_BY_LANG, SENSITIVE_NUMBER_RE
 from src.advisor.base.prompt import DISCLAIMER_EN
 
 
@@ -36,36 +29,6 @@ def normalize_question(message: str) -> str:
     return hashlib.sha1(message.encode("utf-8")).hexdigest()
 
 
-def _matches_any(message: str, patterns: tuple[str, ...]) -> bool:
-    return any(re.search(pattern, message, re.IGNORECASE) for pattern in patterns)
-
-
-def is_prompt_injection(message: str) -> bool:
-    return _matches_any(message, INJECTION_PATTERNS)
-
-
-def is_sensitive_request(message: str) -> bool:
-    return _matches_any(message, SENSITIVE_PATTERNS)
-
-
-def is_non_financial(message: str) -> bool:
-    return _matches_any(message, NON_FINANCIAL_PATTERNS)
-
-
-def is_write_request(message: str) -> bool:
-    return _matches_any(
-        message,
-        (
-            r"create (a )?(journal|entry)",
-            r"post (a )?(journal|entry)",
-            r"delete (a )?(journal|entry)",
-            r"void (a )?(journal|entry)",
-            r"modify (a )?(ledger|entry)",
-            r"write (a )?(ledger|entry)",
-        ),
-    )
-
-
 def redact_sensitive(text: str) -> str:
     """Redact long number sequences to avoid sensitive data leaks."""
     return SENSITIVE_NUMBER_RE.sub("[REDACTED]", text)
@@ -79,14 +42,6 @@ def ensure_disclaimer(text: str, language: str) -> str:
     if not text.endswith("\n"):
         text += "\n\n"
     return f"{text}{disclaimer}"
-
-
-def build_refusal(reason: str, language: str) -> str:
-    """Build refusal response with disclaimer."""
-    message = REFUSAL_BY_REASON.get(reason, REFUSAL_BY_REASON["non_financial"]).get(
-        language, REFUSAL_BY_REASON["non_financial"]["en"]
-    )
-    return ensure_disclaimer(message, language)
 
 
 class StreamRedactor:

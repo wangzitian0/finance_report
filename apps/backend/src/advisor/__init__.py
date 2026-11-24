@@ -21,13 +21,8 @@ This ``__all__`` is the package's published language (spec in ``common/advisor/r
 
 from src.advisor.base.guardrails import (
     StreamRedactor,
-    build_refusal,
     detect_language,
     ensure_disclaimer,
-    is_non_financial,
-    is_prompt_injection,
-    is_sensitive_request,
-    is_write_request,
     normalize_question,
     redact_sensitive,
 )
@@ -49,14 +44,9 @@ __all__ = [
     "DISCLAIMER_ZH",
     "ResponseCache",
     "StreamRedactor",
-    "build_refusal",
     "detect_language",
     "ensure_disclaimer",
     "get_ai_advisor_prompt",
-    "is_non_financial",
-    "is_prompt_injection",
-    "is_sensitive_request",
-    "is_write_request",
     "normalize_question",
     "redact_sensitive",
     "register_fx_pairs_read",
