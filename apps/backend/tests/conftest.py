@@ -1,4 +1,4 @@
-import asyncio; from contextvars import ContextVar; import logging; import os; import re; import sys; from pathlib import Path; from typing import Any; from unittest.mock import patch; from uuid import uuid4; from weakref import WeakSet; import pytest; import pytest_asyncio; import structlog; from httpx import ASGITransport, AsyncClient; from sqlalchemy import event, text; from sqlalchemy.engine.url import make_url; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine; from sqlalchemy.orm import Session; from sqlalchemy.pool import NullPool; import src.orm_registry; from src.config import settings; from src.observability import get_logger; _REPO_ROOT = str(Path(__file__).resolve().parents[3]); sys.path.insert(0, _REPO_ROOT) if _REPO_ROOT not in sys.path else None; logger = get_logger(__name__)
+import asyncio; from contextvars import ContextVar; import logging; import os; import re; import sys; from pathlib import Path; from typing import Any; from unittest.mock import patch; from uuid import uuid4; from weakref import WeakSet; import pytest; import pytest_asyncio; import structlog; from httpx import ASGITransport, AsyncClient; from sqlalchemy import event, text; from sqlalchemy.engine import Engine; from sqlalchemy.engine.url import make_url; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine; from sqlalchemy.orm import Session; from sqlalchemy.pool import NullPool; import src.orm_registry; from src.config import settings; from src.observability import get_logger; _REPO_ROOT = str(Path(__file__).resolve().parents[3]); sys.path.insert(0, _REPO_ROOT) if _REPO_ROOT not in sys.path else None; logger = get_logger(__name__)
 _LIVE_APP_SESSIONS: WeakSet[Session] = WeakSet()
 _LOCAL_TEST_HOSTS = frozenset({"", "test", "testserver", "localhost", "127.0.0.1"})
 
@@ -156,7 +156,7 @@ async def _schema_engine(test_database_url):
     raw_namespace = os.environ.get('TEST_NAMESPACE'); namespace = sanitize_namespace(raw_namespace) if raw_namespace else get_namespace()
     register_namespace(namespace); atexit.register(unregister_namespace, namespace)
     await ensure_database(test_database_url); import src.counter.extension.sql; import src.identity.extension.sql; import src.orm_registry; import src.platform.extension.sql; from src.database import Base, create_app_engine; engine = create_app_engine(test_database_url, echo=False, poolclass=NullPool)
-    @event.listens_for(engine.sync_engine, 'before_cursor_execute')
+    @event.listens_for(Engine, 'before_cursor_execute')  # Every engine, so a test that builds its own is tracked too (#3176).
     def _track_dirty_tables(conn, cursor, statement, parameters, context, executemany):
         stripped = statement.strip()
         if stripped[:10].upper().startswith(_WRITE_STMT_PREFIXES): match = _TABLE_EXTRACT_RE.search(stripped); _DIRTY_TABLES.add(match.group(1).lower()) if match else _DIRTY_TABLES.add('__ALL__')
@@ -168,6 +168,7 @@ async def _schema_engine(test_database_url):
     try:
         yield engine
     finally:
+        event.remove(Engine, 'before_cursor_execute', _track_dirty_tables)
         await engine.dispose()
         if os.environ.get('KEEP_TEST_DB') != '1':
             db_name = make_url(test_database_url).database
