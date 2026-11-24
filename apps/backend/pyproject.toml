@@ -44,7 +44,8 @@ dependencies = [
     # The `otel` extra installs `opentelemetry-instrumentation-logging` so
     # `infra2_sdk.fastapi.init_service` and `infra2_sdk.runtime.otel.init_worker`
     # own OTel traces/metrics/logs, JSON logging, /livez, /readyz, and /health.
-    "infra2-sdk[otel] @ https://github.com/wangzitian0/infra2-sdk/releases/download/v4.3.0/infra2_sdk-4.3.0-py3-none-any.whl",
+    # The `pydantic-ai` extra installs `pydantic-ai-slim[zai]`: `create_llm_agent` is the one model entry point (#3153).
+    "infra2-sdk[otel,pydantic-ai] @ https://github.com/wangzitian0/infra2-sdk/releases/download/v4.3.0/infra2_sdk-4.3.0-py3-none-any.whl",
 ]
 
 [dependency-groups]
@@ -56,6 +57,8 @@ dev = [
     "pytest-xdist>=3.5.0",
     "pytest-split>=0.8.0",
     "pytest-timeout>=2.3.1",
+    # Replay of recorded model calls: `pytest --record-mode=none|rewrite` (#3153).
+    "pytest-recording>=0.15,<1",
     "httpx>=0.27.0",
     "ruff>=0.4.0",
     "playwright>=1.40.0",
@@ -83,7 +86,8 @@ line-length = 120
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+# BLE: a blind `except Exception` must re-raise, or carry a `noqa: BLE001` with the reason (#2964).
+select = ["E", "F", "I", "UP", "BLE"]
 ignore = [
     "E501",  # Line too long - handled by formatter, 120 is reasonable
     "E401",
@@ -98,7 +102,27 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["F401", "F811"]
+"tests/**" = ["F401", "F811", "BLE001"]
+# The work list of BLE001: the files that still hold a blind catch without a reason. `src/llm` and
+# `src/reconciliation` are clean. Remove an entry when its file is clean; add none (#2964).
+"src/advisor/extension/service.py" = ["BLE001"]
+"src/boot.py" = ["BLE001"]
+"src/extraction/extension/_csv.py" = ["BLE001"]
+"src/extraction/extension/_media.py" = ["BLE001"]
+"src/extraction/extension/deduplication.py" = ["BLE001"]
+"src/extraction/extension/pdf_text_layer.py" = ["BLE001"]
+"src/extraction/extension/review_queue.py" = ["BLE001"]
+"src/extraction/extension/statement_parsing.py" = ["BLE001"]
+"src/extraction/extension/statement_parsing_supervisor.py" = ["BLE001"]
+"src/extraction/extension/statement_posting.py" = ["BLE001"]
+"src/extraction/extension/statement_workflow.py" = ["BLE001"]
+"src/main.py" = ["BLE001"]
+"src/observability/runtime.py" = ["BLE001"]
+"src/observability/telemetry_metrics.py" = ["BLE001"]
+"src/observability/worker_telemetry.py" = ["BLE001"]
+"src/platform/extension/relay.py" = ["BLE001"]
+"src/reporting/extension/income_statement.py" = ["BLE001"]
+"src/routers/chat.py" = ["BLE001"]
 
 [tool.ruff.format]
 exclude = ["src/**", "tests/**"]

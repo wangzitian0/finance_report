@@ -1,4 +1,4 @@
-import asyncio; import logging; import os; import re; import sys; from pathlib import Path; from typing import Any; from unittest.mock import patch; from uuid import uuid4; from weakref import WeakSet; import pytest; import pytest_asyncio; import structlog; from httpx import ASGITransport, AsyncClient; from sqlalchemy import event, text; from sqlalchemy.engine.url import make_url; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine; from sqlalchemy.orm import Session; from sqlalchemy.pool import NullPool; import src.orm_registry; from src.config import settings; from src.observability import get_logger; _REPO_ROOT = str(Path(__file__).resolve().parents[3]); sys.path.insert(0, _REPO_ROOT) if _REPO_ROOT not in sys.path else None; logger = get_logger(__name__)
+import asyncio; from contextvars import ContextVar; import logging; import os; import re; import sys; from pathlib import Path; from typing import Any; from unittest.mock import patch; from uuid import uuid4; from weakref import WeakSet; import pytest; import pytest_asyncio; import structlog; from httpx import ASGITransport, AsyncClient; from sqlalchemy import event, text; from sqlalchemy.engine.url import make_url; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine; from sqlalchemy.orm import Session; from sqlalchemy.pool import NullPool; import src.orm_registry; from src.config import settings; from src.observability import get_logger; _REPO_ROOT = str(Path(__file__).resolve().parents[3]); sys.path.insert(0, _REPO_ROOT) if _REPO_ROOT not in sys.path else None; logger = get_logger(__name__)
 _LIVE_APP_SESSIONS: WeakSet[Session] = WeakSet()
 _LOCAL_TEST_HOSTS = frozenset({"", "test", "testserver", "localhost", "127.0.0.1"})
 
@@ -11,28 +11,41 @@ def _current_task_id() -> int | None:
     return id(task) if task is not None else None
 
 
+# The tasks that opened an application transaction in this context. A task that the owner creates later inherits the
+# set, so a call in a child task (a TaskGroup, `gather`) still sees the open transaction of its parent.
+_TXN_OWNER_TASKS: ContextVar[frozenset[int]] = ContextVar("txn_owner_tasks", default=frozenset())
+
+
 @event.listens_for(Session, "after_begin")
 def _track_app_transaction(session: Session, _tx: Any, _conn: Any) -> None:
     if not session.info.get("test_arrange_session"):
-        session.info["owner_task_id"] = _current_task_id()
+        owner = _current_task_id()
+        session.info["owner_task_id"] = owner
+        if owner is not None:
+            _TXN_OWNER_TASKS.set(_TXN_OWNER_TASKS.get() | {owner})
         _LIVE_APP_SESSIONS.add(session)
 
 
-def active_guarded_app_transactions(*, task_scoped: bool = True) -> int:
+def active_guarded_app_transactions(*, task_scoped: bool = True, inherited: bool = False) -> int:
+    """Count the open application transactions of the current task, and of its ancestors when ``inherited``."""
     current_task_id = _current_task_id()
+    visible = {current_task_id} | (_TXN_OWNER_TASKS.get() if inherited else frozenset())
     count = 0
     for session in list(_LIVE_APP_SESSIONS):
         if session.info.get("test_arrange_session") or not session.in_transaction():
             continue
-        if task_scoped and current_task_id is not None and session.info.get("owner_task_id") != current_task_id:
+        if task_scoped and current_task_id is not None and session.info.get("owner_task_id") not in visible:
             continue
         count += 1
     return count
 
 
-def _assert_no_open_app_txn(operation: str) -> None:
-    if active_guarded_app_transactions(task_scoped=True) > 0:
-        raise RuntimeError(
+def _assert_no_open_app_txn(operation: str, *, inherited: bool = False) -> None:
+    if active_guarded_app_transactions(task_scoped=True, inherited=inherited) > 0:
+        from tests._support.guards import UnexpectedExternalIO, record_violation
+
+        record_violation(operation)
+        raise UnexpectedExternalIO(
             f"External I/O attempted while an application AsyncSession transaction is open ({operation})"
         )
 
@@ -40,9 +53,14 @@ def _assert_no_open_app_txn(operation: str) -> None:
 @pytest.fixture(autouse=True)
 def _guard_external_io_during_open_transaction():
     from functools import wraps
+
+    from tests._support.guards import acknowledge_violations, fail_on_unacknowledged_violations
     from src.llm.extension import client as llm_client
     from src.runtime.extension.storage import StorageService
 
+    import src.llm.extension.agent as llm_agent
+
+    orig_agent = llm_agent._agent
     orig_stream_dispatch = llm_client._cassette_stream_dispatch
     orig_completion = llm_client.cassette_completion
     orig_run_s3 = StorageService._run_s3
@@ -59,6 +77,14 @@ def _guard_external_io_during_open_transaction():
         _assert_no_open_app_txn("LLM completion")
         return await orig_completion(*args, **kwargs)
 
+    @wraps(orig_agent)
+    def guarded_agent(*args, **kwargs):
+        # The SDK sends its HTTP through httpx2, which the patch of `AsyncClient.send` below does not cover, and a
+        # fake model sends nothing. The entry point is the one place that each call passes. A call in a child task
+        # of the transaction owner (a TaskGroup of scores) is refused too.
+        _assert_no_open_app_txn("LLM call", inherited=True)
+        return orig_agent(*args, **kwargs)
+
     @wraps(orig_run_s3)
     def guarded_run_s3(self, *args, **kwargs):
         _assert_no_open_app_txn("S3 storage")
@@ -73,10 +99,13 @@ def _guard_external_io_during_open_transaction():
     with (
         patch.object(llm_client, "_cassette_stream_dispatch", guarded_stream_dispatch),
         patch.object(llm_client, "cassette_completion", guarded_completion),
+        patch.object(llm_agent, "_agent", guarded_agent),
         patch.object(StorageService, "_run_s3", guarded_run_s3),
         patch.object(AsyncClient, "send", guarded_httpx_send),
     ):
+        acknowledge_violations()
         yield
+    fail_on_unacknowledged_violations()
 def pytest_addoption(parser): parser.addoption('--llm-record', action='store_true', default=False, help='Re-record LLM cassettes (layer refresh knob; real provider call + write cassette).')
 def pytest_configure(config):
     os.environ.setdefault('LLM_CASSETTE_ENGAGE', '1')
@@ -211,3 +240,58 @@ async def public_client(db_engine, test_database_url):
     finally: database.set_test_session_maker(None)
 @pytest.fixture(scope='session')
 def openapi_schema() -> dict[str, Any]: from src.main import app; return app.openapi()
+
+
+# --- Model calls in tests (#3153) ---------------------------------------------------------------------------
+# No test reaches a provider. A test gives a fake model (`fake_llm`), or replays a recording
+# (`@pytest.mark.vcr` with `vcr_llm`; `pytest --record-mode=rewrite <test>` records it again).
+from pydantic_ai import models as _pydantic_ai_models  # noqa: E402
+
+_pydantic_ai_models.ALLOW_MODEL_REQUESTS = False
+# litellm downloads its price table on import. A recording must hold the model request only. This line goes
+# away with litellm (#3153).
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+
+
+def pytest_recording_configure(config: Any, vcr: Any) -> None:
+    from tests._support.llm_replay import llm_body_matches
+
+    vcr.register_matcher("llm_body", llm_body_matches)
+
+
+@pytest.fixture(scope="module")
+def vcr_config() -> dict[str, Any]:
+    from tests._support.llm_replay import llm_vcr_config
+
+    return llm_vcr_config()
+
+
+@pytest.fixture
+def vcr_llm(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
+    """Allow the model request of a replay test. `LLM_API_KEY` is needed only to record."""
+    from infra2_sdk.runtime import LlmSettings, allow_vcr_model_requests
+
+    from src.config import settings
+    from tests._support.llm_replay import require_vcr_marker
+
+    require_vcr_marker(request)
+    # A recording holds the request of the default provider and models: a variable of the developer must not change it.
+    defaults = LlmSettings()
+    monkeypatch.setattr(settings, "ai_provider", defaults.provider)
+    monkeypatch.setattr(settings, "ai_base_url", defaults.base_url)
+    for field in ("large_model", "small_model", "multimodal_model"):
+        monkeypatch.setattr(settings, field, getattr(defaults, field))
+    monkeypatch.setattr(settings, "ai_api_key", os.environ.get("LLM_API_KEY") or "replay-key")
+    with allow_vcr_model_requests():
+        yield
+
+
+@pytest.fixture
+def fake_llm(monkeypatch: pytest.MonkeyPatch):
+    """Return a function that installs a fake model: `fake_llm(lambda prompt: "reply")` returns what was sent.
+
+    See `tests/_support/fake_llm.py`. A test without a fixture argument calls `install_fake_model` itself.
+    """
+    from tests._support.fake_llm import install_fake_model
+
+    return lambda reply: install_fake_model(monkeypatch, reply)

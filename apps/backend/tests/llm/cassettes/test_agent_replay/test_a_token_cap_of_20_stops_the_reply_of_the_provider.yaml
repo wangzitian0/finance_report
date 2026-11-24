@@ -1,0 +1,151 @@
+interactions:
+- request:
+    body: '{"model":"glm-5.3-flash","stream":true,"messages":[{"role":"user","content":"Write
+      a 400-word essay about the sea."}],"stream_options":{"include_usage":true},"max_tokens":20,"thinking":{"type":"enabled","clear_thinking":false},"reasoning_effort":"low"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate, br
+      authorization:
+      - REDACTED
+      connection:
+      - keep-alive
+      content-length:
+      - '252'
+      content-type:
+      - application/json
+      host:
+      - api.z.ai
+      user-agent:
+      - pydantic-ai/2.71.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 3.57.0
+      x-stainless-read-timeout:
+      - '60.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.12.12
+    method: POST
+    uri: https://api.z.ai/api/coding/paas/v4/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"#"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        The"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        Sea"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"\n\n"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"The"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        sea"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        has"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        always"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        held"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        humanity"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        in"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        its"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        thr"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"all"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"."}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        Stretch"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"ing"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        endlessly"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"delta":{"role":"assistant","content":"
+        toward"}}]}
+
+
+        data: {"id":"202611231608038c7104f0a3e64830","created":1795421283,"object":"chat.completion.chunk","model":"glm-5.3-flash","choices":[{"index":0,"finish_reason":"length","delta":{"role":"assistant","content":""}}],"usage":{"prompt_tokens":22,"completion_tokens":20,"total_tokens":42,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":0}}}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      alt-svc:
+      - h3=":443"; ma=3600
+      connection:
+      - keep-alive
+      content-type:
+      - text/event-stream;charset=UTF-8
+      date:
+      - Mon, 23 Nov 2026 08:08:04 GMT
+      ga-traceid:
+      - 843ab0c0dc485383bf03c797535be8c0
+      set-cookie:
+      - REDACTED
+      transfer-encoding:
+      - chunked
+      vary:
+      - Origin
+      - Access-Control-Request-Method
+      - Access-Control-Request-Headers
+      - Origin
+      - Access-Control-Request-Method
+      - Access-Control-Request-Headers
+      - Origin
+      x-log-id:
+      - 202611231608038c7104f0a3e64830
+      x-request-id:
+      - 6d7ac76c-287d-4167-b944-937f55ad6d22
+    status:
+      code: 200
+      message: OK
+version: 1

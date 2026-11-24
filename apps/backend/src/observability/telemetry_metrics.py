@@ -30,6 +30,11 @@ _COUNTER_SPECS: tuple[tuple[str, str, str], ...] = (
     ),
     ("reconciliation_match_outcome", "finance.reconciliation.match.outcome", "Reconciliation match outcomes."),
     ("rate_limit_rejected", "finance.rate_limit.rejected", "Rate-limit rejections by low-cardinality scope."),
+    (
+        "llm_call_failed",
+        "finance.llm.call.failed",
+        "Model calls that did not give a usable answer, by call site and failure kind.",
+    ),
     ("async_parse_failure", "finance.async_parse.failure", "Async statement parse task failures."),
     (
         "financial_invariant_violation",
@@ -277,6 +282,12 @@ def record_ai_provider_call(*, provider: str, model: str, outcome: str, duration
 def record_reconciliation_match_outcome(*, outcome: str) -> None:
     if (counter := _instruments.get("reconciliation_match_outcome")) is not None:
         counter.add(1, {"outcome": outcome})
+
+
+def record_llm_call_failure(*, call_site: str, kind: str) -> None:
+    """Count one failed model call. The entry point records it once, whatever the call site does with the failure."""
+    if (counter := _instruments.get("llm_call_failed")) is not None:
+        counter.add(1, {"call_site": call_site, "kind": kind})
 
 
 def record_rate_limit_rejected(*, scope: str) -> None:
