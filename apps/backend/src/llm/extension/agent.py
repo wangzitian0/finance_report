@@ -25,9 +25,10 @@ Wire facts that this module fixes (each one was measured against Z.AI on 2026-11
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import dataclasses
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from typing import Any, Literal
@@ -49,6 +50,7 @@ from pydantic_ai.exceptions import (
     UsageLimitExceeded,
     UserError,
 )
+from pydantic_ai.messages import ModelMessage, ModelRequest, ModelResponse, TextPart, UserPromptPart
 from pydantic_ai.usage import UsageLimits
 
 import src.config
@@ -65,6 +67,7 @@ class CallSite(StrEnum):
     """The name of a model call site. It is the agent name and the telemetry attribute ``infra.llm.call_site``."""
 
     RECONCILIATION_SEMANTIC_SCORE = "reconciliation.semantic_score"
+    ADVISOR_CHAT = "advisor.chat"
     EXTRACTION_STATEMENT = "extraction.statement"
     CLASSIFICATION_PROPOSE = "extraction.classification"
     CSV_COLUMN_MAPPING = "extraction.csv_mapping"
@@ -115,6 +118,23 @@ def to_user_content(content: Content) -> str | list[Any]:
         else:
             raise ValueError(f"Unsupported content part: {part.get('type')!r}")
     return parts
+
+
+def to_message_history(history: Sequence[Mapping[str, Any]]) -> list[ModelMessage]:
+    """Return earlier turns, ``{"role": "user" | "assistant", "content": text}``, as pydantic-ai messages.
+
+    The system prompt is not a turn: pass it as ``system``.
+    """
+    messages: list[ModelMessage] = []
+    for turn in history:
+        role, text = turn.get("role"), str(turn.get("content", ""))
+        if role == "user":
+            messages.append(ModelRequest(parts=[UserPromptPart(content=text)]))
+        elif role == "assistant":
+            messages.append(ModelResponse(parts=[TextPart(content=text)]))
+        else:
+            raise ValueError(f"Unsupported history role: {role!r}")
+    return messages
 
 
 # The error of a replay for a request that has no recording. It is named, not imported: product code imports no recorder.
@@ -191,6 +211,7 @@ def _agent(
     extra_body: Mapping[str, Any] | None,
     max_attempts: int,
     model: str | None = None,
+    system: str | None = None,
 ) -> Any:
     body = dict(extra_body or {})
     if "thinking" in body:
@@ -213,6 +234,7 @@ def _agent(
             settings_for_sdk,
             role=role,
             model=model,
+            instructions=system,
             call_site=call_site.value,
             decoding=decoding,
             usage_limits=usage_limits,
@@ -236,16 +258,20 @@ async def complete_text(
     extra_body: Mapping[str, Any] | None = None,
     max_attempts: int = 3,
     model: str | None = None,
+    system: str | None = None,
+    history: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Send one user message and return the text of the reply.
 
+    ``system`` is the instruction of the call and ``history`` the earlier turns (``{"role", "content"}``).
     The reply is streamed and joined, so ``decoding.timeout`` limits the wait for the next chunk. A failure of the
     call is a ``ModelCallFailed``.
     """
-    agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts, model)
+    agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts, model, system)
     user_content = to_user_content(content)  # an error of our own argument is not a failure of the call
+    earlier = to_message_history(history)
     try:
-        async with agent.run_stream(user_content) as stream:
+        async with agent.run_stream(user_content, message_history=earlier or None) as stream:
             return str(await stream.get_output())
     except Exception as exc:
         raise _wrap(call_site, exc) from exc
@@ -262,17 +288,21 @@ async def stream_text(
     extra_body: Mapping[str, Any] | None = None,
     max_attempts: int = 3,
     model: str | None = None,
+    system: str | None = None,
+    history: Sequence[Mapping[str, Any]] = (),
 ) -> AsyncIterator[AsyncIterator[str]]:
     """Send one user message and give the text of the reply piece by piece.
 
+    ``system`` and ``history`` are as in ``complete_text``.
     ``async with stream_text(...) as pieces: async for piece in pieces: ...``. The block closes the stream at
     once, also when the loop stops early or raises. A plain async generator would close it later, in another
     task, and cancel the task of the consumer. The iterator refuses use after the block: it would give a reply
     that stops where the buffer ended. A failure of the call, while the stream opens or while the consumer reads
     it, is a ``ModelCallFailed``; an error of the consumer's own code in the block passes unchanged.
     """
-    agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts, model)
-    stream_cm = agent.run_stream(to_user_content(content))
+    agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts, model, system)
+    earlier = to_message_history(history)
+    stream_cm = agent.run_stream(to_user_content(content), message_history=earlier or None)
     try:
         stream = await stream_cm.__aenter__()
     except Exception as exc:
@@ -297,12 +327,76 @@ async def stream_text(
         await stream_cm.__aexit__(None, None, None)
 
 
+async def iterate_text(
+    call_site: CallSite,
+    role: Role,
+    content: Content,
+    *,
+    decoding: DecodingSpec,
+    usage_limits: UsageLimits | None = None,
+    extra_body: Mapping[str, Any] | None = None,
+    max_attempts: int = 3,
+    model: str | None = None,
+    system: str | None = None,
+    history: Sequence[Mapping[str, Any]] = (),
+) -> AsyncGenerator[str, None]:
+    """Give the text of the reply piece by piece, to a reader that may read and close it in different tasks.
+
+    ``stream_text`` must be entered and left in one task: the SDK opens a cancel scope and a context token when the
+    stream opens. A response body is read by the task of the request for its first chunk and by another task for the
+    rest (Starlette starts a task for the response), so an iterator that holds ``stream_text`` open breaks. Here one
+    producer task owns the stream for its whole life and hands each piece to the reader through a queue; the reader
+    only waits on the queue, so any task may read it or close it. A failure of the call arrives at the reader as the
+    same ``ModelCallFailed`` (or the error of the caller's own argument) that ``stream_text`` raises. Closing the
+    iterator, or an error of the reader, cancels the producer and closes the stream there.
+    """
+    queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue(maxsize=1)
+
+    async def produce() -> None:
+        try:
+            async with stream_text(
+                call_site,
+                role,
+                content,
+                decoding=decoding,
+                usage_limits=usage_limits,
+                extra_body=extra_body,
+                max_attempts=max_attempts,
+                model=model,
+                system=system,
+                history=history,
+            ) as pieces:
+                async for piece in pieces:
+                    await queue.put(("piece", piece))
+            await queue.put(("end", None))
+        except asyncio.CancelledError:
+            raise
+        except BaseException as exc:  # noqa: BLE001 - the reader re-raises it in its own task; a reader that waits must not hang
+            await queue.put(("error", exc))
+
+    producer = asyncio.ensure_future(produce())
+    try:
+        while True:
+            kind, value = await queue.get()
+            if kind == "piece":
+                yield value
+            elif kind == "error":
+                raise value
+            else:
+                return
+    finally:
+        producer.cancel()
+        await asyncio.gather(producer, return_exceptions=True)
+
+
 __all__ = [
     "CallSite",
     "Content",
     "Role",
     "complete_text",
+    "iterate_text",
     "model_call_failed",
     "stream_text",
+    "to_message_history",
     "to_user_content",
 ]

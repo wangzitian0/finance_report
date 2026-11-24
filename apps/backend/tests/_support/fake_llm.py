@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from typing import Any
 
@@ -25,6 +26,7 @@ class SentToModel(list):
         self.decodings: list[Any] = []
         self.extra_bodies: list[Any] = []
         self.max_attempts: list[Any] = []
+        self.requests: list[list[Any]] = []  # the pydantic-ai messages of each call: history and instructions
         self.models: list[Any] = []
         self.roles: list[Any] = []
 
@@ -39,15 +41,25 @@ def install_fake_model(monkeypatch: pytest.MonkeyPatch, reply: Callable[[Any], s
     """
     sent = SentToModel()
 
-    def answer(content: Any) -> str:
+    def answer(content: Any) -> Any:
         sent.append(content)
         return reply(content) if callable(reply) else reply
 
     def respond(messages: Any, _info: Any) -> ModelResponse:
-        return ModelResponse(parts=[TextPart(answer(messages[-1].parts[-1].content))])
+        sent.requests.append(list(messages))
+        result = answer(messages[-1].parts[-1].content)
+        return ModelResponse(parts=[TextPart(result if isinstance(result, str) else "".join(map(str, result)))])
 
     async def respond_stream(messages: Any, _info: Any):
-        yield answer(messages[-1].parts[-1].content)
+        sent.requests.append(list(messages))
+        result = answer(messages[-1].parts[-1].content)
+        # A list is a reply in several chunks; an exception in the list is raised at its place (a failure after the
+        # first chunk), and each chunk gives the event loop a turn so that two tasks can interleave.
+        for chunk in [result] if isinstance(result, (str, BaseException)) else result:
+            if isinstance(chunk, BaseException):
+                raise chunk
+            yield chunk
+            await asyncio.sleep(0)
 
     model = FunctionModel(respond, stream_function=respond_stream)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from collections.abc import AsyncIterator
@@ -10,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,14 +37,30 @@ from src.advisor import (
 from src.advisor.extension import service as ai_advisor_service
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import JournalEntrySourceType
+from src.config import settings
 from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, worst_confidence_tier
-from src.llm import AIStreamError, ReasoningEffort, estimate_tokens
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    worst_confidence_tier,
+)
+from src.llm import AIStreamError, LLMConfigError, ModelCallFailed, ModelFailureKind, ReasoningEffort, estimate_tokens
 from src.llm.base import ProtocolFamily, ProviderRef, Scene, SceneBinding
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
-from tests.ai.conftest import aboom, aret, fake_market_data_item, fake_portfolio_summary, fake_readiness_payload, fake_workflow_status
+from tests.ai.conftest import (
+    aboom,
+    aret,
+    fake_market_data_item,
+    fake_portfolio_summary,
+    fake_readiness_payload,
+    fake_workflow_status,
+)
 from tests.factories import UserFactory
 
 
@@ -124,18 +142,19 @@ async def test_chat_stream_refusal_and_cache(db: AsyncSession, test_user, monkey
     assert cached_chat.cached is True and "cached response" in body and body.endswith(DISCLAIMER_EN)
 
 
-@pytest.mark.parametrize(("expected_model", "expected_effort", "raised_exc", "expected_cls", "match"), [
-    ("large", ReasoningEffort.HIGH, None, None, None),
-    ("large", None, AIStreamError(message="fail large", retryable=True), AIStreamError, "fail large"),
-    ("large", None, ValueError("bad internal state"), AIAdvisorError, "Internal error: ValueError"),
+@pytest.mark.parametrize(("raised_exc", "expected_cls", "match"), [
+    (None, None, None),
+    (ModelCallFailed(ModelFailureKind.RATE_LIMIT, "ModelRateLimitError (http=429)"), ModelCallFailed, "rate_limit"),
+    (ValueError("bad internal state"), AIAdvisorError, "Internal error: ValueError"),
 ])
-async def test_stream_openrouter_model_selection_and_errors(monkeypatch: pytest.MonkeyPatch, expected_model: str, expected_effort: ReasoningEffort | None, raised_exc: Exception | None, expected_cls: type[Exception] | None, match: str | None) -> None:
+async def test_stream_openrouter_environment_path_and_errors(monkeypatch: pytest.MonkeyPatch, raised_exc: Exception | None, expected_cls: type[Exception] | None, match: str | None) -> None:
+    """A failed model call leaves as `ModelCallFailed`. It is also a `ValueError`: it must not become an "Internal error"."""
     service = AIAdvisorService()
-    service.small_model, service.large_model = "small", "large"
-    calls: list[tuple[str, ReasoningEffort | None]] = []
+    service.large_model = "large"
+    calls: list[list[dict[str, str]]] = []
 
-    async def fake_stream_model(model: str, _messages, _user_id=None, reasoning=None, _max_tokens=None):
-        calls.append((model, reasoning))
+    async def fake_stream_model(messages):
+        calls.append(messages)
         if raised_exc is not None:
             raise raised_exc
         yield "hello"
@@ -145,10 +164,26 @@ async def test_stream_openrouter_model_selection_and_errors(monkeypatch: pytest.
         with pytest.raises(expected_cls, match=match):
             async for _ in service._stream_openrouter([{"role": "user", "content": "hi"}], None):
                 pass
-        assert calls[0][0] == expected_model
+        assert len(calls) == 1
     else:
-        assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], None)] == [("hello", expected_model)]
-        assert calls[0][0] == expected_model and (expected_effort is None or calls[0][1] == expected_effort)
+        assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], None)] == [("hello", "large")]
+
+
+async def test_a_failed_bound_scene_falls_back_to_the_environment_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    service, uid = AIAdvisorService(), uuid4()
+    service.large_model = "large"
+    bound = SceneBinding(scene=Scene.ADVISOR_CHAT, model_id="provider1/user-glm-4.6", reasoning=ReasoningEffort.HIGH, max_tokens=4096)
+
+    async def failing_bound():
+        raise AIStreamError(message="bound provider down", retryable=True)
+        yield ""
+
+    async def environment(messages):
+        yield "from the environment"
+
+    monkeypatch.setattr(ai_advisor_service, "get_llm_client", lambda user_id: SimpleNamespace(stream=lambda scene, messages: failing_bound()))
+    monkeypatch.setattr(service, "_stream_model", environment)
+    assert [item async for item in service._stream_openrouter([{"role": "user", "content": "hi"}], uid, bound)] == [("from the environment", "large")]
 
 
 async def test_chat_stream_requires_api_key_unless_configured_source(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -280,7 +315,7 @@ async def test_session_history_and_record_message(db: AsyncSession, test_user, m
     assert await service._record_message(db, session, ChatMessageRole.USER, "hello refresh error") is not None
 
 
-async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch, fake_llm) -> None:
     service = AIAdvisorService()
     session, messages = await service._get_or_create_session(db, test_user.id, None, "Hello"), [{"role": "user", "content": "Hello"}]
     ai_advisor_service._CACHE._store.clear()
@@ -293,9 +328,22 @@ async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_use
     monkeypatch.setattr(service, "_stream_openrouter", lambda *_a, **_k: fake_openrouter(False))
     assert (await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))).endswith(DISCLAIMER_EN) and ai_advisor_service._CACHE.get("cache-key") is not None
 
+    # A bug is not a model failure: it leaves unchanged, not as a 400 with its text.
     monkeypatch.setattr(service, "_stream_openrouter", lambda *_a, **_k: fake_openrouter(True))
-    with pytest.raises(AIAdvisorError, match="stream failed"):
+    with pytest.raises(RuntimeError, match="stream failed"):
         await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))
+
+    # The status of a failed model call follows its kind, and the text of the failure stays out of the answer.
+    for kind, status in ((ModelFailureKind.RATE_LIMIT, 429), (ModelFailureKind.TIMEOUT, 504), (ModelFailureKind.UNAVAILABLE, 503), (ModelFailureKind.BAD_REPLY, 502)):
+
+        async def failing(*_a, _kind=kind, **_k):
+            raise ModelCallFailed(_kind, "ModelHTTPError (http=500) secret-detail")
+            yield ("", "")
+
+        monkeypatch.setattr(service, "_stream_openrouter", failing)
+        with pytest.raises(AIAdvisorError, match="AI service temporarily unavailable.") as raised:
+            await _drain_stream(service._stream_and_store(db, session, messages, "en", "cache-key"))
+        assert raised.value.status_code == status and "secret-detail" not in str(raised.value)
 
     service.api_key = "test-key"
     _stub_context(service, monkeypatch)
@@ -308,8 +356,83 @@ async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_use
     chat = await service.chat_stream(db, test_user.id, "What is my balance?", base_currency="SGD")
     assert (chat.cached, await _drain_stream(chat.stream)) == (False, "chunk")
 
-    monkeypatch.setattr(ai_advisor_service, "stream_ai_chat", lambda **_k: yield_items("chunk-a", "chunk-b"))
-    assert [c async for c in service._stream_model("some-model", [{"role": "user", "content": "hi"}])] == ["chunk-a", "chunk-b"]
+    sent = fake_llm("the answer")
+    conversation = [
+        {"role": "system", "content": "You are the advisor."},
+        {"role": "user", "content": "first question"},
+        {"role": "assistant", "content": "first answer"},
+        {"role": "user", "content": "second question"},
+    ]
+    assert "".join([c async for c in service._stream_model(conversation)]) == "the answer"
+    request = sent.requests[0]
+    assert sent == ["second question"] and request[-1].instructions == "You are the advisor."
+    assert [type(message).__name__ for message in request] == ["ModelRequest", "ModelResponse", "ModelRequest"]
+    assert (request[0].parts[0].content, request[1].parts[0].content) == ("first question", "first answer")
+    decoding = sent.decodings[0]
+    assert (decoding.decoding_version, decoding.timeout, decoding.thinking) == ("advisor.chat.v1", 120.0, "high")
+    with pytest.raises(ValueError, match="ends with a user message"):
+        [c async for c in service._stream_model([{"role": "system", "content": "s"}, {"role": "assistant", "content": "a"}])]
+
+
+_CONVERSATION = [
+    {"role": "system", "content": "You are the advisor."},
+    {"role": "user", "content": "first question"},
+    {"role": "assistant", "content": "first answer"},
+    {"role": "user", "content": "second question"},
+]
+
+
+async def test_the_advisor_stream_is_read_and_closed_in_different_tasks(fake_llm) -> None:
+    """Review of #3203 (high): the router reads the first chunk in the task of the request and the rest in the task of
+    the response. With `stream_text` held open in the generator, every successful chat ended in a context error."""
+    chunks = [f"chunk{i} " for i in range(30)]
+    fake_llm(chunks)
+    stream = AIAdvisorService()._stream_model(_CONVERSATION)
+    first = await asyncio.create_task(anext(stream))
+
+    async def rest() -> list[str]:
+        return [piece async for piece in stream]
+
+    assert [first, *await asyncio.create_task(rest())] == chunks
+
+    fake_llm([f"chunk{i} " for i in range(1000)])
+    stream = AIAdvisorService()._stream_model(_CONVERSATION)
+    assert await asyncio.create_task(anext(stream)) == "chunk0 "
+    before = len(asyncio.all_tasks())
+    await asyncio.wait_for(asyncio.create_task(stream.aclose()), timeout=5)  # closed by a third task
+    await asyncio.sleep(0)
+    assert len(asyncio.all_tasks()) < before  # the producer task is gone
+
+
+async def test_a_failure_after_the_first_chunk_reaches_the_reader_of_the_advisor_stream(fake_llm) -> None:
+    fake_llm(["a ", "b ", ModelHTTPError(status_code=500, model_name="m", body="x")])
+    seen: list[str] = []
+    with pytest.raises(ModelCallFailed) as raised:
+        async for piece in AIAdvisorService()._stream_model(_CONVERSATION):
+            seen.append(piece)
+    assert (seen, raised.value.kind) == (["a ", "b "], ModelFailureKind.UNAVAILABLE)
+
+
+async def test_a_bad_llm_setting_is_not_configured_and_not_an_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "ai_base_url", "")
+    with pytest.raises(ModelCallFailed) as raised:
+        [piece async for piece in AIAdvisorService()._stream_model(_CONVERSATION)]
+    assert raised.value.kind is ModelFailureKind.NOT_CONFIGURED
+
+
+async def test_every_llm_error_of_the_stream_becomes_a_status_of_the_advisor(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Not only `ModelCallFailed`: the bound path raises other `LLMError`s (a bad configuration is a 503)."""
+    service = AIAdvisorService()
+    session = await service._get_or_create_session(db, test_user.id, None, "Hello")
+
+    async def failing(*_a, **_k):
+        raise LLMConfigError("no provider is configured")
+        yield ("", "")
+
+    monkeypatch.setattr(service, "_stream_openrouter", failing)
+    with pytest.raises(AIAdvisorError, match="AI service temporarily unavailable.") as raised:
+        await _drain_stream(service._stream_and_store(db, session, [{"role": "user", "content": "Hello"}], "en", "key"))
+    assert raised.value.status_code == 503 and "no provider" not in str(raised.value)
 
 
 async def test_get_financial_context_user_isolation_rollforward_and_active_month(db: AsyncSession, test_user) -> None:
