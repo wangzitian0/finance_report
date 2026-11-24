@@ -4,7 +4,8 @@ The AI Financial Advisor helps you interpret reports, spot trends, and answer fi
 - **Chat page**: `/chat` - **Floating widget**: Available on dashboard and report pages - **Report shortcuts**: "AI Interpretation" buttons on balance sheet, income statement, and cash flow pages - **Unmatched transactions**: "Ask AI" in the unmatched triage view
 ## What It Can Do
 - Summarize balance sheet and income statement insights - Explain expense trends and category changes - Describe reconciliation health and unmatched counts - Provide high-level budgeting recommendations
-## What It Will Refuse
+## What It Declines
+The assistant applies fixed rules and declines:
 - Creating, posting, or editing journal entries - Deleting data or bypassing system rules - Sharing sensitive information such as account numbers or passwords - Non-financial questions
 ## Data Scope
 The advisor only uses summarized data from posted or reconciled records. It does not receive raw statements, full account numbers, or credentials.

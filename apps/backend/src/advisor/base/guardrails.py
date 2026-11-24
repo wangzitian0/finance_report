@@ -45,7 +45,11 @@ def ensure_disclaimer(text: str, language: str) -> str:
 
 
 class StreamRedactor:
-    """Streaming redactor that masks sensitive numbers without breaking chunks."""
+    """Streaming redactor that masks sensitive numbers without breaking chunks.
+
+    ``tail_size`` must be at least 19, the length of the longest card pattern. A digit run without a separator stays
+    whole in the buffer until it ends; the cost grows with the run, which a model reply does not reach in practice.
+    """
 
     def __init__(self, tail_size: int = 64) -> None:
         self._tail_size = tail_size
@@ -53,12 +57,18 @@ class StreamRedactor:
 
     def process(self, chunk: str) -> str:
         combined = self._buffer + chunk
-        if len(combined) <= self._tail_size:
+        cut = len(combined) - self._tail_size
+        if cut <= 0:
             self._buffer = combined
             return ""
-        safe_part = combined[: -self._tail_size]
-        self._buffer = combined[-self._tail_size :]
-        return redact_sensitive(safe_part)
+        # A number that crosses the cut stays whole in the buffer: its digits must not leave in two parts, because
+        # a model streams deltas of a few characters and the pattern cannot match a part (#3209 review).
+        for match in SENSITIVE_NUMBER_RE.finditer(combined):
+            if match.start() < cut < match.end():
+                cut = match.start()
+                break
+        self._buffer = combined[cut:]
+        return redact_sensitive(combined[:cut])
 
     def flush(self) -> str:
         if not self._buffer:

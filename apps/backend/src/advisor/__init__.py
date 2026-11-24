@@ -2,9 +2,10 @@
 
 The application-layer AI financial advisor (EPIC-006 / EPIC-021): a read-only
 conversational interface over the user's financial state.  The advisor
-**never writes a ledger number** — every write/mutation request, prompt
-injection, and sensitive-data request is refused before any LLM call, and
-sensitive numeric patterns are redacted from both directions of the stream.
+**never writes a ledger number**: the model has no tool, its rules (secrets,
+read-only, finance scope, data limits) stand in the system prompt in priority
+order (#3209), and long number runs and card numbers are redacted in the user
+message and in the streamed reply.
 
 Physically moved here from ``src/services/ai_advisor/`` (#1671 Wave B),
 absorbing ``prompts/ai_advisor.py`` and ``models/chat.py`` (→ ``orm/chat.py``).
