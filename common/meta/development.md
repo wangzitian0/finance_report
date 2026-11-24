@@ -4,7 +4,7 @@
 
 ### Toolchain Contract
 
-Pinned in `toolchain.toml` and enforced by `tools/check_toolchain_contract.py` (Python `3.12.12`, Node `20.19.0`, `npm 10.8.2`, `uv 0.9.18`, Postgres/MinIO container digests). Bootstrap via `bash tools/bootstrap.sh` (`common/runtime/shell/`).
+Pinned in `toolchain.toml` and enforced by `tools/check_toolchain_contract.py` (Python `3.12.12`, Node `20.19.0`, `npm 10.8.2`, `uv 0.9.18`, Postgres/MinIO container digests). This check is specific to this repository; infra2-sdk has no equivalent (wangzitian0/infra2-sdk#241). Bootstrap via `bash tools/bootstrap.sh` (`common/runtime/shell/`).
 
 ### Local Host Shell Matrix
 
