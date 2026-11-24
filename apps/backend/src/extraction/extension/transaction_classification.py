@@ -22,6 +22,7 @@ from sqlalchemy.orm import aliased
 
 import src.config
 from src.audit import canonical_json_digest
+from src.extraction.base.decoding import JSON_MAX_TOKENS
 from src.extraction.base.disposition import EconomicIntent
 from src.extraction.base.source_vocabulary import ClassificationStatus, RuleType, TransactionDirection
 from src.extraction.base.types import RunHints
@@ -403,9 +404,9 @@ async def _propose_batch(
         prompt,
         decoding=DecodingSpec(
             "extraction.classification.v1",
-            thinking=False if settings.ai_json_disable_thinking else None,
+            thinking=False,
             temperature=0.0,
-            max_tokens=settings.ai_json_max_tokens,
+            max_tokens=JSON_MAX_TOKENS,
             timeout=60.0,
         ),
         extra_body={"do_sample": False},

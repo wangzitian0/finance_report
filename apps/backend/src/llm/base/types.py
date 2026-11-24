@@ -1,23 +1,12 @@
-"""Value objects for the LLM abstraction's three orthogonal axes (EPIC-023).
+"""Enums of the stored LLM configuration (``llm_providers``, ``llm_scene_bindings``).
 
-Everything here is an immutable, dependency-free value type so both the litellm
-client (EPIC A) and the DB configuration layer (EPIC B) can share it without a
-cycle. Monetary values use :class:`~decimal.Decimal` per the project money rule;
-``float`` must never appear here.
+The two tables have no reader since #2953 stage 2; the migration that drops them (stage 3) is owner-reserved. These
+enums stay only for the ORM models of ``llm/orm/config.py`` until that migration removes both.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
-from decimal import Decimal
 from enum import StrEnum
-from types import MappingProxyType
-from typing import Any
-
-# An OpenAI-style chat message. Content may be a plain string or a list of
-# multimodal content parts (text / image_url / file), so we keep it permissive.
-Message = dict[str, Any]
 
 
 class ProtocolFamily(StrEnum):
@@ -51,97 +40,10 @@ class Scene(StrEnum):
     STATEMENT_SUMMARY = "statement.summary"
 
 
-class Modality(StrEnum):
-    """Input modalities a model accepts."""
-
-    TEXT = "text"
-    IMAGE = "image"
-    PDF = "pdf"
-    FILE = "file"
-
-
 class ReasoningEffort(StrEnum):
-    """Per-scene reasoning depth, mapped onto each provider by the client.
-
-    ``NONE`` means "do not request extended reasoning"; the others map to the
-    litellm ``reasoning_effort`` parameter (which in turn maps to Anthropic
-    thinking budgets / OpenAI reasoning levels).
-    """
+    """Per-scene reasoning depth of a stored binding."""
 
     NONE = "none"
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
-
-
-@dataclass(frozen=True, slots=True)
-class DecodeParams:
-    """Provider-independent knobs that can change completion bytes."""
-
-    max_tokens: int | None = None
-    temperature: float | int | None = None
-    reasoning: ReasoningEffort | None = None
-    seed: int | None = None
-    extra_body: Mapping[str, Any] | None = None
-
-    def __post_init__(self) -> None:
-        if self.extra_body is not None:
-            object.__setattr__(self, "extra_body", MappingProxyType(dict(self.extra_body)))
-
-    def as_request(self) -> dict[str, Any]:
-        """Canonical request projection used by transport and cassette keys."""
-        params: dict[str, Any] = {}
-        if self.max_tokens is not None:
-            params["max_tokens"] = self.max_tokens
-        if self.temperature is not None:
-            params["temperature"] = self.temperature
-        if self.reasoning is not None and self.reasoning is not ReasoningEffort.NONE:
-            params["reasoning_effort"] = self.reasoning.value
-        if self.seed is not None:
-            params["seed"] = self.seed
-        if self.extra_body:
-            params["extra_body"] = dict(self.extra_body)
-        return params
-
-
-@dataclass(frozen=True, slots=True)
-class ProviderRef:
-    """A configured provider instance with its API key already decrypted.
-
-    This is the projection a :class:`~src.llm.base.config_source.ConfigSource`
-    hands to the client; persistence and encryption live below the contract.
-    """
-
-    id: str
-    label: str
-    protocol: ProtocolFamily
-    # repr=False so the decrypted key never lands in logs/exceptions/debug output.
-    api_key: str = field(repr=False)
-    api_base: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class ModelSpec:
-    """Axis 2 — one entry of the dynamic model catalogue."""
-
-    id: str
-    provider_id: str
-    modalities: frozenset[Modality] = field(default_factory=frozenset)
-    is_free: bool = False
-    input_price_per_mtok: Decimal | None = None
-    output_price_per_mtok: Decimal | None = None
-    supports_reasoning: bool = False
-
-    def accepts(self, modality: Modality) -> bool:
-        """Whether this model can take the given input modality."""
-        return modality in self.modalities
-
-
-@dataclass(frozen=True, slots=True)
-class SceneBinding:
-    """Axis 2 x Axis 3 — which model (and how) a scene resolves to."""
-
-    scene: Scene
-    model_id: str
-    reasoning: ReasoningEffort = ReasoningEffort.NONE
-    max_tokens: int | None = None

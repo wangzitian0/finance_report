@@ -27,13 +27,12 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
             "tuning",
             "db_pool_size db_pool_max_overflow s3_presign_expiry_seconds "
             "storage_sweep_grace_period_hours "
-            "storage_sweep_interval_seconds ai_chat_completions_path ai_json_timeout_seconds "
-            "ai_json_max_tokens ai_json_disable_thinking ai_json_seed ai_extract_max_attempts "
+            "storage_sweep_interval_seconds ai_json_seed ai_extract_max_attempts "
             "large_model small_model multimodal_model market_data_fx_bridge_currency "
             "api_rate_limit_requests api_rate_limit_window register_rate_limit_requests "
             "register_rate_limit_window otel_service_name otel_resource_attributes "
             "openpanel_environment reconciliation_auto_accept_threshold "
-            "reconciliation_review_threshold llm_cassette_engage llm_cassette_refresh llm_live "
+            "reconciliation_review_threshold "
             "prefect_worker_query_seconds",
         ),
     )

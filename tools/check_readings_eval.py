@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Command wrapper for the LLM cassette integrity gate (EPIC-023 AC23.7)."""
+"""Command wrapper for the readings graded field-accuracy eval gate (EPIC-023 AC23.8)."""
 
 import sys
 from pathlib import Path
@@ -8,7 +8,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from common.testing.check_llm_cassettes import main  # noqa: E402
+from common.testing.check_readings_eval import main  # noqa: E402
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())

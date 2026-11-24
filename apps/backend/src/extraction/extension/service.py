@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import src.config
 from src.audit.money.currency import normalize_currency_code
+from src.extraction.base.decoding import EXTRACTION_TIMEOUT_SECONDS, JSON_MAX_TOKENS
 from src.extraction.base.findings import (
     Finding,
     PassScore,
@@ -1096,11 +1097,11 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 model=model,
                 decoding=DecodingSpec(
                     "extraction.statement.v1",
-                    thinking=False if settings.ai_json_disable_thinking else None,
+                    thinking=False,
                     temperature=0.0,
                     seed=seed_override if seed_override is not None else settings.ai_json_seed,
-                    max_tokens=settings.ai_json_max_tokens,
-                    timeout=settings.ai_json_timeout_seconds,
+                    max_tokens=JSON_MAX_TOKENS,
+                    timeout=EXTRACTION_TIMEOUT_SECONDS,
                 ),
                 extra_body={"do_sample": False},
                 max_attempts=2,
@@ -1154,7 +1155,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     "AI extraction timed out",
                     error_id=ErrorIds.OPENROUTER_TIMEOUT,
                     model=model,
-                    timeout_seconds=settings.ai_json_timeout_seconds,
+                    timeout_seconds=EXTRACTION_TIMEOUT_SECONDS,
                 )
                 raise failed("timeout", f"Model {model} timed out: {e.summary}") from e
             if e.kind in _EXTRACTION_PROVIDER_FAULTS:

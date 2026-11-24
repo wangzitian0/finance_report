@@ -5,7 +5,7 @@ Backend tests are organized by SSOT domain and verify package invariants and end
 ## Test Tiers
 
 1. **Pure unit/integration tests**: Deterministic fixtures, zero network (`-m "not slow and not e2e"`).
-2. **Cassette-backed replay tests**: Run with `LLM_CASSETTE_MODE=replay` in CI (`tests/fixtures/llm_cassettes/`); refreshed locally via `make llm-record`; never hand-authored ([`common/llm/readme.md#cassettes`](../../../common/llm/readme.md#cassettes)).
+2. **Recorded replay tests**: `@pytest.mark.vcr` with the fixture `vcr_llm` replays one recording (`tests/**/cassettes/`) in CI with `--record-mode=none`; record again with `LLM_API_KEY=<key> pytest --record-mode=rewrite <test>`; never hand-authored ([`common/llm/readme.md#recordings`](../../../common/llm/readme.md#recordings)).
 3. **Staging live-token E2E & 3-statement oracle**: Live `LLM_API_KEY` execution via `runtime-hooks.manifest.json` (`staging_gate` / `scheduled_audit`).
 
 ## Commands

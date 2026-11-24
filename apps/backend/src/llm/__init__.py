@@ -1,115 +1,34 @@
-"""``llm`` — unified language-model client, catalogue, scene routing, and cassettes."""
+"""``llm`` — the one model entry point (``extension/agent.py``), its errors and the stored-configuration ORM."""
 
 from __future__ import annotations
 
-from typing import Any
-
 from src.llm.base import (
-    ConfigSource,
-    DecodeParams,
-    LLMBudgetExceeded,
-    LLMClient,
     LLMConfigError,
     LLMError,
     ModelCallFailed,
     ModelFailureKind,
-    LlmUsageMeter,
-    Message,
-    Modality,
-    ModelCatalogError,
-    ModelSpec,
     ProtocolFamily,
-    ProviderRef,
     ReasoningEffort,
     Scene,
-    SceneBinding,
     estimate_tokens,
-    estimate_tokens_from_chars,
 )
-from src.llm.extension import (
-    CASSETTE_DIR,
-    AIStreamError,
-    Cassette,
-    CassetteMiss,
-    CassetteRecorder,
-    CassetteStore,
-    CassetteTag,
-    CassetteValidationError,
-    EnvConfigSource,
-    LitellmCall,
-    accumulate_stream,
-    ai_semantic_score,
-    build_call,
-    fingerprint,
-    miss_summary,
-    protocol_for,
-    stream_ai_chat,
-    stream_ai_json,
-)
+from src.llm.extension import ai_semantic_score
 
 # ORM models owned by this package (moved from src/models, #1675); imported
 # eagerly so importing the package registers the mappers on Base.metadata.
+# They have no reader since #2953 stage 2; the migration that drops their tables is stage 3 (owner-reserved).
 from src.llm.orm.config import LlmProvider, LlmSceneBinding
 
-# The litellm-heavy surface, resolved lazily so ``import src.llm`` stays
-# litellm-free (the no-litellm-at-root invariant).
-_LAZY_CLIENT = frozenset({"litellm_stream", "cassette_completion"})
-
-
-def __getattr__(name: str) -> Any:
-    if name in _LAZY_CLIENT:
-        from src.llm.extension import client
-
-        return getattr(client, name)
-    if name == "LitellmCatalog":
-        from src.llm.extension.catalog import LitellmCatalog
-
-        return LitellmCatalog
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
-
-
 __all__ = [
-    "AIStreamError",
-    "CASSETTE_DIR",
-    "Cassette",
-    "CassetteMiss",
-    "CassetteRecorder",
-    "CassetteStore",
-    "CassetteTag",
-    "CassetteValidationError",
-    "ConfigSource",
-    "DecodeParams",
-    "EnvConfigSource",
-    "LLMBudgetExceeded",
-    "LLMClient",
     "LLMConfigError",
     "LLMError",
-    "ModelCallFailed",
-    "ModelFailureKind",
-    "LitellmCall",
-    "LitellmCatalog",
     "LlmProvider",
     "LlmSceneBinding",
-    "LlmUsageMeter",
-    "Message",
-    "Modality",
-    "ModelCatalogError",
-    "ModelSpec",
+    "ModelCallFailed",
+    "ModelFailureKind",
     "ProtocolFamily",
-    "ProviderRef",
     "ReasoningEffort",
     "Scene",
-    "SceneBinding",
-    "accumulate_stream",
     "ai_semantic_score",
-    "build_call",
-    "cassette_completion",
     "estimate_tokens",
-    "estimate_tokens_from_chars",
-    "fingerprint",
-    "litellm_stream",
-    "miss_summary",
-    "protocol_for",
-    "stream_ai_chat",
-    "stream_ai_json",
 ]

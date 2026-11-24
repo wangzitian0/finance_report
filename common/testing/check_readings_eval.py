@@ -1,15 +1,11 @@
-"""Cassette graded field-accuracy eval gate (EPIC-023 AC23.8 / issue #1307).
+"""Readings graded field-accuracy eval gate (EPIC-023 AC23.8 / issue #1307).
 
-Scores each committed statement cassette per-field against its SYNTHETIC ground
-truth and ratchets a persisted per-case floor that may only go UP. The gate FAILS
-when a refreshed cassette regresses below its floor — catching the "balance chain
-still reconciles but a field is now wrong" drift the AC23.7 balance gate cannot
-see.
+Scores each committed statement reading per field against its SYNTHETIC ground truth and ratchets a persisted
+per-case floor that may only go UP. The gate FAILS when a change of the parser regresses a reading below its floor,
+loses a floor, or shrinks the corpus: it catches the "balance chain still reconciles but a field is now wrong" drift.
 
-Pure Python (no key/network/DB): runs in the lint job alongside
-``check_llm_cassettes`` so it never perturbs the AC behavioral-score aggregator.
-``--update`` raises the floor to the current scores (never lowers, refuses to
-cement a regressed run) and is the local ``make llm-record`` companion.
+Pure Python (no key, network or DB): it runs in the lint job so it never perturbs the AC behavioral-score
+aggregator. ``--update`` raises the floor to the current scores (never lowers, refuses to cement a regressed run).
 """
 
 from __future__ import annotations
@@ -20,7 +16,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from common.meta.base.gate_cli import run_cli_command
-from common.testing.cassette_eval_baseline import (
+from common.testing.readings_eval_baseline import (
     CORPUS_COUNT_BASELINE,
     DEFAULT_BASELINE,
     load_corpus_count_floor,
@@ -28,11 +24,12 @@ from common.testing.cassette_eval_baseline import (
     write_corpus_count_floor,
     write_jsonl,
 )
-from common.testing.cassette_graded_eval import (
+from common.testing.readings_eval import (
     GROUND_TRUTH_DIR,
     corpus_shrink_findings,
     evaluate,
     load_cases,
+    orphan_readings,
     ratcheted_baseline,
 )
 
@@ -40,7 +37,7 @@ BASELINE_UPDATE_MODE = "raise-only"
 
 
 def render(findings: dict[str, list[str]]) -> str:
-    lines = ["Cassette graded eval ratchet"]
+    lines = ["Readings graded eval ratchet"]
     for title, key in (
         ("Regressions", "regressions"),
         ("Missing ground truth", "missing"),
@@ -55,7 +52,7 @@ def render(findings: dict[str, list[str]]) -> str:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Cassette graded field-accuracy ratchet."
+        description="Readings graded field-accuracy ratchet."
     )
     parser.add_argument("--baseline", type=Path, default=DEFAULT_BASELINE)
     parser.add_argument(
@@ -76,7 +73,7 @@ def _main(argv: Sequence[str] | None = None) -> int:
 
     if not ground_truth_dir.exists() or not any(ground_truth_dir.glob("*.truth.json")):
         print(
-            f"::error title=Cassette graded eval::no ground-truth artifacts found in {ground_truth_dir}",
+            f"::error title=Readings graded eval::no ground-truth artifacts found in {ground_truth_dir}",
             file=sys.stderr,
         )
         return 1
@@ -89,20 +86,21 @@ def _main(argv: Sequence[str] | None = None) -> int:
 
     findings = evaluate(baseline_path=args.baseline, ground_truth_dir=ground_truth_dir)
     findings["shrink"] = shrink
+    orphans = orphan_readings(ground_truth_dir)
     # A regressed score, a vanished baseline line, or a corpus shrink blocks
     # BOTH paths — none of these should be silently adoptable by --update. An
     # unbaselined ("new") case blocks the GATE path too — otherwise adding a case
     # (or accidentally deleting its floor) would leave the ratchet silently
     # disabled for that case while CI stays green. `--update` is the sanctioned way
     # to adopt new cases, so it does NOT treat "new" as blocking.
-    blocking_update = findings["regressions"] + findings["missing"] + shrink
+    blocking_update = findings["regressions"] + findings["missing"] + shrink + orphans
     blocking_gate = blocking_update + findings["new"]
 
     if args.update:
         if blocking_update:
             for item in blocking_update:
                 print(
-                    f"::error title=Cassette graded eval::refusing --update: {item}",
+                    f"::error title=Readings graded eval::refusing --update: {item}",
                     file=sys.stderr,
                 )
             return 1
@@ -122,7 +120,7 @@ def _main(argv: Sequence[str] | None = None) -> int:
         new_floor = max(corpus_floor, len(cases))
         write_corpus_count_floor(args.corpus_count_baseline, new_floor)
         print(
-            f"Updated cassette-eval baseline: {args.baseline} ({len(updated['cases'])} case(s)); "
+            f"Updated readings-eval baseline: {args.baseline} ({len(updated['cases'])} case(s)); "
             f"corpus-count floor: {args.corpus_count_baseline} (min_cases={new_floor})"
         )
         return 0
@@ -130,19 +128,18 @@ def _main(argv: Sequence[str] | None = None) -> int:
     print(render(findings))
     if blocking_gate:
         for item in blocking_gate:
-            print(f"::error title=Cassette graded eval::{item}", file=sys.stderr)
+            print(f"::error title=Readings graded eval::{item}", file=sys.stderr)
         print(
-            "[CASSETTE-EVAL] FAILED: a committed cassette regressed below its "
-            "field-accuracy floor, lost its baselined floor, has no floor yet, or "
-            "the corpus shrank below its count floor. Re-record correctly via "
-            "`make llm-record`, fix the ground truth if the statement legitimately "
+            "[READINGS-EVAL] FAILED: a reading regressed below its field-accuracy floor, "
+            "lost its baselined floor, has no floor yet, or the corpus shrank below its "
+            "count floor. Fix the parser, fix the ground truth if the statement legitimately "
             "changed, restore a removed case, or adopt a new case's floor with "
-            "`python tools/check_cassette_graded_eval.py --update`.",
+            "`python tools/check_readings_eval.py --update`.",
             file=sys.stderr,
         )
         return 1
     print(
-        "[CASSETTE-EVAL] PASSED: every committed cassette is baselined and meets "
+        "[READINGS-EVAL] PASSED: every committed reading is baselined and meets "
         "its field-accuracy floor."
     )
     return 0

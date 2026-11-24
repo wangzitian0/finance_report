@@ -20,6 +20,7 @@ from sqlalchemy import text
 
 from src.config import settings
 from src.extraction import BankStatementStatus, DocumentSource
+from src.extraction.base.decoding import EXTRACTION_TIMEOUT_SECONDS
 from src.extraction.base.normalization_engine import sanitize_account_last4
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.statement_parsing import handle_parse_failure
@@ -286,7 +287,9 @@ async def test_the_extraction_call_sends_the_settings_that_the_old_call_sent(mon
         [2],
         False,
     )
-    assert (decoding.timeout, decoding.seed, decoding.temperature) == (settings.ai_json_timeout_seconds, 7, 0.0)
+    # The literal pins the value: a change of the constant is a visible change of the call (the recordings do not match it).
+    assert (decoding.timeout, decoding.seed, decoding.temperature) == (360.0, 7, 0.0)
+    assert EXTRACTION_TIMEOUT_SECONDS == 360.0
 
 
 @pytest.mark.parametrize("reply", ["[" * 100000, '{"a":' * 100000], ids=["arrays", "objects"])

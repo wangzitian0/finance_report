@@ -1,65 +1,21 @@
-"""``llm.base`` — the pure core: the frozen contract + the usage entity.
+"""``llm.base`` — the pure core: the errors of a model call, the token estimate and the enums of the stored configuration.
 
-This layer holds only value types, protocols (ports), typed errors and the
-in-memory usage meter — no provider SDK, no storage, no network I/O. It is the
-agreed boundary the litellm client implementation and the environment
-configuration (both in ``extension/``) build against; importing it never pulls
-in either half (and never pulls in ``litellm``).
+No provider SDK, no storage and no network I/O: importing it pulls in neither the SDK nor the entry point.
 """
 
 from __future__ import annotations
 
-from src.llm.base.config_source import ConfigSource
-from src.llm.base.errors import (
-    LLMBudgetExceeded,
-    LLMConfigError,
-    LLMError,
-    ModelCallFailed,
-    ModelFailureKind,
-    ModelCatalogError,
-)
-from src.llm.base.protocols import LLMClient
-from src.llm.base.types import (
-    DecodeParams,
-    Message,
-    Modality,
-    ModelSpec,
-    ProtocolFamily,
-    ProviderRef,
-    ReasoningEffort,
-    Scene,
-    SceneBinding,
-)
-from src.llm.base.usage import (
-    LlmUsageMeter,
-    estimate_tokens,
-    estimate_tokens_from_chars,
-)
+from src.llm.base.errors import LLMConfigError, LLMError, ModelCallFailed, ModelFailureKind
+from src.llm.base.types import ProtocolFamily, ReasoningEffort, Scene
+from src.llm.base.usage import estimate_tokens
 
 __all__ = [
-    # config seam
-    "ConfigSource",
-    # errors
+    "LLMConfigError",
     "LLMError",
     "ModelCallFailed",
     "ModelFailureKind",
-    "LLMConfigError",
-    "LLMBudgetExceeded",
-    "ModelCatalogError",
-    # service protocols
-    "LLMClient",
-    # value types
     "ProtocolFamily",
-    "Scene",
-    "Modality",
     "ReasoningEffort",
-    "ProviderRef",
-    "ModelSpec",
-    "SceneBinding",
-    "DecodeParams",
-    "Message",
-    # usage entity + estimators
-    "LlmUsageMeter",
+    "Scene",
     "estimate_tokens",
-    "estimate_tokens_from_chars",
 ]

@@ -9,7 +9,7 @@ CORPUS_FILE = Path("apps/backend/tests/integration/test_statement_corpus_journey
 
 def test_corpus_is_a_reconciled_pr_ci_proof() -> None:
     assert CORPUS_FILE.is_file(), (
-        f"missing real-statement corpus journey ({CORPUS_FILE}) — the cassette-replay safety net is unanchored."
+        f"missing real-statement corpus journey ({CORPUS_FILE}) — the stored-readings safety net is unanchored."
     )
     stage = classify_stage(CORPUS_FILE.as_posix())
     assert stage in PR_EVIDENCE_STAGES, (

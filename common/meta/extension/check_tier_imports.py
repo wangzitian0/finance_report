@@ -39,7 +39,7 @@ PROTECTED_MODULE_GLOBS: tuple[str, ...] = (
 FORBIDDEN_IMPORT_PREFIXES: tuple[str, ...] = (
     "src.llm",
     "apps.backend.src.llm",
-    "litellm",
+    "pydantic_ai",
     "openrouter",
     "anthropic",
     "openai",
@@ -50,7 +50,7 @@ def _matches_forbidden(module: str) -> str | None:
     """Return the matched forbidden prefix for *module*, or ``None``.
 
     Prefix match is on dotted-path boundaries: ``src.llm`` matches ``src.llm``
-    and ``src.llm.extension.client`` but not ``src.llmx`` or ``src.llm_helpers``.
+    and ``src.llm.extension.agent`` but not ``src.llmx`` or ``src.llm_helpers``.
     """
     for prefix in FORBIDDEN_IMPORT_PREFIXES:
         if module == prefix or module.startswith(prefix + "."):
@@ -92,9 +92,9 @@ def forbidden_imports_in_source(source: str) -> list[tuple[str, str]]:
 
     At most ONE pair is reported per matched forbidden prefix, keyed to the
     shortest imported target that triggered it. This keeps output deterministic
-    and avoids double-reporting: ``from src.llm.extension.client import X`` expands (via
-    :func:`imported_modules`) to both ``src.llm.extension.client`` and
-    ``src.llm.extension.client.X`` — both match ``src.llm``, but only ``src.llm.extension.client``
+    and avoids double-reporting: ``from src.llm.extension.agent import X`` expands (via
+    :func:`imported_modules`) to both ``src.llm.extension.agent`` and
+    ``src.llm.extension.agent.X`` — both match ``src.llm``, but only ``src.llm.extension.agent``
     is reported.
     """
     best: dict[str, str] = {}
@@ -197,7 +197,7 @@ def _main(argv: Sequence[str] | None = None) -> int:
     n_files = len(resolve_protected_files(repo_root))
     print(
         f"[TIER-IMPORTS] PASSED: {n_files} protected CODE-ONLY/financial-truth module(s) "
-        "import no LLM layer (src.llm / litellm / openrouter / anthropic / openai)."
+        "import no LLM layer (src.llm / pydantic_ai / openrouter / anthropic / openai)."
     )
     return 0
 

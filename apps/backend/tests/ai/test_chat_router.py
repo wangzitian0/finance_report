@@ -10,10 +10,16 @@ import pytest
 
 from src.advisor import AIAdvisorError
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
-from src.llm import AIStreamError
+from src.llm import ModelCallFailed, ModelFailureKind
 from src.platform import BaseAppException, ResourceNotFoundError
 from src.request_context import RequestContext
-from src.routers.chat import SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS, chat_history, chat_message, delete_session, suggestions
+from src.routers.chat import (
+    SUGGESTIONS_CONTEXT_TIMEOUT_SECONDS,
+    chat_history,
+    chat_message,
+    delete_session,
+    suggestions,
+)
 
 
 def _ctx(db=None, user_id=None) -> RequestContext:
@@ -199,13 +205,13 @@ async def test_AC_advisor_2555_1_stream_error_and_interruption_handling() -> Non
     closed = False
 
     async def pre_chunk_fail():
-        raise AIAdvisorError("AI service temporarily unavailable.", status_code=503) from AIStreamError(message="AIStreamError: status=429 code=1302", retryable=True)
+        raise AIAdvisorError("AI service temporarily unavailable.", status_code=503) from ModelCallFailed(ModelFailureKind.RATE_LIMIT, "ModelRateLimitError (http=429, provider_code=1302)")
         yield
 
     async def midstream_fail():
         yield "Initial token"
         yield " second token"
-        raise AIAdvisorError("AIStreamError: midstream reset") from AIStreamError(message="AIStreamError: midstream reset", retryable=True)
+        raise AIAdvisorError("midstream reset") from ModelCallFailed(ModelFailureKind.UNAVAILABLE, "midstream reset")
 
     async def empty_stream():
         nonlocal closed

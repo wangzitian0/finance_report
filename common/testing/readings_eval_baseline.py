@@ -1,4 +1,4 @@
-"""Conflict-free storage for the cassette graded-eval ratchet baseline.
+"""Conflict-free storage for the readings graded-eval ratchet baseline.
 
 EPIC-023 AC23.8 / issue #1307. This mirrors
 :mod:`common.testing.ac_score_baseline_format`: the per-case score FLOOR is stored
@@ -9,7 +9,7 @@ PRs editing the SAME case produce a (legitimate, semantic) conflict.
 
 This is a STORAGE module only. The baseline is a PERSISTED ratchet floor — it is
 never regenerated from current scores (that would erase the floor). The ratchet
-semantics live in :mod:`common.testing.cassette_graded_eval`; this module only
+semantics live in :mod:`common.testing.readings_eval`; this module only
 loads/normalises/writes the on-disk form into the in-memory shape
 ``{"version": 1, "cases": {case_id: {...}}}``.
 """
@@ -24,13 +24,13 @@ from common.testing import jsonl_baseline
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BASELINE = (
-    REPO_ROOT / "tests" / "fixtures" / "cassette-eval-baseline.jsonl"
+    REPO_ROOT / "tests" / "fixtures" / "readings-eval-baseline.jsonl"
 )
 CORPUS_COUNT_BASELINE = (
     REPO_ROOT
     / "tests"
     / "fixtures"
-    / "cassette-corpus-count-baseline.json"
+    / "readings-corpus-count-baseline.json"
 )
 
 BASELINE_VERSION = jsonl_baseline.BASELINE_VERSION
@@ -112,11 +112,11 @@ def write_corpus_count_floor(path: Path, min_cases: int) -> None:
     payload = {
         "_comment": (
             "Raise-only floor for the number of graded-eval cases "
-            "(llm_cassettes/ground_truth/*.truth.json). Independent of "
-            "cassette-eval-baseline.jsonl's per-case floors so a commit that "
+            "(readings/ground_truth/*.truth.json). Independent of "
+            "readings-eval-baseline.jsonl's per-case floors so a commit that "
             "removes a case's ground-truth file AND its baseline line together "
             "cannot silently shrink the corpus. Raise only via "
-            "`python tools/check_cassette_graded_eval.py --update`."
+            "`python tools/check_readings_eval.py --update`."
         ),
         "min_cases": min_cases,
     }
