@@ -155,6 +155,7 @@ TOOLING_LANE_EXACT: frozenset[str] = frozenset(
         "runtime-hooks.manifest.json",
         "opencode.json",
         ".env.example",
+        ".gitattributes",
         ".gitignore",
         ".mcp.json",
         ".node-version",
