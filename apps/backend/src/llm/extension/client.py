@@ -12,7 +12,6 @@ from typing import Any
 import litellm
 
 from src.llm.base import (
-    ConfigSource,
     DecodeParams,
     LLMConfigError,
     LLMError,
@@ -392,21 +391,3 @@ async def cassette_completion(
         tag=tag,
         validator=validator,
     )
-
-
-async def resolve_provider_and_model(config_source: ConfigSource, model_id: str) -> tuple[ProviderRef, str]:
-    """Resolve ``model_id`` against ``config_source`` to ``(provider, bare_model)``."""
-    providers = await config_source.list_providers()
-    if not providers:
-        raise LLMConfigError("No LLM provider configured")
-    if "/" in model_id:
-        provider_id, _, model = model_id.partition("/")
-        provider = await config_source.get_provider(provider_id)
-        if provider is not None:
-            return provider, model
-        if len(providers) == 1:
-            return providers[0], model_id
-        raise LLMConfigError(f"Unknown provider id {provider_id!r} in model {model_id!r}")
-    if len(providers) == 1:
-        return providers[0], model_id
-    raise LLMConfigError(f"Ambiguous provider for unqualified model {model_id!r}; qualify as provider_id/model")

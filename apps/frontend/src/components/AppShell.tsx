@@ -8,7 +8,6 @@ import { useSessionBootstrap } from "@/hooks/useSessionBootstrap";
 import { Sidebar, WorkspaceTabs } from "@/components/AppNav";
 import { ToastProvider } from "@/components/ui/Toast";
 import { WorkflowNotificationCenter } from "@/components/workflow/WorkflowNotifications";
-import { FirstRunModal } from "@/components/llm/FirstRunModal";
 import { Download, Share2, X } from "lucide-react";
 import { Button, IconButton } from "@/components/ui";
 import { type PwaInstallState, usePwaInstall } from "@/hooks/usePwaInstall";
@@ -72,10 +71,6 @@ function AppShellContent({ children }: AppShellProps) {
 
             {/* EPIC-022 AC22.21.2: mobile/PWA-first bottom tab bar. */}
             <BottomTabBar />
-
-            {/* First-run LLM provider prompt (EPIC-023 PR4): app-wide so it
-                surfaces wherever the user lands while unconfigured. */}
-            <FirstRunModal />
         </div>
     );
 }

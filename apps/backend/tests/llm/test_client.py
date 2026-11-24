@@ -12,7 +12,7 @@ from litellm.utils import get_optional_params
 import src.llm.extension.client as client_mod
 from src.llm.base import DecodeParams, LLMConfigError, LLMError, ProtocolFamily, ProviderRef, ReasoningEffort
 from src.llm.extension.cassette import CassetteMode, CassetteRecorder, CassetteStore
-from src.llm.extension.client import cassette_completion, litellm_stream, resolve_provider_and_model
+from src.llm.extension.client import cassette_completion, litellm_stream
 from tests.llm.conftest import StreamChunk, explode_litellm, zai_provider
 
 
@@ -83,33 +83,6 @@ async def test_AC23_2_3_provider_error_normalised_to_llmerror(monkeypatch, exc_f
     with pytest.raises(LLMError) as ei:
         await _collect(model_id="m")
     assert ei.value.retryable is expected_retryable
-
-
-@pytest.mark.parametrize(
-    ("providers", "requested", "expected_id", "expected_model"),
-    [
-        ([zai_provider(), ProviderRef(id="router", label="or", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k2")], "router/deepseek-chat", "router", "deepseek-chat"),
-        ([ProviderRef(id="env", label="zai", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k", api_base="https://z")], "env/glm-5.1", "env", "glm-5.1"),
-        ([ProviderRef(id="env", label="or", protocol=ProtocolFamily.OPENROUTER_COMPATIBLE, api_key="k")], "deepseek/deepseek-chat", "env", "deepseek/deepseek-chat"),
-        ([zai_provider(), ProviderRef(id="other", label="o", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2")], "glm-5.1", None, None),
-        ([], "glm-5.1", None, None),
-        ([zai_provider(), ProviderRef(id="other", label="o", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key="k2")], "ghost/model", None, None),
-    ],
-)
-async def test_AC23_2_2_resolve_provider_and_model(providers, requested: str, expected_id: str | None, expected_model: str | None) -> None:
-    async def _list():
-        return list(providers)
-
-    async def _get(pid):
-        return next((p for p in providers if p.id == pid), None)
-
-    cfg = SimpleNamespace(list_providers=_list, get_provider=_get)
-    if expected_id is None:
-        with pytest.raises(LLMConfigError):
-            await resolve_provider_and_model(cfg, requested)
-    else:
-        provider, model = await resolve_provider_and_model(cfg, requested)
-        assert (provider.id, model) == (expected_id, expected_model)
 
 
 async def test_AC23_5_4_cassette_completion_modes_and_decode(monkeypatch, tmp_path) -> None:

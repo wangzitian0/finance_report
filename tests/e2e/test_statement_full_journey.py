@@ -122,7 +122,6 @@ async def test_dbs_statement_full_journey(authenticated_page_unique: Page) -> No
         fail_or_skip_ai_ocr_gate(
             "Statement parsing failed (status=rejected) — AI service may be unavailable or misconfigured on the test environment.",
             statement=last_statement,
-            model=None,
         )
     await expect(
         row.locator(

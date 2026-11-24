@@ -13,7 +13,6 @@ from common.meta.extension.base_purity import discover_impurities
 REPO_ROOT = Path(__file__).resolve().parents[3]
 BASELINE_BASE_IMPURITIES: frozenset[str] = frozenset(
     {
-        "llm/base/secrets.py::import src.config",
         "llm/base/usage.py::from src.observability import get_logger",
     }
 )

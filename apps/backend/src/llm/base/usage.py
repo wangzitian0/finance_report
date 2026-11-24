@@ -96,3 +96,18 @@ def _utc_today() -> date:
     from datetime import UTC, datetime
 
     return datetime.now(UTC).date()
+
+
+_usage_meter: LlmUsageMeter | None = None
+
+
+def get_usage_meter() -> LlmUsageMeter:
+    """The process-wide LLM usage counter.
+
+    A singleton so request/token tallies accumulate across calls (a fresh meter per
+    request would reset the running totals). Per-process by design — the structured
+    ``llm_usage`` log is the cross-worker source of truth."""
+    global _usage_meter
+    if _usage_meter is None:
+        _usage_meter = LlmUsageMeter()
+    return _usage_meter

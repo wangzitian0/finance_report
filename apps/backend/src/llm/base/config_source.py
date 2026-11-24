@@ -1,10 +1,8 @@
-"""The configuration seam between the client (EPIC A) and storage (EPIC B).
+"""The configuration seam between the client and its settings.
 
 The litellm client resolves a :class:`~src.llm.base.types.Scene` to a provider
-and model purely through this protocol. EPIC A ships an env-backed implementation
-as a stopgap; EPIC B swaps in a ``DbConfigSource`` reading the
-``llm_provider`` / ``llm_scene_binding`` tables — without the client changing.
-Freezing this protocol is what lets the two halves proceed in parallel.
+and model purely through this protocol. The one implementation is
+``EnvConfigSource``, which reads the environment (#2953 deleted the database one).
 """
 
 from __future__ import annotations

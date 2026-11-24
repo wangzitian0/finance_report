@@ -8,15 +8,13 @@ import {
     AccountsPanel,
     GeneralSettingsPanel,
     AiSettingsPanel,
-    LlmSettingsPanel,
 } from "@/components/settings/SettingsPanels";
 
-type SettingsTab = "general" | "ai" | "llm" | "accounts";
+type SettingsTab = "general" | "ai" | "accounts";
 
 const TABS: { id: SettingsTab; label: string }[] = [
     { id: "general", label: "General" },
     { id: "ai", label: "AI" },
-    { id: "llm", label: "LLM Models" },
     { id: "accounts", label: "Accounts" },
 ];
 
@@ -26,7 +24,8 @@ function normalizeTab(raw: string | null): SettingsTab {
 
 // EPIC-022 AC22.21.4: the formerly-separate Settings pages are merged into one
 // tabbed surface. `/settings/general|ai|llm` and `/accounts` redirect here with
-// `?tab=`, so every settings entry point lands on the right tab.
+// `?tab=`, so every settings entry point lands on the right tab. The retired
+// `/settings/llm` page redirects to the AI tab.
 // The active tab stays in sync with `?tab=` so deep links and back/forward work.
 export default function SettingsPage() {
     const router = useRouter();
@@ -108,7 +107,6 @@ export default function SettingsPage() {
             >
                 {tab === "general" && <GeneralSettingsPanel />}
                 {tab === "ai" && <AiSettingsPanel />}
-                {tab === "llm" && <LlmSettingsPanel />}
                 {tab === "accounts" && <AccountsPanel />}
             </div>
         </div>

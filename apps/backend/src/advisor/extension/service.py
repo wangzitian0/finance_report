@@ -51,11 +51,7 @@ from src.llm import (
     LLMError,
     ModelCallFailed,
     ModelFailureKind,
-    Scene,
-    SceneBinding,
     estimate_tokens,
-    get_config_source,
-    get_llm_client,
 )
 from src.llm.extension.agent import CallSite, iterate_text, model_call_failed
 from src.observability import get_logger
@@ -99,16 +95,6 @@ class ChatStream:
     model_name: str | None
     cached: bool
     metadata: ChatResponseMetadata = field(default_factory=ChatResponseMetadata)
-
-
-async def _bound_scene_binding(user_id: UUID | None) -> SceneBinding | None:
-    if user_id is None:
-        return None
-    try:
-        return await get_config_source(user_id).get_binding(Scene.ADVISOR_CHAT)
-    except Exception:  # noqa: BLE001
-        logger.warning("advisor.chat binding resolution failed; using env models", exc_info=True)
-        return None
 
 
 def _advisor_decoding() -> DecodingSpec:
@@ -180,8 +166,7 @@ class AIAdvisorService:
         context = await self.get_financial_context(db, user_id, **context_kwargs)
         metadata = self.build_chat_grounding_metadata(context, raw_message)
         context_hash = hashlib.sha256(json.dumps(context, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-        bound = await _bound_scene_binding(user_id)
-        model_key = (bound.model_id if bound else None) or self.large_model
+        model_key = self.large_model
         cache_key = f"{user_id}:{language}:{normalize_question(message)}:{context_hash}:{model_key}"
         _CACHE.prune()
         if cached := _CACHE.get(cache_key):
@@ -194,7 +179,7 @@ class AIAdvisorService:
             *(await self._load_history(db, session.id)),
             {"role": "user", "content": message},
         ]
-        if not self.api_key and not await get_config_source(user_id).is_configured():
+        if not self.api_key:
             raise AIAdvisorError("AI provider API key not configured", status_code=503)
 
         stream_kwargs = {"session_maker": session_maker} if session_maker is not None else {}
@@ -206,8 +191,6 @@ class AIAdvisorService:
                 messages,
                 language,
                 cache_key,
-                user_id,
-                bound,
                 **stream_kwargs,
             ),
             model_name=model_key,
@@ -799,8 +782,6 @@ class AIAdvisorService:
         messages: list[dict[str, str]],
         language: str,
         cache_key: str,
-        user_id: UUID | None = None,
-        bound: SceneBinding | None = None,
         *,
         session_maker: async_sessionmaker[AsyncSession] | None = None,
     ) -> AsyncIterator[str]:
@@ -808,7 +789,7 @@ class AIAdvisorService:
         chunks: list[str] = []
         model_used: str | None = None
         try:
-            async for chunk, model_name in self._stream_openrouter(messages, user_id, bound):
+            async for chunk, model_name in self._stream_openrouter(messages):
                 model_used = model_name
                 if safe_chunk := redactor.process(chunk):
                     chunks.append(safe_chunk)
@@ -870,28 +851,8 @@ class AIAdvisorService:
             metadata=metadata or ChatResponseMetadata(),
         )
 
-    async def _stream_openrouter(
-        self,
-        messages: list[dict[str, str]],
-        user_id: UUID | None = None,
-        bound: SceneBinding | None = None,
-    ) -> AsyncIterator[tuple[str, str]]:
-        from src.llm import AIStreamError
+    async def _stream_openrouter(self, messages: list[dict[str, str]]) -> AsyncIterator[tuple[str, str]]:
         from src.observability import ErrorIds
-
-        if bound is not None:
-            try:
-                async for chunk in get_llm_client(user_id).stream(Scene.ADVISOR_CHAT, messages):
-                    yield chunk, bound.model_id
-                return
-            except AIStreamError as exc:
-                logger.warning(
-                    "Bound advisor scene failed, trying the environment model",
-                    error_id=ErrorIds.AI_STREAMING_FAILED,
-                    model=bound.model_id,
-                    error=str(exc),
-                    retryable=exc.retryable,
-                )
 
         try:
             async for chunk in self._stream_model(messages):

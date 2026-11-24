@@ -8,7 +8,6 @@ let pathname = "/dashboard";
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: pushMock }), usePathname: () => pathname }));
 vi.mock("@/lib/auth", () => ({ isAuthenticated: () => isAuth() }));
 vi.mock("@/hooks/useSessionBootstrap", () => ({ useSessionBootstrap: vi.fn() }));
-vi.mock("@/components/llm/FirstRunModal", () => ({ FirstRunModal: () => null }));
 vi.mock("@/hooks/useWorkspace", () => ({ WorkspaceProvider: ({ children }: { children: ReactNode }) => <div data-testid="wp">{children}</div>, useWorkspace: () => ({ isCollapsed: true }) }));
 vi.mock("@/components/AppNav", () => ({ Sidebar: () => <div data-testid="sb" />, WorkspaceTabs: () => <div data-testid="wt" /> }));
 vi.mock("@/components/ui/Toast", () => ({ ToastProvider: ({ children }: { children: ReactNode }) => <div data-testid="tp">{children}</div> }));

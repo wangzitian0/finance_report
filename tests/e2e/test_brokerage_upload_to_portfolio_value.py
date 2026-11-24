@@ -11,7 +11,6 @@ from playwright.async_api import Page
 from tests.e2e._journey_helpers import (
     PARSING_TIMEOUT_MS,
     auth_headers,
-    default_image_model,
     get_json,
     import_brokerage_and_holdings,
     line_total,
@@ -177,7 +176,6 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
         verify=False,
         timeout=120.0,
     ) as client:
-        model = await default_image_model(client)
         statement_ids = [
             await upload_statement(
                 client,
@@ -185,7 +183,6 @@ async def test_multi_brokerage_pdf_upload_imports_positions_and_updates_latest_p
                 content=p.read_bytes(),
                 content_type="application/pdf",
                 institution=inst,
-                model=model,
                 label=src,
             )
             for src, inst in (

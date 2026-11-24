@@ -329,21 +329,6 @@ export const COCKPIT_CF = makeCashFlow({
   financing: [{ line_id: "fin-1", category: "financing", subcategory: "Card repayment", description: "Outflow - DBS Multiplier", amount: "-500", account_id: "acc-cash", event_count: 1 }],
 });
 
-export const LLM_PROVIDER = { id: "prov-1", label: "OpenRouter", protocol: "openrouter-compatible" as const, api_base: "https://openrouter.ai/api/v1", has_api_key: true, created_at: "2026-01-01T00:00:00Z", updated_at: "2026-01-01T00:00:00Z" };
-export const LLM_MODEL = { id: "openrouter/auto", provider_id: "prov-1", modalities: ["text" as const], is_free: true, input_price_per_mtok: null, output_price_per_mtok: null, supports_reasoning: true };
-export const LLM_BINDING = { scene: "advisor.chat", provider_id: "prov-1", model: "openrouter/auto", reasoning: "low", max_tokens: null };
-
-export const mockLlmRoutes = (api: ApiMockFn, overrides: Record<string, unknown> = {}) =>
-  mockApiMap(api, {
-    list_providers_llm_providers_get: { providers: [LLM_PROVIDER] },
-    get_catalog_llm_catalog_get: { models: [LLM_MODEL] },
-    get_scenes_llm_scenes_get: { bindings: [LLM_BINDING] },
-    put_scenes_llm_scenes_put: { bindings: [] },
-    delete_provider_llm_providers__provider_id__delete: undefined,
-    create_provider_llm_providers_post: LLM_PROVIDER,
-    ...overrides,
-  });
-
 export const AI_SETTINGS_DEFAULT = {
   enable_ai_reconciliation: true,
   enable_ai_classification: false,
@@ -632,12 +617,6 @@ export const OPS = {
   CHAT_HIST: "chat_history_chat_history_get",
   CHAT_DEL: "delete_session_chat_sessions__session_id__delete",
   CHAT_POST: "chat_message_chat_post",
-  LLM_PROV_LIST: "list_providers_llm_providers_get",
-  LLM_CAT: "get_catalog_llm_catalog_get",
-  LLM_SCENES_GET: "get_scenes_llm_scenes_get",
-  LLM_SCENES_PUT: "put_scenes_llm_scenes_put",
-  LLM_PROV_DEL: "delete_provider_llm_providers__provider_id__delete",
-  LLM_PROV_ADD: "create_provider_llm_providers_post",
   AI_GET: "get_current_user_settings_users_me_settings_get",
   AI_PATCH: "patch_current_user_settings_users_me_settings_patch",
   LOGOUT: "logout_auth_logout_post",
@@ -997,26 +976,6 @@ export function checkChatTable(container: HTMLElement) {
   expect((screen.getByPlaceholderText(/Ask about spending trends/i) as HTMLTextAreaElement).value).toBe("Analyze this account");
 }
 
-export const cardInput = (title: string, label: string) =>
-  within(screen.getByText(title).closest(".card") as HTMLElement).getByLabelText(label);
-
-export async function checkLlmLoaded() {
-  hasTxts("Loading LLM settings...");
-  await screen.findByText("LLM Models");
-  hasTxts("Extraction · OCR", "Advisor · Chat", "Statement · Summary");
-  expect(screen.getAllByLabelText("Model")).toHaveLength(5);
-  expect(screen.getByDisplayValue("openrouter/auto")).toBeInTheDocument();
-}
-
-export const LLM_PUT_BODY = {
-  body: {
-    bindings: expect.arrayContaining([
-      expect.objectContaining({ scene: "advisor.chat", reasoning: "high" }),
-      expect.objectContaining({ scene: "extraction.ocr" }),
-    ]),
-  },
-};
-
 export async function checkCockpitDeepLinks() {
   for (const t of ["balance sheet", "income statement", "cash flow"]) {
     chkLnk(`Open the ${t} report`, `/reports?period=1Q&end=2026-03-31&tab=${t.replace(" ", "-")}`);
@@ -1297,35 +1256,6 @@ export async function runCockpitDrillFlow(api: ApiMockFn) {
     if (tab === "Cash") expect(screen.queryByRole("button", { name: "View source transactions for Broker transfer" })).toBeNull();
     else clkBtn("Close panel");
   }
-}
-
-export async function runLlmEditAndSave(api: ApiMockFn, showToast: ReturnType<typeof vi.fn>) {
-  await screen.findByText("LLM Models");
-  const save = btn(/Save changes/i);
-  expect(save).toBeDisabled();
-  fireEvent.change(cardInput("Advisor · Chat", "Reasoning depth"), { target: { value: "high" } });
-  clkBtn(/Reset/i);
-  expect(cardInput("Advisor · Chat", "Reasoning depth")).toHaveValue("low");
-  expect(save).toBeDisabled();
-  fireEvent.change(cardInput("Extraction · OCR", "Provider"), { target: { value: "prov-1" } });
-  fireEvent.change(cardInput("Extraction · OCR", "Model"), { target: { value: "some-model" } });
-  fireEvent.change(cardInput("Advisor · Chat", "Reasoning depth"), { target: { value: "high" } });
-  fireEvent.click(save);
-  await waitOp(api, OPS.LLM_SCENES_PUT, LLM_PUT_BODY);
-  await waitFor(() => expect(showToast).toHaveBeenCalledWith("LLM bindings saved", "success"));
-}
-
-export async function runLlmDeleteSuccess(api: ApiMockFn, showToast: ReturnType<typeof vi.fn>) {
-  const del = await screen.findByRole("button", { name: /Delete provider OpenRouter/i });
-  fireEvent.click(del);
-  await dlgEl();
-  clkBtn(/Cancel/i);
-  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-  expect(api).not.toHaveBeenCalledWith(OPS.LLM_PROV_DEL, expect.anything());
-  fireEvent.click(del);
-  fireEvent.click(await screen.findByRole("button", { name: "Delete provider" }));
-  await waitFor(() => expect(showToast).toHaveBeenCalledWith("Provider deleted", "success"));
-  await screen.findByText(/No providers configured yet/i);
 }
 
 export async function runSidebarLogoutSuccess(
@@ -2071,12 +2001,9 @@ export async function runHomeCoverageJump(renderHome: () => { unmount: () => voi
   fireEvent.click(within(b).getByRole("button", { name: /Jump to Mar 31, 2025/i })); expect(testUrlFn()).toBe("/?end=2025-03-31");
 }
 
-export async function runFirstRunAndWarnings2763(warnEl: ReactElement, modalEl: ReactElement, dismissedKey: string) {
+export async function runWarnings2763(warnEl: ReactElement) {
   const v2 = render(warnEl); await findAlert("DBS USD: No opening balance recorded before 2025-03-01.");
   expect(screen.getAllByRole("listitem")).toHaveLength(2); v2.unmount();
-  const first = render(modalEl); expect((screen.getByTestId("provider-advanced-settings") as HTMLDetailsElement).open).toBe(false);
-  clkBtn(/Cancel/i); expect(window.localStorage.getItem(dismissedKey)).toBe("true"); first.unmount();
-  expect(render(modalEl).container).toBeEmptyDOMElement();
 }
 
 export async function runAccountFormReopen(api: ApiMockFn, renderHost: (open: boolean, name: string, type: string) => ReactElement) {
@@ -2124,17 +2051,6 @@ export function checkReadReportFilters2763(
   expect(readReportFilters(new URLSearchParams("end=2025-03-31"), new Date(2026, 9, 27), COV_2763).opensAtCoverageStart).toBe(true);
 }
 
-export async function runLlmAddAndDeleteErr(api: ApiMockFn, showToast: ReturnType<typeof vi.fn>, renderPanel: () => { unmount: () => void }) {
-  mockLlmRoutes(api, { [OPS.LLM_PROV_DEL]: () => { throw new Error("Delete boom"); } });
-  const v2 = renderPanel(); fireEvent.click(await screen.findByRole("button", { name: /Delete provider OpenRouter/i }));
-  fireEvent.click(await screen.findByRole("button", { name: "Delete provider" })); await findAlert("Delete boom"); v2.unmount();
-  mockLlmRoutes(api); renderPanel(); await screen.findByText("LLM Models");
-  for (const b of [/Close/i, /Cancel/i]) { clkBtn(/Add provider/i); clkBtn(b); expect(screen.queryByLabelText("API key")).toBeNull(); }
-  clkBtn(/Add provider/i); chgLbl("Label", "New"); chgLbl("API key", "key"); clkBtn(/^Add provider$/i);
-  await waitOp(api, OPS.LLM_PROV_ADD, expect.objectContaining({ body: expect.objectContaining({ label: "New", api_key: "key" }) }));
-  await waitFor(() => expect(showToast).toHaveBeenCalledWith("Provider added", "success"));
-}
-
 export const pkgHookMock = (mockedPkg: (...a: unknown[]) => unknown) =>
   async (o: <T>() => Promise<T>) => ({
     ...(await o<typeof import("@/hooks/usePersonalReportPackage")>()),
@@ -2174,12 +2090,6 @@ export async function runCoverage2763Full(
   await runCoverage2763BannerCheck(testUrlFn);
   v1.unmount();
 }
-
-export const LLM_EMPTY_ROUTES = {
-  list_providers_llm_providers_get: { providers: [] },
-  get_catalog_llm_catalog_get: { models: [] },
-  get_scenes_llm_scenes_get: { bindings: [] },
-};
 
 export const SIDEBAR_HIDDEN_LINKS = [/Advanced/i, /Journal/i, /^Reconciliation$/i, /^Accounts$/i, /^Upload$/i, /AI Settings/i];
 export const SIDEBAR_NAV_LINKS = [[/^Chat$/i, "/chat"], [/^Audit$/i, "/audit"], [/^More$/i, "/more"], [/Finance Report home/i, "/"]] as const;

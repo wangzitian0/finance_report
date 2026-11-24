@@ -363,22 +363,6 @@ async def assert_default_ai_settings(client: httpx.AsyncClient) -> None:
     )
 
 
-async def default_image_model(
-    client: httpx.AsyncClient,
-    *,
-    base_url: str = APP_URL,
-    reconnects: ReconnectCount | None = None,
-) -> str:
-    payload = await get_json(
-        client,
-        "/llm/catalog",
-        base_url=base_url,
-        reconnects=reconnects,
-        modality="image",
-    )
-    return payload.get("default_model") or payload["models"][0]["id"]
-
-
 def unique_pdf_copy(src: Path) -> Path:
     dest = (
         Path(tempfile.mkdtemp())
@@ -398,7 +382,6 @@ async def upload_statement(
     content_type: str,
     institution: str | None = None,
     account_id: str | None = None,
-    model: str | None = None,
     base_url: str = APP_URL,
     label: str = "statement",
 ) -> str:
@@ -407,7 +390,6 @@ async def upload_statement(
         for k, v in (
             ("institution", institution),
             ("account_id", account_id),
-            ("model", model),
         )
         if v is not None
     }
@@ -431,7 +413,6 @@ async def wait_for_statement(
     target_statuses: tuple[str, ...] = ("parsed", "approved"),
     fail_statuses: tuple[str, ...] = ("rejected",),
     gate_name: str | None = None,
-    model: str | None = None,
     require_transactions: bool = False,
     reconnects: ReconnectCount | None = None,
     base_url: str = APP_URL,
@@ -453,7 +434,6 @@ async def wait_for_statement(
                 fail_or_skip_ai_ocr_gate(
                     f"{gate_name} gate rejected statement {statement_id}: {last_payload.get('validation_error')}",
                     statement=last_payload,
-                    model=model,
                 )
             pytest.fail(
                 f"statement {statement_id} ended in {status}: {last_payload.get('validation_error')}"
@@ -550,7 +530,6 @@ async def upload_statement_via_ui(
     institution: str,
     file_path: Path,
     csv_mode: bool = False,
-    select_model: bool = True,
     base_url: str = APP_URL,
 ) -> str:
     await page.goto(get_url("/upload", base_url), wait_until="domcontentloaded")
