@@ -45,7 +45,11 @@ def ensure_disclaimer(text: str, language: str) -> str:
 
 
 class StreamRedactor:
-    """Streaming redactor that masks sensitive numbers without breaking chunks."""
+    """Streaming redactor that masks sensitive numbers without breaking chunks.
+
+    ``tail_size`` must be at least 19, the length of the longest card pattern. A digit run without a separator stays
+    whole in the buffer until it ends; the cost grows with the run, which a model reply does not reach in practice.
+    """
 
     def __init__(self, tail_size: int = 64) -> None:
         self._tail_size = tail_size
