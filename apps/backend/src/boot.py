@@ -15,6 +15,7 @@ from infra2_sdk.runtime.config_schema import (
     validate_environment,
 )
 from infra2_sdk.runtime.health import DependencyStatus
+from infra2_sdk.runtime.llm import LlmSettings
 
 from src.config import ENV_SOURCE_CLASSES, PROTECTED_ENVIRONMENTS, Settings, settings
 from src.observability import get_logger
@@ -38,6 +39,9 @@ DEVELOPMENT_SECRET_KEY = "dev_secret_key_change_in_prod"
 DEVELOPMENT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
 DEVELOPMENT_S3_SECRET_KEY = "minio_local_secret"
 LOCAL_ENVIRONMENTS = frozenset({"development", "test", "ci"})
+# Only these environments may set a model role to another value than the SDK default (#2566, #2953).
+MODEL_PIN_ENVIRONMENTS = frozenset({"production", "development", "test"})
+MODEL_ROLE_FIELDS = ("large_model", "small_model", "multimodal_model")
 
 _PROBE_METHODS = {
     "database": "_check_database",
@@ -222,12 +226,36 @@ class Bootloader:
             )
 
     @staticmethod
+    def _check_llm_roles(environment: str) -> bool:
+        """Refuse an invalid model role at start, and a pinned role outside production, development and test."""
+        try:
+            settings.to_llm_settings()  # the SDK refuses an empty provider or role model and a bad base URL
+        except ValueError as exc:
+            logger.error("LLM settings are invalid", error=str(exc))
+            return False
+        if environment.strip().lower() in MODEL_PIN_ENVIRONMENTS:
+            return True
+        defaults = LlmSettings()
+        pinned = [
+            _env_names(field)[0] for field in MODEL_ROLE_FIELDS if getattr(settings, field) != getattr(defaults, field)
+        ]
+        if pinned:
+            logger.error(
+                "Only production, development and test may pin a model role: unset the variable to use the SDK default",
+                environment=environment,
+                variables=", ".join(pinned),
+            )
+        return not pinned
+
+    @staticmethod
     def _check_static_config() -> bool:
         try:
             database_url = settings.database_url
             environment = str(getattr(settings, "environment", "")).lower()
             is_protected = Bootloader._is_protected_runtime(environment)
             Bootloader._assert_sdk_environment(is_protected=environment.strip() in PROTECTED_ENVIRONMENTS)
+            if not Bootloader._check_llm_roles(environment):
+                return False
             if is_protected:
                 secret_key = getattr(settings, "secret_key", "")
                 if not isinstance(secret_key, str) or not secret_key.strip():
