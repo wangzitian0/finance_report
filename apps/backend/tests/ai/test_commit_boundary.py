@@ -57,3 +57,22 @@ async def test_post_chat_releases_db_session_during_llm_stream(
     msgs = (await db.execute(select(ChatMessage).order_by(ChatMessage.created_at))).scalars().all()
     assert [m.role for m in msgs] == [ChatMessageRole.USER, ChatMessageRole.ASSISTANT]
     assert "Checking balance." in msgs[1].content
+
+
+async def test_post_chat_names_the_large_role_in_the_model_header(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The staging gate reads `X-Model-Name` to prove that staging pins no model (#2566, #2953)."""
+
+    async def fake_stream_openrouter(self, *_args, **_kwargs):
+        yield ("ok", self.large_model)
+
+    monkeypatch.setattr(settings, "ai_api_key", "test-key", raising=False)
+    monkeypatch.setattr(settings, "large_model", "role-large-model", raising=False)
+    monkeypatch.setattr(settings, "small_model", "role-small-model", raising=False)
+    monkeypatch.setattr(AIAdvisorService, "_stream_openrouter", fake_stream_openrouter)
+
+    resp = await client.post("/chat", json={"message": "What is my balance?"})
+
+    assert resp.status_code == 200
+    assert resp.headers["X-Model-Name"] == "role-large-model"

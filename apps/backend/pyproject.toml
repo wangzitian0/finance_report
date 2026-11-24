@@ -27,7 +27,6 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.45b0",
     "bcrypt==4.0.1",
     "pymupdf>=1.24.0",
-    "cryptography>=42.0.0",
     "litellm>=1.55.0",
     # EPIC-019: a base dependency, not an optional extra — the repo's
     # promote-not-rebuild release model ships ONE image to every environment,

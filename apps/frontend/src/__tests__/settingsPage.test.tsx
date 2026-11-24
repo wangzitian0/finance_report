@@ -43,11 +43,11 @@ fireEvent.click(tab("Accounts"));
 E(replaceMock).toHaveBeenLastCalledWith("/settings?tab=accounts", { scroll: false });
 }
 });
-it("AC22.21.4 the retired ?tab=llm opens General", () => {
+it("AC22.21.4 the retired ?tab=llm opens the AI tab", () => {
 nav.searchParams = new URLSearchParams("tab=llm");
 render(<SettingsPage />);
-E(tab("General")).toHaveAttribute("aria-selected", "true");
-E(S.getByTestId("general-settings")).toBeInTheDocument();
+E(tab("AI")).toHaveAttribute("aria-selected", "true");
+E(S.getByTestId("ai-settings")).toBeInTheDocument();
 E(S.queryByRole("tab", { name: "LLM Models" })).toBeNull();
 });
 it("AC22.21.4 the Portfolio Holdings link points at /portfolio", () => {

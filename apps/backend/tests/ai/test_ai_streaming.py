@@ -78,6 +78,16 @@ async def test_stream_resolves_the_environment_provider_and_usage(litellm_stub, 
     assert meter.requests_today == 1 and meter.tokens_today > 0 and "stream_options" not in litellm_stub["kwargs"]
 
 
+async def test_the_provider_comes_from_the_environment_key(monkeypatch) -> None:
+    monkeypatch.setattr(streaming.settings, "ai_api_key", "sk-env-key", raising=False)
+    provider = await streaming._resolve_provider(None, None)
+    assert (provider.id, provider.api_key) == ("env", "sk-env-key")
+
+    monkeypatch.setattr(streaming.settings, "ai_api_key", "", raising=False)
+    with pytest.raises(AIStreamError, match="not configured"):
+        await streaming._resolve_provider(None, None)
+
+
 async def test_litellm_error_and_provider_metrics(litellm_stub, monkeypatch) -> None:
     _explicit_provider(monkeypatch)
     calls: list[dict] = []

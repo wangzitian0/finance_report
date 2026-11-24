@@ -19,7 +19,9 @@ const TABS: { id: SettingsTab; label: string }[] = [
 ];
 
 function normalizeTab(raw: string | null): SettingsTab {
-    return TABS.find((t) => t.id === raw)?.id ?? "general";
+    // The retired LLM tab (#2953) opens the AI tab, like the `/settings/llm` redirect.
+    const wanted = raw === "llm" ? "ai" : raw;
+    return TABS.find((t) => t.id === wanted)?.id ?? "general";
 }
 
 // EPIC-022 AC22.21.4: the formerly-separate Settings pages are merged into one

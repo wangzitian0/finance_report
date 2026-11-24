@@ -13,6 +13,7 @@ a user's rows first, then the deployment default, then the env fallback.
 
 from __future__ import annotations
 
+import enum
 from uuid import UUID
 
 from sqlalchemy import BigInteger, Boolean, Enum, ForeignKey, Index, Integer, String, text
@@ -24,7 +25,7 @@ from src.llm.base import ProtocolFamily, ReasoningEffort, Scene
 from src.platform.orm.base import TimestampMixin, UUIDMixin
 
 
-def _enum_values(enum_cls: type) -> list[str]:
+def _enum_values(enum_cls: type[enum.Enum]) -> list[str]:
     return [member.value for member in enum_cls]
 
 
@@ -52,7 +53,7 @@ class LlmProvider(Base, UUIDMixin, TimestampMixin):
         ),
         nullable=False,
     )
-    # Fernet ciphertext + the key fingerprint that sealed it (see src/llm/base/secrets.py).
+    # Fernet ciphertext + the key fingerprint that sealed it. No code reads or writes it (#2953); stage 3 drops it.
     # BigInteger: the fingerprint is an unsigned 32-bit value (sha256[:4], up to ~4.3e9)
     # which overflows a signed int32 column.
     api_key_ciphertext: Mapped[str] = mapped_column(String, nullable=False)

@@ -172,8 +172,9 @@ async def test_chat_stream_requires_the_environment_api_key(db: AsyncSession, te
     service = AIAdvisorService()
     _stub_context(service, monkeypatch)
     assert not service.api_key
-    with pytest.raises(AIAdvisorError, match="AI provider API key not configured"):
+    with pytest.raises(AIAdvisorError, match="AI provider API key not configured") as refused:
         await service.chat_stream(db, test_user.id, "How much did I save this month?", base_currency="SGD")
+    assert refused.value.status_code == 503
 
     service.api_key = "test-key"
     result = await service.chat_stream(db, test_user.id, "How much did I save this month?", base_currency="SGD")
@@ -182,7 +183,7 @@ async def test_chat_stream_requires_the_environment_api_key(db: AsyncSession, te
 
 
 async def test_chat_stream_ignores_a_stored_scene_binding(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
-    """A row of `llm_scene_bindings` for `advisor.chat` changes neither the model of the answer nor its cache key (#2953)."""
+    """A row of `llm_scene_bindings` for `advisor.chat` does not change the model of the answer (#2953)."""
     provider = LlmProvider(
         user_id=test_user.id, label="stored", protocol=ProtocolFamily.OPENAI_COMPATIBLE, api_key_ciphertext="x", api_key_version=1
     )
