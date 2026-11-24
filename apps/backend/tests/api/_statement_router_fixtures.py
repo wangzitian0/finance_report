@@ -40,7 +40,6 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import Account, AccountType, JournalEntry
-from src.llm.base import Modality, ModelSpec
 from src.platform import DomainError
 from src.reconciliation.orm.reconciliation import ReconciliationMatch
 from src.runtime import StorageError
@@ -117,15 +116,6 @@ async def expect_status(
     if match is not None:
         assert match.lower() in str(exc.value.detail).lower()
     return exc.value
-
-
-def patch_catalog(monkeypatch: pytest.MonkeyPatch, modalities: frozenset[Modality] | None = None) -> None:
-    async def fake_catalog_get(self, model_id):
-        if modalities is None:
-            return None
-        return ModelSpec(id=model_id, provider_id="env", modalities=modalities)
-
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
 
 
 def failing_storage(

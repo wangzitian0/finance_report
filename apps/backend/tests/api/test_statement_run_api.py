@@ -104,7 +104,7 @@ async def _failed_first_run(db, user, statement_id):
 
 
 async def test_post_runs_starts_a_rerun_with_hints_and_digest(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+    client, db, monkeypatch, storage_stub, test_user
 ):
     statement = await _statement(db, test_user)
     first_id = await _failed_first_run(db, test_user, statement.id)
@@ -113,7 +113,7 @@ async def test_post_runs_starts_a_rerun_with_hints_and_digest(
 
     body = (
         response := await client.post(
-            f"/statements/{statement.id}/runs", json={"kind": "extract", "hints": hints, "model": "vendor/vision-x"}
+            f"/statements/{statement.id}/runs", json={"kind": "extract", "hints": hints}
         )
     ).json()
     assert response.status_code == 202 and set(body) == RUN_FIELDS and body["state"] in ("requested", "running")
@@ -134,9 +134,9 @@ async def test_post_runs_starts_a_rerun_with_hints_and_digest(
         "rerun",
         str(first_id),
         hints,
-        "vendor/vision-x",
+        None,
         PARSING_PROMPT_TEMPLATE_VERSION,
-        run_prompt_digest(PARSING_PROMPT_TEMPLATE_VERSION, "vendor/vision-x", RunHints(**hints)),
+        run_prompt_digest(PARSING_PROMPT_TEMPLATE_VERSION, None, RunHints(**hints)),
     )
     runs = await _runs(db, statement.id)
     assert ([r.seq for r in runs], str(runs[1].id), runs[1].hints, [j.run_id for j in jobs], jobs[0].model) == (
@@ -144,7 +144,7 @@ async def test_post_runs_starts_a_rerun_with_hints_and_digest(
         body["id"],
         hints,
         [runs[1].id],
-        "vendor/vision-x",
+        None,
     )
     assert (
         await db.scalar(
@@ -156,7 +156,7 @@ async def test_post_runs_starts_a_rerun_with_hints_and_digest(
 
 
 async def test_post_runs_may_omit_body_or_accept_hint_limits(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+    client, db, monkeypatch, storage_stub, test_user
 ):
     s_empty, s_limits = (
         await _statement(db, test_user, status=BankStatementStatus.REJECTED),
@@ -185,6 +185,8 @@ async def test_post_runs_may_omit_body_or_accept_hint_limits(
         {"hints": {"note": "n" * 501}},
         {"hints": {"note": "bell\x07"}},
         {"hints": {"keywords": ["a"], "unknown": 1}},
+        {"kind": "extract", "model": "vendor/vision-x"},
+        {"kind": "classify", "model": "vendor/vision-x"},
     ],
     ids=[
         "unknown_kind",
@@ -195,10 +197,12 @@ async def test_post_runs_may_omit_body_or_accept_hint_limits(
         "501_note",
         "control",
         "extra_hint_field",
+        "model_on_extract",
+        "model_on_classify",
     ],
 )
 async def test_post_runs_rejects_a_body_outside_the_limits(
-    body, client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+    body, client, db, monkeypatch, storage_stub, test_user
 ):
     statement = await _statement(db, test_user)
     jobs = _capture_dispatch(monkeypatch)
@@ -208,7 +212,7 @@ async def test_post_runs_rejects_a_body_outside_the_limits(
 
 @pytest.mark.parametrize("foreign", [True, False])
 async def test_post_runs_missing_or_foreign_statement_gives_404(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user, foreign
+    client, db, monkeypatch, storage_stub, test_user, foreign
 ):
     jobs = _capture_dispatch(monkeypatch)
     if foreign:
@@ -223,7 +227,7 @@ async def test_post_runs_missing_or_foreign_statement_gives_404(
 
 
 async def test_post_runs_of_a_csv_statement_with_hints_gives_400(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+    client, db, monkeypatch, storage_stub, test_user
 ):
     statement = await _statement(db, test_user, name="bank.csv")
     jobs = _capture_dispatch(monkeypatch)
@@ -288,7 +292,7 @@ async def test_get_runs_lists_the_attempts_in_order_with_their_hints(client, db,
 
 
 async def test_get_runs_shows_two_runs_with_identical_results_as_two_rows(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+    client, db, monkeypatch, storage_stub, test_user
 ):
     statement = await _statement(db, test_user)
     _capture_dispatch(monkeypatch)
@@ -357,7 +361,7 @@ async def test_the_retry_route_and_its_request_schema_are_gone(client, db, test_
     ],
 )
 async def test_status_change_after_initial_read_gives_409_and_no_write(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user, action, payload, race_status
+    client, db, monkeypatch, storage_stub, test_user, action, payload, race_status
 ):
     statement = await _statement(db, test_user)
     values = {"status": race_status}
@@ -417,7 +421,7 @@ async def test_get_runs_lists_a_run_whose_stored_hints_no_longer_validate(client
 
 
 async def test_hints_on_a_csv_statement_give_400_before_any_storage_read(
-    client, db, monkeypatch, model_catalog_stub, test_user
+    client, db, monkeypatch, test_user
 ):
     statement = await _statement(db, test_user, name="bank.csv")
     mock_storage = failing_storage(monkeypatch, method="get_object")
@@ -428,7 +432,7 @@ async def test_hints_on_a_csv_statement_give_400_before_any_storage_read(
 
 
 async def test_a_reject_and_a_rerun_at_once_give_one_winner_and_one_409(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+    client, db, monkeypatch, storage_stub, test_user
 ):
     _capture_dispatch(monkeypatch)
     for round_number in range(6):
@@ -466,20 +470,22 @@ async def test_classify_run_dispatch_failure_and_rejections_validation(client, d
     ).status_code == 422 and {"loc", "msg", "type"} <= set(bad.json()["detail"][0])
 
 
-async def test_post_runs_preserves_explicit_default_multimodal_model(
-    client, db, monkeypatch, storage_stub, model_catalog_stub, test_user
-):
-    from src.config import settings
+async def test_post_runs_does_not_read_the_model_catalog(client, db, monkeypatch, storage_stub, test_user):
+    """A rerun starts while every catalog lookup fails (#2953 AC2). The request has no model to check."""
+    from src.llm.extension.catalog import LitellmCatalog
 
+    async def catalog_down(self, *args, **kwargs):
+        raise AssertionError("The rerun route read the model catalog.")
+
+    monkeypatch.setattr(LitellmCatalog, "get", catalog_down)
+    monkeypatch.setattr(LitellmCatalog, "list_models", catalog_down)
     statement = await _statement(db, test_user, status=BankStatementStatus.REJECTED)
     jobs = _capture_dispatch(monkeypatch)
-    default_model = settings.multimodal_model
 
-    response = await client.post(f"/statements/{statement.id}/runs", json={"model": default_model})
+    response = await client.post(f"/statements/{statement.id}/runs", json={})
 
     assert response.status_code == 202, response.text
-    assert response.json()["model"] == default_model
-    assert [job.model for job in jobs] == [default_model]
+    assert (response.json()["model"], [job.model for job in jobs]) == (None, [None])
 
 
 async def _finished_run(db, user, statement_id, kind: RunKind, result_summary: dict):

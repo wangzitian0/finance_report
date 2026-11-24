@@ -81,7 +81,6 @@ from src.extraction import (
     track_parse_task as _track_task,
     validate_balance_chain,
 )
-from src.llm import LitellmCatalog, Modality
 from src.observability import ErrorIds, ensure_request_id, get_logger, safe_error_message
 from src.platform import (
     BadGatewayError,
@@ -197,16 +196,6 @@ def _posting_count_or_conflict(outcome: StatementPostingOutcome) -> int:
     if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
         raise ConflictError(f"Economic review required: {', '.join(outcome.review_reasons)}")
     return outcome.created_count
-
-
-async def _validate_vision_model(model: str | None) -> None:
-    if not model:
-        return
-    spec = await LitellmCatalog().get(model)
-    if spec is None:
-        raise ValidationFailedError("Invalid model selection. Choose a model from /llm/catalog.")
-    if not spec.accepts(Modality.IMAGE):
-        raise ValidationFailedError("Selected model does not support image/PDF inputs.")
 
 
 async def _resolve_uploaded_documents(
@@ -352,7 +341,6 @@ async def _queue_statement_reparse(
     user_id: UUID,
     *,
     allowed_statuses: frozenset[BankStatementStatus],
-    model: str | None = None,
     hints: RunHints | None = None,
     strict_hints: bool = False,
     while_pending: Callable[[], Awaitable[StatementSummary]] | None = None,
@@ -370,7 +358,6 @@ async def _queue_statement_reparse(
     filename = uploaded_document.original_filename
     file_type = filename.rsplit(".", 1)[-1].lower() if "." in filename else "pdf"
     request_id = ensure_request_id()
-    model_to_use = model
     # The rerun gives the institution as a hint only when the current source result states it. An institution
     # that only the reviewer stated is no source fact: the rerun reads the source again without it (#3167).
     source_result = await get_current_statement_extraction_result(
@@ -388,7 +375,7 @@ async def _queue_statement_reparse(
         user_id=user_id,
         file_type=file_type,
         hints=hints or RunHints(),
-        model=model_to_use,
+        model=None,
         allowed_statuses=allowed_statuses,
         strict_hints=strict_hints,
         load_content=lambda: run_in_threadpool(StorageService().get_object, storage_key),
@@ -408,7 +395,7 @@ async def _queue_statement_reparse(
             account_id=statement.account_id,
             file_hash=statement.file_hash,
             storage_key=storage_key,
-            model=model_to_use,
+            model=None,
             request_id=request_id,
         ),
         content=started.content,
@@ -623,13 +610,11 @@ async def create_statement_run(
         return next(run for run in await list_runs(db, statement_id, user_id) if run.id == run_id)
     if statement.status not in _RERUN_STATUSES:
         raise ValidationFailedError("Can only run again for parsed, rejected, or stuck parsing statements")
-    await _validate_vision_model(request.model)
     try:
         run_id = await _queue_statement_reparse(
             db,
             statement,
             user_id,
-            model=request.model,
             hints=request.hints,
             allowed_statuses=_RERUN_STATUSES,
             strict_hints=True,

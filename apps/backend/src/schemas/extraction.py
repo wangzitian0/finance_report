@@ -9,7 +9,7 @@ from enum import Enum
 from typing import TYPE_CHECKING, Annotated, Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
 from src.extraction import (
     BankStatementStatus,
@@ -53,13 +53,6 @@ class StatementRunRequest(BaseModel):
         default_factory=RunHints,
         description="Keywords and a note that guide the run. Empty hints leave the prompt unchanged.",
     )
-    model: str | None = Field(default=None, description="A vision model for an extract run. A classify run takes none.")
-
-    @model_validator(mode="after")
-    def _classify_takes_no_model(self) -> StatementRunRequest:
-        if self.kind == "classify" and self.model is not None:
-            raise ValueError("A classify run takes no model.")
-        return self
 
 
 class AtomicTransactionResponse(BaseModel):

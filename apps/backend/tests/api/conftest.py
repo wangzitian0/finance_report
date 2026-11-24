@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import pytest
 
-from src.llm.base import Modality, ModelSpec
-
 
 class DummyStorage:
     def upload_bytes(self, *, key: str, content: bytes, content_type: str | None = None) -> None:
@@ -22,11 +20,3 @@ class DummyStorage:
 @pytest.fixture
 def storage_stub(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("src.routers.statements.StorageService", DummyStorage)
-
-
-@pytest.fixture
-def model_catalog_stub(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_catalog_get(self, model_id):
-        return ModelSpec(id=model_id, provider_id="env", modalities=frozenset({Modality.TEXT, Modality.IMAGE}))
-
-    monkeypatch.setattr("src.routers.statements.LitellmCatalog.get", fake_catalog_get)
