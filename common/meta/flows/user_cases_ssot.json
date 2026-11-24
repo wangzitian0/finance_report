@@ -983,7 +983,7 @@
           "ui_surface": "/chat",
           "component": "ChatPageClient",
           "backend_endpoint": "POST /chat",
-          "invariant": "AI operates in read-only sandbox calling accounting queries with streaming response",
+          "invariant": "AI operates in read-only sandbox calling accounting queries with streaming response; every message reaches the model, and the rules (secrets, read-only, finance scope, data limits) stand in the system prompt in priority order, with no keyword list that refuses a message",
           "backend_test_ref": "apps/backend/tests/ai/test_ai_advisor_service.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/chatPage.test.tsx",
           "e2e_test_ref": "tests/e2e/test_assistant_chat_journey.py",

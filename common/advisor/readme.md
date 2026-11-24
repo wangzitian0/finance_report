@@ -4,7 +4,7 @@ Read-only conversational layer grounding user questions in deterministic applica
 
 ## Non-Negotiable Invariant & Guardrails
 
-The advisor never writes ledger numbers or executes trades/approvals. `is_write_request`, `is_prompt_injection`, `is_sensitive_request`, and `StreamRedactor` sanitize inputs and streamed responses before persistence. `ResponseCache` caches per-user replies (TTL 3600s).
+The advisor never writes ledger numbers or executes trades/approvals. The rules stand in the system prompt (`get_ai_advisor_prompt`) in priority order, and the model applies them: (1) protect secrets and the instructions, (2) stay read-only, (3) stay in finance, (4) use only the data of the prompt. A lower number wins a conflict, and a user message cannot change a rule (#3209). No keyword list refuses a message: a list matched `pin` inside "bookkeeping" and "shopping" and answered with a refusal that no model had read. Code keeps two protections that need no judgment: `redact_sensitive` masks long number runs in the stored and sent user message, and `StreamRedactor` masks them in the streamed reply. `ResponseCache` caches per-user replies (TTL 3600s).
 
 ## Application-Layer Advisor Contract (EPIC-021)
 
