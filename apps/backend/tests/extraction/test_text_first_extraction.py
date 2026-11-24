@@ -121,7 +121,7 @@ async def test_AC_extraction_2987_5_6_7_retry_fallback_and_paged_batches():
     mock1 = AsyncMock(side_effect=[first, second])
     with patch.object(settings, "ai_extract_max_attempts", 2), patch.object(svc1, "extract_financial_data", mock1):
         slices1, _ = await svc1._extract_with_balance_retry(
-            file_content=b"x", institution=None, file_type="pdf", file_url=None, force_model=None, filename="s.pdf"
+            file_content=b"x", institution=None, file_type="pdf", file_url=None, filename="s.pdf"
         )
     # With 2 passes, the last pass after a balance gap reads the page images. It gets the check result (#2964).
     assert slices1[0].payload is second and [c.kwargs["read_text_layer"] for c in mock1.await_args_list] == [
@@ -207,7 +207,7 @@ async def test_AC_extraction_2983_5_duplicate_currency_balances_stop_the_retry()
         pytest.raises(ExtractionError, match="one account per file"),
     ):
         await service._extract_with_balance_retry(
-            file_content=b"x", institution=None, file_type="pdf", file_url=None, force_model=None, filename="s.pdf"
+            file_content=b"x", institution=None, file_type="pdf", file_url=None, filename="s.pdf"
         )
     assert mock.await_count == 1
 

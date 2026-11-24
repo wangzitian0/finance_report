@@ -159,7 +159,6 @@ async def test_AC_extraction_2960_9_the_use_case_beats_while_parse_document_runs
             account_id=None,
             file_hash=statement.file_hash,
             storage_key="uploads/statement.pdf",
-            model=None,
             request_id="req-2960",
         ),
         content=b"content",

@@ -331,7 +331,6 @@ async def _enqueue_parse_job(
         statement_id=str(job.statement_id),
         filename=job.filename,
         file_type=file_type,
-        model_to_use=job.model,
     )
 
 
@@ -375,7 +374,6 @@ async def _queue_statement_reparse(
         user_id=user_id,
         file_type=file_type,
         hints=hints or RunHints(),
-        model=None,
         allowed_statuses=allowed_statuses,
         strict_hints=strict_hints,
         load_content=lambda: run_in_threadpool(StorageService().get_object, storage_key),
@@ -395,7 +393,6 @@ async def _queue_statement_reparse(
             account_id=statement.account_id,
             file_hash=statement.file_hash,
             storage_key=storage_key,
-            model=None,
             request_id=request_id,
         ),
         content=started.content,
@@ -475,7 +472,6 @@ async def upload_statement(
     await db.rollback()
     statement_id = uuid4()
     request_id = ensure_request_id()
-    model_to_use = None
     file_hash_prefix = file_hash[:12]
     logger.info(
         "statement.upload.accepted",
@@ -486,8 +482,6 @@ async def upload_statement(
         filename=filename,
         file_type=extension,
         institution=institution or "(auto-detect)",
-        model_requested=None,
-        model_to_use=model_to_use,
         file_size_bytes=len(content),
         file_hash_prefix=file_hash_prefix,
         has_account_id=account_id is not None,
@@ -509,7 +503,6 @@ async def upload_statement(
             statement_id=str(statement_id),
             phase="storage_upload_failed",
             progress=None,
-            model_to_use=model_to_use,
             filename=filename,
             file_type=extension,
             file_size_bytes=len(content),
@@ -548,7 +541,6 @@ async def upload_statement(
             actor_kind=RunActorKind.USER,
             trigger=RunTrigger.UPLOAD,
             hints=RunHints(),
-            model=model_to_use,
         )
         run_id = run.id
         await db.commit()
@@ -580,7 +572,6 @@ async def upload_statement(
             account_id=account_id,
             file_hash=file_hash,
             storage_key=storage_key,
-            model=model_to_use,
             request_id=request_id,
         ),
         content=content,

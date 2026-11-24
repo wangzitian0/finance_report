@@ -242,7 +242,6 @@ async def test_a_new_extract_run_ends_the_confirmation(db, test_user):
         user_id=test_user.id,
         file_type="csv",
         hints=RunHints(),
-        model=None,
         allowed_statuses=frozenset({BankStatementStatus.PARSED}),
         strict_hints=False,
         load_content=content,

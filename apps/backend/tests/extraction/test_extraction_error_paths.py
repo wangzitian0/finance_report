@@ -126,7 +126,7 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
 
 
 @pytest.mark.parametrize(
-    ("stream_exc", "accum_val", "file_content", "file_type", "file_url", "force_model", "expected", "err_match"),
+    ("stream_exc", "accum_val", "file_content", "file_type", "file_url", "expected", "err_match"),
     [
         (
             ModelHTTPError(status_code=429, model_name="m", body={"error": "quota"}),
@@ -134,7 +134,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             b"content",
             "pdf",
             "https://example.com/file.pdf",
-            None,
             None,
             "Extraction failed \\(rate_limit\\): Model .* rate limited",
         ),
@@ -145,7 +144,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "pdf",
             "https://example.com/file.pdf",
             None,
-            None,
             "timed out",
         ),
         (
@@ -155,7 +153,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "pdf",
             "https://example.com/file.pdf",
             None,
-            None,
             "Extraction failed \\(http_error\\): Model .* failed: .*502",
         ),
         (
@@ -164,7 +161,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             b"content",
             "pdf",
             "https://example.com/file.pdf",
-            None,
             {"account_last4": "1234"},
             None,
         ),
@@ -175,7 +171,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "pdf",
             "https://example.com/file.pdf",
             None,
-            None,
             "strict JSON object",
         ),
         (
@@ -184,7 +179,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             b"content",
             "pdf",
             "https://example.com/file.pdf",
-            "google/gemini-2.0-test",
             {"account_last4": "1234", "transactions": []},
             None,
         ),
@@ -195,7 +189,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "pdf",
             "https://example.com/file.pdf",
             None,
-            None,
             "Extraction failed \\(empty_response\\): Model .* returned empty response",
         ),
         (
@@ -204,7 +197,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             b"content",
             "pdf",
             "https://example.com/file.pdf",
-            None,
             None,
             "Extraction failed \\(model_error\\): Model .* failed: ValueError",
         ),
@@ -215,7 +207,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             "pdf",
             "https://example.com/file.pdf",
             None,
-            None,
             "strict JSON object.*no arrays",
         ),
         (
@@ -224,7 +215,6 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             None,
             "pdf",
             "https://example.com/statement.pdf",
-            None,
             {"account_last4": "9999", "transactions": []},
             None,
         ),
@@ -234,17 +224,16 @@ async def test_extract_financial_data_input_guards(monkeypatch, content, file_ty
             None,
             "png",
             "https://example.com/statement.png",
-            None,
             {"account_last4": "8888", "transactions": []},
             None,
         ),
     ],
 )
 async def test_extract_financial_data_stream_outcomes(
-    monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+    monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, expected, err_match
 ):
     await assert_stream_extract_case(
-        monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, force_model, expected, err_match
+        monkeypatch, stream_exc, accum_val, file_content, file_type, file_url, expected, err_match
     )
 
 

@@ -62,7 +62,6 @@ async def _run(readings: list, *, content: bytes, max_attempts: int, institution
             institution=institution,
             file_type="pdf",
             file_url=None,
-            force_model=None,
             filename="s.pdf",
         )
     return slices[0].payload, mock
@@ -277,7 +276,7 @@ async def test_each_account_of_a_paged_statement_takes_the_period_of_the_documen
     # Three calls: the header call and one call for each page batch. The text reply is not read again from images.
     with patch.object(service, "_extract_json_with_model", AsyncMock(side_effect=replies)):
         slices, _ = await service._extract_with_balance_retry(
-            file_content=content, institution=None, file_type="pdf", file_url=None, force_model=None, filename="s.pdf"
+            file_content=content, institution=None, file_type="pdf", file_url=None, filename="s.pdf"
         )
     assert [(s.payload["account_last4"], s.payload["period_start"], s.payload["period_end"]) for s in slices] == [
         ("1234", "2025-01-01", "2025-01-31"),

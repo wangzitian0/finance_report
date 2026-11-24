@@ -496,7 +496,6 @@ async def test_parse_statement_background_brokerage_review_and_import(client, db
             account_id=None,
             file_hash=fhash,
             storage_key="statements/moomoo.pdf",
-            model=None,
         ),
         content=b"%PDF-1.7",
         session_maker=create_session_maker_from_db(db),

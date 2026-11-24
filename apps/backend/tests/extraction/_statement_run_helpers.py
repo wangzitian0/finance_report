@@ -368,7 +368,6 @@ async def _statement_with_run(
     name: str = "wiring.csv",
     hints: RunHints | None = None,
     model: str | None = None,
-    job_model: str | None = None,
 ) -> tuple[UUID, ParseJob]:
     file_hash = hashlib.sha256(content).hexdigest()
     statement = StatementSummaryFactory.build(
@@ -403,7 +402,6 @@ async def _statement_with_run(
         account_id=None,
         file_hash=file_hash,
         storage_key=f"statements/{name}",
-        model=job_model or model,
         request_id=f"req-{name}",
     )
 
@@ -636,7 +634,6 @@ def make_parse_job(statement_id: UUID, user_id: UUID, name: str, file_hash: str,
         account_id=None,
         file_hash=file_hash,
         storage_key=f"statements/{name}",
-        model=None,
         request_id=f"req-{name}",
     )
 
@@ -990,7 +987,7 @@ async def parse_mock_payload(payload: dict, *, institution: str = "CMB"):
 
 
 async def assert_stream_extract_case(
-    monkeypatch, outcome_exc, reply, file_content, file_type, file_url, force_model, expected, err_match
+    monkeypatch, outcome_exc, reply, file_content, file_type, file_url, expected, err_match
 ) -> None:
     """One extraction call where the fake model raises ``outcome_exc`` or answers ``reply``."""
     service = ExtractionService()
@@ -1004,15 +1001,12 @@ async def assert_stream_extract_case(
 
     sent = install_fake_model(monkeypatch, answer)
     kwargs = {"file_content": file_content, "institution": "DBS", "file_type": file_type, "file_url": file_url}
-    if force_model:
-        kwargs["force_model"] = force_model
     if err_match:
         with pytest.raises(ExtractionError, match=err_match):
             await service.extract_financial_data(**kwargs)
         return
     assert await service.extract_financial_data(**kwargs) == expected
-    if force_model:
-        assert sent.models[0] == force_model
+    assert sent.models[0] == service.multimodal_model
 
 
 def integrity_payload(**changes) -> dict:
@@ -1730,7 +1724,6 @@ async def verify_worker_retry_reaper_and_user_start(db, db_engine, test_user) ->
                 user_id=uid,
                 file_type=ft,
                 hints=hints,
-                model=None,
                 allowed_statuses=statuses,
                 strict_hints=True,
                 load_content=load_fn,
@@ -2237,7 +2230,7 @@ async def verify_multicurrency_pdf_batches(db, test_user) -> None:
     service._extract_json_with_model = AsyncMock(side_effect=[meta, first, second])
     source = DocumentSource.resolve(path=Path("synthetic/multicurrency.pdf"), content=output.getvalue())
     result = await service.parse_document(
-        source, user_id=test_user.id, account_id=account.id, db=db, force_model="synthetic-vision"
+        source, user_id=test_user.id, account_id=account.id, db=db
     )
     summary = await db.scalar(
         select(StatementSummary).where(
@@ -3231,7 +3224,6 @@ async def verify_handle_parse_failure_lineage(db, test_user) -> None:
             account_id=statement.account_id,
             file_hash=statement.file_hash,
             storage_key=f"statements/{statement.id}/abc123.pdf",
-            model=None,
         ),
         message="Extraction failed (json_parse): AI response must be a strict JSON object.",
     )
@@ -3274,7 +3266,6 @@ async def verify_parse_background_storage_error(db, test_user, monkeypatch) -> N
             account_id=None,
             file_hash="h_storage_err",
             storage_key="p",
-            model=None,
         ),
         content=b"content",
         session_maker=create_session_maker_from_db(db),

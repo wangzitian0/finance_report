@@ -164,7 +164,6 @@ async def test_external_io_inside_open_app_transaction_raises_and_ingestion_pass
             filename="doc.pdf",
             file_hash=file_hash,
             institution="DBS",
-            model=None,
         ),
         content=None,
     )

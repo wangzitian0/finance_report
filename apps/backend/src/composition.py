@@ -639,7 +639,6 @@ async def execute_statement_brokerage_import(
             request_id=request_id,
             statement_id=str(statement_id),
             phase="brokerage_import_failed",
-            model_to_use=None,
             error_type=type(exc).__name__,
             safe_error_message=safe_error_message(str(exc)),
         )
@@ -750,7 +749,6 @@ async def import_statement_brokerage_positions(
         request_id=request_id,
         statement_id=str(captured_statement_id),
         phase="brokerage_import_started",
-        model_to_use=None,
         broker=statement.institution,
         parsed_positions=len(transactions),
     )
@@ -771,7 +769,6 @@ async def import_statement_brokerage_positions(
         request_id=request_id,
         statement_id=str(captured_statement_id),
         phase="brokerage_import_completed",
-        model_to_use=None,
         broker=import_result.broker,
         parsed_positions=import_result.parsed_positions,
         created_atomic_positions=import_result.created_atomic_positions,

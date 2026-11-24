@@ -153,7 +153,6 @@ async def test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statemen
         account_id=None,
         file_hash=file_hash,
         storage_key="statements/race.pdf",
-        model=None,
         request_id="req-race",
     )
     maker = create_session_maker_from_db(db)

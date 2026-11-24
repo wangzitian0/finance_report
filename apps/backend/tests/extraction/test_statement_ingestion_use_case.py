@@ -75,7 +75,6 @@ def _job(*, statement_id=None, user_id=None, file_hash: str = "statement-ingesti
         account_id=None,
         file_hash=file_hash,
         storage_key="uploads/statement.pdf",
-        model=None,
         request_id="req-1913",
     )
 

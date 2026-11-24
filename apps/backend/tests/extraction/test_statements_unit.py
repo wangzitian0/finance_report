@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import inspect
 from datetime import date
 from decimal import Decimal
@@ -31,8 +32,12 @@ pytestmark = pytest.mark.asyncio
 async def test_build_statement_storage_key_and_high_confidence_guards(test_user) -> None:
     sid = uuid4()
     assert (
-        statements_router.build_statement_storage_key(statement_id=sid, file_hash="abcdef1234567890ffff", extension="PDF"),
-        statements_router.build_statement_storage_key(statement_id=sid, file_hash="abcdef1234567890ffff", extension="exe"),
+        statements_router.build_statement_storage_key(
+            statement_id=sid, file_hash="abcdef1234567890ffff", extension="PDF"
+        ),
+        statements_router.build_statement_storage_key(
+            statement_id=sid, file_hash="abcdef1234567890ffff", extension="exe"
+        ),
     ) == (f"statements/{sid}/abcdef1234567890.pdf", f"statements/{sid}/abcdef1234567890.bin")
     statement_pipeline.PENDING_PARSE_TASKS.clear()
     await statement_pipeline.wait_for_parse_tasks()
@@ -73,16 +78,41 @@ async def test_rejected_statement_transactions_excluded_and_user_isolation(db, t
     statement.status = BankStatementStatus.REJECTED
     db.add(statement)
     await db.flush()
-    txn = await add_txn(db, statement, txn_date=date(2025, 1, 15), description="Rejected statement transaction", amount=Decimal("50.00"), direction="IN")
+    txn = await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 15),
+        description="Rejected statement transaction",
+        amount=Decimal("50.00"),
+        direction="IN",
+    )
     await db.commit()
-    scoped_txns = (await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id, statement.id)))).all()
-    global_txns = (await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id)))).all()
+    scoped_txns = (
+        await db.scalars(
+            select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id, statement.id))
+        )
+    ).all()
+    global_txns = (
+        await db.scalars(select(AtomicTransaction.id).where(effective_statement_transaction_filter(test_user.id)))
+    ).all()
     assert scoped_txns == [] and txn.id not in global_txns
 
-    other_user = User(id=uuid4(), email=f"other_{uuid4().hex[:8]}@example.com", name="Other User", hashed_password="test_hashed_password")
+    other_user = User(
+        id=uuid4(),
+        email=f"other_{uuid4().hex[:8]}@example.com",
+        name="Other User",
+        hashed_password="test_hashed_password",
+    )
     db.add(other_user)
     await db.flush()
-    other_doc = UploadedDocument(id=uuid4(), user_id=other_user.id, file_path="other_path.pdf", file_hash="other_hash_123", original_filename="other.pdf", document_type=DocumentType.BANK_STATEMENT)
+    other_doc = UploadedDocument(
+        id=uuid4(),
+        user_id=other_user.id,
+        file_path="other_path.pdf",
+        file_hash="other_hash_123",
+        original_filename="other.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
     db.add(other_doc)
     await db.flush()
     iso_stmt = build_statement(test_user.id, "statement_hash_456", 80)
@@ -91,7 +121,14 @@ async def test_rejected_statement_transactions_excluded_and_user_isolation(db, t
     await db.commit()
     assert await statement_pipeline.resolve_uploaded_document(db, iso_stmt, test_user.id) is None
 
-    user_doc = UploadedDocument(id=uuid4(), user_id=test_user.id, file_path="user_path.pdf", file_hash="statement_hash_456", original_filename="user.pdf", document_type=DocumentType.BANK_STATEMENT)
+    user_doc = UploadedDocument(
+        id=uuid4(),
+        user_id=test_user.id,
+        file_path="user_path.pdf",
+        file_hash="statement_hash_456",
+        original_filename="user.pdf",
+        document_type=DocumentType.BANK_STATEMENT,
+    )
     db.add(user_doc)
     iso_stmt.uploaded_document_id = user_doc.id
     await db.commit()
@@ -100,7 +137,10 @@ async def test_rejected_statement_transactions_excluded_and_user_isolation(db, t
 
 
 async def test_create_statement_account_dedup_and_watchdog_removed(db, test_user) -> None:
-    s1, s2 = build_statement(test_user.id, "hash_confirm_dedup_1", 80), build_statement(test_user.id, "hash_confirm_dedup_2", 80)
+    s1, s2 = (
+        build_statement(test_user.id, "hash_confirm_dedup_1", 80),
+        build_statement(test_user.id, "hash_confirm_dedup_2", 80),
+    )
     for s in (s1, s2):
         s.account_id, s.institution, s.account_last4, s.currency = None, "Standard Chartered Bank", None, "SGD"
     db.add_all([s1, s2])
@@ -110,3 +150,41 @@ async def test_create_statement_account_dedup_and_watchdog_removed(db, test_user
     assert (a1.name, a2.id, s2.account_id) == ("Standard Chartered Bank", a1.id, a1.id)
     assert "reset_for_retry" not in inspect.signature(statements_router._queue_statement_reparse).parameters
     assert not hasattr(supervisor, "reset_stale_parsing_jobs") and not hasattr(supervisor, "PARSING_STALE_THRESHOLD")
+
+
+_PARSE_JOB = {
+    "statement_id": "00000000-0000-0000-0000-000000000001",
+    "run_id": "00000000-0000-0000-0000-000000000002",
+    "filename": "a.pdf",
+    "institution": "DBS",
+    "user_id": "00000000-0000-0000-0000-000000000003",
+    "account_id": None,
+    "file_hash": "h",
+    "storage_key": "statements/a.pdf",
+    "request_id": "req",
+}
+
+
+def test_AC_llm_2953_no_caller_can_choose_a_model_for_a_parse() -> None:
+    """The three model roles come from the environment: no job, run starter or public service method takes a model."""
+    from src.extraction import ExtractionService, ParseJob, start_user_extract_run
+
+    names = {"model", "force_model", "model_to_use"}
+    assert not names & {f.name for f in dataclasses.fields(ParseJob)}
+    assert not names & inspect.signature(start_user_extract_run).parameters.keys()
+    assert not names & inspect.signature(statements_router._queue_statement_reparse).parameters.keys()
+    chosen = {
+        name: sorted(names & inspect.signature(fn).parameters.keys())
+        for name, fn in inspect.getmembers(ExtractionService, inspect.isfunction)
+        if not name.startswith("_") and names & inspect.signature(fn).parameters.keys()
+    }
+    assert chosen == {}
+
+
+def test_AC_llm_2953_a_queued_parse_with_a_legacy_model_key_still_loads() -> None:
+    """A job that the older release queued carries `model`. The durable worker must ignore it, not fail."""
+    from src.extraction import ParseJob
+
+    legacy = ParseJob.from_prefect_params({**_PARSE_JOB, "model": "vendor/legacy-model"})
+    assert "model" not in legacy.to_prefect_params()
+    assert legacy.to_prefect_params() == ParseJob.from_prefect_params(_PARSE_JOB).to_prefect_params()

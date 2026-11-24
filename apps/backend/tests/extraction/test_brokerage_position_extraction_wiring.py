@@ -107,7 +107,6 @@ async def test_AC_B1_extract_financial_data_selects_prompt_by_document_kind(
         file_content=b"\x89PNG\r\n",
         institution=institution,
         file_type="png",
-        force_model="test-vision-model",
         filename=filename,
     )
     assert captured["prompt"].startswith(expected_prefix)
@@ -261,7 +260,6 @@ async def test_AC_B4_AC_B6_moomoo_positions_table_extracts_and_imports(client, d
             account_id=None,
             file_hash=file_hash,
             storage_key="statements/moomoo-positions.pdf",
-            model=None,
         ),
         content=b"%PDF-1.7",
         session_maker=create_session_maker_from_db(db),

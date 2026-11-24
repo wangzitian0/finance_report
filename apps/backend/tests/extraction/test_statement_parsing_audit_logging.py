@@ -86,7 +86,6 @@ async def _run_bg(db, statement: StatementSummary, request_id: str, content: byt
             account_id=None,
             file_hash=statement.file_hash,
             storage_key="statements/audit.pdf",
-            model="glm-5.1",
             request_id=request_id,
         ),
         content=content,
@@ -120,8 +119,8 @@ async def test_AC10_8_2_and_AC_observability_11_4_parse_logs(db, test_user, monk
         "statement_persisted",
     ]
     assert all(
-        (c["audit_event"], c["statement_id"], c["request_id"], c["model_to_use"])
-        == ("statement.parse.checkpoint", str(success.id), "req-success", "glm-5.1")
+        (c["audit_event"], c["statement_id"], c["request_id"])
+        == ("statement.parse.checkpoint", str(success.id), "req-success")
         for c in checkpoints
     )
     ext_done, done = (
@@ -157,10 +156,9 @@ async def test_AC10_8_2_and_AC_observability_11_4_parse_logs(db, test_user, monk
             failed["statement_id"],
             failed["request_id"],
             failed["phase"],
-            failed["model_to_use"],
             failed["error_type"],
             failed["safe_error_message"],
-        ) == ("statement.parse.failed", str(stmt.id), req_id, "extraction_started", "glm-5.1", "ExtractionError", msg)
+        ) == ("statement.parse.failed", str(stmt.id), req_id, "extraction_started", "ExtractionError", msg)
         assert "secret source bytes" not in failed["safe_error_message"]
         logs["error"].assert_not_called()
         logs["exception"].assert_not_called()
@@ -182,7 +180,6 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
         institution="Moomoo",
         payload=payload,
         request_id="req-brokerage",
-        model_to_use="glm-5.1",
     )
     calls = [(c.args[0], c.kwargs) for c in logs["info"].call_args_list]
     started, completed = (
@@ -194,7 +191,6 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
         started["statement_id"],
         started["request_id"],
         started["phase"],
-        started["model_to_use"],
         started["broker"],
         started["parsed_positions"],
     ) == (
@@ -202,7 +198,6 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
         str(statement.id),
         "req-brokerage",
         "brokerage_review_routing_started",
-        "glm-5.1",
         "Moomoo",
         1,
     )
@@ -210,14 +205,12 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
         completed["audit_event"],
         completed["statement_id"],
         completed["phase"],
-        completed["model_to_use"],
         completed["broker"],
         completed["parsed_positions"],
     ) == (
         "statement.brokerage_review_routing.completed",
         str(statement.id),
         "brokerage_review_routing_completed",
-        "glm-5.1",
         "Moomoo",
         1,
     )
@@ -241,7 +234,6 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
             institution="Moomoo",
             payload=payload,
             request_id="req-brokerage-failed",
-            model_to_use="glm-5.1",
         )
     failed = next(
         c.kwargs for c in logs["exception"].call_args_list if c.args[0] == "statement.brokerage_review_routing.failed"
@@ -251,7 +243,6 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
         failed["statement_id"],
         failed["request_id"],
         failed["phase"],
-        failed["model_to_use"],
         failed["error_type"],
         flush_calls[0],
         failed["safe_error_message"],
@@ -260,7 +251,6 @@ async def test_AC10_8_3_brokerage_review_routing_audit_checkpoints(db, test_user
         str(fail_stmt.id),
         "req-brokerage-failed",
         "brokerage_review_routing_failed",
-        "glm-5.1",
         "RuntimeError",
         1,
         "forced routing flush failure",

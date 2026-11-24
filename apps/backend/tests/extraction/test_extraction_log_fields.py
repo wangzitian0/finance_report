@@ -145,7 +145,7 @@ async def test_AC_extraction_2985_5_6_7_watchdog_attempt_and_silent_atomic_upser
         patch.object(service, "extract_financial_data", fake_extract),
     ):
         await service._extract_with_balance_retry(
-            file_content=b"x", institution=None, file_type="pdf", file_url=None, force_model=None, filename="s.pdf"
+            file_content=b"x", institution=None, file_type="pdf", file_url=None, filename="s.pdf"
         )
     assert seen == [1, 2] and "extract_attempt" not in structlog.contextvars.get_contextvars()
 
