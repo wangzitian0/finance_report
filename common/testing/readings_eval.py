@@ -8,8 +8,11 @@ normaliser that makes a case worse than its floor fails the gate, including the 
 wrong" case.
 
 Pure Python: no network, no API key, no DB, and no model call. The readings are frozen: no tool in the repository
-records them again (they came from prompts that the code no longer sends), so the gate grades the code that reads
-them, not the model.
+records them again (they came from prompts that the code no longer sends). The gate scores the stored reading against
+its truth with the normalisers of this module. It does NOT call the product parser: it protects the fixtures, the truth
+files and these normalisers from a hand edit that lowers a score. A regression of the product code is caught by
+``apps/backend/tests/integration/test_statement_corpus_journeys.py``, which runs 10 of the readings through the
+extraction pipeline.
 
 **Scope (anti-overclaim):** drift-detection power is bounded by the eval-set breadth documented in
 ``common/llm/readme.md#readings-eval``. CI green is NOT a correctness guarantee on an unseen statement (the staging
@@ -18,7 +21,6 @@ them, not the model.
 
 from __future__ import annotations
 
-import ast
 import json
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
@@ -35,27 +37,6 @@ from common.testing.readings_eval_baseline import (
 REPO_ROOT = Path(__file__).resolve().parents[2]
 READINGS_DIR = REPO_ROOT / "tests" / "fixtures" / "readings"
 GROUND_TRUTH_DIR = READINGS_DIR / "ground_truth"
-TOLERANCE = Decimal("0.01")
-VALIDATION_SOURCE = REPO_ROOT / "apps/backend/src/extraction/base/validation.py"
-
-
-def production_direction_aliases(
-    source: Path = VALIDATION_SOURCE,
-) -> tuple[frozenset[str], frozenset[str]]:
-    """Read the production IN/OUT alias literals; the lint job cannot import the backend."""
-    names = ("IN_DIRECTION_ALIASES", "OUT_DIRECTION_ALIASES")
-    tree = ast.parse(source.read_text(encoding="utf-8"))
-    literals = {
-        target.id: frozenset(ast.literal_eval(node.value))
-        for node in tree.body
-        if isinstance(node, ast.Assign)
-        for target in node.targets
-        if isinstance(target, ast.Name) and target.id in names
-    }
-    return literals[names[0]], literals[names[1]]
-
-
-_IN_DIRECTIONS, _OUT_DIRECTIONS = production_direction_aliases()
 
 
 def _response_text(response: object) -> str | None:
@@ -74,37 +55,6 @@ def _response_text(response: object) -> str | None:
             return None
     return None
 
-
-def _as_decimal(value: object) -> Decimal | None:
-    try:
-        return Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError):
-        return None
-
-
-def balance_violation(payload: dict) -> str | None:
-    """Return a violation message if the statement payload breaks the balance chain ``opening + sum = closing``."""
-    opening = _as_decimal(payload.get("opening_balance"))
-    closing = _as_decimal(payload.get("closing_balance"))
-    txns = payload.get("transactions")
-    if opening is None or closing is None or not isinstance(txns, list):
-        return "unparseable opening/closing/transactions"
-    net = Decimal("0")
-    for txn in txns:
-        amount = _as_decimal(txn.get("amount")) if isinstance(txn, dict) else None
-        if amount is None:
-            return "transaction with unparseable amount"
-        direction = str(txn.get("direction") or "").strip().upper() if isinstance(txn, dict) else ""
-        if direction in _IN_DIRECTIONS:
-            net += abs(amount)
-        elif direction in _OUT_DIRECTIONS:
-            net -= abs(amount)
-        else:
-            net += amount  # no direction -> trust the sign of the amount
-    diff = abs((opening + net) - closing)
-    if diff > TOLERANCE:
-        return f"balance chain broken: opening {opening} + net {net} != closing {closing} (diff {diff})"
-    return None
 
 # Floating-point slack so an identical re-measurement never trips the ratchet.
 EPSILON = 1e-6
@@ -331,6 +281,21 @@ def load_cases(
             )
         )
     return cases
+
+
+def orphan_readings(ground_truth_dir: Path = GROUND_TRUTH_DIR, readings_dir: Path | None = None) -> list[str]:
+    """Return one finding for each reading file that has no ground-truth file.
+
+    ``load_cases`` iterates the truth files, so a reading without a truth file would be stored, graded by nothing and
+    seen by nobody.
+    """
+    readings = readings_dir if readings_dir is not None else ground_truth_dir.parent
+    truth_ids = {p.name[: -len(".truth.json")] for p in ground_truth_dir.glob("*.truth.json")}
+    return [
+        f"{path.name} has no ground-truth file in {ground_truth_dir.name}/"
+        for path in sorted(readings.glob("*.json"))
+        if path.stem not in truth_ids
+    ]
 
 
 # --------------------------------------------------------------------------- #

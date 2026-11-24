@@ -335,8 +335,7 @@ def extraction_artifact_dependency_digest(
 ) -> str:
     """Compute a deterministic SHA-256 dependency digest over code, prompt, and source inputs.
 
-    Model ID is intentionally excluded so CI cassette lookup remains model-agnostic while
-    runtime provenance records `resolved_model_id` alongside this digest.
+    Model ID is intentionally excluded: runtime provenance records `resolved_model_id` alongside this digest.
     """
     normalized_hints = (hints or RunHints()).model_dump(mode="json")
     return canonical_json_digest(

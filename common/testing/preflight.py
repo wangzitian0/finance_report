@@ -301,7 +301,6 @@ CHECKS: tuple[Check, ...] = (
             "common/testing/check_readings_eval.py",
             "common/testing/readings_eval.py",
             "common/testing/readings_eval_baseline.py",
-            "apps/backend/src/extraction/base/validation.py",
         ),
         "tools/check_readings_eval.py",
         why="readings graded accuracy eval ratchet",

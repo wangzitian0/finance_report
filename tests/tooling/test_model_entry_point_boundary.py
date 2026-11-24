@@ -12,11 +12,17 @@ _TEST_ONLY_NAMES = ("TestModel", "FunctionModel")
 # The entry point of the app is the one caller of these (the guard of the tests against a model call inside an open
 # transaction wraps it).
 _ENTRY_POINT_ONLY_NAMES = ("create_llm_agent", "create_llm_model")
+# Outside the entry point, product code imports no provider SDK either: the SDK calls are the entry point's alone.
+_PROVIDER_SDK_MODULES = ("pydantic_ai", "openai", "anthropic")
 _ENTRY_POINT = "apps/backend/src/llm/extension/agent.py"
 
 
 def _is_test_only_module(module: str) -> bool:
     return any(module == banned or module.startswith(banned + ".") for banned in _TEST_ONLY_MODULES)
+
+
+def _is_provider_sdk_module(module: str) -> bool:
+    return any(module == banned or module.startswith(banned + ".") for banned in _PROVIDER_SDK_MODULES)
 
 
 def _dotted(node: object) -> str | None:
@@ -45,9 +51,13 @@ def imports_of_test_doubles_in(source: str, *, entry_point: bool = False) -> lis
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
             hits.extend(f"import {alias.name}" for alias in node.names if _is_test_only_module(alias.name))
+            if not entry_point:
+                hits.extend(f"import {alias.name}" for alias in node.names if _is_provider_sdk_module(alias.name))
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
             if _is_test_only_module(module):
+                hits.append(f"from {module} import ...")
+            if not entry_point and _is_provider_sdk_module(module):
                 hits.append(f"from {module} import ...")
             for alias in node.names:
                 if alias.name in _TEST_ONLY_NAMES or _is_test_only_module(f"{module}.{alias.name}"):
@@ -60,10 +70,14 @@ def imports_of_test_doubles_in(source: str, *, entry_point: bool = False) -> lis
             dotted = _dotted(node)
             if dotted and _is_test_only_module(dotted):
                 hits.append(f"attribute {dotted}")
+            if dotted and not entry_point and _is_provider_sdk_module(dotted):
+                hits.append(f"attribute {dotted}")
             if not entry_point and node.attr in _ENTRY_POINT_ONLY_NAMES:
                 hits.append(f"attribute {dotted or node.attr}")
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            if re.fullmatch(r"[A-Za-z_][\w.]*", node.value) and _is_test_only_module(node.value):
+            if re.fullmatch(r"[A-Za-z_][\w.]*", node.value) and (
+                _is_test_only_module(node.value) or (not entry_point and _is_provider_sdk_module(node.value))
+            ):
                 hits.append(f"string {node.value!r}")
     return hits
 
@@ -84,12 +98,19 @@ def test_the_scan_of_test_only_imports_knows_each_import_form() -> None:
         '__import__("vcr")',
         "from infra2_sdk.runtime import create_llm_agent",
         "import infra2_sdk.runtime as r\nr.create_llm_model()",
+        "from pydantic_ai import Agent",
+        "import openai",
+        "import anthropic.types",
+        'importlib.import_module("openai")',
     ]
     assert [form for form in forms if not imports_of_test_doubles_in(form)] == []
-    clean = "import json\nfrom pydantic_ai import ImageUrl\nfrom pydantic_ai.models import Model\nx = 'vcrx'\ny = 'vcr.py cassette'"
+    clean = "import json\nfrom infra2_sdk.runtime import DecodingSpec\nx = 'vcrx'\ny = 'vcr.py cassette'\nz = 'openai-compatible'"
     assert imports_of_test_doubles_in(clean) == []
-    # The entry point may call the factory.
+    # The entry point may call the factory and import the SDK types.
     assert imports_of_test_doubles_in("from infra2_sdk.runtime import create_llm_agent", entry_point=True) == []
+    assert imports_of_test_doubles_in("from pydantic_ai import BinaryContent, ImageUrl", entry_point=True) == []
+    # A recorder or a fake model stays banned in the entry point too.
+    assert imports_of_test_doubles_in("import vcr", entry_point=True) != []
 
 
 def test_product_code_imports_no_model_test_double_and_no_recorder() -> None:
@@ -106,3 +127,15 @@ def test_product_code_imports_no_model_test_double_and_no_recorder() -> None:
     # The scan must read the entry point, or an empty scan would pass.
     assert (src / "llm/extension/agent.py") in files and len(files) > 100
     assert hits == []
+
+
+def test_each_literal_path_of_gitattributes_exists() -> None:
+    """Review of #3205: a rule for a renamed file (the readings baseline) silently stops applying."""
+    missing = []
+    for line in (ROOT / ".gitattributes").read_text(encoding="utf-8").splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        pattern = line.split()[0]
+        if not any(char in pattern for char in "*?[") and not (ROOT / pattern).exists():
+            missing.append(pattern)
+    assert missing == []

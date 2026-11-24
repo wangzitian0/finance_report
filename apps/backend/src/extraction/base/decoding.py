@@ -1,7 +1,7 @@
 """Decoding values of the extraction model calls (#3153).
 
 One place for the values that the old settings ``AI_JSON_*`` held. The SDK owns every other default. A change is a
-code change with a recording (the replay tests fail when the request body changes).
+code change: a change of `JSON_MAX_TOKENS` or of `thinking` fails a replay test (the request body changes), and `tests/extraction/test_extraction_error_paths.py` pins the timeout.
 """
 
 from __future__ import annotations

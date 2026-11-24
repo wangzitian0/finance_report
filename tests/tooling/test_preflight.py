@@ -19,10 +19,8 @@ class TestSelectChecks:
         }
         _m7_names = {_m7_c.name for _m7_c in preflight.select_checks(["tests/fixtures/readings/example.json"])}
         assert "readings-eval" in _m7_names
-        # A change of the parser that the readings are graded by selects the same check.
         assert "readings-eval" in {
-            _m7_c.name
-            for _m7_c in preflight.select_checks(["apps/backend/src/extraction/base/validation.py"])
+            _m7_c.name for _m7_c in preflight.select_checks(["tests/fixtures/readings-eval-baseline.jsonl"])
         }
         _m11_names = [
             _m11_c.name

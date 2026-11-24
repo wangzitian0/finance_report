@@ -29,6 +29,7 @@ from common.testing.readings_eval import (
     corpus_shrink_findings,
     evaluate,
     load_cases,
+    orphan_readings,
     ratcheted_baseline,
 )
 
@@ -85,13 +86,14 @@ def _main(argv: Sequence[str] | None = None) -> int:
 
     findings = evaluate(baseline_path=args.baseline, ground_truth_dir=ground_truth_dir)
     findings["shrink"] = shrink
+    orphans = orphan_readings(ground_truth_dir)
     # A regressed score, a vanished baseline line, or a corpus shrink blocks
     # BOTH paths — none of these should be silently adoptable by --update. An
     # unbaselined ("new") case blocks the GATE path too — otherwise adding a case
     # (or accidentally deleting its floor) would leave the ratchet silently
     # disabled for that case while CI stays green. `--update` is the sanctioned way
     # to adopt new cases, so it does NOT treat "new" as blocking.
-    blocking_update = findings["regressions"] + findings["missing"] + shrink
+    blocking_update = findings["regressions"] + findings["missing"] + shrink + orphans
     blocking_gate = blocking_update + findings["new"]
 
     if args.update:

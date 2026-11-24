@@ -287,7 +287,9 @@ async def test_the_extraction_call_sends_the_settings_that_the_old_call_sent(mon
         [2],
         False,
     )
-    assert (decoding.timeout, decoding.seed, decoding.temperature) == (EXTRACTION_TIMEOUT_SECONDS, 7, 0.0)
+    # The literal pins the value: a change of the constant is a visible change of the call (the recordings do not match it).
+    assert (decoding.timeout, decoding.seed, decoding.temperature) == (360.0, 7, 0.0)
+    assert EXTRACTION_TIMEOUT_SECONDS == 360.0
 
 
 @pytest.mark.parametrize("reply", ["[" * 100000, '{"a":' * 100000], ids=["arrays", "objects"])
