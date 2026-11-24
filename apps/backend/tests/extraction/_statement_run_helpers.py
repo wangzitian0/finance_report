@@ -439,7 +439,6 @@ def _prefect_params(**changes) -> dict[str, str | None]:
         "account_id": None,
         "file_hash": "h",
         "storage_key": "statements/x.pdf",
-        "model": None,
         "request_id": None,
         **changes,
     }
@@ -2229,9 +2228,7 @@ async def verify_multicurrency_pdf_batches(db, test_user) -> None:
     service.api_key = "synthetic-provider-key"
     service._extract_json_with_model = AsyncMock(side_effect=[meta, first, second])
     source = DocumentSource.resolve(path=Path("synthetic/multicurrency.pdf"), content=output.getvalue())
-    result = await service.parse_document(
-        source, user_id=test_user.id, account_id=account.id, db=db
-    )
+    result = await service.parse_document(source, user_id=test_user.id, account_id=account.id, db=db)
     summary = await db.scalar(
         select(StatementSummary).where(
             StatementSummary.file_hash == source.content_hash, StatementSummary.user_id == test_user.id
@@ -3345,9 +3342,9 @@ async def verify_failed_run_leaves_rows_to_review(
     if failure == "unexpected-error" and caplog is not None:
         # A bug is not a model failure: the run fails with the class of the bug in the log, not as a counted batch.
         messages = [record.getMessage() for record in caplog.records]
-        assert any(
-            "statement.classification.failed" in m and "'error_type': 'RuntimeError'" in m for m in messages
-        ), messages
+        assert any("statement.classification.failed" in m and "'error_type': 'RuntimeError'" in m for m in messages), (
+            messages
+        )
         assert not any("Model call failed" in m for m in messages)
     if failure == "provider-error":
         # Every batch failed at the provider: the run is failed, and its row names the kind (never a partial run).

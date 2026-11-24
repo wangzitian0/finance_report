@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
+from src.config import settings
 from src.extraction import BankStatementStatus, DocumentSource, DocumentType, ParseJob, Stage1Status, StartedRun
 from src.extraction.base.paged_extraction import merge_paged_extractions
 from src.extraction.base.validation import split_multi_account_extraction, validate_balance_per_currency
@@ -169,9 +170,7 @@ async def test_retry_discards_provisional_institution(monkeypatch):
         "start_user_extract_run",
         AsyncMock(return_value=StartedRun(run_id=uuid4(), statement=statement, content=b"synthetic")),
     )
-    await statements._queue_statement_reparse(
-        AsyncMock(), statement, statement.user_id, allowed_statuses=frozenset()
-    )
+    await statements._queue_statement_reparse(AsyncMock(), statement, statement.user_id, allowed_statuses=frozenset())
     assert dispatch.call_args.kwargs["job"].institution is None
 
 
@@ -568,7 +567,7 @@ async def test_multi_account_sibling_records_extract_run_and_converges_metadata(
         assert s.current_extraction_result_id is not None
         meta = s.extraction_metadata or {}
         assert "statement_extraction_result" not in meta
-        assert meta.get("artifact_provenance", {}).get("resolved_model_id") == "synthetic-vision"
+        assert meta.get("artifact_provenance", {}).get("resolved_model_id") == settings.multimodal_model
         assert meta.get("artifact_provenance", {}).get("artifact_dependency_digest")
 
     refreshed_doc = await db.get(UploadedDocument, doc_id)
