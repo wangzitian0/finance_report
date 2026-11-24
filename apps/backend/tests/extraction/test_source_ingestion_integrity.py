@@ -272,6 +272,33 @@ async def test_membership_rejects_ambiguous_custody_and_excludes_superseded_sour
     await verify_membership_excludes_ambiguous_and_superseded(db, test_user)
 
 
+@pytest.fixture
+def summary_sequence():
+    """Set the process-wide counter of `StatementSummaryFactory` for one test, then put the next unused value back."""
+    unused = int(StatementSummaryFactory.build().account_last4) + 1
+    yield lambda start: StatementSummaryFactory.reset_sequence(start, force=True)
+    StatementSummaryFactory.reset_sequence(unused, force=True)
+
+
+@pytest.mark.parametrize("sequence_start", [0, 1, 2])
+async def test_synthetic_sources_never_carry_the_payload_account_suffix(
+    db, test_user, summary_sequence, sequence_start
+):
+    """#3176: a source that takes its suffix from the factory counter can equal the payload suffix `0001`."""
+    summary_sequence(sequence_start)
+    suffixes = {(await _source(db, test_user.id))[1].account_last4 for _ in range(3)}
+    assert _payload()["account_last4"] not in suffixes
+
+
+@pytest.mark.parametrize("sequence_start", [0, 1])
+async def test_membership_result_does_not_depend_on_the_summary_sequence(
+    db, test_user, summary_sequence, sequence_start
+):
+    """#3176: the test above passed only on a worker that had already used the factory twice."""
+    summary_sequence(sequence_start)
+    await verify_membership_excludes_ambiguous_and_superseded(db, test_user)
+
+
 @pytest.mark.parametrize(
     "failure",
     [
