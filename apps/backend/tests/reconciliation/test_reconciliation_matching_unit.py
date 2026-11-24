@@ -608,3 +608,19 @@ async def test_resolve_semantic_scores_maps_a_failed_prompt_to_none_and_stops_si
         await matching_mod._resolve_semantic_scores(["slow1", "bug", "slow2"])
     await asyncio.sleep(0.6)
     assert finished == []
+
+
+async def test_resolve_semantic_scores_keeps_the_cause_of_the_error_that_leaves(monkeypatch) -> None:
+    """Review of #3194, round 4: the error of the run keeps `__cause__`, and the other failing tasks are not dropped silently."""
+    from src.reconciliation.extension import matching as matching_mod
+
+    async def failing(prompt: str) -> int:
+        try:
+            raise KeyError("inner " + prompt)
+        except KeyError as inner:
+            raise ValueError("bug " + prompt) from inner
+
+    monkeypatch.setattr(matching_mod, "ai_semantic_score", failing)
+    with pytest.raises(ValueError, match="bug") as raised:
+        await matching_mod._resolve_semantic_scores(["p1", "p2"], max_concurrency=2)
+    assert isinstance(raised.value.__cause__, KeyError)

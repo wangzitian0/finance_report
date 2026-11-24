@@ -1,4 +1,4 @@
-import asyncio; import logging; import os; import re; import sys; from pathlib import Path; from typing import Any; from unittest.mock import patch; from uuid import uuid4; from weakref import WeakSet; import pytest; import pytest_asyncio; import structlog; from httpx import ASGITransport, AsyncClient; from sqlalchemy import event, text; from sqlalchemy.engine.url import make_url; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine; from sqlalchemy.orm import Session; from sqlalchemy.pool import NullPool; import src.orm_registry; from src.config import settings; from src.observability import get_logger; _REPO_ROOT = str(Path(__file__).resolve().parents[3]); sys.path.insert(0, _REPO_ROOT) if _REPO_ROOT not in sys.path else None; logger = get_logger(__name__)
+import asyncio; from contextvars import ContextVar; import logging; import os; import re; import sys; from pathlib import Path; from typing import Any; from unittest.mock import patch; from uuid import uuid4; from weakref import WeakSet; import pytest; import pytest_asyncio; import structlog; from httpx import ASGITransport, AsyncClient; from sqlalchemy import event, text; from sqlalchemy.engine.url import make_url; from sqlalchemy.exc import SQLAlchemyError; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine; from sqlalchemy.orm import Session; from sqlalchemy.pool import NullPool; import src.orm_registry; from src.config import settings; from src.observability import get_logger; _REPO_ROOT = str(Path(__file__).resolve().parents[3]); sys.path.insert(0, _REPO_ROOT) if _REPO_ROOT not in sys.path else None; logger = get_logger(__name__)
 _LIVE_APP_SESSIONS: WeakSet[Session] = WeakSet()
 _LOCAL_TEST_HOSTS = frozenset({"", "test", "testserver", "localhost", "127.0.0.1"})
 
@@ -11,27 +11,37 @@ def _current_task_id() -> int | None:
     return id(task) if task is not None else None
 
 
+# The tasks that opened an application transaction in this context. A task that the owner creates later inherits the
+# set, so a call in a child task (a TaskGroup, `gather`) still sees the open transaction of its parent.
+_TXN_OWNER_TASKS: ContextVar[frozenset[int]] = ContextVar("txn_owner_tasks", default=frozenset())
+
+
 @event.listens_for(Session, "after_begin")
 def _track_app_transaction(session: Session, _tx: Any, _conn: Any) -> None:
     if not session.info.get("test_arrange_session"):
-        session.info["owner_task_id"] = _current_task_id()
+        owner = _current_task_id()
+        session.info["owner_task_id"] = owner
+        if owner is not None:
+            _TXN_OWNER_TASKS.set(_TXN_OWNER_TASKS.get() | {owner})
         _LIVE_APP_SESSIONS.add(session)
 
 
-def active_guarded_app_transactions(*, task_scoped: bool = True) -> int:
+def active_guarded_app_transactions(*, task_scoped: bool = True, inherited: bool = False) -> int:
+    """Count the open application transactions of the current task, and of its ancestors when ``inherited``."""
     current_task_id = _current_task_id()
+    visible = {current_task_id} | (_TXN_OWNER_TASKS.get() if inherited else frozenset())
     count = 0
     for session in list(_LIVE_APP_SESSIONS):
         if session.info.get("test_arrange_session") or not session.in_transaction():
             continue
-        if task_scoped and current_task_id is not None and session.info.get("owner_task_id") != current_task_id:
+        if task_scoped and current_task_id is not None and session.info.get("owner_task_id") not in visible:
             continue
         count += 1
     return count
 
 
-def _assert_no_open_app_txn(operation: str) -> None:
-    if active_guarded_app_transactions(task_scoped=True) > 0:
+def _assert_no_open_app_txn(operation: str, *, inherited: bool = False) -> None:
+    if active_guarded_app_transactions(task_scoped=True, inherited=inherited) > 0:
         from tests._support.guards import UnexpectedExternalIO, record_violation
 
         record_violation(operation)
@@ -70,8 +80,9 @@ def _guard_external_io_during_open_transaction():
     @wraps(orig_agent)
     def guarded_agent(*args, **kwargs):
         # The SDK sends its HTTP through httpx2, which the patch of `AsyncClient.send` below does not cover, and a
-        # fake model sends nothing. The entry point is the one place that each call passes, in the task of the caller.
-        _assert_no_open_app_txn("LLM call")
+        # fake model sends nothing. The entry point is the one place that each call passes. A call in a child task
+        # of the transaction owner (a TaskGroup of scores) is refused too.
+        _assert_no_open_app_txn("LLM call", inherited=True)
         return orig_agent(*args, **kwargs)
 
     @wraps(orig_run_s3)

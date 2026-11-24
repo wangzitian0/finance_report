@@ -94,3 +94,7 @@ class ModelCallFailed(LLMError):
         self.kind = kind
         self.summary = summary
         self.call_site = call_site
+
+    def __reduce__(self):
+        # ``args`` holds only the message, so the default reduce cannot call ``__init__``: copy and pickle need this.
+        return (type(self), (self.kind, self.summary), self.__dict__.copy())

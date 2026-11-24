@@ -92,3 +92,36 @@ async def test_a_broad_catch_of_product_code_does_not_hide_a_violation(db_engine
         await open_session.rollback()
     # The teardown of the guard fixture would fail the test here; the test takes the record itself.
     assert len(acknowledge_violations()) == 1
+
+
+async def test_a_model_call_in_a_child_task_of_the_transaction_owner_is_refused(db_engine, fake_llm) -> None:
+    """Review of #3194, round 4: `_resolve_semantic_scores` calls the model in TaskGroup children of the owner task."""
+    from src.reconciliation.extension.matching import _resolve_semantic_scores
+
+    sent = fake_llm('{"similarity_score": 90}')
+    async with get_session_maker()() as open_session:
+        await open_session.execute(text("SELECT 1"))
+        with pytest.raises(UnexpectedExternalIO, match=_GUARD_MESSAGE):
+            await _resolve_semantic_scores(["compare A with B", "compare C with D"], max_concurrency=2)
+        await open_session.rollback()
+    assert sent == [] and len(acknowledge_violations()) >= 1
+    # Once no transaction is open, the same calls reach the model.
+    assert await _resolve_semantic_scores(["compare A with B"], max_concurrency=2) == {"compare A with B": 90}
+
+
+async def test_a_model_call_in_a_task_that_does_not_descend_from_the_owner_is_not_refused(db_engine, fake_llm) -> None:
+    """The guard stays task-scoped: a task that began before the transaction, or is unrelated, is not the owner's."""
+    import asyncio
+
+    fake_llm("reply")
+
+    async def call() -> str:
+        return await complete_text(CallSite.RECONCILIATION_SEMANTIC_SCORE, "small", "ping", decoding=_DECODING)
+
+    unrelated = asyncio.ensure_future(call())  # created before the transaction opens: its context has no owner
+    await asyncio.sleep(0)
+    async with get_session_maker()() as open_session:
+        await open_session.execute(text("SELECT 1"))
+        assert await unrelated == "reply"
+        await open_session.rollback()
+    assert acknowledge_violations() == []

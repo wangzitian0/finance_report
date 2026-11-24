@@ -294,8 +294,11 @@ async def _resolve_semantic_scores(
         async with asyncio.TaskGroup() as group:
             tasks = [group.create_task(_evaluate(prompt)) for prompt in unique_prompts]
     except BaseExceptionGroup as failure:
-        # One error of the group is the error of the run: re-raise it as it is, so that a caller sees its type.
-        raise failure.exceptions[0] from None
+        # One error of the group is the error of the run: re-raise it as it is, so that a caller sees its type
+        # and its cause. The other errors of the group are logged, not dropped.
+        for other in failure.exceptions[1:]:
+            logger.error("Another semantic score task failed", error_type=type(other).__name__)
+        raise failure.exceptions[0]
     return dict(task.result() for task in tasks)
 
 

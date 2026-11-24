@@ -47,7 +47,7 @@ async def test_a_reply_without_a_score_is_a_bad_reply_and_not_a_neutral_score(fa
         await ai_semantic_score("compare A with B")
     assert raised.value.kind is ModelFailureKind.BAD_REPLY and raised.value.call_site == "reconciliation.semantic_score"
     # The text that a caller logs holds the size of the reply, not the reply.
-    assert reply not in str(raised.value) or len(reply) < 8
+    assert f"{len(reply)} characters" in raised.value.summary and reply not in raised.value.summary
 
 
 async def test_a_failed_model_call_is_an_error_and_not_a_score(fake_llm) -> None:

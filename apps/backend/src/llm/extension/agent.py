@@ -45,6 +45,7 @@ from pydantic_ai.exceptions import (
     ModelServerError,
     ModelTimeoutError,
     ModelUnavailableError,
+    UnexpectedModelBehavior,
     UsageLimitExceeded,
     UserError,
 )
@@ -115,6 +116,7 @@ def to_user_content(content: Content) -> str | list[Any]:
 
 # The error of a replay for a request that has no recording. It is named, not imported: product code imports no recorder.
 _RECORDING_REFUSALS = frozenset({"CannotOverwriteExistingCassetteException"})
+_SUMMARY_LIMIT = 300
 _BAD_REPLY_LABELS = frozenset(
     {"UnexpectedModelBehavior", "ContentFilterError", "OutputTokenLimitExceeded", "IncompleteToolCall"}
 )
@@ -127,9 +129,10 @@ def model_call_failed(call_site: CallSite, kind: ModelFailureKind, summary: str)
     failures below the SDK. An ``unclassified`` failure is an ERROR: it is an actionable fault. The others are
     expected outcomes of a call to a provider.
     """
+    summary = summary[:_SUMMARY_LIMIT]  # a content-filter error carries the body of the answer: bound the text
     record_llm_call_failure(call_site=call_site.value, kind=kind.value)
     log = logger.error if kind is ModelFailureKind.UNCLASSIFIED else logger.warning
-    log("Model call failed", call_site=call_site.value, kind=kind.value, summary=summary[:300])
+    log("Model call failed", call_site=call_site.value, kind=kind.value, summary=summary)
     return ModelCallFailed(kind, summary, call_site=call_site.value)
 
 
@@ -152,6 +155,11 @@ def _kind_of(exc: Exception) -> ModelFailureKind:
         return ModelFailureKind.UNAVAILABLE if status >= 500 else ModelFailureKind.REJECTED
     if isinstance(exc, ModelAPIError):
         return ModelFailureKind.REJECTED
+    if isinstance(exc, UnexpectedModelBehavior):
+        # A reply without text, a reply cut by the token limit or the content filter, a tool call that we never ask
+        # for: the provider answered, and the answer has no text. ``ContentFilterError``, ``OutputTokenLimitExceeded``
+        # and ``IncompleteToolCall`` are subclasses.
+        return ModelFailureKind.BAD_REPLY
     # The SDK turns every other error into ``RuntimeError("<Class> (http=none, provider_code=none)")``. The label
     # still names a reply that the provider gave and the SDK could not use.
     if str(exc).partition(" (")[0] in _BAD_REPLY_LABELS:
@@ -184,7 +192,11 @@ def _agent(
     if "thinking" in body:
         # The SDK replaces a ``thinking`` key of the body: the effort is set by ``DecodingSpec.thinking``.
         raise ValueError("Set thinking with DecodingSpec.thinking, not in extra_body")
-    settings_for_sdk = src.config.settings.to_llm_settings()
+    try:
+        settings_for_sdk = src.config.settings.to_llm_settings()
+    except ValueError as exc:
+        # An empty provider, model or base URL: the same fault as a missing key.
+        raise model_call_failed(call_site, ModelFailureKind.NOT_CONFIGURED, str(exc)) from exc
     if decoding.max_tokens is not None and str(settings_for_sdk.provider).strip().lower() == "zai":
         # See the module docstring: Z.AI honours ``max_tokens`` and ignores ``max_completion_tokens``. The other
         # providers keep the cap in the SDK field.
@@ -225,8 +237,9 @@ async def complete_text(
     call is a ``ModelCallFailed``.
     """
     agent = _agent(call_site, role, decoding, usage_limits, extra_body, max_attempts)
+    user_content = to_user_content(content)  # an error of our own argument is not a failure of the call
     try:
-        async with agent.run_stream(to_user_content(content)) as stream:
+        async with agent.run_stream(user_content) as stream:
             return str(await stream.get_output())
     except Exception as exc:
         raise _wrap(call_site, exc) from exc
