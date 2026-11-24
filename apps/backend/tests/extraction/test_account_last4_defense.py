@@ -184,7 +184,6 @@ async def test_background_task_dirty_last4_and_commit_failure(db, test_user, mon
         account_id=account.id,
         file_hash=f"bg_{sid.hex[:8]}",
         storage_key="test_path",
-        model=None,
     )
     if fail_commit:
         with pytest.raises(RetryableStatementIngestionError, match="Simulated DB commit failure"):

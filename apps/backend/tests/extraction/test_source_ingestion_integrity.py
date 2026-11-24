@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import func, select
 
+from src.config import settings
 from src.extraction import BankStatementStatus, DocumentSource, DocumentType, ParseJob, Stage1Status, StartedRun
 from src.extraction.base.paged_extraction import merge_paged_extractions
 from src.extraction.base.validation import split_multi_account_extraction, validate_balance_per_currency
@@ -169,9 +170,7 @@ async def test_retry_discards_provisional_institution(monkeypatch):
         "start_user_extract_run",
         AsyncMock(return_value=StartedRun(run_id=uuid4(), statement=statement, content=b"synthetic")),
     )
-    await statements._queue_statement_reparse(
-        AsyncMock(), statement, statement.user_id, allowed_statuses=frozenset()
-    )
+    await statements._queue_statement_reparse(AsyncMock(), statement, statement.user_id, allowed_statuses=frozenset())
     assert dispatch.call_args.kwargs["job"].institution is None
 
 
@@ -246,7 +245,6 @@ async def test_failed_extraction_preserves_source_for_review(db, test_user):
         institution=None,
         file_hash=document.file_hash,
         storage_key=document.file_path,
-        model=None,
     )
     summary.status = BankStatementStatus.PARSING
     await db.commit()
@@ -448,7 +446,7 @@ async def test_AC_extraction_2983_paged_multiple_accounts_splits_without_rejecti
     service.api_key = "synthetic-provider-key"
     service._extract_json_with_model = AsyncMock(side_effect=[meta, part1, part2])
     source = DocumentSource.resolve(path=Path("synthetic/paged_multi.pdf"), content=pdf_bytes)
-    results = await service.parse_documents(source, user_id=test_user.id, db=db, force_model="synthetic-vision")
+    results = await service.parse_documents(source, user_id=test_user.id, db=db)
     assert len(results) == 2
     assert [r.account_last4 for r in results] == ["1234", "5678"]
     assert all(r.balance_validated is True for r in results)
@@ -545,7 +543,6 @@ async def test_multi_account_sibling_records_extract_run_and_converges_metadata(
             account_id=None,
             file_hash=file_hash,
             storage_key=f"statements/{file_hash}.pdf",
-            model="synthetic-vision",
         ),
         content=pdf_bytes,
         session_maker=create_session_maker_from_db(db),
@@ -570,7 +567,7 @@ async def test_multi_account_sibling_records_extract_run_and_converges_metadata(
         assert s.current_extraction_result_id is not None
         meta = s.extraction_metadata or {}
         assert "statement_extraction_result" not in meta
-        assert meta.get("artifact_provenance", {}).get("resolved_model_id") == "synthetic-vision"
+        assert meta.get("artifact_provenance", {}).get("resolved_model_id") == settings.multimodal_model
         assert meta.get("artifact_provenance", {}).get("artifact_dependency_digest")
 
     refreshed_doc = await db.get(UploadedDocument, doc_id)

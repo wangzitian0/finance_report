@@ -38,7 +38,7 @@ async def _run(attempts: list, *, max_attempts: int = 2):
         patch.object(service, "extract_financial_data", mock),
     ):
         slices, _ = await service._extract_with_balance_retry(
-            file_content=b"x", institution=None, file_type="pdf", file_url=None, force_model=None, filename="s.pdf"
+            file_content=b"x", institution=None, file_type="pdf", file_url=None, filename="s.pdf"
         )
         return slices[0].payload, mock
 

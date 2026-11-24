@@ -54,7 +54,6 @@ async def _run(attempts_returns, *, max_attempts=3, seed=42):
             institution="DBS",
             file_type="pdf",
             file_url=None,
-            force_model=None,
             filename="statement.pdf",
         )
         return slices[0].payload, mock

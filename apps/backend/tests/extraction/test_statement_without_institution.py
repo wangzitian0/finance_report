@@ -355,7 +355,6 @@ async def test_rerun_does_not_turn_the_institution_of_the_reviewer_into_a_source
         account_id=statement.account_id,
         file_hash=statement.file_hash,
         storage_key="statements/no-institution.pdf",
-        model=None,
         request_id="req-3167-upload",
     )
     await _use_case(db, service).execute(upload_job, content=content)

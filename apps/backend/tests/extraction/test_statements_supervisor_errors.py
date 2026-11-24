@@ -141,7 +141,6 @@ async def test_parse_statement_background_error_paths(
         account_id=None,
         file_hash=statement.file_hash,
         storage_key="k",
-        model=None,
     )
     monkeypatch.setattr(
         "src.extraction.extension.statement_parsing.ExtractionService.parse_documents", AsyncMock(side_effect=parse_exc)

@@ -139,12 +139,11 @@ async def test_post_runs_starts_a_rerun_with_hints_and_digest(
         run_prompt_digest(PARSING_PROMPT_TEMPLATE_VERSION, None, RunHints(**hints)),
     )
     runs = await _runs(db, statement.id)
-    assert ([r.seq for r in runs], str(runs[1].id), runs[1].hints, [j.run_id for j in jobs], jobs[0].model) == (
+    assert ([r.seq for r in runs], str(runs[1].id), runs[1].hints, [j.run_id for j in jobs]) == (
         [1, 2],
         body["id"],
         hints,
         [runs[1].id],
-        None,
     )
     assert (
         await db.scalar(
@@ -478,7 +477,7 @@ async def test_post_runs_starts_a_rerun_with_no_model(client, db, monkeypatch, s
     response = await client.post(f"/statements/{statement.id}/runs", json={})
 
     assert response.status_code == 202, response.text
-    assert (response.json()["model"], [job.model for job in jobs]) == (None, [None])
+    assert (response.json()["model"], len(jobs)) == (None, 1)
 
 
 async def _finished_run(db, user, statement_id, kind: RunKind, result_summary: dict):

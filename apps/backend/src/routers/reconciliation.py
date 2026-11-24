@@ -139,7 +139,6 @@ async def run_reconciliation(
         statement_id=statement_id,
         phase="matching_started",
         progress=None,
-        model_to_use=None,
         limit=payload.limit,
     )
     try:
@@ -159,7 +158,6 @@ async def run_reconciliation(
             statement_id=statement_id,
             phase="matching_failed",
             progress=None,
-            model_to_use=None,
             limit=payload.limit,
             error_type=type(exc).__name__,
             safe_error_message=safe_error_message(str(exc)),
@@ -180,7 +178,6 @@ async def run_reconciliation(
         statement_id=statement_id,
         phase="matching_completed",
         progress=None,
-        model_to_use=None,
         limit=payload.limit,
         matches_created=len(matches),
         auto_accepted=auto_accepted,

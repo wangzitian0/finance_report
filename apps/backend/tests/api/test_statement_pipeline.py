@@ -25,7 +25,6 @@ def _make_job() -> ParseJob:
         account_id=None,
         file_hash="hash",
         storage_key="uploads/stmt.pdf",
-        model=None,
         request_id="req-1",
     )
 

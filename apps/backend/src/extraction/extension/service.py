@@ -154,7 +154,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         *,
         institution: str | None,
         file_type: str,
-        force_model: str | None,
         user_id: UUID,
         hints: RunHints | None = None,
     ) -> tuple[list[AccountExtractionSlice], bool | None]:
@@ -163,7 +162,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             institution=institution,
             file_type=file_type,
             file_url=source.url,
-            force_model=force_model,
             filename=source.filename,
             user_id=user_id,
             hints=hints,
@@ -177,7 +175,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         user_id: UUID,
         file_type: str = "pdf",
         account_id: UUID | None = None,
-        force_model: str | None = None,
         db: AsyncSession | None = None,
         hints: RunHints | None = None,
     ) -> StatementExtractionResult:
@@ -188,7 +185,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             user_id=user_id,
             file_type=file_type,
             account_id=account_id,
-            force_model=force_model,
             db=db,
             hints=hints,
         )
@@ -201,14 +197,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         *,
         user_id: UUID,
         file_type: str = "pdf",
-        force_model: str | None = None,
         hints: RunHints | None = None,
     ) -> tuple[list[AccountExtractionSlice], bool | None]:
         """Extract raw document slices via CSV parser or multimodal LLM without touching DB."""
         if not isinstance(source, DocumentSource):
             raise TypeError("parse_documents requires a DocumentSource")
 
-        model = force_model or self.multimodal_model
+        model = self.multimodal_model
         logger.info(
             "Parsing document",
             institution=institution or "(auto-detect)",
@@ -226,7 +221,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     source,
                     institution=institution,
                     file_type=file_type,
-                    force_model=force_model,
                     user_id=user_id,
                     hints=hints,
                 )
@@ -247,14 +241,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         user_id: UUID,
         file_type: str = "pdf",
         account_id: UUID | None = None,
-        force_model: str | None = None,
         db: AsyncSession | None = None,
     ) -> list[StatementExtractionResult]:
         """Validate, score, persist, and build immutable results for extracted slices."""
         file_path = source.path
         original_filename = source.filename
         display_filename = original_filename or (file_path.name if file_path else None)
-        model = force_model or self.multimodal_model
+        model = self.multimodal_model
         try:
             results: list[StatementExtractionResult] = []
             for idx, slice_obj in enumerate(slices):
@@ -288,7 +281,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         user_id: UUID,
         file_type: str = "pdf",
         account_id: UUID | None = None,
-        force_model: str | None = None,
         db: AsyncSession | None = None,
         hints: RunHints | None = None,
     ) -> list[StatementExtractionResult]:
@@ -298,7 +290,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             institution=institution,
             user_id=user_id,
             file_type=file_type,
-            force_model=force_model,
             hints=hints,
         )
         return await self.materialize_extracted_slices(
@@ -309,7 +300,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             user_id=user_id,
             file_type=file_type,
             account_id=account_id,
-            force_model=force_model,
             db=db,
         )
 
@@ -936,7 +926,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         institution: str | None,
         file_type: str,
         file_url: str | None,
-        force_model: str | None,
         filename: str | None,
         user_id: UUID | None = None,
         hints: RunHints | None = None,
@@ -971,7 +960,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         institution=institution,
                         file_type=file_type,
                         file_url=file_url,
-                        force_model=force_model,
                         seed_override=seed_override,
                         filename=filename,
                         user_id=user_id,
@@ -986,7 +974,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         institution=institution,
                         file_type=file_type,
                         file_url=file_url,
-                        force_model=force_model,
                         seed_override=seed_override,
                         filename=filename,
                         user_id=user_id,
@@ -1178,7 +1165,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         institution: str | None,
         file_type: str,
         file_url: str | None = None,
-        force_model: str | None = None,
         seed_override: int | None = None,
         filename: str | None = None,
         user_id: UUID | None = None,
@@ -1196,7 +1182,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             institution=institution,
             file_type=file_type,
             file_url=file_url,
-            force_model=force_model,
             seed_override=seed_override,
             filename=filename,
             user_id=user_id,
@@ -1214,7 +1199,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         institution: str | None,
         file_type: str,
         file_url: str | None = None,
-        force_model: str | None = None,
         seed_override: int | None = None,
         filename: str | None = None,
         user_id: UUID | None = None,
@@ -1244,7 +1228,6 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             provider=settings.ai_provider,
             small_model=self.small_model,
             multimodal_model=self.multimodal_model,
-            force_model=force_model,
             pii_warning="PDF/image content may contain PII - prompt instructs AI to ignore it",
         )
 
@@ -1261,7 +1244,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         prompt = get_parsing_prompt(institution, document_kind=document_kind)
         # The check results come before the reviewer guidance, which is always the last block of a prompt.
         guidance = feedback + parsing_hints_block(hints)
-        model = force_model or self.multimodal_model
+        model = self.multimodal_model
         if not model:
             raise ExtractionError("Multimodal model is not configured")
 

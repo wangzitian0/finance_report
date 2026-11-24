@@ -216,7 +216,7 @@ async def test_upload_ocr_pipeline_source_and_audit_logs(
     )
     await statement_pipeline.wait_for_parse_tasks()
     job = mock_parse.await_args.kwargs["job"]
-    assert isinstance(job, ParseJob) and (str(job.statement_id), job.model) == (created["id"], None)
+    assert isinstance(job, ParseJob) and str(job.statement_id) == created["id"]
     assert (
         job.storage_key.startswith(f"statements/{created['id']}/")
         and job.storage_key.endswith(".pdf")
@@ -237,8 +237,6 @@ async def test_upload_ocr_pipeline_source_and_audit_logs(
                 "filename": "staging-audit.pdf",
                 "file_type": "pdf",
                 "institution": "DBS",
-                "model_requested": None,
-                "model_to_use": None,
                 "file_size_bytes": len(content),
                 "file_hash_prefix": prefix,
             },
@@ -258,7 +256,6 @@ async def test_upload_ocr_pipeline_source_and_audit_logs(
                 "audit_event": "statement.parse.enqueued",
                 "request_id": accepted["request_id"],
                 "statement_id": created["id"],
-                "model_to_use": None,
             },
         ),
     ):
@@ -281,7 +278,6 @@ async def test_upload_storage_failure_logs_safe_audit_context(client: AsyncClien
             "audit_event": "statement.upload.storage_failed",
             "phase": "storage_upload_failed",
             "progress": None,
-            "model_to_use": None,
             "filename": "staging-failure.pdf",
             "file_type": "pdf",
             "file_size_bytes": len(content),
@@ -321,7 +317,6 @@ async def test_statement_scoped_brokerage_import_audit_logs(client: AsyncClient,
             "audit_event": "statement.brokerage_import.started",
             "statement_id": str(statement.id),
             "phase": "brokerage_import_started",
-            "model_to_use": None,
         }.items()
     )
     assert (

@@ -30,7 +30,6 @@ class PrefectParseParams(TypedDict):
     account_id: str | None
     file_hash: str
     storage_key: str
-    model: str | None
     request_id: str | None
 
 
@@ -126,7 +125,6 @@ class ParseJob:
     account_id: UUID | None
     file_hash: str
     storage_key: str
-    model: str | None
     request_id: str | None = None
 
     def to_prefect_params(self) -> PrefectParseParams:
@@ -140,7 +138,6 @@ class ParseJob:
             "account_id": str(self.account_id) if self.account_id is not None else None,
             "file_hash": self.file_hash,
             "storage_key": self.storage_key,
-            "model": self.model,
             "request_id": self.request_id,
         }
 
@@ -164,7 +161,6 @@ class ParseJob:
             account_id=UUID(account_id) if account_id else None,
             file_hash=required("file_hash"),
             storage_key=required("storage_key"),
-            model=params.get("model"),
             request_id=params.get("request_id"),
         )
 

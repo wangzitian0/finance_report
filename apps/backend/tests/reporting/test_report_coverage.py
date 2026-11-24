@@ -434,7 +434,6 @@ async def test_AC_reporting_2646_2_reparse_and_auto_approval_fallback_keep_state
             account_id=bank_id,
             file_hash=stmt.file_hash,
             storage_key="trusted-year/v0.csv",
-            model=None,
         ),
         content=_bank_csv(),
         session_maker=create_session_maker_from_db(db),

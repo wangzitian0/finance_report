@@ -181,7 +181,6 @@ class StatementIngestionUseCase:
                 trigger=RunTrigger.AUTO_RETRY,
                 # The retry repeats the request of the failed run: same hints and same model.
                 hints=RunHints.model_validate(failed.hints),
-                model=failed.model,
                 parent_run_id=failed.id,
             )
             await session.commit()
@@ -252,7 +251,6 @@ async def route_brokerage_for_review_if_present(
     institution: str | None,
     payload: dict[str, Any] | None,
     request_id: str | None = None,
-    model_to_use: str | None = None,
 ) -> None:
     """Route detected brokerage statement to Stage-1 review without importing positions (#1408)."""
     if not looks_like_brokerage_payload(payload, filename=filename, institution=institution or summary.institution):
@@ -277,7 +275,6 @@ async def route_brokerage_for_review_if_present(
         "request_id": request_id,
         "statement_id": str(summary.id),
         "user_id": str(user_id),
-        "model_to_use": model_to_use,
     }
     logger.info(
         "statement.brokerage_review_routing.started",
@@ -423,7 +420,6 @@ async def handle_parse_failure(
     message: str | None,
     phase: str = "unknown",
     progress: int | None = None,
-    model_to_use: str | None = None,
     error_type: str | None = None,
 ) -> None:
     """Roll back failed parse session, fail the run of the job, and persist REJECTED or PENDING_REVIEW state.
@@ -508,7 +504,6 @@ async def handle_parse_failure(
             statement_id=str(refreshed.id),
             phase=phase,
             progress=progress,
-            model_to_use=model_to_use,
             error_type=error_type,
             safe_error_message=_redacted(message, limit=300),
         )
@@ -586,7 +581,6 @@ async def _claim_statement_ingestion_phase(
                 job=job,
                 message="The stored hints of the run are not valid.",
                 phase="hints_validated",
-                model_to_use=job.model,
                 error_type="InvalidHints",
             )
             return (
@@ -639,7 +633,6 @@ async def _persist_statement_ingestion_phase(
                         user_id=job.user_id,
                         file_type=file_type,
                         account_id=job.account_id,
-                        force_model=job.model,
                         db=session,
                     )
                 )
@@ -652,7 +645,6 @@ async def _persist_statement_ingestion_phase(
                         user_id=job.user_id,
                         file_type=file_type,
                         account_id=job.account_id,
-                        force_model=job.model,
                         db=session,
                         hints=hints,
                     )
@@ -662,8 +654,6 @@ async def _persist_statement_ingestion_phase(
                     audit_event="statement.parse.extraction_completed",
                     request_id=request_id,
                     statement_id=str(statement_id),
-                    model_to_use=job.model,
-                    will_use_force_model=bool(job.model),
                     file_type=file_type,
                 )
                 checkpoint("extraction_completed")
@@ -685,7 +675,6 @@ async def _persist_statement_ingestion_phase(
                 message=str(exc),
                 phase="extraction_started",
                 progress=None,
-                model_to_use=job.model,
                 error_type=type(exc).__name__,
             )
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED)
@@ -695,7 +684,6 @@ async def _persist_statement_ingestion_phase(
                 statement_id=str(statement_id),
                 request_id=request_id,
                 phase="extraction_started",
-                model_to_use=job.model,
                 error_type=type(exc).__name__,
             )
             await session.rollback()
@@ -722,7 +710,7 @@ async def _persist_statement_ingestion_phase(
                 source_trace_record_id=trace_records[0].record_id,
             )
             prompt_fp = parsing_template_fingerprint() if file_type in PROMPT_FILE_TYPES else f"non-prompt:{file_type}"
-            resolved_model_id = job.model or extraction_result.provenance.model or settings.multimodal_model
+            resolved_model_id = extraction_result.provenance.model or settings.multimodal_model
             artifact_digest = extraction_artifact_dependency_digest(
                 source_hash=job.file_hash,
                 preprocess_version="pdf-text-vision@1" if file_type in PROMPT_FILE_TYPES else f"{file_type}@1",
@@ -759,7 +747,6 @@ async def _persist_statement_ingestion_phase(
                 institution=job.institution,
                 payload=brokerage_payload_from_extraction_result(extraction_result),
                 request_id=request_id,
-                model_to_use=job.model,
             )
             classify_run_id: UUID | None = None
             if statement.status is BankStatementStatus.PARSED:
@@ -820,7 +807,7 @@ async def _persist_statement_ingestion_phase(
                         result=sib_result,
                         source_trace_record_id=sib_traces[0].record_id,
                     )
-                    sib_resolved_model_id = job.model or sib_result.provenance.model or settings.multimodal_model
+                    sib_resolved_model_id = sib_result.provenance.model or settings.multimodal_model
                     sibling.extraction_metadata = {
                         **(sibling.extraction_metadata or {}),
                         "artifact_provenance": {
@@ -841,7 +828,6 @@ async def _persist_statement_ingestion_phase(
                         actor_kind=RunActorKind.SYSTEM,
                         trigger=RunTrigger.UPLOAD,
                         hints=hints,
-                        model=job.model,
                         parent_run_id=job.run_id,
                     )
                     await claim_run(session, sib_extract_run.id)
@@ -859,7 +845,6 @@ async def _persist_statement_ingestion_phase(
                         institution=job.institution,
                         payload=brokerage_payload_from_extraction_result(sib_result),
                         request_id=request_id,
-                        model_to_use=job.model,
                     )
                     if sibling.status is BankStatementStatus.PARSED:
                         sib_classify = await create_run(
@@ -912,7 +897,6 @@ async def _persist_statement_ingestion_phase(
                 statement_id=str(statement_id),
                 request_id=request_id,
                 phase="statement_persisted",
-                model_to_use=job.model,
                 error_type=type(exc).__name__,
             )
             await session.rollback()
@@ -944,7 +928,6 @@ async def _execute_statement_ingestion(
         filename=job.filename,
         statement_id=str(statement_id),
         request_id=request_id,
-        model_to_use=job.model,
         file_type=file_type,
     )
     start_time = clock()
@@ -983,7 +966,6 @@ async def _execute_statement_ingestion(
             request_id=request_id,
             statement_id=str(statement_id),
             phase=current_phase,
-            model_to_use=job.model,
             file_type=file_type,
         )
 
@@ -1002,7 +984,6 @@ async def _execute_statement_ingestion(
                         institution=job.institution,
                         user_id=job.user_id,
                         file_type=file_type,
-                        force_model=job.model,
                         hints=hints,
                     )
                 except ExtractionError as exc:
@@ -1016,7 +997,6 @@ async def _execute_statement_ingestion(
                                 message=str(exc),
                                 phase=current_phase,
                                 progress=None,
-                                model_to_use=job.model,
                                 error_type=type(exc).__name__,
                             )
                     return StatementIngestionOutcome(
@@ -1030,7 +1010,6 @@ async def _execute_statement_ingestion(
                         statement_id=str(statement_id),
                         request_id=request_id,
                         phase=current_phase,
-                        model_to_use=job.model,
                         error_type=type(exc).__name__,
                     )
                     raise RetryableStatementIngestionError(
@@ -1042,8 +1021,6 @@ async def _execute_statement_ingestion(
                     audit_event="statement.parse.extraction_completed",
                     request_id=request_id,
                     statement_id=str(statement_id),
-                    model_to_use=job.model,
-                    will_use_force_model=bool(job.model),
                     file_type=file_type,
                 )
                 checkpoint("extraction_completed")

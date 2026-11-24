@@ -136,7 +136,6 @@ async def _ingest_reviewed_bank_statement(db, *, user_id, bank: Account, securit
             account_id=bank.id,
             file_hash=digest,
             storage_key="trusted-year/v0.csv",
-            model=None,
         ),
         content=content,
         session_maker=create_session_maker_from_db(db),

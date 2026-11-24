@@ -296,7 +296,6 @@ async def test_pdf_render_institution_detection_and_service_helpers():
             user_id=uuid4(),
             file_type="pdf",
             account_id=None,
-            force_model="google/gemini-2.0-flash-exp:free",
         )
 
     d = service._safe_date("2025-01-01")

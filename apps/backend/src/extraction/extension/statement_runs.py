@@ -430,7 +430,6 @@ async def start_user_extract_run(
     user_id: UUID,
     file_type: str,
     hints: RunHints,
-    model: str | None,
     allowed_statuses: frozenset[BankStatementStatus],
     strict_hints: bool,
     load_content: Callable[[], Awaitable[bytes]],
@@ -457,7 +456,7 @@ async def start_user_extract_run(
         effective = RunHints()
     content = await load_content()
     locked, run = await _start_user_run(
-        db, statement_id, user_id, allowed_statuses, kind=RunKind.EXTRACT, hints=effective, model=model
+        db, statement_id, user_id, allowed_statuses, kind=RunKind.EXTRACT, hints=effective
     )
     statement = await while_pending() if while_pending is not None else locked
     statement.status = BankStatementStatus.PARSING
@@ -475,7 +474,6 @@ async def _start_user_run(
     *,
     kind: RunKind,
     hints: RunHints,
-    model: str | None = None,
 ) -> tuple[StatementSummary, StatementRun]:
     """Lock the statement row, check its status, then insert a user run with the latest run as parent. No commit.
 
@@ -493,7 +491,6 @@ async def _start_user_run(
         actor_kind=RunActorKind.USER,
         trigger=RunTrigger.RERUN,
         hints=hints,
-        model=model,
         parent_run_id=previous_run.id if previous_run is not None else None,
     )
     return locked, run
