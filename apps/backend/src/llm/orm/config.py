@@ -1,14 +1,11 @@
-"""DB-backed LLM provider configuration (EPIC-023 EPIC B / PR4).
+"""Legacy tables of the per-user LLM configuration (EPIC-023, deleted by #2953).
 
-These tables hold the *operational* LLM config the SSOT vocabulary
-(``common/llm/readme.md``) describes: provider instances (with their API key
-encrypted at rest) and the scene→model bindings. The Python enums are reused
-from ``src/llm/base`` so the DB and the runtime contract can never drift.
-
-Since PR4 they are **per-user with a deployment default** (EPIC-023 AC23.4):
-``user_id`` is nullable — ``NULL`` rows are the deployment default (the original
-deployment-scoped behaviour), non-null rows belong to that user. Config resolves
-a user's rows first, then the deployment default, then the env fallback.
+``llm_providers`` and ``llm_scene_bindings`` held provider instances (API key
+encrypted at rest) and scene-to-model bindings. No code reads or writes them since
+stage 2 of #2953: the three model roles come from the environment. Both tables
+hold no row on staging or production (checked 2026-11-24). Stage 3 of #2953 drops
+the tables and the columns ``prefer_free`` and ``fallback_model_ids``; it is
+owner-reserved. These models stay until that migration lands.
 """
 
 from __future__ import annotations
