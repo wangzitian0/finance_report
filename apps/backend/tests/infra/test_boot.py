@@ -8,8 +8,10 @@ import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from infra2_sdk.runtime.llm import LlmSettings
 
 from src.boot import Bootloader, BootMode, ServiceStatus
+from src.config import Settings
 
 _ORIG_DB, _ORIG_S3 = Bootloader._check_database, Bootloader._check_s3
 ZAI_CODING_BASE_URL = "https://api.z.ai/api/coding/paas/v4"
@@ -44,6 +46,11 @@ _BASE_SETTINGS = {
     "s3_presign_expiry_seconds": 300,
     "api_rate_limit_requests": 300,
     "git_commit_sha": "deadbeef",
+}
+_SDK_ROLES = {
+    "large_model": LlmSettings().large_model,
+    "small_model": LlmSettings().small_model,
+    "multimodal_model": LlmSettings().multimodal_model,
 }
 _GUARD_DEV = {
     "secret_key": "dev_secret_key_change_in_prod",
@@ -91,7 +98,7 @@ def boot_mocks():
 
 def _configure(mock_settings, environment: str, app_url: str, **overrides: object) -> None:
     mock_settings.configure_mock(
-        **{**_GUARD_STRONG, "environment": environment, "next_public_app_url": app_url, **overrides}
+        **{**_SDK_ROLES, **_GUARD_STRONG, "environment": environment, "next_public_app_url": app_url, **overrides}
     )
 
 
@@ -200,6 +207,58 @@ def test_AC_runtime_guard_proofs_2_development_defaults_accepted_in_local_enviro
 def test_guard_proofs_strong_values_accepted_under_every_protected_trigger(mock_settings, trigger: str) -> None:
     _configure(mock_settings, *_GUARD_TRIGGERS[trigger])
     assert Bootloader._check_static_config() is True
+
+
+_PINNED = {
+    "large_model": "pinned-large",
+    "small_model": "pinned-small",
+    "multimodal_model": "pinned-multimodal",
+}
+
+
+@pytest.mark.parametrize("environment", ("staging", "ci", "preview", "prod-eu"))
+@pytest.mark.parametrize("role", sorted(_PINNED))
+def test_AC_llm_2953_a_pinned_model_role_stops_every_deployed_environment_but_production(
+    mock_settings, environment: str, role: str
+) -> None:
+    _configure(mock_settings, environment, "http://localhost:3000", **{role: _PINNED[role]})
+    with patch("src.boot.logger") as log:
+        assert Bootloader._check_static_config() is False
+    pinned_env = {
+        "large_model": "LLM_LARGE_MODEL",
+        "small_model": "LLM_SMALL_MODEL",
+        "multimodal_model": "LLM_MULTIMODAL_MODEL",
+    }[role]
+    assert pinned_env in str(log.error.call_args)
+
+
+@pytest.mark.parametrize("environment", ("production", "development", "test"))
+def test_AC_llm_2953_production_and_local_runs_may_pin_every_model_role(mock_settings, environment: str) -> None:
+    _configure(mock_settings, environment, "http://localhost:3000", **_PINNED)
+    assert Bootloader._check_static_config() is True
+
+
+@pytest.mark.parametrize("environment", ("staging", "ci", "production", "development"))
+def test_AC_llm_2953_the_sdk_default_roles_pass_in_every_environment(mock_settings, environment: str) -> None:
+    _configure(mock_settings, environment, "http://localhost:3000")
+    assert Bootloader._check_static_config() is True
+
+
+@pytest.mark.parametrize("environment", ("production", "development"))
+def test_AC_llm_2953_the_start_builds_the_llm_settings_of_the_sdk(mock_settings, environment: str) -> None:
+    """A role that the SDK refuses stops the start in every environment, not at the first model call."""
+    _configure(mock_settings, environment, "http://localhost:3000")
+    mock_settings.to_llm_settings.side_effect = ValueError("large_model must be non-empty")
+    assert Bootloader._check_static_config() is False
+
+
+@pytest.mark.parametrize("blank", ("", "   "))
+def test_AC_llm_2953_a_blank_role_variable_is_refused_by_the_real_settings(monkeypatch, blank: str) -> None:
+    monkeypatch.setenv("LLM_LARGE_MODEL", blank)
+    real = Settings(_env_file=None)
+    assert real.large_model == blank
+    with patch("src.boot.settings", real):
+        assert Bootloader._check_llm_roles("production") is False
 
 
 @pytest.mark.parametrize(
