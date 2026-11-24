@@ -53,12 +53,18 @@ class StreamRedactor:
 
     def process(self, chunk: str) -> str:
         combined = self._buffer + chunk
-        if len(combined) <= self._tail_size:
+        cut = len(combined) - self._tail_size
+        if cut <= 0:
             self._buffer = combined
             return ""
-        safe_part = combined[: -self._tail_size]
-        self._buffer = combined[-self._tail_size :]
-        return redact_sensitive(safe_part)
+        # A number that crosses the cut stays whole in the buffer: its digits must not leave in two parts, because
+        # a model streams deltas of a few characters and the pattern cannot match a part (#3209 review).
+        for match in SENSITIVE_NUMBER_RE.finditer(combined):
+            if match.start() < cut < match.end():
+                cut = match.start()
+                break
+        self._buffer = combined[cut:]
+        return redact_sensitive(combined[:cut])
 
     def flush(self) -> str:
         if not self._buffer:
