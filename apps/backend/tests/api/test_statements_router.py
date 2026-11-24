@@ -33,7 +33,6 @@ from src.extraction.extension.deduplication import DeduplicationService
 from src.extraction.orm.evidence import EvidenceNode
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import JournalEntry, JournalEntryStatus, JournalLine
-from src.llm.base import Modality
 from src.runtime import StorageError
 from tests.api._statement_router_fixtures import (
     _compose_mock_ingestion,
@@ -41,7 +40,6 @@ from tests.api._statement_router_fixtures import (
     build_statement,
     create_statement_account,
     failing_storage,
-    patch_catalog,
     persist_mock_result,
     seed_uploaded_document,
 )
@@ -266,7 +264,26 @@ async def test_upload_ocr_pipeline_source_and_audit_logs(
         assert by_event[event].items() >= expected.items()
 
 
-async def test_upload_storage_failure_logs_safe_audit_context(client: AsyncClient, monkeypatch, model_catalog_stub):
+async def test_upload_reaches_parsing_while_the_model_catalog_fails(client: AsyncClient, monkeypatch, storage_stub, test_user):
+    """A PDF upload gives a PARSING statement while every catalog lookup fails (#2953 AC2)."""
+    from src.llm.extension.catalog import LitellmCatalog
+
+    async def catalog_down(self, *args, **kwargs):
+        raise AssertionError("The upload route read the model catalog.")
+
+    monkeypatch.setattr(LitellmCatalog, "get", catalog_down)
+    monkeypatch.setattr(LitellmCatalog, "list_models", catalog_down)
+    monkeypatch.setattr(
+        "src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(AsyncMock(return_value=None))
+    )
+
+    response = await _post_upload(client, "catalog-down.pdf", b"catalog-down-input")
+
+    assert response.status_code == status.HTTP_202_ACCEPTED, response.text
+    assert response.json()["status"] == BankStatementStatus.PARSING.value
+
+
+async def test_upload_storage_failure_logs_safe_audit_context(client: AsyncClient, monkeypatch):
     content, mock_error = b"storage-failure-input", MagicMock()
     monkeypatch.setattr("src.routers.statements.logger.error", mock_error)
     failing_storage(monkeypatch, detail="object store rejected upload without source bytes")
@@ -337,7 +354,7 @@ async def test_statement_scoped_brokerage_import_audit_logs(client: AsyncClient,
 
 
 async def test_pending_review_and_decisions(
-    client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user
+    client: AsyncClient, db, monkeypatch, storage_stub, test_user
 ):
     contents = [b"review-70", b"review-90"]
     score_by_hash = {hashlib.sha256(c).hexdigest(): s for c, s in zip(contents, [70, 90])}
@@ -434,25 +451,6 @@ async def test_statement_not_found_endpoints(client: AsyncClient, method, path, 
 
 
 @pytest.mark.parametrize(
-    ("model", "modalities", "detail_part"),
-    [
-        ("unknown/model", None, "Invalid model selection"),
-        ("text-only/model", frozenset({Modality.TEXT}), "does not support image/PDF inputs"),
-    ],
-)
-async def test_retry_rejects_invalid_or_text_only_model(
-    client: AsyncClient, db, monkeypatch, test_user, model, modalities, detail_part
-):
-    statement = await add_statement(
-        db, test_user.id, f"hash_{model}", confidence=80, status=BankStatementStatus.REJECTED
-    )
-    await db.commit()
-    patch_catalog(monkeypatch, modalities)
-    resp = await client.post(f"/statements/{statement.id}/runs", json={"model": model})
-    assert resp.status_code == status.HTTP_400_BAD_REQUEST and detail_part in resp.json()["detail"]
-
-
-@pytest.mark.parametrize(
     "prior_status", [BankStatementStatus.REJECTED, BankStatementStatus.PARSED, BankStatementStatus.PARSING]
 )
 @pytest.mark.parametrize("source_available", [True, False])
@@ -517,7 +515,7 @@ async def test_retry_statement_allowed_states(client: AsyncClient, db, storage_s
 
 @pytest.mark.parametrize("fail_retry", [False, True])
 async def test_retry_statement_completion_and_failure(
-    client: AsyncClient, db, monkeypatch, storage_stub, model_catalog_stub, test_user, fail_retry
+    client: AsyncClient, db, monkeypatch, storage_stub, test_user, fail_retry
 ):
     _patch_parse_document(monkeypatch, test_user.id, confidence_score=60)
     upload_resp = await _post_upload(client, "statement.pdf", b"statement-retry")
@@ -534,7 +532,7 @@ async def test_retry_statement_completion_and_failure(
         confidence_score=95,
         side_effect=ExtractionError("Retry failed") if fail_retry else None,
     )
-    resp = await client.post(f"/statements/{stmt_id}/runs", json={"model": "google/gemini-2.0-flash-exp:free"})
+    resp = await client.post(f"/statements/{stmt_id}/runs", json={})
     assert resp.status_code == status.HTTP_202_ACCEPTED
     if fail_retry:
         refreshed = await db.get(StatementSummary, stmt_id, populate_existing=True)
@@ -551,7 +549,7 @@ async def test_retry_statement_completion_and_failure(
     ],
 )
 async def test_background_parse_error_logging(
-    client: AsyncClient, db, monkeypatch, test_user, storage_stub, model_catalog_stub, is_retry, exc
+    client: AsyncClient, db, monkeypatch, test_user, storage_stub, is_retry, exc
 ):
     started = time.monotonic()
     monkeypatch.setattr(statement_parsing_mod, "PARSE_RETRY_DELAY_SECONDS", 0)
@@ -562,7 +560,7 @@ async def test_background_parse_error_logging(
         )
         await seed_uploaded_document(db, statement, file_path="path")
         await db.commit()
-        resp = await client.post(f"/statements/{statement.id}/runs", json={"model": "google/gemini-flash"})
+        resp = await client.post(f"/statements/{statement.id}/runs", json={})
         stmt_id = statement.id
     else:
         resp = await _post_upload(client, "statement.pdf", b"content")
@@ -691,7 +689,7 @@ async def test_get_statement_document_streams_and_handles_errors(
 
 
 async def test_list_and_transactions_flow(
-    client: AsyncClient, monkeypatch, storage_stub, model_catalog_stub, test_user
+    client: AsyncClient, monkeypatch, storage_stub, test_user
 ):
     _patch_parse_document(
         monkeypatch,

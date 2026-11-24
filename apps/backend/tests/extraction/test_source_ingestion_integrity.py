@@ -170,7 +170,7 @@ async def test_retry_discards_provisional_institution(monkeypatch):
         AsyncMock(return_value=StartedRun(run_id=uuid4(), statement=statement, content=b"synthetic")),
     )
     await statements._queue_statement_reparse(
-        AsyncMock(), statement, statement.user_id, allowed_statuses=frozenset(), model=None
+        AsyncMock(), statement, statement.user_id, allowed_statuses=frozenset()
     )
     assert dispatch.call_args.kwargs["job"].institution is None
 
