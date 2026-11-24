@@ -1,4 +1,53 @@
-from __future__ import annotations; from dataclasses import replace; from contextlib import nullcontext; from unittest.mock import patch; from datetime import UTC, datetime; from uuid import UUID; from decimal import Decimal; from sqlalchemy import select; from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker; from src.audit import TraceEmitter, TraceRecord; from src.database import create_session_maker_from_db; from src.composition import compose_statement_ingestion_use_case, compose_statement_posting_dependencies; from src.extraction import DispositionContext, DispositionDecision, DispositionMode, DispositionPolicy, DocumentSource, EconomicIntent, IntentProposal, IntentProposalOrigin, ParseJob, StatementExtractionResult, StatementIngestionOutcome, StatementPostingDependencies, StatementSummary, StatementTransaction; from src.extraction.extension.disposition_trace import emit_disposition_trace_records; from src.extraction.extension.service import ExtractionService; from src.extraction.extension import transaction_classification; from src.extraction.extension.statement_validation import resolve_statement_transactions; from src.extraction.extension.transaction_classification import ClassificationOutcome, ClassificationPolicy, ask_model, plan_classification, policy_buckets, settle_drafts, write_answers, write_rule_answers; from src.extraction.orm.layer2 import AtomicTransaction; from src.ledger import Account, AccountType
+from __future__ import annotations
+
+from contextlib import nullcontext
+from dataclasses import replace
+from datetime import UTC, datetime
+from decimal import Decimal
+from unittest.mock import patch
+from uuid import UUID
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from src.audit import TraceEmitter, TraceRecord
+from src.composition import compose_statement_ingestion_use_case, compose_statement_posting_dependencies
+from src.database import create_session_maker_from_db
+from src.extraction import (
+    DispositionContext,
+    DispositionDecision,
+    DispositionMode,
+    DispositionPolicy,
+    DocumentSource,
+    EconomicIntent,
+    IntentProposal,
+    IntentProposalOrigin,
+    ParseJob,
+    StatementExtractionResult,
+    StatementIngestionOutcome,
+    StatementPostingDependencies,
+    StatementSummary,
+    StatementTransaction,
+)
+from src.extraction.extension import transaction_classification
+from src.extraction.extension.disposition_trace import emit_disposition_trace_records
+from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.statement_validation import resolve_statement_transactions
+from src.extraction.extension.transaction_classification import (
+    ClassificationOutcome,
+    ClassificationPolicy,
+    ask_model,
+    plan_classification,
+    policy_buckets,
+    settle_drafts,
+    write_answers,
+    write_rule_answers,
+)
+from src.extraction.orm.layer2 import AtomicTransaction
+from src.ledger import Account, AccountType
+from src.llm import ModelCallFailed
+
+
 async def _no_sleep(_delay: float) -> None: return None
 async def execute_statement_ingestion(job: ParseJob, *, content: bytes, session_maker: async_sessionmaker[AsyncSession]) -> StatementIngestionOutcome: return await replace(compose_statement_ingestion_use_case(session_maker=session_maker), sleep=_no_sleep).execute(job, content=content)
 posting_dependencies = lambda: compose_statement_posting_dependencies()
@@ -75,7 +124,11 @@ async def classify_transactions(
     answered: list[ClassificationOutcome] = []
     if plan.to_propose:
         with patch.object(transaction_classification, "propose_categories", proposer) if proposer else nullcontext():
-            proposals = await ask_model(user_id, plan.to_propose, plan.policy)
+            try:
+                proposals = await ask_model(plan.to_propose, plan.policy)
+            except ModelCallFailed:
+                # The classify run leaves the rows of a failed batch without an answer (and counts the batch).
+                proposals = [None] * len(plan.to_propose)
         answered = await write_answers(db, plan, plan.to_propose, proposals)
     await settle_drafts(db, plan)
     by_txn = {outcome.atomic_txn_id: outcome for outcome in [*plan.base_outcomes(), *answered]}

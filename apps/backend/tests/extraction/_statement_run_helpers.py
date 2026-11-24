@@ -22,6 +22,7 @@ import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from fastapi import UploadFile
+from pydantic_ai.exceptions import ModelHTTPError
 from reportlab.pdfgen import canvas
 from sqlalchemy import create_engine, func, select, text, update
 from sqlalchemy.engine import make_url
@@ -33,7 +34,6 @@ from src.audit.orm import TraceRecordRow
 from src.composition import compose_statement_ingestion_use_case, compose_statement_posting_dependencies
 from src.config import settings
 from src.database import create_app_engine, create_session_maker_from_db
-from src.extraction.base.validation import split_multi_account_extraction
 from src.extraction import (
     ActiveRunExists,
     BankStatementStatus,
@@ -79,6 +79,7 @@ from src.extraction.base.result import (
     StatementSourceType,
 )
 from src.extraction.base.types import RetireStatementCommand
+from src.extraction.base.validation import split_multi_account_extraction
 from src.extraction.extension import (
     deduplication,
     statement_classification_run,
@@ -94,7 +95,6 @@ from src.extraction.extension.reviewed_statement_envelope import persist_stateme
 from src.extraction.extension.service import ExtractionError, ExtractionService
 from src.extraction.extension.source_lifecycle import SourceIdentityCommand, resolve_source_identity, retire_statement
 from src.extraction.extension.statement_classification_run import execute_classify_run
-from src.statement_flow import parse_statement_flow
 from src.extraction.extension.statement_parsing import handle_parse_failure
 from src.extraction.extension.statement_posting import (
     reconcile_account_statement_chain,
@@ -142,7 +142,8 @@ from src.ledger.extension.account_service import (
     get_or_create_opening_balance_equity_account,
     get_or_create_unexplained_gap_equity_account,
 )
-from src.llm import AIStreamError
+from src.llm import ModelFailureKind
+from src.llm.extension.agent import CallSite, model_call_failed
 from src.platform import DomainError
 from src.pricing import FxRate, PricingError
 from src.reporting.extension.balance_sheet import generate_balance_sheet
@@ -153,6 +154,8 @@ from src.routers.statements import get_review_conflicts
 from src.runtime import StorageError
 from src.runtime.extension import storage_sweep
 from src.schemas.reconciliation import ConsistencyCheckRunRequest, ReconciliationRunRequest
+from src.statement_flow import parse_statement_flow
+from tests._support.fake_llm import install_fake_model
 from tests.api._statement_router_fixtures import approve_reviewed
 from tests.factories import (
     AccountFactory,
@@ -920,7 +923,7 @@ async def draft_via_review_path(db, user, txn, category: str, confidence: int) -
 
 
 def mock_model_answers(monkeypatch, items: list[dict]) -> None:
-    monkeypatch.setattr("src.llm.stream_ai_json", lambda **_kwargs: fake_stream(json.dumps(items)))
+    install_fake_model(monkeypatch, json.dumps(items))
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
 
 
@@ -1999,26 +2002,22 @@ async def verify_two_writers_keyword_rule_serialize(db, test_user) -> None:
 async def verify_provider_no_call_at_approve(client, db, test_user, monkeypatch) -> None:
     provider_calls: list[int] = []
 
-    def stream_ai_json(**kwargs):
-        lines = [
-            json.loads(line) for line in kwargs["messages"][0]["content"].splitlines() if line.startswith('{"index"')
-        ]
+    def reply(prompt: str) -> str:
+        lines = [json.loads(line) for line in prompt.splitlines() if line.startswith('{"index"')]
         provider_calls.append(len(lines))
-        return fake_stream(
-            json.dumps(
-                [
-                    {
-                        "index": line["index"],
-                        "category": EXTENDED_ANSWERS[line["description"].split()[0]][0].value,
-                        "confidence": EXTENDED_ANSWERS[line["description"].split()[0]][1],
-                        "reason": "fixture",
-                    }
-                    for line in lines
-                ]
-            )
+        return json.dumps(
+            [
+                {
+                    "index": line["index"],
+                    "category": EXTENDED_ANSWERS[line["description"].split()[0]][0].value,
+                    "confidence": EXTENDED_ANSWERS[line["description"].split()[0]][1],
+                    "reason": "fixture",
+                }
+                for line in lines
+            ]
         )
 
-    monkeypatch.setattr("src.llm.stream_ai_json", stream_ai_json)
+    install_fake_model(monkeypatch, reply)
     rows = make_rows(8)
     statement_id = await ingest_csv_statement(db, test_user.id, "provider.csv", rows)
     assert provider_calls == [8]
@@ -3348,7 +3347,9 @@ async def verify_dual_write_non_fatal(db, test_user) -> None:
     )
 
 
-async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeypatch, failure: str, label: str) -> None:
+async def verify_failed_run_leaves_rows_to_review(
+    client, db, test_user, monkeypatch, failure: str, label: str, caplog=None
+) -> None:
     outcomes, provider_calls = spy_classify_outcomes(monkeypatch), []
     failing = Proposer(
         answers=EXTENDED_ANSWERS,
@@ -3358,10 +3359,12 @@ async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeyp
         ),
     )
     if failure == "provider-error":
-        monkeypatch.setattr(
-            "src.llm.stream_ai_json",
-            lambda **_kw: (provider_calls.append(1), (_ for _ in ()).throw(AIStreamError("provider down")))[1],
-        )
+
+        def provider_down(_prompt: str) -> str:
+            provider_calls.append(1)
+            raise ModelHTTPError(503, "test-small-model", {"error": "provider down"})
+
+        install_fake_model(monkeypatch, provider_down)
     else:
         install_proposer(monkeypatch, failing)
     rows = make_rows(6)
@@ -3370,6 +3373,23 @@ async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeyp
         len(provider_calls) if failure == "provider-error" else failing.rows_asked
     ) >= 1
     assert (await user_classification_rows(db, test_user.id), outcomes) == ([], [label])
+    if failure == "unexpected-error" and caplog is not None:
+        # A bug is not a model failure: the run fails with the class of the bug in the log, not as a counted batch.
+        messages = [record.getMessage() for record in caplog.records]
+        assert any(
+            "statement.classification.failed" in m and "'error_type': 'RuntimeError'" in m for m in messages
+        ), messages
+        assert not any("Model call failed" in m for m in messages)
+    if failure == "provider-error":
+        # Every batch failed at the provider: the run is failed, and its row names the kind (never a partial run).
+        failed = (
+            await db.execute(
+                select(StatementRun.error_code, StatementRun.error_message).where(
+                    StatementRun.statement_id == statement_id, StatementRun.error_code == "classification_failed"
+                )
+            )
+        ).one()
+        assert failed.error_message.endswith("Every model call failed: unavailable x1.")
     healthy = install_proposer(monkeypatch, Proposer(answers=EXTENDED_ANSWERS, timeout_gate=True))
     await confirm_csv_envelope(client, db, test_user.id, statement_id, rows)
     response = await approve_statement(client, statement_id)
@@ -3378,6 +3398,38 @@ async def verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeyp
         response.json()["detail"].startswith("Economic review required:"),
         healthy.rows_asked,
     ) == (409, True, 0)
+
+
+async def verify_failed_batches_leave_a_partial_run(db, test_user, monkeypatch, failing: int) -> None:
+    """`failing` of three batches fail at the provider: the run is partial, and its summary counts them by kind."""
+    monkeypatch.setattr(transaction_classification, "CLASSIFICATION_BATCH_SIZE", 2)
+    healthy, asked = Proposer(answers=EXTENDED_ANSWERS, timeout_gate=True), []
+
+    async def flaky(transactions, policy):
+        asked.append(len(transactions))
+        if len(asked) <= failing:
+            raise model_call_failed(CallSite.CLASSIFICATION_PROPOSE, ModelFailureKind.RATE_LIMIT, "429 from the test")
+        return await healthy(transactions, policy)
+
+    install_proposer(monkeypatch, flaky)
+    statement_id = await ingest_csv_statement(db, test_user.id, "flaky.csv", make_rows(6))
+    run = (
+        await db.execute(
+            select(StatementRun).where(StatementRun.statement_id == statement_id, StatementRun.kind == RunKind.CLASSIFY)
+        )
+    ).scalar_one()
+    await db.refresh(run)
+    assert (run.state, run.result_summary["outcome"], run.result_summary["model_failures"]) == (
+        RunState.SUCCEEDED,
+        "partial",
+        {"rate_limit": failing},
+    )
+    answered = (3 - failing) * 2
+    assert (len(asked), healthy.rows_asked, len(await user_classification_rows(db, test_user.id))) == (
+        3,
+        answered,
+        answered,
+    )
 
 
 async def verify_each_row_gets_own_date_policy(db, test_user, monkeypatch) -> None:

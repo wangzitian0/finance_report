@@ -107,7 +107,6 @@ ignore = [
 # `src/reconciliation` are clean. Remove an entry when its file is clean; add none (#2964).
 "src/advisor/extension/service.py" = ["BLE001"]
 "src/boot.py" = ["BLE001"]
-"src/extraction/extension/_csv.py" = ["BLE001"]
 "src/extraction/extension/_media.py" = ["BLE001"]
 "src/extraction/extension/deduplication.py" = ["BLE001"]
 "src/extraction/extension/pdf_text_layer.py" = ["BLE001"]

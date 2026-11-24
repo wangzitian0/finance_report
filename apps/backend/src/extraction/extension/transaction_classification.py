@@ -7,7 +7,6 @@ import math
 import re
 from collections import Counter
 from collections.abc import Awaitable, Callable, Mapping, Sequence
-from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
@@ -33,12 +32,12 @@ from src.extraction.extension.prompts import classification as templates
 from src.extraction.extension.prompts.hints import hints_block
 from src.extraction.orm.ai_feedback import AiFeedback
 from src.extraction.orm.correction import CorrectionLog
-from src.platform import ConflictError, ValidationFailedError
 from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.extraction.orm.statement_run import StatementRun
 from src.ledger import Account, AccountType
 from src.observability import get_logger
+from src.platform import ConflictError, ValidationFailedError
 
 logger = get_logger(__name__)
 settings = src.config.settings
@@ -49,7 +48,6 @@ SUSPENSE_TAG = "suspense"
 CLASSIFICATION_BATCH_SIZE = 50
 CLASSIFICATION_PARALLEL_BATCHES = 4
 CLASSIFICATION_PHASE_DEADLINE_SECONDS = 180.0
-_CLASSIFICATION_USER: ContextVar[UUID | None] = ContextVar("classification_user", default=None)
 _PLAIN_NUMBER = re.compile(r"\d+(\.\d+)?")
 
 
@@ -211,7 +209,7 @@ def _recover_json_array(content: str) -> list | None:
     for candidate in sorted(scan_balanced_json_candidates(content, "[", "]"), key=len, reverse=True):
         try:
             parsed = json.loads(candidate)
-        except json.JSONDecodeError:
+        except (ValueError, RecursionError):  # not JSON, a number of more than 4300 digits, or nesting too deep
             continue
         if isinstance(parsed, list):
             return parsed
@@ -322,7 +320,6 @@ async def propose_categories(
     return await _propose_batch(
         transactions,
         policy,
-        _CLASSIFICATION_USER.get(),
         hints=hints,
         few_shot_examples=few_shot_examples,
     )
@@ -367,74 +364,66 @@ def classification_template_fingerprint() -> str:
 
 
 async def ask_model(
-    user_id: UUID,
     rows: Sequence[AtomicTransaction],
     policy: ClassificationPolicy | None,
     *,
     hints: RunHints | None = None,
     few_shot_examples: Sequence[Mapping[str, object]] = (),
 ) -> list[CategoryProposal | None]:
-    """Ask the model for one group of rows. The caller passes no session (#3028).
-
-    `propose_categories` resolves the provider in short sessions of the global pool (up to 4 at once) that close
-    before the stream starts. "No connection during the call" means none of the run's sessions, none during the stream.
-    """
+    """Ask the model for one group of rows. The caller passes no session (#3028), and the call reads no user setting:
+    the provider is the one of the deployment. A failed call raises `ModelCallFailed`."""
     assert policy is not None, "the model is off: no plan asks it"
-    token = _CLASSIFICATION_USER.set(user_id)
-    try:
-        extra: dict[str, Any] = {}
-        if hints is not None and not hints.is_empty:
-            extra["hints"] = hints
-        if few_shot_examples:
-            extra["few_shot_examples"] = few_shot_examples
-        return await propose_categories(rows, policy, **extra)
-    finally:
-        _CLASSIFICATION_USER.reset(token)
+    extra: dict[str, Any] = {}
+    if hints is not None and not hints.is_empty:
+        extra["hints"] = hints
+    if few_shot_examples:
+        extra["few_shot_examples"] = few_shot_examples
+    return await propose_categories(rows, policy, **extra)
 
 
 async def _propose_batch(
     transactions: Sequence[AtomicTransaction],
     policy: ClassificationPolicy,
-    owner: UUID | None,
     *,
     hints: RunHints | None = None,
     few_shot_examples: Sequence[Mapping[str, object]] = (),
 ) -> list[CategoryProposal | None]:
-    from src.llm import AIStreamError, accumulate_stream, stream_ai_json
+    from infra2_sdk.runtime import DecodingSpec
+
+    from src.llm import ModelFailureKind
+    from src.llm.extension.agent import CallSite, complete_text, model_call_failed
 
     prompt = build_classification_prompt(transactions, policy, hints=hints, few_shot_examples=few_shot_examples)
 
-    try:
-        stream = stream_ai_json(
-            messages=[{"role": "user", "content": prompt}],
-            model=settings.small_model,
-            timeout=60.0,
-            user_id=owner,
-            max_tokens=settings.ai_json_max_tokens,
+    # A failed call raises ModelCallFailed (counted and logged at the entry point). The run decides what a failed
+    # batch means; a bug in this code is not caught here.
+    content = await complete_text(
+        CallSite.CLASSIFICATION_PROPOSE,
+        "small",
+        prompt,
+        decoding=DecodingSpec(
+            "extraction.classification.v1",
+            thinking=False if settings.ai_json_disable_thinking else None,
             temperature=0.0,
-            do_sample=False,
-            thinking={"type": "disabled"} if settings.ai_json_disable_thinking else None,
+            max_tokens=settings.ai_json_max_tokens,
+            timeout=60.0,
+        ),
+        extra_body={"do_sample": False},
+        # Two attempts of 60 s stay inside the deadline of the run (180 s); the SDK default of three do not.
+        max_attempts=2,
+    )
+    try:
+        parsed = json.loads(content)
+    except (ValueError, RecursionError):
+        parsed = _recover_json_array(content)
+    if not isinstance(parsed, list):
+        # No answer at all is a failed call, not an abstaining model: an abstaining model returns a list whose
+        # items are null or omit rows (those rows stay None below).
+        raise model_call_failed(
+            CallSite.CLASSIFICATION_PROPOSE,
+            ModelFailureKind.BAD_REPLY,
+            f"the reply is not a JSON array ({len(content)} characters, fenced={content.lstrip().startswith('`')})",
         )
-        content = await accumulate_stream(stream)
-        if not content or not content.strip():
-            logger.warning("transaction classification proposal returned empty response")
-            return [None] * len(transactions)
-        try:
-            parsed = json.loads(content)
-        except json.JSONDecodeError:
-            parsed = _recover_json_array(content)
-        if not isinstance(parsed, list):
-            logger.warning(
-                "transaction classification proposal failed",
-                error="unparseable model response",
-                content_length=len(content),
-                looks_fenced=content.lstrip().startswith("`"),
-            )
-            return [None] * len(transactions)
-    except (AIStreamError, ValueError, TypeError) as e:
-        # The text of the error can echo a row of the prompt: the log carries the class only.
-        logger.warning("transaction classification proposal failed", error_type=type(e).__name__)
-        return [None] * len(transactions)
 
     items = _align_indexed_items(parsed, len(transactions))
     if not any(items):

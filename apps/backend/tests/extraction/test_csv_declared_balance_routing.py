@@ -7,11 +7,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError, ModelTimeoutError, UnexpectedModelBehavior, UsageLimitExceeded
 
+from src.config import settings
 from src.extraction.base.result import StatementExtractionResult
 from src.extraction.base.reviewed_statement_envelope import supports_reviewed_statement_envelope
 from src.extraction.base.types import DocumentSource
-from src.extraction.extension.service import ExtractionService
+from src.extraction.extension.service import ExtractionError, ExtractionService
+from src.llm import ModelCallFailed, ModelFailureKind
+from tests._support.fake_llm import install_fake_model
 
 DECLARED_HEADER = "Statement Currency,Statement Period Start,Statement Period End,Statement Opening Balance,Statement Closing Balance,Date,Description,Amount"
 RECONCILED = f"{DECLARED_HEADER}\nSGD,2025-01-01,2025-01-31,100.00,125.00,2025-01-15,Interest,25.00\n"
@@ -75,15 +79,14 @@ async def test_AC_extraction_2504_1_and_2822_1_csv_balance_and_confidence() -> N
     )
 
 
-async def test_ai_csv_parsing_variants() -> None:
+async def test_ai_csv_parsing_variants(monkeypatch: pytest.MonkeyPatch) -> None:
     svc = ExtractionService()
     ai_map = '{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit", "balance": "Balance", "reference": null, "currency": null, "date_format": "%d/%m/%Y", "has_header": true, "institution_guess": "Unknown Bank"}'
     csv1 = b"Txn Date,Narration,Debit,Credit,Balance\n15/01/2025,Coffee Shop,25.00,,975.00\n16/01/2025,Salary,,3000.00,3975.00\n"
+    install_fake_model(monkeypatch, ai_map)
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
-        patch("src.extraction.extension._csv.accumulate_stream", AsyncMock(return_value=ai_map)),
     ):
         res1 = await svc._parse_csv_content(csv1, "UnknownBank")
     assert (
@@ -101,16 +104,13 @@ async def test_ai_csv_parsing_variants() -> None:
         {"Txn Date": "16/01/2025", "Narration": "Empty Amount", "Amount": ""},
         {"Txn Date": "17/01/2025", "Narration": "Refund", "Amount": "-4.50"},
     ]
+    install_fake_model(
+        monkeypatch,
+        '{"date": "Txn Date", "description": "Narration", "amount": "Amount", "debit": null, "credit": null}',
+    )
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
-        patch(
-            "src.extraction.extension._csv.accumulate_stream",
-            AsyncMock(
-                return_value='{"date": "Txn Date", "description": "Narration", "amount": "Amount", "debit": null, "credit": null}'
-            ),
-        ),
     ):
         t1, ps, pe = await svc._ai_parse_csv(
             headers=["Txn Date", "Narration", "Amount"],
@@ -125,16 +125,13 @@ async def test_ai_csv_parsing_variants() -> None:
         {"Txn Date": "15/01/2025", "Narration": "No Amount", "Debit": "", "Credit": ""},
         {"Txn Date": "16/01/2025", "Narration": "Salary", "Debit": "", "Credit": "3000.00"},
     ]
+    install_fake_model(
+        monkeypatch,
+        '{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit"}',
+    )
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        patch("src.extraction.extension._csv.stream_ai_json", return_value=MagicMock()),
-        patch(
-            "src.extraction.extension._csv.accumulate_stream",
-            AsyncMock(
-                return_value='{"date": "Txn Date", "description": "Narration", "amount": null, "debit": "Debit", "credit": "Credit"}'
-            ),
-        ),
     ):
         t2, _, _ = await svc._ai_parse_csv(
             headers=["Txn Date", "Narration", "Debit", "Credit"],
@@ -155,13 +152,65 @@ async def test_ai_csv_parsing_variants() -> None:
         res_dbs["transactions"][1]["direction"],
     ) == (1, "IN", 2, "OUT", "IN")
 
+    def provider_down(_prompt: str) -> str:
+        raise ModelHTTPError(503, "test-small-model", {"error": "provider down"})
+
+    # A failed model call names the model as the cause: it is not the error of a model that found no rows.
+    install_fake_model(monkeypatch, provider_down)
     with (
         patch.object(svc, "api_key", "test-key"),
         patch.object(svc, "small_model", "test-model"),
-        patch("src.extraction.extension._csv.stream_ai_json", MagicMock(side_effect=Exception("API error"))),
-        pytest.raises(Exception, match="No valid transactions found"),
+        pytest.raises(ExtractionError, match=r"^AI column mapping unavailable \(unavailable\)$") as failed,
     ):
         await svc._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+    assert isinstance(failed.value.__cause__, ModelCallFailed) and failed.value.__cause__.kind is ModelFailureKind.UNAVAILABLE
+
+    # A model that answers with a mapping that matches no row is not a failed call.
+    install_fake_model(monkeypatch, '{"date": "Col1", "description": "Col2", "amount": "Col3"}')
+    with (
+        patch.object(svc, "api_key", "test-key"),
+        patch.object(svc, "small_model", "test-model"),
+        pytest.raises(ExtractionError, match="No valid transactions found"),
+    ):
+        await svc._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+
+
+_CSV_FAILURES = [
+    (ModelHTTPError(status_code=429, model_name="m", body="x"), ModelFailureKind.RATE_LIMIT),
+    (ModelTimeoutError("m", "slow"), ModelFailureKind.TIMEOUT),
+    (ModelHTTPError(status_code=503, model_name="m", body="x"), ModelFailureKind.UNAVAILABLE),
+    (ModelHTTPError(status_code=401, model_name="m", body="x"), ModelFailureKind.REJECTED),
+    (UsageLimitExceeded("limit"), ModelFailureKind.USAGE_LIMIT),
+    (UnexpectedModelBehavior("no text"), ModelFailureKind.BAD_REPLY),
+    (RuntimeError("a bug of the adapter"), ModelFailureKind.UNCLASSIFIED),
+]
+
+
+@pytest.mark.parametrize(("error", "kind"), _CSV_FAILURES, ids=lambda value: value.value if isinstance(value, ModelFailureKind) else None)
+async def test_csv_every_failure_kind_but_not_configured_names_the_model_as_the_cause(monkeypatch, error, kind) -> None:
+    """Review of #3198: no kind may fall through to the generic error, except a deployment with no AI configured."""
+
+    def fails(_prompt: str) -> str:
+        raise error
+
+    install_fake_model(monkeypatch, fails)
+    with pytest.raises(ExtractionError, match=rf"^AI column mapping unavailable \({kind.value}\)$") as raised:
+        await ExtractionService()._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+    assert isinstance(raised.value.__cause__, ModelCallFailed) and raised.value.__cause__.kind is kind
+
+
+@pytest.mark.parametrize("reply", ['["a"]', "null", '{"date": ["x"]}', '{"date": 3}', "```json\n{}\n```", ""])
+async def test_csv_a_reply_that_is_no_column_mapping_is_a_bad_reply(monkeypatch, reply) -> None:
+    install_fake_model(monkeypatch, reply)
+    with pytest.raises(ExtractionError, match=r"^AI column mapping unavailable \(bad_reply\)$"):
+        await ExtractionService()._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+
+
+async def test_csv_with_no_ai_configured_keeps_the_generic_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No key means no AI fallback: the failure is `not_configured`, and the file has no rows that the heuristics read."""
+    monkeypatch.setattr(settings, "ai_api_key", "")
+    with pytest.raises(ExtractionError, match="No valid transactions found"):
+        await ExtractionService()._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
 
 
 async def test_e2e_hard_gate_csv_fixture_requires_reviewed_statement_envelope() -> None:

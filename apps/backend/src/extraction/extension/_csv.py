@@ -12,15 +12,14 @@ from typing import Any
 from src.extraction.extension._base import (
     ExtractionError,
     _tolerant_parse_date,
-    accumulate_stream,
     logger,
-    stream_ai_json,
 )
 from src.extraction.extension.brokerage_positions import (
     UnsupportedBrokerageCsvError,
     classify_brokerage_csv,
     parse_brokerage_csv_payload,
 )
+from src.llm import ModelCallFailed, ModelFailureKind
 from src.observability import detect_pii
 
 
@@ -231,7 +230,7 @@ def _append_bank_csv_rows(
     period_end: date | None = None
 
     for row in rows:
-        date_raw = (row.get(cols.date, "") if cols.date else "")
+        date_raw = row.get(cols.date, "") if cols.date else ""
         if emit_skip_warnings:
             date_raw = date_raw.strip()
         if profile.date_time_split and "T" in date_raw:
@@ -492,22 +491,27 @@ class _CsvMixin:
 
         used_ai_mapping = False
         if not transactions:
-            logger.info("No transactions from heuristic parsing, trying AI CSV mapping", institution=institution, headers=headers)
+            logger.info(
+                "No transactions from heuristic parsing, trying AI CSV mapping",
+                institution=institution,
+                headers=headers,
+            )
             try:
                 transactions, period_start, period_end = await self._ai_parse_csv(
                     headers, rows, institution, parse_date, parse_amount
                 )
                 used_ai_mapping = bool(transactions)
-            except Exception as ai_err:
-                logger.warning(
-                    "AI CSV parsing fallback failed",
-                    error=str(ai_err),
-                    error_type=type(ai_err).__name__,
-                    institution=institution,
-                )
+            except ModelCallFailed as exc:
+                # The entry point counted and logged the failure. A deployment with no AI configured has no AI
+                # fallback: the file has no rows that the heuristics can read. Any other failure says that the model
+                # was the cause: an empty result of a working model is another error.
+                if exc.kind is not ModelFailureKind.NOT_CONFIGURED:
+                    raise ExtractionError(f"AI column mapping unavailable ({exc.kind.value})") from exc
 
         if not transactions:
-            logger.warning("CSV parsing found no valid transactions", institution=institution, headers=headers, row_count=len(rows))
+            logger.warning(
+                "CSV parsing found no valid transactions", institution=institution, headers=headers, row_count=len(rows)
+            )
             raise ExtractionError(f"No valid transactions found in CSV for {institution}")
 
         logger.info(
@@ -551,17 +555,29 @@ class _CsvMixin:
         """AI-powered CSV column mapping fallback for unknown institutions."""
         from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
 
-        if not self.api_key:
-            raise ExtractionError("AI provider API key required for AI CSV parsing")
-
         sample_rows = [[row.get(h, "") for h in headers] for row in rows[:5]]
         prompt = build_csv_mapping_prompt(headers, sample_rows)
-        stream = stream_ai_json(messages=[{"role": "user", "content": prompt}], model=self.small_model, timeout=30.0)
-        content = await accumulate_stream(stream)
-        if not content or not content.strip():
-            raise ExtractionError("AI CSV mapping returned empty response")
+        from infra2_sdk.runtime import DecodingSpec
 
-        mapping = json.loads(content)
+        from src.llm.extension.agent import CallSite, complete_text, model_call_failed
+
+        content = await complete_text(
+            CallSite.CSV_COLUMN_MAPPING,
+            "small",
+            prompt,
+            decoding=DecodingSpec("extraction.csv_mapping.v1", thinking=False, timeout=30.0),
+        )
+        try:
+            mapping = json.loads(content)
+            names = [mapping.get(key) for key in ("date", "debit", "credit", "amount", "description")]
+            if any(name is not None and not isinstance(name, str) for name in names):
+                raise TypeError("a column name is not a string")
+        except (json.JSONDecodeError, AttributeError, TypeError) as exc:
+            raise model_call_failed(
+                CallSite.CSV_COLUMN_MAPPING,
+                ModelFailureKind.BAD_REPLY,
+                f"the reply is not a column mapping ({type(exc).__name__}, {len(content)} characters)",
+            ) from exc
         logger.info("AI CSV column mapping identified", institution=institution, mapping=mapping)
 
         cols = _ResolvedBankCsvColumns(

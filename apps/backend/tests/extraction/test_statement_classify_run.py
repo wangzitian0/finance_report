@@ -35,7 +35,10 @@ from src.extraction.extension.transaction_classification import (
 )
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, JournalEntry
+from src.llm import ModelFailureKind
+from src.llm.extension.agent import CallSite, model_call_failed
 from src.schemas.extraction import StatementReviewResponse
+from tests._support.fake_llm import install_fake_model
 from tests.api._statement_router_fixtures import approve_reviewed
 from tests.extraction._statement_run_helpers import (
     ANSWERS,  # noqa: F401
@@ -331,6 +334,36 @@ async def test_AC_extraction_2994_99_high_and_low_confidence_non_auto_approve_pa
 
 
 @pytest.mark.parametrize(
+    ("kind", "run_state", "outcome"),
+    [
+        (ModelFailureKind.RATE_LIMIT, RunState.FAILED, None),
+        (ModelFailureKind.NOT_CONFIGURED, RunState.SUCCEEDED, "skipped_disabled"),
+    ],
+)
+async def test_AC_extraction_3153_a_candidate_with_every_batch_failed_does_not_auto_approve(
+    db, test_user, monkeypatch, kind, run_state, outcome
+):
+    """Every model call failed on a high-confidence candidate: nothing posts. A real fault fails the run; a deployment
+    with no model configured is the state of a model that is off (the rows wait for the economic review)."""
+    _install(monkeypatch, Proposer(error=model_call_failed(CallSite.CLASSIFICATION_PROPOSE, kind, "test failure")))
+    service, content = _high_confidence(_rows())
+    sid, job = await _parsing_job(db, test_user, content)
+    result = await _use_case(db, service).execute(job, content=content)
+    classify = (await _runs(db, sid))[-1]
+    assert (classify.kind, classify.state, result.auto_posted_count, (await _statement(db, sid)).status) == (
+        RunKind.CLASSIFY,
+        run_state,
+        0,
+        BankStatementStatus.PARSED,
+    )
+    assert (classify.result_summary or {}).get("outcome") == outcome
+    if run_state is RunState.FAILED:
+        assert classify.error_code == "classification_failed" and f"{kind.value} x" in classify.error_message
+    else:
+        assert classify.result_summary["model_failures"] == {kind.value: 1}
+
+
+@pytest.mark.parametrize(
     ("marked", "expected_posted", "expected_status"),
     [(False, 0, BankStatementStatus.PARSED), (True, 5, BankStatementStatus.APPROVED)],
 )
@@ -486,6 +519,7 @@ async def test_execute_classify_run_injects_sanitized_few_shot_examples_without_
 ):
     """#2927: Few-shot correction examples reach the prompt with redacted digits, and zero DB connections stay checked out during LLM streaming."""
     from sqlalchemy.ext.asyncio import async_sessionmaker
+
     from src.database import create_app_engine
     from src.extraction.orm.correction import CorrectionLog
 
@@ -506,21 +540,17 @@ async def test_execute_classify_run_injects_sanitized_few_shot_examples_without_
     engine = create_app_engine(test_database_url, pool_size=4, max_overflow=0)
     checked_out_during_llm: list[int] = []
 
-    def stream_ai_json(**kwargs):
+    def reply(prompt: str) -> str:
         checked_out_during_llm.append(engine.pool.checkedout())
-        prompts.append(kwargs["messages"][0]["content"])
+        prompts.append(prompt)
+        return json.dumps(
+            [
+                {"index": 0, "category": "DINING", "confidence": 92, "reason": "coffee"},
+                {"index": 1, "category": "SALARY", "confidence": 95, "reason": "payroll"},
+            ]
+        )
 
-        async def _stream():
-            yield json.dumps(
-                [
-                    {"index": 0, "category": "DINING", "confidence": 92, "reason": "coffee"},
-                    {"index": 1, "category": "SALARY", "confidence": 95, "reason": "payroll"},
-                ]
-            )
-
-        return _stream()
-
-    monkeypatch.setattr("src.llm.stream_ai_json", stream_ai_json)
+    install_fake_model(monkeypatch, reply)
     try:
         await _worker(async_sessionmaker(engine, expire_on_commit=False), run_id)
     finally:

@@ -218,16 +218,3 @@ async def test_AC_extraction_classification_hardening_3_sweep_repairs_and_respec
         ClassificationStatus.SUPERSEDED,
         (ClassificationStatus.APPLIED, "HOUSING"),
     )
-
-
-async def test_AC_extraction_classification_hardening_5_the_user_context_is_cleared_after_every_pass(db, test_user):
-    txn, unasked = await _txn(db, test_user), await _txn(db, test_user)
-
-    async def failing(_transactions, _policy):
-        raise RuntimeError("provider down")
-
-    await classify_transactions(db, test_user.id, [txn], policy=V2, proposer=_propose("SHOPPING", 75))
-    assert tc._CLASSIFICATION_USER.get() is None
-    with pytest.raises(RuntimeError):
-        await classify_transactions(db, test_user.id, [txn, unasked], policy=V2, proposer=failing)
-    assert tc._CLASSIFICATION_USER.get() is None

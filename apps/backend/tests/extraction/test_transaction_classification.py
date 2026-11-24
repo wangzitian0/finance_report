@@ -12,10 +12,24 @@ from sqlalchemy import select
 from src.config import Settings, settings
 from src.extraction import ClassificationStatus, RuleType
 from src.extraction.extension import transaction_classification as tc
-from src.extraction.extension.transaction_classification import POLICY_VERSIONS, CategoryProposal, TransactionCategory, classification_suggestions, policy_for, propose_categories
+from src.extraction.extension.transaction_classification import (
+    POLICY_VERSIONS,
+    CategoryProposal,
+    TransactionCategory,
+    classification_suggestions,
+    policy_for,
+    propose_categories,
+)
 from src.extraction.orm.layer3 import ClassificationRule, TransactionClassification
 from src.ledger import Account, AccountType
-from tests.extraction._statement_run_helpers import _count, fake_stream as _fake_stream, make_classification_policy as _policy, stub_proposer as _stub_proposer, verify_no_classify_writer_uninvoked
+from src.llm import ModelCallFailed, ModelFailureKind
+from tests._support.fake_llm import install_fake_model
+from tests.extraction._statement_run_helpers import (
+    _count,
+    make_classification_policy as _policy,
+    stub_proposer as _stub_proposer,
+    verify_no_classify_writer_uninvoked,
+)
 from tests.factories import AtomicTransactionFactory
 from tests.statement_ingestion import classify_transactions
 
@@ -121,24 +135,33 @@ async def test_AC_extraction_ai_classification_default_1_new_user_gets_model_pro
 async def test_AC18_15_3_proposer_parsing_clamping_recovery_and_non_pnl_prompts(monkeypatch):
     cases = [
         ("test-key", json.dumps([{"index": 0, "category": "SALARY", "confidence": 250, "reason": "payroll"}, {"index": 1}]), [("SALARY", 100), None]),
-        ("", "[]", [None]), ("test-key", "{nope", [None]), ("test-key", "", [None]),
+        ("", "[]", [None]),
         ("test-key", '```json\n[{"index": 0, "category": "SALARY", "confidence": 90, "reason": "payroll"}]\n```', [("SALARY", 90)]),
         ("test-key", 'Sure! Here is the classification:\n[{"index": 0, "category": "SALARY", "confidence": 88}]\nHope that helps.', [("SALARY", 88)]),
     ]
     for api_key, raw, expected in cases:
         monkeypatch.setattr(settings, "ai_api_key", api_key)
-        monkeypatch.setattr("src.llm.stream_ai_json", lambda *_a, r=raw, **_kw: _fake_stream(r))
+        install_fake_model(monkeypatch, raw)
         txns = [AtomicTransactionFactory.build(user_id=None, description=d) for d in (["ACME PAYROLL", "???"] if len(expected) == 2 else ["ACME PAYROLL"])]
         assert [None if p is None else (p.category, p.confidence) for p in await tc.propose_categories(txns, policy_for(date.today()))] == expected
 
+    # A reply that is no JSON array is a failed call (bad_reply), not an abstaining model: an abstaining model gives
+    # a list whose items are null or left out, which the cases above show as None.
+    for raw in ("{nope", "", '{"index": 0}', "[" + "1" * 5000 + "]"):
+        monkeypatch.setattr(settings, "ai_api_key", "test-key")
+        install_fake_model(monkeypatch, raw)
+        with pytest.raises(ModelCallFailed) as failed:
+            await tc.propose_categories([AtomicTransactionFactory.build(user_id=None, description="ACME PAYROLL")], policy_for(date.today()))
+        assert failed.value.kind is ModelFailureKind.BAD_REPLY, raw
+
     seen: list[str] = []
 
-    async def fake_stream(messages, model, **_kwargs):
-        seen.append(messages[0]["content"])
-        yield json.dumps([{"index": 0, "category": "TRANSFER", "confidence": 90, "reason": "own account"}])
+    def reply(prompt: str) -> str:
+        seen.append(prompt)
+        return json.dumps([{"index": 0, "category": "TRANSFER", "confidence": 90, "reason": "own account"}])
 
     monkeypatch.setattr(settings, "ai_api_key", "test-key")
-    monkeypatch.setattr("src.llm.stream_ai_json", fake_stream)
+    install_fake_model(monkeypatch, reply)
     proposals = await propose_categories([AtomicTransactionFactory.build(description="Funds transfer between own accounts")], policy_for(date(2026, 6, 1)))
     assert [p.category for p in proposals if p] == ["TRANSFER"] and all(s in seen[0] for s in (*NON_PNL_NAMES, "Do NOT wrap it in markdown or code fences", "ONLY the raw JSON array", "between the user's own accounts", "OTHER_INCOME or OTHER_EXPENSE only"))
 

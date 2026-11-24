@@ -18,6 +18,7 @@ from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.layer3 import ClassificationRule
 from src.extraction.orm.statement_summary import StatementSummary
 from src.ledger import AccountType
+from tests._support.fake_llm import install_fake_model
 from tests.extraction._statement_run_helpers import (
     EXTENDED_ANSWERS as ANSWERS,
     Proposer,
@@ -38,6 +39,7 @@ from tests.extraction._statement_run_helpers import (
     spy_classify_outcomes,
     user_classification_rows,
     verify_each_row_gets_own_date_policy,
+    verify_failed_batches_leave_a_partial_run,
     verify_failed_run_leaves_rows_to_review,
     verify_provider_no_call_at_approve,
     verify_shared_rows_answered_once,
@@ -83,9 +85,15 @@ async def test_AC_extraction_statement_classify_1_parse_classifies_and_pdf_paylo
     assert (outcome.status, (await _statement(db, stmt.id)).status, pdf_proposer.rows_asked, len(await user_classification_rows(db, test_user.id))) == (StatementIngestionStatus.COMPLETED, BankStatementStatus.PARSED, 3, 15)
 
 
-@pytest.mark.parametrize(("failure", "label"), [("provider-error", "partial"), ("unexpected-error", "failed"), ("driver-timeout", "failed")])
-async def test_AC_extraction_statement_classify_2_a_failed_run_leaves_the_rows_to_the_economic_review(client, db, test_user, monkeypatch, failure, label):
-    await verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeypatch, failure, label)
+@pytest.mark.parametrize(("failure", "label"), [("provider-error", "failed"), ("unexpected-error", "failed"), ("driver-timeout", "failed")])
+async def test_AC_extraction_statement_classify_2_a_failed_run_leaves_the_rows_to_the_economic_review(client, db, test_user, monkeypatch, caplog, failure, label):
+    await verify_failed_run_leaves_rows_to_review(client, db, test_user, monkeypatch, failure, label, caplog)
+
+
+@pytest.mark.parametrize("failing", [1, 2])
+async def test_AC_extraction_statement_classify_2_some_failed_batches_leave_a_partial_run(db, test_user, monkeypatch, failing):
+    """One or two of three batches failed: the run is partial. Only a run in which every batch failed is failed."""
+    await verify_failed_batches_leave_a_partial_run(db, test_user, monkeypatch, failing)
 
 
 @pytest.mark.parametrize(
@@ -180,12 +188,9 @@ async def test_AC_extraction_statement_classify_4_5_empty_unresolvable_and_revie
 async def test_AC_extraction_2813_3_propose_batch_pins_deterministic_decode(db, test_user, monkeypatch):
     from src.extraction.extension.transaction_classification import POLICY_VERSIONS, _propose_batch
 
-    captured: dict = {}
-
-    async def _stream():
-        yield '[{"index": 0, "category": "DINING", "confidence": 92, "reason": "coffee"}]'
-
-    monkeypatch.setattr("src.llm.stream_ai_json", lambda **kw: (captured.update(kw), _stream())[1])
+    sent = install_fake_model(monkeypatch, '[{"index": 0, "category": "DINING", "confidence": 92, "reason": "coffee"}]')
     dummy = AtomicTransaction(id=uuid4(), user_id=test_user.id, txn_date=date(2026, 1, 2), amount=Decimal("12.50"), direction=TransactionDirection.OUT, description="Coffee 000", currency="SGD", dedup_hash="a" * 64, source_documents=[])
-    proposals = await _propose_batch([dummy], POLICY_VERSIONS[-1], test_user.id)
-    assert proposals[0] is not None and proposals[0].category == "DINING" and (captured.get("temperature"), captured.get("do_sample"), captured.get("max_tokens"), "thinking" in captured) == (0.0, False, settings.ai_json_max_tokens, True)
+    proposals = await _propose_batch([dummy], POLICY_VERSIONS[-1])
+    assert proposals[0] is not None and proposals[0].category == "DINING" and (sent.decodings[0].temperature, sent.extra_bodies[0], sent.decodings[0].thinking) == (0.0, {"do_sample": False, "max_tokens": settings.ai_json_max_tokens}, False)
+    # Two attempts of 60 s stay inside the deadline of the run (180 s); the SDK default of three do not (review of #3198).
+    assert sent.max_attempts == [2]

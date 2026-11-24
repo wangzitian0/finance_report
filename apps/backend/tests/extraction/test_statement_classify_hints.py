@@ -32,9 +32,11 @@ from src.extraction import (
 )
 from src.extraction.base.source_vocabulary import TransactionDirection
 from src.extraction.extension import transaction_classification as tc
-from src.extraction.extension.prompts import classification as classification_prompts
-from src.extraction.extension.prompts import hints as hints_module
-from src.extraction.extension.prompts import statement as stmt_prompts
+from src.extraction.extension.prompts import (
+    classification as classification_prompts,
+    hints as hints_module,
+    statement as stmt_prompts,
+)
 from src.extraction.extension.prompts.classification import CLASSIFICATION_PROMPT_TEMPLATE_VERSION
 from src.extraction.extension.prompts.hints import run_prompt_digest
 from src.extraction.extension.prompts.statement import INSTITUTION_HINTS, parsing_template_fingerprint
@@ -43,9 +45,18 @@ from src.extraction.extension.transaction_classification import (
     build_classification_prompt,
     classification_template_fingerprint,
 )
+from tests._support.fake_llm import install_fake_model
 from tests.api._statement_router_fixtures import create_statement_account
 from tests.extraction._statement_run_helpers import ScriptedModel, _runs, _statement, _worker
-from tests.extraction.test_statement_classify_run import ANSWERS, _answers, _install, _model_on, _rows, _run, _seed  # noqa: F401
+from tests.extraction.test_statement_classify_run import (  # noqa: F401
+    ANSWERS,
+    _answers,
+    _install,
+    _model_on,
+    _rows,
+    _run,
+    _seed,
+)
 from tests.factories import StatementSummaryFactory, seed_parsed_statement
 from tests.statement_ingestion import classify_run_for
 
@@ -81,8 +92,7 @@ class HintsModel(ScriptedModel):
 def _capturing_provider(monkeypatch, *, empty: bool = False) -> list[str]:
     prompts: list[str] = []
 
-    def stream_ai_json(**kwargs):
-        content = kwargs["messages"][0]["content"]
+    def reply(content: str) -> str:
         prompts.append(content)
         items = (
             []
@@ -97,13 +107,9 @@ def _capturing_provider(monkeypatch, *, empty: bool = False) -> list[str]:
                 for line in (json.loads(ln) for ln in content.splitlines() if ln.startswith('{"index"'))
             ]
         )
+        return json.dumps(items)
 
-        async def stream():
-            yield json.dumps(items)
-
-        return stream()
-
-    monkeypatch.setattr("src.llm.stream_ai_json", stream_ai_json)
+    install_fake_model(monkeypatch, reply)
     return prompts
 
 
@@ -150,7 +156,7 @@ def test_AC_extraction_2994_124_empty_hints_leave_the_classification_prompt_byte
 
 async def test_AC_extraction_2994_124_the_prompt_that_reaches_the_provider_equals_the_golden_without_hints(monkeypatch):
     sent = _capturing_provider(monkeypatch, empty=True)
-    await tc._propose_batch(ROWS, V2, None)
+    await tc._propose_batch(ROWS, V2)
     assert sent == [GOLDEN["indexed_v2"]]
 
 
