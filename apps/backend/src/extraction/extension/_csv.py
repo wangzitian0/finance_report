@@ -502,9 +502,11 @@ class _CsvMixin:
                 )
                 used_ai_mapping = bool(transactions)
             except ModelCallFailed as exc:
-                # The entry point counted and logged the failure. The caller learns that the model was the cause:
-                # an empty result of a working model is another error.
-                raise ExtractionError(f"AI column mapping unavailable ({exc.kind.value})") from exc
+                # The entry point counted and logged the failure. A deployment with no AI configured has no AI
+                # fallback: the file has no rows that the heuristics can read. Any other failure says that the model
+                # was the cause: an empty result of a working model is another error.
+                if exc.kind is not ModelFailureKind.NOT_CONFIGURED:
+                    raise ExtractionError(f"AI column mapping unavailable ({exc.kind.value})") from exc
 
         if not transactions:
             logger.warning(
@@ -552,9 +554,6 @@ class _CsvMixin:
     ) -> tuple[list[dict], date | None, date | None]:
         """AI-powered CSV column mapping fallback for unknown institutions."""
         from src.extraction.extension.prompts.csv_mapping import build_csv_mapping_prompt
-
-        if not self.api_key:
-            raise ExtractionError("AI provider API key required for AI CSV parsing")
 
         sample_rows = [[row.get(h, "") for h in headers] for row in rows[:5]]
         prompt = build_csv_mapping_prompt(headers, sample_rows)

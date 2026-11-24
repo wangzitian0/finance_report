@@ -9,6 +9,7 @@ from uuid import uuid4
 import pytest
 from pydantic_ai.exceptions import ModelHTTPError
 
+from src.config import settings
 from src.extraction.base.result import StatementExtractionResult
 from src.extraction.base.reviewed_statement_envelope import supports_reviewed_statement_envelope
 from src.extraction.base.types import DocumentSource
@@ -172,6 +173,13 @@ async def test_ai_csv_parsing_variants(monkeypatch: pytest.MonkeyPatch) -> None:
         pytest.raises(ExtractionError, match="No valid transactions found"),
     ):
         await svc._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
+
+
+async def test_csv_with_no_ai_configured_keeps_the_generic_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    """No key means no AI fallback: the failure is `not_configured`, and the file has no rows that the heuristics read."""
+    monkeypatch.setattr(settings, "ai_api_key", "")
+    with pytest.raises(ExtractionError, match="No valid transactions found"):
+        await ExtractionService()._parse_csv_content(b"Col1,Col2,Col3\nfoo,bar,baz\n", "UnknownFormat")
 
 
 async def test_e2e_hard_gate_csv_fixture_requires_reviewed_statement_envelope() -> None:
