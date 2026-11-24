@@ -58,6 +58,14 @@ async def test_AC_extraction_later_pass_failure_keeps_the_kept_pass_and_says_so(
     assert "'ended_on_failure': True" in messages[0] and f"'failed_pass': '{type(error).__name__}'" in messages[0]
 
 
+async def test_AC_extraction_log_says_ended_on_failure_only_when_the_last_pass_failed(caplog):
+    """Review of #3202: a failed pass 2 followed by a completed pass 3 is not a loop that ended on a failure."""
+    result, mock = await _run([_bank("12.50"), ExtractionError("model failed"), _bank("4.00")], max_attempts=3)
+    assert mock.await_count == 3 and result["transactions"][0]["amount"] == "96.00"
+    messages = [record.getMessage() for record in caplog.records if "keeping the best pass" in record.getMessage()]
+    assert len(messages) == 1 and "'ended_on_failure': False" in messages[0] and "'failed_pass': None" in messages[0]
+
+
 @pytest.mark.parametrize(
     "error",
     [RuntimeError("bug"), AssertionError("bug"), OSError("disk"), NameError("bug"), ImportError("bug")],

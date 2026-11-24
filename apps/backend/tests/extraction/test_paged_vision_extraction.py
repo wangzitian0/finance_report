@@ -283,3 +283,21 @@ def test_consolidated_brokerage_allows_multiple_subaccounts_while_bank_still_rej
     merged = merge_paged_extractions(parts, allow_multiple_accounts=True)
     assert merged["account_last4"] == "Z401"
     assert [p["symbol"] for p in merged["positions"]] == ["SPY", "QQQ"]
+
+
+def test_a_page_that_mupdf_cannot_draw_is_an_extraction_error_not_a_bare_runtime_error(monkeypatch):
+    """Review of #3202: the retry loop keeps an earlier pass for an `ExtractionError` only."""
+    import fitz
+
+    service = ExtractionService()
+    document = fitz.open(stream=_pdf_with_pages(1), filetype="pdf")
+    try:
+        page = document.load_page(0)
+        monkeypatch.setattr(type(page), "get_pixmap", lambda *_a, **_k: (_ for _ in ()).throw(RuntimeError("mupdf: broken")))
+        with pytest.raises(ExtractionError, match="^Failed to render page 1: RuntimeError$") as raised:
+            service._render_pdf_page_image_payload(document, fitz, 0)
+        assert isinstance(raised.value.__cause__, RuntimeError)
+        with pytest.raises(ExtractionError, match="^Failed to render page 9: ValueError$"):
+            service._render_pdf_page_image_payload(document, fitz, 8)  # a page that does not exist
+    finally:
+        document.close()

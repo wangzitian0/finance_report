@@ -9,7 +9,13 @@ from uuid import uuid4
 
 import httpx
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError, ModelTimeoutError, UnexpectedModelBehavior, UsageLimitExceeded
+from pydantic_ai.exceptions import (
+    ModelHTTPError,
+    ModelTimeoutError,
+    UnexpectedModelBehavior,
+    UsageLimitExceeded,
+    UserError,
+)
 from sqlalchemy import text
 
 from src.config import settings
@@ -247,6 +253,7 @@ async def test_extract_financial_data_stream_outcomes(
         (UsageLimitExceeded("the request limit"), "rate_limit", ModelFailureKind.USAGE_LIMIT),
         (ModelHTTPError(status_code=401, model_name="m", body={"error": "bad key"}), "http_error", ModelFailureKind.REJECTED),
         (ModelHTTPError(status_code=503, model_name="m", body="down"), "http_error", ModelFailureKind.UNAVAILABLE),
+        (UserError("a bad setting"), "http_error", ModelFailureKind.NOT_CONFIGURED),
         (UnexpectedModelBehavior("no text in the reply"), "model_error", ModelFailureKind.BAD_REPLY),
         (RuntimeError("a bug of the model adapter"), "model_error", ModelFailureKind.UNCLASSIFIED),
     ],
@@ -264,6 +271,34 @@ async def test_extraction_error_kind_follows_the_failure_kind_of_the_model_call(
             messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
         )
     assert isinstance(raised.value.__cause__, ModelCallFailed) and raised.value.__cause__.kind is model_kind
+
+
+async def test_the_extraction_call_sends_the_settings_that_the_old_call_sent(monkeypatch):
+    """Review of #3202: the role, the timeout, the attempts, the seed and the cap are the contract of the call."""
+    sent = install_fake_model(monkeypatch, '{"institution": "DBS", "transactions": []}')
+    await ExtractionService()._extract_json_with_model(
+        messages=[{"role": "user", "content": "Extract"}], model="forced-model", seed_override=7
+    )
+    decoding = sent.decodings[0]
+    assert (sent.roles, sent.models, sent.max_attempts, sent.extra_bodies[0]["do_sample"]) == (
+        ["multimodal"],
+        ["forced-model"],
+        [2],
+        False,
+    )
+    assert (decoding.timeout, decoding.seed, decoding.temperature) == (settings.ai_json_timeout_seconds, 7, 0.0)
+
+
+@pytest.mark.parametrize("reply", ["[" * 100000, '{"a":' * 100000], ids=["arrays", "objects"])
+async def test_a_reply_nested_too_deep_is_a_json_parse_error_not_a_recursion_error(monkeypatch, reply):
+    """Review of #3202: `json.loads` raises RecursionError for 100000 nested brackets; the retry loop would not catch it."""
+    install_fake_model(monkeypatch, reply)
+    # The repair scan is not the subject here (it is slow on 100000 brackets): the parse is.
+    monkeypatch.setattr(ExtractionService, "_repair_json_object", staticmethod(lambda _content: None))
+    with pytest.raises(ExtractionError, match=r"^Extraction failed \(json_parse\)"):
+        await ExtractionService()._extract_json_with_model(
+            messages=[{"role": "user", "content": "Extract"}], model="test-vision-model"
+        )
 
 
 async def test_extract_json_timeout_and_ai_csv_empty(monkeypatch):

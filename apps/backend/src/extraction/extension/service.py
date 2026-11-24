@@ -946,6 +946,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         best_score: PassScore | None = None
         best_findings: list[Finding] = []
         last_error: Exception | None = None
+        last_pass_error: Exception | None = None  # the error of the last pass; None when the last pass completed
         extract_overridden = (
             type(self).extract_financial_data is not _ORIGINAL_EXTRACT_FINANCIAL_DATA
             or "extract_financial_data" in self.__dict__
@@ -1018,13 +1019,14 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     error_type=type(exc).__name__,
                     error=str(exc)[:300],
                 )
-                last_error = exc
+                last_error = last_pass_error = exc
                 # A pass that gave no reading has no check result. The next pass reads the pages another way.
                 read_text_layer = False
                 continue
             finally:
                 structlog.contextvars.unbind_contextvars("extract_attempt")
             current_parse = (slices, split_meta_agreed)
+            last_pass_error = None
 
             if is_brokerage and (best_score is None or best_score.balance_fails or best_score.unusable):
                 # A brokerage reading is judged by its positions, not by the checks of a bank account. It
@@ -1058,8 +1060,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 logger.info(
                     "Checks did not pass after re-extract; keeping the best pass",
                     attempts=max_attempts,
-                    ended_on_failure=last_error is not None,
-                    failed_pass=type(last_error).__name__ if last_error is not None else None,
+                    ended_on_failure=last_pass_error is not None,
+                    failed_pass=type(last_pass_error).__name__ if last_pass_error is not None else None,
                     finding_count=best_score.finding_count,
                     best_difference=str(best_score.gap),
                     rows=best_score.rows,
@@ -1115,7 +1117,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     raise ExtractionError("AI response must be a strict JSON object (no arrays).")
                 logger.info("AI extraction successful (streaming)", model=model)
                 return parsed
-            except json.JSONDecodeError as e:
+            except (json.JSONDecodeError, RecursionError) as e:  # nesting of 100000 brackets is a reply that cannot be read
                 repaired = self._repair_json_object(content)
                 if repaired is not None:
                     try:
@@ -1123,7 +1125,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         if isinstance(parsed, dict):
                             logger.info("AI extraction recovered via JSON repair", model=model)
                             return parsed
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, RecursionError):
                         pass
 
                 logger.error(
