@@ -25,9 +25,10 @@ Wire facts that this module fixes (each one was measured against Z.AI on 2026-11
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import dataclasses
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from typing import Any, Literal
@@ -326,11 +327,74 @@ async def stream_text(
         await stream_cm.__aexit__(None, None, None)
 
 
+async def iterate_text(
+    call_site: CallSite,
+    role: Role,
+    content: Content,
+    *,
+    decoding: DecodingSpec,
+    usage_limits: UsageLimits | None = None,
+    extra_body: Mapping[str, Any] | None = None,
+    max_attempts: int = 3,
+    model: str | None = None,
+    system: str | None = None,
+    history: Sequence[Mapping[str, Any]] = (),
+) -> AsyncGenerator[str, None]:
+    """Give the text of the reply piece by piece, to a reader that may read and close it in different tasks.
+
+    ``stream_text`` must be entered and left in one task: the SDK opens a cancel scope and a context token when the
+    stream opens. A response body is read by the task of the request for its first chunk and by another task for the
+    rest (Starlette starts a task for the response), so an iterator that holds ``stream_text`` open breaks. Here one
+    producer task owns the stream for its whole life and hands each piece to the reader through a queue; the reader
+    only waits on the queue, so any task may read it or close it. A failure of the call arrives at the reader as the
+    same ``ModelCallFailed`` (or the error of the caller's own argument) that ``stream_text`` raises. Closing the
+    iterator, or an error of the reader, cancels the producer and closes the stream there.
+    """
+    queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue(maxsize=1)
+
+    async def produce() -> None:
+        try:
+            async with stream_text(
+                call_site,
+                role,
+                content,
+                decoding=decoding,
+                usage_limits=usage_limits,
+                extra_body=extra_body,
+                max_attempts=max_attempts,
+                model=model,
+                system=system,
+                history=history,
+            ) as pieces:
+                async for piece in pieces:
+                    await queue.put(("piece", piece))
+            await queue.put(("end", None))
+        except asyncio.CancelledError:
+            raise
+        except BaseException as exc:  # noqa: BLE001 - the reader re-raises it in its own task; a reader that waits must not hang
+            await queue.put(("error", exc))
+
+    producer = asyncio.ensure_future(produce())
+    try:
+        while True:
+            kind, value = await queue.get()
+            if kind == "piece":
+                yield value
+            elif kind == "error":
+                raise value
+            else:
+                return
+    finally:
+        producer.cancel()
+        await asyncio.gather(producer, return_exceptions=True)
+
+
 __all__ = [
     "CallSite",
     "Content",
     "Role",
     "complete_text",
+    "iterate_text",
     "model_call_failed",
     "stream_text",
     "to_message_history",

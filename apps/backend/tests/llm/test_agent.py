@@ -1,12 +1,22 @@
 """The one model entry point: content parts, the fake model, the request guard and the error text (#3153)."""
 
+import asyncio
+
 import pytest
 from infra2_sdk.runtime import DecodingSpec
 from pydantic_ai import BinaryContent, ImageUrl
 from pydantic_ai.exceptions import ModelHTTPError
 
+import src.llm.extension.agent as agent_module
 from src.llm import ModelCallFailed, ModelFailureKind
-from src.llm.extension.agent import CallSite, complete_text, stream_text, to_message_history, to_user_content
+from src.llm.extension.agent import (
+    CallSite,
+    complete_text,
+    iterate_text,
+    stream_text,
+    to_message_history,
+    to_user_content,
+)
 
 DECODING = DecodingSpec("test.v1", thinking=False, timeout=5.0)
 SITE = CallSite.RECONCILIATION_SEMANTIC_SCORE
@@ -181,3 +191,72 @@ def test_history_accepts_user_and_assistant_turns_only() -> None:
     assert to_message_history([]) == []
     with pytest.raises(ValueError, match="Unsupported history role: 'system'"):
         to_message_history([{"role": "system", "content": "a system prompt is not a turn"}])
+
+
+def _open(site=SITE, **kwargs):
+    return iterate_text(site, "small", "q", decoding=DECODING, max_attempts=1, **kwargs)
+
+
+async def test_iterate_text_can_be_read_and_closed_in_different_tasks(fake_llm) -> None:
+    """Review of #3203: the router reads the first chunk in the task of the request and the rest in another task.
+    `stream_text` raised a context error and a cancel-scope error there."""
+    chunks = [f"chunk{i} " for i in range(30)]
+    fake_llm(chunks)
+    pieces = _open()
+    first = await asyncio.create_task(anext(pieces))  # task A: opens the stream
+
+    async def rest() -> list[str]:  # task B: reads the rest
+        return [piece async for piece in pieces]
+
+    assert [first, *await asyncio.create_task(rest())] == chunks
+
+
+async def test_iterate_text_closes_from_another_task_and_leaves_no_task_behind(fake_llm) -> None:
+    fake_llm([f"chunk{i} " for i in range(1000)])
+    before = len(asyncio.all_tasks())
+    pieces = _open()
+    assert await asyncio.create_task(anext(pieces)) == "chunk0 "
+    await asyncio.wait_for(asyncio.create_task(pieces.aclose()), timeout=5)  # task B closes it after one chunk
+    await asyncio.sleep(0)
+    assert len(asyncio.all_tasks()) == before
+
+
+async def test_iterate_text_raises_the_failure_of_the_call_in_the_task_of_the_reader(fake_llm, monkeypatch) -> None:
+    failures_counter: list[tuple[str, str]] = []
+    monkeypatch.setattr(
+        agent_module, "record_llm_call_failure", lambda *, call_site, kind: failures_counter.append((call_site, kind))
+    )
+    fake_llm(["a ", "b ", ModelHTTPError(status_code=500, model_name="m", body="x")])
+    seen: list[str] = []
+    with pytest.raises(ModelCallFailed) as raised:
+        async for piece in _open():
+            seen.append(piece)
+    assert (seen, raised.value.kind, failures_counter) == (["a ", "b "], ModelFailureKind.UNAVAILABLE, [("reconciliation.semantic_score", "unavailable")])
+
+    fake_llm(ModelHTTPError(status_code=429, model_name="m", body="x"))  # a failure before the first chunk
+    with pytest.raises(ModelCallFailed) as before:
+        await anext(_open())
+    assert before.value.kind is ModelFailureKind.RATE_LIMIT
+
+
+async def test_iterate_text_passes_an_error_of_the_callers_argument_unchanged(fake_llm) -> None:
+    fake_llm("x")
+    with pytest.raises(ValueError, match="Unsupported content part"):
+        await anext(iterate_text(SITE, "small", [{"type": "bogus"}], decoding=DECODING))
+
+
+async def test_iterate_text_forwards_an_error_that_is_not_an_exception_instead_of_hanging_the_reader(fake_llm) -> None:
+    """A `BaseException` (the test guard `UnexpectedExternalIO`, `KeyboardInterrupt`) ends the producer task: the reader
+    must get it, not wait on an empty queue for ever."""
+    from tests._support.guards import UnexpectedExternalIO
+
+    fake_llm(["a ", UnexpectedExternalIO("a guard refused an I/O call")])
+    seen: list[str] = []
+
+    async def read() -> None:
+        async for piece in _open():
+            seen.append(piece)
+
+    with pytest.raises(UnexpectedExternalIO, match="a guard refused"):
+        await asyncio.wait_for(read(), timeout=5)
+    assert seen == ["a "]

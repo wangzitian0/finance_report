@@ -16,7 +16,8 @@ CONVERSATION = [
 
 
 @pytest.mark.vcr
-async def test_the_advisor_streams_the_answer_of_the_large_role_with_its_history(vcr_llm) -> None:
+async def test_the_advisor_streams_the_answer_of_the_large_role_with_its_history(vcr_llm, vcr) -> None:
     """The replay matches the request body: the system message, the earlier user and assistant turns, `stream: true`."""
     pieces = [piece async for piece in AIAdvisorService()._stream_model(CONVERSATION)]
-    assert len(pieces) >= 1 and "".join(pieces).strip()
+    assert len(pieces) >= 1 and "".join(pieces).strip() == "apple"
+    assert vcr.play_count == 1  # the model was asked: the answer is not the code's

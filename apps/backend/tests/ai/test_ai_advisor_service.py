@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from collections.abc import AsyncIterator
@@ -10,6 +11,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
+from pydantic_ai.exceptions import ModelHTTPError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,14 +37,30 @@ from src.advisor import (
 from src.advisor.extension import service as ai_advisor_service
 from src.advisor.orm.chat import ChatMessage, ChatMessageRole, ChatSession, ChatSessionStatus
 from src.audit import JournalEntrySourceType
+from src.config import settings
 from src.extraction import TransactionDirection
 from src.extraction.orm.layer2 import AtomicTransaction
-from src.ledger import Account, AccountType, Direction, JournalEntry, JournalEntryStatus, JournalLine, worst_confidence_tier
-from src.llm import AIStreamError, ModelCallFailed, ModelFailureKind, ReasoningEffort, estimate_tokens
+from src.ledger import (
+    Account,
+    AccountType,
+    Direction,
+    JournalEntry,
+    JournalEntryStatus,
+    JournalLine,
+    worst_confidence_tier,
+)
+from src.llm import AIStreamError, LLMConfigError, ModelCallFailed, ModelFailureKind, ReasoningEffort, estimate_tokens
 from src.llm.base import ProtocolFamily, ProviderRef, Scene, SceneBinding
 from src.reconciliation import ReconciliationMatch, ReconciliationStatus
 from src.reporting import ReportError
-from tests.ai.conftest import aboom, aret, fake_market_data_item, fake_portfolio_summary, fake_readiness_payload, fake_workflow_status
+from tests.ai.conftest import (
+    aboom,
+    aret,
+    fake_market_data_item,
+    fake_portfolio_summary,
+    fake_readiness_payload,
+    fake_workflow_status,
+)
 from tests.factories import UserFactory
 
 
@@ -354,6 +372,67 @@ async def test_stream_and_store_and_chat_stream_paths(db: AsyncSession, test_use
     assert (decoding.decoding_version, decoding.timeout, decoding.thinking) == ("advisor.chat.v1", 120.0, "high")
     with pytest.raises(ValueError, match="ends with a user message"):
         [c async for c in service._stream_model([{"role": "system", "content": "s"}, {"role": "assistant", "content": "a"}])]
+
+
+_CONVERSATION = [
+    {"role": "system", "content": "You are the advisor."},
+    {"role": "user", "content": "first question"},
+    {"role": "assistant", "content": "first answer"},
+    {"role": "user", "content": "second question"},
+]
+
+
+async def test_the_advisor_stream_is_read_and_closed_in_different_tasks(fake_llm) -> None:
+    """Review of #3203 (high): the router reads the first chunk in the task of the request and the rest in the task of
+    the response. With `stream_text` held open in the generator, every successful chat ended in a context error."""
+    chunks = [f"chunk{i} " for i in range(30)]
+    fake_llm(chunks)
+    stream = AIAdvisorService()._stream_model(_CONVERSATION)
+    first = await asyncio.create_task(anext(stream))
+
+    async def rest() -> list[str]:
+        return [piece async for piece in stream]
+
+    assert [first, *await asyncio.create_task(rest())] == chunks
+
+    fake_llm([f"chunk{i} " for i in range(1000)])
+    stream = AIAdvisorService()._stream_model(_CONVERSATION)
+    assert await asyncio.create_task(anext(stream)) == "chunk0 "
+    before = len(asyncio.all_tasks())
+    await asyncio.wait_for(asyncio.create_task(stream.aclose()), timeout=5)  # closed by a third task
+    await asyncio.sleep(0)
+    assert len(asyncio.all_tasks()) < before  # the producer task is gone
+
+
+async def test_a_failure_after_the_first_chunk_reaches_the_reader_of_the_advisor_stream(fake_llm) -> None:
+    fake_llm(["a ", "b ", ModelHTTPError(status_code=500, model_name="m", body="x")])
+    seen: list[str] = []
+    with pytest.raises(ModelCallFailed) as raised:
+        async for piece in AIAdvisorService()._stream_model(_CONVERSATION):
+            seen.append(piece)
+    assert (seen, raised.value.kind) == (["a ", "b "], ModelFailureKind.UNAVAILABLE)
+
+
+async def test_a_bad_llm_setting_is_not_configured_and_not_an_internal_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(settings, "ai_base_url", "")
+    with pytest.raises(ModelCallFailed) as raised:
+        [piece async for piece in AIAdvisorService()._stream_model(_CONVERSATION)]
+    assert raised.value.kind is ModelFailureKind.NOT_CONFIGURED
+
+
+async def test_every_llm_error_of_the_stream_becomes_a_status_of_the_advisor(db: AsyncSession, test_user, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Not only `ModelCallFailed`: the bound path raises other `LLMError`s (a bad configuration is a 503)."""
+    service = AIAdvisorService()
+    session = await service._get_or_create_session(db, test_user.id, None, "Hello")
+
+    async def failing(*_a, **_k):
+        raise LLMConfigError("no provider is configured")
+        yield ("", "")
+
+    monkeypatch.setattr(service, "_stream_openrouter", failing)
+    with pytest.raises(AIAdvisorError, match="AI service temporarily unavailable.") as raised:
+        await _drain_stream(service._stream_and_store(db, session, [{"role": "user", "content": "Hello"}], "en", "key"))
+    assert raised.value.status_code == 503 and "no provider" not in str(raised.value)
 
 
 async def test_get_financial_context_user_isolation_rollforward_and_active_month(db: AsyncSession, test_user) -> None:

@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 from collections.abc import AsyncIterator, Callable
+from contextlib import aclosing
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -49,13 +50,14 @@ from src.ledger import (
 from src.llm import (
     LLMError,
     ModelCallFailed,
+    ModelFailureKind,
     Scene,
     SceneBinding,
     estimate_tokens,
     get_config_source,
     get_llm_client,
 )
-from src.llm.extension.agent import CallSite, stream_text
+from src.llm.extension.agent import CallSite, iterate_text, model_call_failed
 from src.observability import get_logger
 from src.platform import require_base_currency
 from src.platform.base.errors import DomainError
@@ -916,13 +918,15 @@ class AIAdvisorService:
     async def _stream_model(self, messages: list[dict[str, str]]) -> AsyncIterator[str]:
         """Stream the answer of the large role through the one model entry point."""
         system, history, prompt = _split_conversation(messages)
-        async with stream_text(
-            CallSite.ADVISOR_CHAT,
-            "large",
-            prompt,
-            system=system,
-            history=history,
-            decoding=_advisor_decoding(),
+        try:
+            decoding = _advisor_decoding()
+        except ValueError as exc:  # an empty provider or model of the LLM settings: the same fault as a missing key
+            raise model_call_failed(CallSite.ADVISOR_CHAT, ModelFailureKind.NOT_CONFIGURED, str(exc)) from exc
+        # `iterate_text`, not `stream_text`: the router reads the first chunk in the task of the request and the rest in
+        # the task of the response, and `stream_text` cannot be entered and left in different tasks (review of #3203).
+        # `aclosing` closes it in the task that closes this generator; the close is safe from any task.
+        async with aclosing(
+            iterate_text(CallSite.ADVISOR_CHAT, "large", prompt, system=system, history=history, decoding=decoding)
         ) as pieces:
             async for piece in pieces:
                 yield piece
