@@ -44,19 +44,32 @@ def _create_enum(name: str, values: tuple[str, ...]) -> None:
     op.execute(f"DO $$ BEGIN CREATE TYPE {name} AS ENUM ({labels}); EXCEPTION WHEN duplicate_object THEN null; END $$;")
 
 
+# A lock that is not free after this time stops the upgrade, and the deploy with it. The deploy must fail, not stall.
+_LOCK_TIMEOUT = "10s"
+_TABLES = ("llm_providers", "llm_scene_bindings")
+
+
 def upgrade() -> None:
     connection = op.get_bind()
-    providers = connection.execute(sa.text("SELECT COUNT(*) FROM llm_providers")).scalar()
-    bindings = connection.execute(sa.text("SELECT COUNT(*) FROM llm_scene_bindings")).scalar()
+    op.execute(f"SET LOCAL lock_timeout = '{_LOCK_TIMEOUT}'")
+    present = [t for t in _TABLES if connection.execute(sa.text("SELECT to_regclass(:t)"), {"t": t}).scalar()]
+    if present:
+        # Lock first, count second: a writer that holds an uncommitted row must commit before the count, so the
+        # count sees that row and the guard stops. The drop of a table also needs a lock on `users` for the key
+        # triggers; lock_timeout keeps a busy `users` table from stalling the deploy.
+        op.execute(f"LOCK TABLE {', '.join(present)} IN ACCESS EXCLUSIVE MODE")
+    counts = {t: connection.execute(sa.text(f"SELECT COUNT(*) FROM {t}")).scalar() for t in present}
+    providers, bindings = counts.get("llm_providers", 0), counts.get("llm_scene_bindings", 0)
     if providers or bindings:
         raise RuntimeError(
             f"llm_providers holds {providers} row(s) and llm_scene_bindings holds {bindings} row(s). "
             "The upgrade drops no data. Export or delete the rows, then run the upgrade again."
         )
-    op.drop_table("llm_scene_bindings")
-    op.drop_table("llm_providers")
+    op.execute("DROP TABLE IF EXISTS llm_scene_bindings")
+    op.execute("DROP TABLE IF EXISTS llm_providers")
     for name, _values in reversed(_ENUMS):
         op.execute(f"DROP TYPE IF EXISTS {name}")
+    op.execute("SET LOCAL lock_timeout = DEFAULT")
 
 
 def downgrade() -> None:

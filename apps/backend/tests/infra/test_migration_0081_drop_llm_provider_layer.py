@@ -5,6 +5,10 @@ Each test clones a database that sits at revision 0080 and runs the real Alembic
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import time
 from collections.abc import Iterator
 from uuid import uuid4
 
@@ -12,7 +16,7 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
 
-from tests.extraction._statement_run_helpers import migration_db_url, run_alembic
+from tests.extraction._statement_run_helpers import BACKEND_DIR, migration_db_url, run_alembic
 
 pytestmark = pytest.mark.no_db
 
@@ -111,6 +115,11 @@ def _schema(engine: Engine) -> dict[str, object]:
     }
 
 
+def _count(engine: Engine, table: str) -> int:
+    with engine.connect() as connection:
+        return connection.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one()
+
+
 def _insert_provider(engine: Engine) -> None:
     with engine.begin() as connection:
         connection.execute(
@@ -164,6 +173,7 @@ def test_a_row_in_either_table_stops_the_upgrade_and_keeps_both_tables(clone, ro
         run_alembic(url, "upgrade", _REVISION)
     assert all(message in str(stopped.value) for message in messages)
     assert (_existing(engine), _version(engine)) == ((set(_TABLES), set(_ENUMS)), _BEFORE)
+    assert _count(engine, "llm_providers") == 1
 
 
 def test_the_downgrade_restores_the_schema_of_revision_0080(clone) -> None:
@@ -184,3 +194,67 @@ def test_no_orm_model_maps_the_dropped_tables() -> None:
     assert not set(_ENUMS) & {
         c.type.name for t in Base.metadata.tables.values() for c in t.columns if hasattr(c.type, "name")
     }
+
+
+def test_a_row_that_commits_while_the_upgrade_waits_for_the_lock_is_not_dropped(clone) -> None:
+    """The upgrade locks the tables before it counts. A writer that commits during the wait is seen by the count."""
+    url, engine = clone
+    name = engine.url.database
+    env = {**os.environ, "DATABASE_URL": url, "ENVIRONMENT": "testing"}
+    with engine.connect() as writer:
+        writer.execute(
+            text(
+                "INSERT INTO llm_providers (id, label, protocol, api_key_ciphertext, api_key_version, created_at, "
+                "updated_at) VALUES (:id, 'late', 'openai-compatible', 'x', 1, NOW(), NOW())"
+            ),
+            {"id": uuid4()},
+        )
+        upgrade = subprocess.Popen(
+            [sys.executable, "-m", "alembic", "upgrade", _REVISION],
+            cwd=BACKEND_DIR,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        try:
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline:
+                with engine.connect() as probe:
+                    waiting = probe.execute(
+                        text("SELECT COUNT(*) FROM pg_stat_activity WHERE datname = :n AND wait_event_type = 'Lock'"),
+                        {"n": name},
+                    ).scalar_one()
+                if waiting:
+                    break
+                time.sleep(0.2)
+            else:
+                pytest.fail("the upgrade never waited for a lock")
+            writer.commit()
+        finally:
+            output = upgrade.communicate(timeout=120)[0]
+    assert upgrade.returncode != 0 and "llm_providers holds 1 row" in output, output
+    assert (_existing(engine), _version(engine), _count(engine, "llm_providers")) == (
+        (set(_TABLES), set(_ENUMS)),
+        _BEFORE,
+        1,
+    )
+
+
+def test_the_upgrade_runs_on_a_database_that_has_no_such_tables(clone) -> None:
+    url, engine = clone
+    with engine.begin() as connection:
+        connection.execute(text("DROP TABLE llm_scene_bindings"))
+        connection.execute(text("DROP TABLE llm_providers"))
+        for enum_name in _ENUMS:
+            connection.execute(text(f"DROP TYPE {enum_name}"))
+    run_alembic(url, "upgrade", _REVISION)
+    assert (_existing(engine), _version(engine)) == ((set(), set()), _REVISION)
+
+
+def test_the_upgrade_runs_again_after_a_downgrade(clone) -> None:
+    url, engine = clone
+    run_alembic(url, "upgrade", _REVISION)
+    run_alembic(url, "downgrade", _BEFORE)
+    run_alembic(url, "upgrade", _REVISION)
+    assert (_existing(engine), _version(engine)) == ((set(), set()), _REVISION)
