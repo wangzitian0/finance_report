@@ -35,7 +35,7 @@ Vault path convention: `secret/data/{project}/{environment}/{component}`
   bootstrap-only credential (`bootstrap/05.vault`, AppRole + policy setup).
   Application containers, Finance Report CI, and every playbook below hold no
   Vault token at all.
-- Human-issued values (a third-party API key such as `ZAI_API_KEY`) go into
+- Human-issued values (a third-party API key such as `LLM_API_KEY`) go into
   1Password (`Infra2` vault, item `finance_report/{env}/app`); the next deploy's
   secret supply copies them into Vault. Nobody types into Vault — a direct write
   is break-glass and infra2's daily reconcile reports it as drift.
@@ -58,7 +58,7 @@ Vault path convention: `secret/data/{project}/{environment}/{component}`
    deploy copies it into Vault; `runtime` → the deploy generates it; `decision` →
    infra2 states it in the compose env for `finance_report/app` (needs an infra2
    compose PR); unlisted → `code` default, never stored. Regenerate the manifest
-   (`python tools/generate_env_reference.py`): infra2 renders its vault-agent
+   (`python tools/env_manifests.py`): infra2 renders its vault-agent
    template and policy from it, so there is no hand-written `secrets.ctmpl` to
    edit and no git pointer to update here.
 
@@ -83,19 +83,19 @@ ssh <vps-host> docker exec finance-report-backend-production env
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Variable not found | Wrong/missing source class in `config.ENV_SOURCE_CLASSES` (a `code` default is never rendered; a `decision` value must be in infra2's compose env) | Fix the class, regenerate the manifest; infra2 re-renders the template from it |
-| Vault render failed / "Waiting for secrets" timeout | `ENV` or `VAULT_ADDR`/AppRole creds missing in container | Fix the Dokploy ENV; infra2 re-runs `invoke vault.setup-approle` if creds absent |
+| Vault render failed / "Waiting for secrets" timeout | `ENVIRONMENT` or `VAULT_ADDR`/AppRole creds missing in container | Fix the Dokploy ENV; infra2 re-runs `invoke vault.setup-approle` if creds absent |
 | `NEXT_PUBLIC_` empty in browser | Not in Dockerfile ARG | Add ARG + ENV, rebuild |
 | CORS error | `CORS_ORIGINS` mismatch — a `decision` value stated in infra2's compose env, not in Vault | Change it in the infra2 compose / `compose_env_overrides` and redeploy |
 | Variable not updating | Vault updated but container not restarted / stale Dokploy ENV | Redeploy the release tag |
 
 Runtime validation: `moon run :dev -- --check` (boot checks DB/S3/Redis/AI
-key); `--critical-only` for the CI flavor.
+key); `python -m src.boot --mode critical` in `apps/backend` for the CI flavor.
 
 ---
 
 ## Operational playbooks
 
-### Change a production `human` secret (e.g. `ZAI_API_KEY`)
+### Change a production `human` secret (e.g. `LLM_API_KEY`)
 
 Human values live in 1Password; the deploy copies them into Vault. No Vault
 token is involved at any step on the Finance Report side.
@@ -139,7 +139,7 @@ the `deploy_v2` front door (never the retired app-side Dokploy bash path).
 Put the `human` values in the 1Password item `finance_report/<env>/app`; the
 first deploy's secret supply creates and fills
 `secret/data/finance_report/<env>/app` (generating the `runtime` values) and
-the compose sets `ENV` plus the `decision` values.
+the compose sets `ENVIRONMENT` plus the `decision` values.
 
 ---
 

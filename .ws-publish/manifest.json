@@ -4,7 +4,7 @@
   "inputs": {
     "repo": "1bdc46931419e32e5a2335223ea0e3dfd556cb744b6298bfa82838b65487b6ab",
     "root": "c72a21db33059daa7a072b52d4cb84c15c04f01c1a0da70cf13c2be9af6446e9",
-    "skills": "2d95895bb5417c78d88e5597e1000aeb98e7909e3525d6b99c479f9b3f756c1d"
+    "skills": "3f697c3a754d8e0e723435086ae57381b55ba7202dedae3c38bd6059518e569b"
   },
   "language": "en",
   "outputs": {
@@ -21,12 +21,12 @@
       ".agents/skills/ac-workflow/SKILL.md": "b9eba5c712b33c95849ee6784afa9bede50f62d7156492dd754f57009b2c49c2",
       ".agents/skills/accounting/SKILL.md": "9d94ca2b81e57d451437a357efa39ab2648a5e208ec98a88402de8adb81b01d4",
       ".agents/skills/deploy-evidence/SKILL.md": "0988c1a052790738b46ee8a7f8c1796ef2a2257cd965425d88c67e7e3fb1ee91",
-      ".agents/skills/secrets-management/SKILL.md": "5848561c3f6d01f69871c53e91dd0833c6b93fea76a3fd34f67bd1d9842b70b5",
+      ".agents/skills/secrets-management/SKILL.md": "b562f5b0a7161a2c889d1d791fd8e50fd7748881de8d68993dfaff6f7d9c0fbe",
       ".agents/skills/ux-review/SKILL.md": "fa0ddadbd7401debb93032b47802f6bd541eb9ccfc01e4a47a98bf6735eb008b",
       ".claude/skills/ac-workflow/SKILL.md": "b9eba5c712b33c95849ee6784afa9bede50f62d7156492dd754f57009b2c49c2",
       ".claude/skills/accounting/SKILL.md": "9d94ca2b81e57d451437a357efa39ab2648a5e208ec98a88402de8adb81b01d4",
       ".claude/skills/deploy-evidence/SKILL.md": "0988c1a052790738b46ee8a7f8c1796ef2a2257cd965425d88c67e7e3fb1ee91",
-      ".claude/skills/secrets-management/SKILL.md": "5848561c3f6d01f69871c53e91dd0833c6b93fea76a3fd34f67bd1d9842b70b5",
+      ".claude/skills/secrets-management/SKILL.md": "b562f5b0a7161a2c889d1d791fd8e50fd7748881de8d68993dfaff6f7d9c0fbe",
       ".claude/skills/ux-review/SKILL.md": "fa0ddadbd7401debb93032b47802f6bd541eb9ccfc01e4a47a98bf6735eb008b"
     },
     "link_dirs": [
@@ -35,7 +35,7 @@
     "links": {},
     "root": ".agents/skills"
   },
-  "source_revision": "5ddd8dfcfe61d4600f24690dc6d48baa997f4cf5",
+  "source_revision": "e0c4057b211e4896b75186d49e91157fa2d25931",
   "target": {
     "remote": "github.com/wangzitian0/finance_report",
     "repo": "finance_report",
