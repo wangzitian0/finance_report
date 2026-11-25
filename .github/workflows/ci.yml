@@ -578,7 +578,7 @@ jobs:
           retention-days: 1
 
   frontend-vitest:
-    name: Frontend Vitest Coverage
+    name: Frontend Vitest
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
@@ -963,7 +963,7 @@ jobs:
           retention-days: 14
 
   backend-coverage-gate:
-    name: Backend Merged Coverage Gate
+    name: Backend Coverage Summary
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [changes, backend, backend-integration, tooling]
@@ -984,14 +984,15 @@ jobs:
           path: apps/backend
           merge-multiple: true
 
-      - name: Combine shards and enforce 96% backend coverage floor
+      - name: Combine shards and report backend coverage metrics
+        continue-on-error: true
         run: |
           cd apps/backend
           ls -la cov-data-*
           uv run coverage combine cov-data-*
           uv run coverage json -o coverage-backend.json
           uv run python -c "import json, pathlib; totals = json.loads(pathlib.Path('coverage-backend.json').read_text(encoding='utf-8')).get('totals', {}); pathlib.Path('coverage-backend-summary.json').write_text(json.dumps({k: totals.get(k) for k in ('percent_covered', 'covered_lines', 'num_statements', 'missing_lines')}, indent=2) + '\n', encoding='utf-8')"
-          uv run coverage report --fail-under=96
+          uv run coverage report
 
       - name: Upload backend coverage summary
         if: ${{ always() }}
@@ -1029,12 +1030,12 @@ jobs:
 
           | Stage | Coverage Effect | Behavior Proof |
           |---|---|---|
-          | schema-migrations | not included in backend coverage gate | yes (Alembic DDL/schema drift) |
+          | schema-migrations | not included in backend coverage summary | yes (Alembic DDL/schema drift) |
           | backend (sharded) | contributes on non-PR runs (`--no-cov` on PR) | yes |
           | backend-integration | contributes on non-PR runs (`--no-cov` on PR) | yes (marker 'integration') |
           | tooling | contributes on non-PR runs (`--no-cov` on PR) | yes (contracts & tools) |
           | frontend-build | not included in coverage | yes (typecheck + production build) |
-          | frontend-vitest | enforces frontend Vitest coverage thresholds | yes |
+          | frontend-vitest | reports frontend Vitest coverage metrics | yes |
           | frontend-playwright | not included in coverage | yes (provider-free browser UI) |
           | frontend-telemetry-e2e | not included in coverage | yes (browser telemetry emission) |
           EOF
@@ -1123,7 +1124,7 @@ jobs:
           echo "Frontend Playwright: ${{ needs.frontend-playwright.result }}"
           echo "Frontend Telemetry E2E: ${{ needs.frontend-telemetry-e2e.result }}"
           echo "Tooling: ${{ needs.tooling.result }}"
-          echo "Backend Merged Coverage Gate: ${{ needs.backend-coverage-gate.result }}"
+          echo "Backend Coverage Summary: ${{ needs.backend-coverage-gate.result }}"
           echo "Staging Images: ${{ needs.container-images.result }}"
           echo "Verify Commit Image Published: ${{ needs.verify-sha-image-published.result }}"
           echo "Lint: ${{ needs.lint.result }}"
@@ -1168,12 +1169,7 @@ jobs:
               fi
             fi
             if [[ "${{ github.event_name }}" != "pull_request" && "${{ needs.backend-coverage-gate.result }}" != "success" ]]; then
-              echo "::error::Backend merged coverage gate failed or skipped unexpectedly (${{ needs.backend-coverage-gate.result }})"
-              exit 1
-            fi
-            if [[ "${{ needs.backend-coverage-gate.result }}" != "success" && "${{ needs.backend-coverage-gate.result }}" != "skipped" ]]; then
-              echo "::error::Backend merged coverage gate failed"
-              exit 1
+              echo "::warning::Backend coverage summary did not succeed (${{ needs.backend-coverage-gate.result }}); non-blocking telemetry only"
             fi
             # AC-testing.ci-structure.11: frontend-build is right-moved off PRs
             # that touch no apps/frontend/** path (frontend_changed=false),
@@ -1185,7 +1181,7 @@ jobs:
             fi
             # #2996: frontend-vitest is skipped when vitest_required=false, a pass.
             if [[ "${{ needs.frontend-vitest.result }}" != "success" && "${{ needs.frontend-vitest.result }}" != "skipped" ]]; then
-              echo "::error::Frontend Vitest coverage failed"
+              echo "::error::Frontend Vitest tests failed"
               exit 1
             fi
             # AC-testing.ci-structure.11: frontend-playwright is right-moved

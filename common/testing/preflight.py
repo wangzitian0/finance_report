@@ -340,7 +340,7 @@ CHECKS: tuple[Check, ...] = (
             ("npm", "run", "test:coverage"),
             ("npm", "run", "build"),
         ),
-        why="frontend changed: vitest coverage gate + next build",
+        why="frontend changed: vitest + next build",
         cwd="apps/frontend",
         tier="heavy",
     ),

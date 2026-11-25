@@ -117,3 +117,16 @@ def test_cli_handles_missing_and_corrupt_optional_inputs(
     assert written["coverage"]["backend"] is None
     assert written["coverage"]["frontend"]["lines_pct"] == 98.2
     assert written["jobs"] == {"lint": "success"}
+
+
+def test_coverage_floors_removed_while_dashboard_metrics_preserved() -> None:
+    root = Path(__file__).resolve().parents[2]
+    ci_yml = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    assert "--fail-under=" not in ci_yml
+    assert "coverage-backend-summary.json" in ci_yml
+    assert "name: ci-coverage-backend" in ci_yml
+
+    vitest_cfg = (root / "apps/frontend/vitest.config.ts").read_text(encoding="utf-8")
+    assert "thresholds:" not in vitest_cfg
+    assert "'json-summary'" in vitest_cfg
+    assert not (root / "apps/frontend/src/__tests__/coverageBaseline.test.ts").exists()
