@@ -41,8 +41,12 @@ _BASE_SETTINGS = {
     "otel_resource_attributes": "deployment.environment=test",
     "otel_service_name": "test",
     "openpanel_api_url": "https://openpanel.zitian.party/api",
+    "openpanel_client_id": "op-test-client",
     "prefect_api_url": "http://prefect:4200/api",
     "s3_public_endpoint": "https://s3.zitian.party",
+    "s3_public_access_key": None,
+    "s3_public_secret_key": None,
+    "s3_public_bucket": None,
     "s3_presign_expiry_seconds": 300,
     "api_rate_limit_requests": 300,
     "git_commit_sha": "deadbeef",
@@ -156,7 +160,33 @@ async def test_check_s3(mock_settings, error_msg: str | None) -> None:
         assert st.status == "error" and error_msg in str(st.message)
     else:
         assert (st.status, st.service) == ("ok", "minio")
-        client.head_bucket.assert_called_once_with(Bucket=mock_settings.s3_bucket)
+        assert client.head_bucket.call_count == 2
+        client.put_object.assert_not_called()
+
+
+async def test_check_s3_staging_write_delete_and_prod_readonly(mock_settings) -> None:
+    staging_client = MagicMock()
+    mock_settings.environment = "staging"
+    with patch("infra2_sdk.runtime.s3.create_s3_client", return_value=staging_client):
+        st_staging = await Bootloader._check_s3()
+    assert (st_staging.status, st_staging.service) == ("ok", "minio")
+    staging_client.put_object.assert_called_once()
+    staging_client.delete_object.assert_called_once()
+
+    for readonly_env in ("production", "prod", "preview", "prod-eu"):
+        ro_client = MagicMock()
+        mock_settings.environment = readonly_env
+        with patch("infra2_sdk.runtime.s3.create_s3_client", return_value=ro_client):
+            st_ro = await Bootloader._check_s3()
+        assert (st_ro.status, st_ro.service) == ("ok", "minio"), readonly_env
+        ro_client.put_object.assert_not_called()
+
+    with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=200, json=lambda: {"ready": True}))) as get_fn:
+        st_analytics = await Bootloader._check_analytics()
+    assert (st_analytics.status, st_analytics.service) == ("ok", "analytics")
+    assert get_fn.await_args.args[0] == "https://openpanel.zitian.party/api/healthcheck"
+    mock_settings.openpanel_client_id = ""
+    assert (await Bootloader._check_analytics()).status == "error"
 
 
 async def test_static_config_basics_exceptions_and_aliases(monkeypatch, mock_settings) -> None:
@@ -366,8 +396,12 @@ async def test_check_database_and_openrouter(mock_settings) -> None:
     mock_settings.ai_api_key = None
     assert (await Bootloader._check_openrouter()).status == "error"
     mock_settings.ai_api_key = "test-key"
-    ai_ok = await Bootloader._check_openrouter()
-    assert (ai_ok.status, ai_ok.service) == ("ok", "ai_provider") and "Configured provider=" in ai_ok.message
+    with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=200))):
+        ai_ok = await Bootloader._check_openrouter()
+    assert (ai_ok.status, ai_ok.service) == ("ok", "ai_provider") and "provider=zai models=200" in ai_ok.message
+    with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=401))):
+        ai_err = await Bootloader._check_openrouter()
+    assert (ai_err.status, ai_err.service) == ("error", "ai_provider") and "Authentication failed" in ai_err.message
 
 
 @pytest.mark.parametrize(
@@ -489,5 +523,6 @@ async def test_manifest_driven_full_validate(
         boot_mocks.ai.assert_not_called()
     elif tier_name == "STAGING" and expected:
         boot_mocks.ai.assert_called_once()
+        assert extra["market_data"].call_count == 1
     elif tier_name == "PRODUCTION" and expected:
         assert all(m.call_count == 1 for m in extra.values())

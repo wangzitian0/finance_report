@@ -292,6 +292,7 @@ class Bootloader:
 
     @staticmethod
     async def _check_s3() -> ServiceStatus:
+        tier = resolve_env_tier(settings.environment, github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true")
         return await _probe_status(
             "minio",
             ObjectStorageCheck(
@@ -300,6 +301,11 @@ class Bootloader:
                 secret_key=settings.s3_secret_key,
                 region=settings.s3_region,
                 bucket=settings.s3_bucket,
+                public_endpoint=settings.s3_public_endpoint,
+                public_access_key=settings.s3_public_access_key,
+                public_secret_key=settings.s3_public_secret_key,
+                public_bucket=settings.s3_public_bucket,
+                verify_write=(tier is EnvTier.STAGING),
             ),
         )
 
@@ -312,8 +318,8 @@ class Bootloader:
                 provider=settings.ai_provider,
                 small_model=settings.small_model,
                 multimodal_model=settings.multimodal_model,
+                base_url=getattr(settings, "ai_base_url", None),
             ),
-            include_duration=False,
         )
 
     _check_openrouter = _check_ai_provider
@@ -332,7 +338,13 @@ class Bootloader:
 
     @staticmethod
     async def _check_analytics() -> ServiceStatus:
-        return await _probe_status("analytics", AnalyticsCheck(api_url=settings.openpanel_api_url))
+        return await _probe_status(
+            "analytics",
+            AnalyticsCheck(
+                api_url=settings.openpanel_api_url,
+                client_id=getattr(settings, "openpanel_client_id", None),
+            ),
+        )
 
     @staticmethod
     async def _check_market_data() -> ServiceStatus:

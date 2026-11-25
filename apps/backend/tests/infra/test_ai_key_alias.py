@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -32,7 +33,16 @@ def test_AC_runtime_env_ai_key_alias_1_resolution_and_probe(monkeypatch, tmp_pat
 
     for env, expected_status in (({"LLM_API_KEY": "canonical"}, "present"), ({"AI_API_KEY": "legacy-ai", "ZAI_API_KEY": "legacy-zai"}, "absent")):
         s = _settings(monkeypatch, **env)
-        assert asyncio.run(LlmCheck(api_key=s.ai_api_key, provider=s.ai_provider, small_model=s.small_model, multimodal_model=s.multimodal_model).probe()).status.value == expected_status
+        with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=200))):
+            assert asyncio.run(
+                LlmCheck(
+                    api_key=s.ai_api_key,
+                    provider=s.ai_provider,
+                    small_model=s.small_model,
+                    multimodal_model=s.multimodal_model,
+                    base_url=s.ai_base_url,
+                ).probe()
+            ).status.value == expected_status
 
 
 _LLM_NAMES = ("LLM_PROVIDER", "AI_PROVIDER", "LLM_BASE_URL", "AI_BASE_URL")

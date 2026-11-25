@@ -17,6 +17,11 @@ Owns dependency declarations (`DependencyManifest`), fail-closed probes (`Depend
 - `apps/backend/src/main.py` starts every registered loop in `lifespan` and exposes `run_background_job_once(cli_name)`.
 - `python tools/cli.py job --list` lists registered jobs and `python tools/cli.py job --run-once <cli_name>` executes one pass.
 - `RedisCheck.probe()` uses authenticated `redis.asyncio.from_url(...).ping()` with secret redaction on failures.
+- `ObjectStorageCheck.probe()` checks primary S3, `S3_PUBLIC_*` when set, and an ephemeral put/delete check on `EnvTier.STAGING` only.
+- `LlmCheck.probe()` verifies provider HTTP reachability and Bearer auth on `/models` (or `/chat/completions` when `/models` returns 404/405).
+- `TelemetryCheck.probe()` posts empty OTLP JSON to `/v1/traces` for HTTP(S) endpoints and uses TCP connect only for schemeless host:port targets.
+- `AnalyticsCheck.probe()` requires `OPENPANEL_CLIENT_ID` and verifies `ready: true` on OpenPanel `/healthcheck`.
+- `market_data` is required in both `EnvTier.STAGING` and `EnvTier.PRODUCTION`.
 
 ## Environment verification (the Three Gates)
 

@@ -35,6 +35,7 @@ def test_manifest_declares_the_known_external_dependencies() -> None:
     assert all({"database", "object_storage"} <= DEPENDENCY_MANIFEST.required_for(t) for t in EnvTier)
     assert "llm" in DEPENDENCY_MANIFEST.required_for(EnvTier.STAGING) and "llm" not in DEPENDENCY_MANIFEST.required_for(EnvTier.PREVIEW)
     assert "cache" in DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION) and "cache" not in DEPENDENCY_MANIFEST.required_for(EnvTier.PREVIEW)
+    assert {"market_data"} <= DEPENDENCY_MANIFEST.required_for(EnvTier.STAGING)
     assert "market_data" in DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION) and "market_data" not in DEPENDENCY_MANIFEST.required_for(EnvTier.GITHUB_CI)
     assert APP_OWNED_TIERS == frozenset({EnvTier.LOCAL_DEV, EnvTier.LOCAL_CI, EnvTier.GITHUB_CI})
     assert {s.value for s in DependencyStatus} == {"present", "absent"}
