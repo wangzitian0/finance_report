@@ -11,11 +11,13 @@
 set -euo pipefail
 
 BASE_URL="${1:-http://localhost:3000}"
+BASE_URL="${BASE_URL%/}"
 
 # The hook runner of infra2-sdk sets APP_VERSION_REF.
 EXPECTED_REF="${APP_VERSION_REF:-}"
-case "${ENVIRONMENT:-}" in
-    preview|staging|prod|production)
+ENV_LOWER="$(printf '%s' "${ENVIRONMENT:-}" | tr '[:upper:]' '[:lower:]')"
+case "$ENV_LOWER" in
+    preview|pr-*|staging|prod|production)
         if [ -z "$EXPECTED_REF" ]; then
             echo "✗ APP_VERSION_REF must be set when ENVIRONMENT=${ENVIRONMENT}"
             exit 2
@@ -24,11 +26,11 @@ case "${ENVIRONMENT:-}" in
 esac
 
 if [ $# -ge 2 ] && [ -n "${2:-}" ]; then
-    MODE="$2"
+    MODE="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')"
 else
-    case "${ENVIRONMENT:-}" in
+    case "$ENV_LOWER" in
         ""|prod|production) MODE="prod" ;;
-        staging|preview|dev|development) MODE="staging" ;;
+        staging|preview|dev|development|local_dev|pr-*) MODE="staging" ;;
         *)
             echo "✗ Unknown ENVIRONMENT '${ENVIRONMENT}' and no explicit MODE provided"
             exit 2
@@ -63,7 +65,7 @@ check_endpoint() {
     local method="${4:-GET}"
     local data="${5:-}"
 
-    local curl_opts=("-sS" "-w" $'\n%{http_code}')
+    local curl_opts=("-sS" "--connect-timeout" "5" "--max-time" "15" "-w" $'\n%{http_code}')
     if [ "$method" != "GET" ]; then
         curl_opts+=("-X" "$method")
     fi
@@ -122,8 +124,8 @@ wait_for_endpoint() {
 
     while [ "$attempt" -le "$max_attempts" ]; do
         local http_code="000"
-        http_code="$(curl -sS -o /dev/null -w "%{http_code}" "$url" || true)"
-        if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
+        http_code="$(curl -sS --connect-timeout 5 --max-time 15 -o /dev/null -w "%{http_code}" "$url" 2>/dev/null || true)"
+        if [[ "$http_code" =~ ^[0-9]+$ ]] && [ "$http_code" -ge 200 ] && [ "$http_code" -lt 400 ]; then
             echo "✓ Ready: $name ($http_code)"
             return 0
         fi
@@ -146,7 +148,7 @@ check_full_health() {
 
     local curl_output=""
     local curl_exit=0
-    curl_output="$(curl -sS -w $'\n%{http_code}' "$url" 2>&1)" || curl_exit=$?
+    curl_output="$(curl -sS --connect-timeout 5 --max-time 15 -w $'\n%{http_code}' "$url" 2>&1)" || curl_exit=$?
     local http_code="${curl_output##*$'\n'}"
     local content="${curl_output%$'\n'"$http_code"}"
 
@@ -170,7 +172,7 @@ if not isinstance(data, dict) or status_val != "healthy":
     raise SystemExit(f"unhealthy payload: status={status_val}")
 if expected_ref:
     actual_sha = str(data.get("git_sha") or "")
-    if not actual_sha or not (actual_sha == expected_ref or (expected_commit and expected_commit.startswith(actual_sha))):
+    if not actual_sha or not (actual_sha == expected_ref or (expected_commit and len(actual_sha) >= 7 and expected_commit.startswith(actual_sha))):
         unresolved = expected_commit or "unresolved"
         raise SystemExit(f"git_sha mismatch: expected={expected_ref} commit={unresolved} got={actual_sha!r}")
 checks = data.get("checks")
@@ -218,7 +220,7 @@ check_full_health || FAILED=1
 
 echo "--- CORS Check ---"
 FRONTEND_URL="${BASE_URL%/}"
-if curl -sS -I -X OPTIONS "$BASE_URL/api/health" \
+if curl -sS --connect-timeout 5 --max-time 15 -I -X OPTIONS "$BASE_URL/api/health" \
     -H "Origin: $FRONTEND_URL" \
     -H "Access-Control-Request-Method: GET" \
     | grep -qi "Access-Control-Allow-Origin"; then
@@ -239,7 +241,7 @@ check_endpoint "Reconciliation Page" "$BASE_URL/reconciliation" || FAILED=1
 check_endpoint "Login Page" "$BASE_URL/login" || FAILED=1
 
 echo "--- Authentication Tests ---"
-AUTH_TEST_CODE="$(curl -sS -o /dev/null -w "%{http_code}" "$BASE_URL/api/statements" 2>/dev/null || echo "000")"
+AUTH_TEST_CODE="$(curl -sS --connect-timeout 5 --max-time 15 -o /dev/null -w "%{http_code}" "$BASE_URL/api/statements" 2>/dev/null || echo "000")"
 if [ "$AUTH_TEST_CODE" = "401" ] || [ "$AUTH_TEST_CODE" = "429" ]; then
     echo "✓ Protected endpoint is secured (HTTP $AUTH_TEST_CODE)"
 else
@@ -251,8 +253,8 @@ if [ "$MODE" != "prod" ]; then
     echo "--- Non-Prod POST Round-Trip Check ($MODE) ---"
     CHECK_COUNT=$((CHECK_COUNT + 1))
     LOGIN_EXIT=0
-    LOGIN_OUT="$(curl -sS -X POST -H "Content-Type: application/json" \
-        -d '{"email":"smoke-probe@example.invalid","password":"invalid-smoke-password"}' \
+    LOGIN_OUT="$(curl -sS --connect-timeout 5 --max-time 15 -X POST -H "Content-Type: application/json" \
+        -d '{"email":"smoke-probe@example.com","password":"invalid-smoke-password"}' \
         -w $'\n%{http_code}' "$BASE_URL/api/auth/login" 2>&1)" || LOGIN_EXIT=$?
     LOGIN_CODE="${LOGIN_OUT##*$'\n'}"
     LOGIN_BODY="${LOGIN_OUT%$'\n'"$LOGIN_CODE"}"

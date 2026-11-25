@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -10,14 +11,29 @@ from typing import Any
 from urllib.parse import urlparse
 
 import pytest
+from pydantic import ValidationError
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
 SMOKE_SCRIPT = ROOT_DIR / "common/runtime/shell/smoke_test.sh"
 
+_BACKEND_DIR = str(ROOT_DIR / "apps/backend")
+if _BACKEND_DIR not in sys.path:
+    sys.path.insert(0, _BACKEND_DIR)
+
+from src.identity.base.types.auth import LoginRequest  # noqa: E402
+
 
 class _StubServer:
-    def __init__(self, health_payload: dict[str, Any]) -> None:
+    def __init__(
+        self,
+        health_payload: dict[str, Any],
+        *,
+        statements_status: int = 401,
+        include_cors_header: bool = True,
+    ) -> None:
         self.health_payload = health_payload
+        self.statements_status = statements_status
+        self.include_cors_header = include_cors_header
         self.requests: list[tuple[str, str]] = []
         parent = self
 
@@ -28,8 +44,9 @@ class _StubServer:
             def do_OPTIONS(self) -> None:
                 parent.requests.append(("OPTIONS", self.path))
                 self.send_response(200)
-                origin = self.headers.get("Origin", "*")
-                self.send_header("Access-Control-Allow-Origin", origin)
+                if parent.include_cors_header:
+                    origin = self.headers.get("Origin", "*")
+                    self.send_header("Access-Control-Allow-Origin", origin)
                 self.end_headers()
 
             def do_GET(self) -> None:
@@ -44,8 +61,12 @@ class _StubServer:
                     self.wfile.write(body)
                     return
                 if parsed.path == "/api/statements":
-                    body = b'{"detail":"Not authenticated"}'
-                    self.send_response(401)
+                    body = (
+                        b'{"status":"unexpected-public"}'
+                        if parent.statements_status == 200
+                        else b'{"detail":"Not authenticated"}'
+                    )
+                    self.send_response(parent.statements_status)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
@@ -60,10 +81,17 @@ class _StubServer:
             def do_POST(self) -> None:
                 parent.requests.append(("POST", self.path))
                 length = int(self.headers.get("Content-Length", "0"))
-                _ = self.rfile.read(length)
+                raw_body = self.rfile.read(length)
                 if self.path == "/api/auth/login":
-                    body = b'{"detail":"Invalid email or password"}'
-                    self.send_response(401)
+                    try:
+                        payload = json.loads(raw_body.decode("utf-8"))
+                        LoginRequest.model_validate(payload)
+                    except (UnicodeDecodeError, json.JSONDecodeError, ValidationError):
+                        body = b'{"detail":"Validation error"}'
+                        self.send_response(422)
+                    else:
+                        body = b'{"detail":"Invalid email or password"}'
+                        self.send_response(401)
                     self.send_header("Content-Type", "application/json")
                     self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
@@ -89,9 +117,14 @@ def _head_sha() -> str:
     return subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT_DIR, text=True).strip()
 
 
+def _short_sha() -> str:
+    return subprocess.check_output(["git", "rev-parse", "--short=7", "HEAD"], cwd=ROOT_DIR, text=True).strip()
+
+
 def _run_smoke(base_url: str, *args: str, env_overrides: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    clean_env = {k: v for k, v in os.environ.items() if k not in {"APP_VERSION_REF", "ENVIRONMENT", "MIN_CHECKS"}}
     env = {
-        **os.environ,
+        **clean_env,
         "SMOKE_READY_ATTEMPTS": "2",
         "SMOKE_READY_SLEEP_SECONDS": "0",
         **(env_overrides or {}),
@@ -158,15 +191,61 @@ def test_smoke_script_fails_on_absent_dependency_mismatch_and_bad_mode() -> None
     assert invalid_mode.returncode == 2 and "Invalid MODE" in invalid_mode.stdout
 
 
-@pytest.mark.parametrize("env_name", ["preview", "staging", "production"])
+@pytest.mark.parametrize("env_name", ["preview", "pr-3224", "staging", "production"])
 def test_smoke_script_requires_app_version_ref_in_deployed_envs(env_name: str) -> None:
-    base_env = {k: v for k, v in os.environ.items() if k != "APP_VERSION_REF"}
-    res = subprocess.run(
-        ["bash", str(SMOKE_SCRIPT), "http://127.0.0.1:9"],
-        cwd=ROOT_DIR,
-        env=base_env | {"ENVIRONMENT": env_name},
-        capture_output=True,
-        text=True,
-        timeout=30,
-    )
+    res = _run_smoke("http://127.0.0.1:9", env_overrides={"ENVIRONMENT": env_name})
     assert res.returncode == 2 and "APP_VERSION_REF" in res.stdout
+
+
+def test_smoke_script_trailing_slash_env_variants_and_unknown_env() -> None:
+    sha = _head_sha()
+    with _StubServer(_healthy_payload(sha)) as srv:
+        local_dev = _run_smoke(f"{srv.base_url}/", env_overrides={"ENVIRONMENT": "local_dev"})
+    assert local_dev.returncode == 0, local_dev.stdout + local_dev.stderr
+    assert ("POST", "/api/auth/login") in srv.requests
+
+    with _StubServer(_healthy_payload(sha)) as srv:
+        mixed_case = _run_smoke(f"{srv.base_url}/", "PREVIEW", env_overrides={"ENVIRONMENT": "Preview", "APP_VERSION_REF": sha})
+    assert mixed_case.returncode == 0, mixed_case.stdout + mixed_case.stderr
+
+    with _StubServer(_healthy_payload(sha)) as srv:
+        dev_mode = _run_smoke(srv.base_url, "dev", env_overrides={"ENVIRONMENT": "development"})
+    assert dev_mode.returncode == 0, dev_mode.stdout + dev_mode.stderr
+
+    unknown_env = _run_smoke("http://127.0.0.1:9", env_overrides={"ENVIRONMENT": "mystery-env"})
+    assert unknown_env.returncode == 2 and "Unknown ENVIRONMENT" in unknown_env.stdout
+
+
+def test_smoke_script_short_sha_resolution_and_failure_gates() -> None:
+    full_sha = _head_sha()
+    short7 = _short_sha()
+    with _StubServer(_healthy_payload(short7)) as srv:
+        short_ok = _run_smoke(srv.base_url, "prod", env_overrides={"ENVIRONMENT": "production", "APP_VERSION_REF": "HEAD"})
+    assert short_ok.returncode == 0, short_ok.stdout + short_ok.stderr
+
+    with _StubServer(_healthy_payload(full_sha[:6])) as srv:
+        short_bad = _run_smoke(srv.base_url, "prod", env_overrides={"ENVIRONMENT": "production", "APP_VERSION_REF": "HEAD"})
+    assert short_bad.returncode == 1 and "git_sha mismatch" in short_bad.stdout
+
+    with _StubServer(_healthy_payload(full_sha), statements_status=200) as srv:
+        unprotected = _run_smoke(srv.base_url, "prod", env_overrides={"ENVIRONMENT": "production", "APP_VERSION_REF": full_sha})
+    assert unprotected.returncode == 1
+
+    with _StubServer(_healthy_payload(full_sha), include_cors_header=False) as srv:
+        no_cors = _run_smoke(srv.base_url, "prod", env_overrides={"ENVIRONMENT": "production", "APP_VERSION_REF": full_sha})
+    assert no_cors.returncode == 1
+
+    with _StubServer(_healthy_payload(full_sha)) as srv:
+        low_checks = _run_smoke(
+            srv.base_url,
+            "prod",
+            env_overrides={"ENVIRONMENT": "production", "APP_VERSION_REF": full_sha, "MIN_CHECKS": "99"},
+        )
+    assert low_checks.returncode == 1
+
+    bad_min = _run_smoke(
+        "http://127.0.0.1:9",
+        "prod",
+        env_overrides={"ENVIRONMENT": "production", "APP_VERSION_REF": full_sha, "MIN_CHECKS": "abc"},
+    )
+    assert bad_min.returncode == 2

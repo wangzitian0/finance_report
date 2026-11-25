@@ -65,4 +65,5 @@ async def test_AC8_13_9_production_authenticated_readonly_when_configured(
         "button", name=re.compile("login|log in|sign in", re.I)
     ).click()
     await expect(page).to_have_url(re.compile(r"^https?://[^/]+/?$"), timeout=15000)
-    await expect(page.locator("body")).to_contain_text(re.compile(r"\S+"), timeout=15000)
+    await expect(page.get_by_role("group", name="Report dimensions")).to_be_visible(timeout=15000)
+    await expect(page.get_by_role("region", name="Three-statement cockpit")).to_be_visible(timeout=15000)
