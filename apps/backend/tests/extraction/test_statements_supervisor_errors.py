@@ -1,6 +1,7 @@
 import asyncio
 from datetime import date
 from io import BytesIO
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
@@ -27,13 +28,13 @@ from tests.statement_ingestion import execute_statement_ingestion as parse_state
 
 
 async def test_create_session_maker_variants():
-    mock_db, mock_async_engine, mock_engine, mock_obj = (
+    mock_db, mock_async_engine, mock_engine = (
         MagicMock(spec=AsyncSession),
         MagicMock(spec=AsyncEngine),
         MagicMock(spec=Engine),
-        MagicMock(),
     )
-    mock_engine._async_engine = mock_obj.async_engine = mock_async_engine
+    mock_engine._async_engine = mock_async_engine
+    mock_obj = SimpleNamespace(async_engine=mock_async_engine)
     for bind in (mock_async_engine, mock_engine, mock_obj):
         mock_db.bind = bind
         assert isinstance(create_session_maker_from_db(mock_db), async_sessionmaker)
