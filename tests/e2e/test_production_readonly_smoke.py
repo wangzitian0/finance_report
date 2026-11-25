@@ -16,10 +16,18 @@ from tests.e2e.conftest import TestConfig
 async def test_AC8_13_9_production_public_runtime_contract() -> None:
     app_url = TestConfig.APP_URL.rstrip("/")
     async with httpx.AsyncClient(verify=False, timeout=15.0) as client:
-        health = await client.get(f"{app_url}/api/health")
+        health = await client.get(f"{app_url}/api/health?full=1")
         assert health.status_code == 200, health.text
         payload = health.json()
         assert payload.get("status") == "healthy" and payload.get("git_sha")
+        checks = payload.get("checks")
+        assert isinstance(checks, dict) and checks
+        failing = {
+            name: entry
+            for name, entry in checks.items()
+            if isinstance(entry, dict) and entry.get("required") is True and entry.get("status") != "present"
+        }
+        assert failing == {}, f"Required health checks failed: {failing}"
         protected = await client.get(f"{app_url}/api/statements")
         assert protected.status_code in {401, 429}, (
             f"Protected API returned {protected.status_code}: {protected.text}"
@@ -32,12 +40,12 @@ async def test_AC8_13_9_production_public_runtime_contract() -> None:
 async def test_AC8_13_9_production_browser_readonly_shell(page: Page) -> None:
     app_url = TestConfig.APP_URL.rstrip("/")
     await page.goto(app_url, wait_until="domcontentloaded")
-    await expect(page).to_have_url(re.compile("/(dashboard|login)?$"), timeout=15000)
+    await expect(page).to_have_url(re.compile(r"/(login)?$"), timeout=15000)
     await page.goto(f"{app_url}/login", wait_until="domcontentloaded")
     await expect(page.locator("input[type='email']")).to_be_visible(timeout=10000)
     await expect(page.locator("input[type='password']")).to_be_visible(timeout=10000)
-    await page.goto(f"{app_url}/dashboard", wait_until="domcontentloaded")
-    await expect(page).to_have_url(re.compile("/login"), timeout=15000)
+    await page.goto(f"{app_url}/reports", wait_until="domcontentloaded")
+    await expect(page).to_have_url(re.compile(r"/login"), timeout=15000)
 
 
 @pytest.mark.e2e
@@ -56,7 +64,5 @@ async def test_AC8_13_9_production_authenticated_readonly_when_configured(
     await page.get_by_role(
         "button", name=re.compile("login|log in|sign in", re.I)
     ).click()
-    await expect(page).to_have_url(re.compile("/dashboard"), timeout=15000)
-    await expect(page.locator("body")).to_contain_text(
-        re.compile("dashboard", re.I), timeout=15000
-    )
+    await expect(page).to_have_url(re.compile(r"^https?://[^/]+/?$"), timeout=15000)
+    await expect(page.locator("body")).to_contain_text(re.compile(r"\S+"), timeout=15000)

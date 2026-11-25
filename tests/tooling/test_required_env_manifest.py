@@ -184,3 +184,26 @@ def test_smoke_script_refuses_a_deployed_environment_without_a_version_ref():
             ["bash", str(script), "http://127.0.0.1:9"], env=env, capture_output=True, text=True, timeout=30
         )
         assert res.returncode == 2 and "APP_VERSION_REF" in res.stdout, (env_name, res.stdout)
+
+
+def test_runtime_hooks_cells_and_honest_needs():
+    hooks = gen.load_hooks_manifest(HOOKS_PATH)
+    check_ids = [c.id for c in hooks.checks]
+    assert "touched_files" not in check_ids
+    assert [c.id for c in hooks.checks_for_cell("preview.post")] == ["preview_minimum_e2e"]
+    assert [c.id for c in hooks.checks_for_cell("staging.post")] == [
+        "staging_core_e2e",
+        "ai_provider_connectivity",
+        "staging_ai_ocr",
+    ]
+    assert [c.id for c in hooks.checks_for_cell("prod.post")] == ["smoke"]
+    assert [c.id for c in hooks.checks_for_cell("scheduled_audit")] == [
+        "audit_replay",
+        "core_journey",
+        "pdf_corpus_oracle",
+        "financial_scenario_benchmark",
+    ]
+    by_id = {c.id: c for c in hooks.checks}
+    for non_llm in ("preview_minimum_e2e", "staging_core_e2e", "core_journey"):
+        assert "real_llm" not in by_id[non_llm].needs, non_llm
+    assert "real_provider" not in by_id["core_journey"].needs
