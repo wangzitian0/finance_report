@@ -51,7 +51,7 @@ class TestSelectChecks:
         assert "migration-risk" in _m15_names
         assert [
             _m16_c.name for _m16_c in preflight.select_checks([".env.example"])
-        ] == ["env-keys"]
+        ] == ["env-manifests"]
         _m19_names = [
             _m19_c.name
             for _m19_c in preflight.select_checks(
@@ -172,7 +172,7 @@ def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment(
         (preflight.PY, "-m", "ruff", "format", "--check", "src", "tests"),
     )
     precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
-    assert "cd apps/backend && uv run python ../../tools/check_env_keys.py" in precommit
+    assert "uv run --project apps/backend python tools/env_manifests.py --check" in precommit
     assert "cd apps/backend && uv run --frozen ruff check src tests" in precommit
     assert "cd apps/backend && uv run --frozen ruff format src tests --check" in precommit
     assert "ruff-pre-commit" not in precommit

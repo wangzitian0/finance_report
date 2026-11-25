@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from infra2_sdk.runtime.health import DependencyManifest
 from pydantic_settings import BaseSettings
 
-from src.runtime.base.manifest import DEPENDENCY_MANIFEST, DependencyManifest
+from src.runtime.base.manifest import DEPENDENCY_MANIFEST
 
 NON_DEPENDENCY_CATEGORIES: frozenset[str] = frozenset({"security", "deployment", "domain", "feature", "tuning"})
 

@@ -95,7 +95,7 @@ def boot_mocks():
         patch("src.boot.logger") as log,
         patch("src.boot.Bootloader._check_database", new_callable=AsyncMock) as db,
         patch("src.boot.Bootloader._check_s3", new_callable=AsyncMock) as s3,
-        patch("src.boot.Bootloader._check_openrouter", new_callable=AsyncMock) as ai,
+        patch("src.boot.Bootloader._check_ai_provider", new_callable=AsyncMock) as ai,
     ):
         yield types.SimpleNamespace(logger=log, db=db, s3=s3, ai=ai)
 
@@ -382,7 +382,7 @@ def test_main_exit_codes(mode: str, outcome: object, expected_code: int) -> None
     assert exc_info.value.code == expected_code
 
 
-async def test_check_database_and_openrouter(mock_settings) -> None:
+async def test_check_database_and_ai_provider(mock_settings) -> None:
     mock_conn = AsyncMock(execute=AsyncMock())
     mock_engine = MagicMock(dispose=AsyncMock())
     mock_engine.connect.return_value.__aenter__.return_value = mock_conn
@@ -394,13 +394,13 @@ async def test_check_database_and_openrouter(mock_settings) -> None:
     assert err.status == "error" and "Connection refused" in err.message
 
     mock_settings.ai_api_key = None
-    assert (await Bootloader._check_openrouter()).status == "error"
+    assert (await Bootloader._check_ai_provider()).status == "error"
     mock_settings.ai_api_key = "test-key"
     with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=200))):
-        ai_ok = await Bootloader._check_openrouter()
+        ai_ok = await Bootloader._check_ai_provider()
     assert (ai_ok.status, ai_ok.service) == ("ok", "ai_provider") and "provider=zai models=200" in ai_ok.message
     with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=401))):
-        ai_err = await Bootloader._check_openrouter()
+        ai_err = await Bootloader._check_ai_provider()
     assert (ai_err.status, ai_err.service) == ("error", "ai_provider") and "Authentication failed" in ai_err.message
 
 
@@ -439,8 +439,10 @@ def test_static_config_fails_closed_when_required_injected_setting_missing_in_pr
 
 
 def test_static_config_injected_scope_and_manifest_tiers(mock_settings, boot_mocks, monkeypatch) -> None:
+    from infra2_sdk.runtime.environment import EnvironmentTier
+
     import src.boot as boot_module
-    from src.runtime import DEPENDENCY_MANIFEST, EnvTier
+    from src.runtime import DEPENDENCY_MANIFEST
 
     assert not hasattr(Bootloader, "_check_vault_secrets")
     assert all(
@@ -451,14 +453,14 @@ def test_static_config_injected_scope_and_manifest_tiers(mock_settings, boot_moc
             "PROTECTED_REQUIRED_INJECTED_FIELDS",
         )
     )
-    for tier in EnvTier:
+    for tier in EnvironmentTier:
         probed, unprobed = Bootloader._required_checks(tier)
         assert set(probed) | set(unprobed) == DEPENDENCY_MANIFEST.required_for(tier) and not (
             set(probed) & set(unprobed)
         )
-    assert set(Bootloader._required_checks(EnvTier.GITHUB_CI)[0]) == {"database", "object_storage"} and set(
-        Bootloader._required_checks(EnvTier.PRODUCTION)[0]
-    ) == DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)
+    assert set(Bootloader._required_checks(EnvironmentTier.GITHUB_CI)[0]) == {"database", "object_storage"} and set(
+        Bootloader._required_checks(EnvironmentTier.PRODUCTION)[0]
+    ) == DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PRODUCTION)
 
     for k in ("PREFECT_API_URL", "S3_PUBLIC_ENDPOINT"):
         monkeypatch.delenv(k, raising=False)
@@ -510,7 +512,7 @@ def test_static_config_injected_scope_and_manifest_tiers(mock_settings, boot_moc
 async def test_manifest_driven_full_validate(
     mock_settings, boot_mocks, tier_name: str, cache_status: str, db_status: str, expected: bool
 ) -> None:
-    from src.runtime import EnvTier
+    from infra2_sdk.runtime.environment import EnvironmentTier
 
     boot_mocks.db.return_value, boot_mocks.s3.return_value, boot_mocks.ai.return_value = (
         ServiceStatus("database", db_status, "DB"),
@@ -518,7 +520,7 @@ async def test_manifest_driven_full_validate(
         ServiceStatus("ai_provider", "ok", "OK"),
     )
     with _patch_extra_checks(cache_status=cache_status) as extra:
-        assert await Bootloader.validate(BootMode.FULL, tier=getattr(EnvTier, tier_name)) is expected
+        assert await Bootloader.validate(BootMode.FULL, tier=getattr(EnvironmentTier, tier_name)) is expected
     if tier_name == "GITHUB_CI":
         boot_mocks.ai.assert_not_called()
     elif tier_name == "STAGING" and expected:

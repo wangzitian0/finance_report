@@ -8,12 +8,12 @@ from typing import TYPE_CHECKING
 
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.concurrency import run_in_threadpool
+from infra2_sdk.runtime.environment import EnvironmentTier, resolve_environment_tier
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import src.config
 from src.database import async_session_maker
 from src.observability import get_logger, record_storage_sweep_failure
-from src.runtime.base.tiers import EnvTier, resolve_env_tier
 from src.runtime.extension.storage import StorageError, StorageService
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ def _list_storage_keys(storage: StorageService) -> list[tuple[str, datetime]]:
 
 
 def _is_preview() -> bool:
-    return resolve_env_tier(str(getattr(settings, "environment", ""))) is EnvTier.PREVIEW
+    return resolve_environment_tier(str(getattr(settings, "environment", "")), unknown="production") is EnvironmentTier.PREVIEW
 
 
 async def sweep_orphaned_storage_objects(

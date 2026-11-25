@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import pytest
-from infra2_sdk.runtime.health import DependencyStatus
+from infra2_sdk.runtime.environment import EnvironmentTier
+from infra2_sdk.runtime.health import Dependency, DependencyKind, DependencyStatus
 
 from src.config import Settings, settings
-from src.runtime import APP_OWNED_TIERS, DEPENDENCY_MANIFEST, Dependency, DependencyKind, EnvTier
+from src.runtime import DEPENDENCY_MANIFEST
 from src.runtime.base.env_classification import settings_env_keys
 
 pytestmark = pytest.mark.no_db
@@ -32,10 +33,9 @@ def test_manifest_declares_the_known_external_dependencies() -> None:
     with pytest.raises(ValueError):
         Dependency(name="x", kind=DependencyKind.CODE_DOMINANT, required_in=frozenset(), env_vars=frozenset({"X"}), summary="s")
     assert {d.name for d in DEPENDENCY_MANIFEST if d.kind is DependencyKind.MODEL_DOMINANT} == {"llm"}
-    assert all({"database", "object_storage"} <= DEPENDENCY_MANIFEST.required_for(t) for t in EnvTier)
-    assert "llm" in DEPENDENCY_MANIFEST.required_for(EnvTier.STAGING) and "llm" not in DEPENDENCY_MANIFEST.required_for(EnvTier.PREVIEW)
-    assert "cache" in DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION) and "cache" not in DEPENDENCY_MANIFEST.required_for(EnvTier.PREVIEW)
-    assert {"market_data"} <= DEPENDENCY_MANIFEST.required_for(EnvTier.STAGING)
-    assert "market_data" in DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION) and "market_data" not in DEPENDENCY_MANIFEST.required_for(EnvTier.GITHUB_CI)
-    assert APP_OWNED_TIERS == frozenset({EnvTier.LOCAL_DEV, EnvTier.LOCAL_CI, EnvTier.GITHUB_CI})
+    assert all({"database", "object_storage"} <= DEPENDENCY_MANIFEST.required_for(t) for t in EnvironmentTier)
+    assert "llm" in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.STAGING) and "llm" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PREVIEW)
+    assert "cache" in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PRODUCTION) and "cache" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PREVIEW)
+    assert {"market_data"} <= DEPENDENCY_MANIFEST.required_for(EnvironmentTier.STAGING)
+    assert "market_data" in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PRODUCTION) and "market_data" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.GITHUB_CI)
     assert {s.value for s in DependencyStatus} == {"present", "absent"}

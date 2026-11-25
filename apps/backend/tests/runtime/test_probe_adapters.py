@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 from infra2_sdk.runtime import health as sdk_health
+from infra2_sdk.runtime.environment import EnvironmentTier
 from infra2_sdk.runtime.health import DependencyStatus
 
 import src.runtime as runtime_package
@@ -14,7 +15,6 @@ from src.boot import Bootloader
 from src.runtime import (
     AnalyticsCheck,
     DatabaseCheck,
-    EnvTier,
     LlmCheck,
     MarketDataCheck,
     ObjectStorageCheck,
@@ -307,8 +307,17 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
 
 
 def test_every_declared_dependency_has_a_probe_adapter() -> None:
-    assert all(Bootloader._required_checks(tier)[1] == [] for tier in EnvTier)
-    sdk_owned = {"ProbeResult", "DependencyStatus", "DependencyCheck"}
+    assert all(Bootloader._required_checks(tier)[1] == [] for tier in EnvironmentTier)
+    sdk_owned = {
+        "Dependency",
+        "DependencyCheck",
+        "DependencyKind",
+        "DependencyManifest",
+        "DependencyStatus",
+        "EnvironmentTier",
+        "ProbeResult",
+        "resolve_environment_tier",
+    }
     sources = sorted(Path(runtime_package.__file__).resolve().parent.rglob("*.py"))
     assert sdk_owned.isdisjoint(runtime_package.__all__) and any(p.name == "adapters.py" for p in sources)
     assert not [

@@ -20,6 +20,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import psycopg2
+from infra2_sdk.runtime.schema_check import GateNotEvaluated, enums_from_metadata
 
 _DB_ENUMS_SQL = (
     "SELECT t.typname, e.enumlabel FROM pg_type t "
@@ -31,22 +32,11 @@ _DB_ENUMS_SQL = (
 
 
 def code_enums(metadata: Any) -> dict[str, frozenset[str]]:
-    """``{enum type name: labels}`` for every native enum column on ``metadata``.
-
-    Every enum column of the ORM is a plain ``Enum`` today. An enum behind an ARRAY or a
-    TypeDecorator is not unwrapped: it would show up as "type only in the database", which
-    fails loudly, and the person who adds such a column extends this function.
-    """
-    enums: dict[str, frozenset[str]] = {}
-    for table in metadata.tables.values():
-        for column in table.columns:
-            labels = getattr(column.type, "enums", None)
-            name = getattr(column.type, "name", None)
-            if isinstance(labels, list | tuple) and name and getattr(column.type, "native_enum", True):
-                known = enums.setdefault(name, frozenset(labels))
-                if known != frozenset(labels):
-                    raise ValueError(f"enum type {name!r} is declared with different labels on two columns")
-    return enums
+    """``{enum type name: labels}`` for every native enum column on ``metadata``."""
+    try:
+        return {name: frozenset(labels) for name, labels in enums_from_metadata(metadata).items()}
+    except GateNotEvaluated as exc:
+        raise ValueError(str(exc)) from exc
 
 
 def migrated_enums(database_url: str) -> dict[str, frozenset[str]]:

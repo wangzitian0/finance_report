@@ -1,12 +1,12 @@
 # `runtime` — External Dependency Boundary
 
-Owns dependency declarations (`DependencyManifest`), fail-closed probes (`DependencyCheck` / `ProbeResult` from `infra2_sdk.runtime.health`), and CD release coordinates/freshness (`sdk_pin.py`). CI test-selection stays in [common/testing/readme.md](../testing/readme.md).
+Owns dependency declarations (`DependencyManifest` from `infra2_sdk.runtime.health`), fail-closed probes (`DependencyCheck` / `ProbeResult` from `infra2_sdk.runtime.health`), and CD release coordinates/freshness (`sdk_pin.py`). CI test-selection stays in [common/testing/readme.md](../testing/readme.md).
 
 ## Invariants
 
-1. **Declared => asserted**: Every declared dependency per `EnvTier` has a check, substitute (`code-dominant` light substitute vs `model-dominant` input-keyed CI recording / real staging check), and smoke assertion.
+1. **Declared => asserted**: Every declared dependency per `EnvironmentTier` has a check, substitute (`code-dominant` light substitute vs `model-dominant` input-keyed CI recording / real staging check), and smoke assertion.
 2. **Absent => fail**: Missing declared dependencies fail `/health` (503) and smoke checks; no `skipped` fallback.
-3. **Prod-required => SLA-bearing**: `DEPENDENCY_MANIFEST.required_for(EnvTier.PRODUCTION)` declares mandatory production probes independently of feature flags.
+3. **Prod-required => SLA-bearing**: `DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PRODUCTION)` declares mandatory production probes independently of feature flags.
 4. **One env name per field**: No `Settings` field declares an alias chain, so an empty value cannot shadow another name (`tests/tooling/test_required_env_manifest.py::test_AC_runtime_env_empty_values_1_no_field_declares_an_alias_chain`).
 5. **SDK pin stays in this repository**: `install-infra2-sdk` runs `tools/sdk_pin.py` before the SDK is installed, so the reader uses only the standard library (`tests/tooling/test_sdk_pin.py::test_AC_runtime_sdk_pin_1_bootstrap_needs_only_standard_library`). infra2-sdk has no replacement (wangzitian0/infra2-sdk#241 dropped Slice 1). `infra2_sdk.deploy.parse_wheel_version` reads only the version and does not check the lock or the SHA-256.
 
@@ -17,11 +17,11 @@ Owns dependency declarations (`DependencyManifest`), fail-closed probes (`Depend
 - `apps/backend/src/main.py` starts every registered loop in `lifespan` and exposes `run_background_job_once(cli_name)`.
 - `python tools/cli.py job --list` lists registered jobs and `python tools/cli.py job --run-once <cli_name>` executes one pass.
 - `RedisCheck.probe()` uses authenticated `redis.asyncio.from_url(...).ping()` with secret redaction on failures.
-- `ObjectStorageCheck.probe()` checks primary S3, `S3_PUBLIC_*` when set, and an ephemeral put/delete check on `EnvTier.STAGING` only.
+- `ObjectStorageCheck.probe()` checks primary S3, `S3_PUBLIC_*` when set, and an ephemeral put/delete check on `EnvironmentTier.STAGING` only.
 - `LlmCheck.probe()` verifies provider HTTP reachability and Bearer auth on `/models` (or `/chat/completions` when `/models` returns 404/405).
 - `TelemetryCheck.probe()` posts empty OTLP JSON to `/v1/traces` for HTTP(S) endpoints and uses TCP connect only for schemeless host:port targets.
 - `AnalyticsCheck.probe()` requires `OPENPANEL_CLIENT_ID` and verifies `ready: true` on OpenPanel `/healthcheck`.
-- `market_data` is required in both `EnvTier.STAGING` and `EnvTier.PRODUCTION`.
+- `market_data` is required in both `EnvironmentTier.STAGING` and `EnvironmentTier.PRODUCTION`.
 
 ## Environment verification (the Three Gates)
 

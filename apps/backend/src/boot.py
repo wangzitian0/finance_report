@@ -14,6 +14,7 @@ from infra2_sdk.runtime.config_schema import (
     environment_manifest_from_model,
     validate_environment,
 )
+from infra2_sdk.runtime.environment import EnvironmentTier, resolve_environment_tier
 from infra2_sdk.runtime.health import DependencyStatus
 from infra2_sdk.runtime.llm import LlmSettings
 
@@ -23,14 +24,12 @@ from src.runtime import (
     DEPENDENCY_MANIFEST,
     AnalyticsCheck,
     DatabaseCheck,
-    EnvTier,
     LlmCheck,
     MarketDataCheck,
     ObjectStorageCheck,
     RedisCheck,
     TelemetryCheck,
     WorkflowEngineCheck,
-    resolve_env_tier,
 )
 
 logger = get_logger(__name__)
@@ -46,7 +45,7 @@ MODEL_ROLE_FIELDS = ("large_model", "small_model", "multimodal_model")
 _PROBE_METHODS = {
     "database": "_check_database",
     "object_storage": "_check_s3",
-    "llm": "_check_openrouter",
+    "llm": "_check_ai_provider",
     "cache": "_check_cache",
     "workflow_engine": "_check_workflow_engine",
     "telemetry": "_check_telemetry",
@@ -108,16 +107,18 @@ class Bootloader:
     """Validate runtime configuration and external dependency reachability."""
 
     @staticmethod
-    def _required_checks(tier: EnvTier) -> tuple[dict[str, str], list[str]]:
+    def _required_checks(tier: EnvironmentTier) -> tuple[dict[str, str], list[str]]:
         required = DEPENDENCY_MANIFEST.required_for(tier)
         probed = {name: _PROBE_METHODS[name] for name in required if name in _PROBE_METHODS}
         return probed, sorted(required - probed.keys())
 
     @staticmethod
-    async def validate(mode: BootMode = BootMode.CRITICAL, tier: EnvTier | None = None) -> bool:
+    async def validate(mode: BootMode = BootMode.CRITICAL, tier: EnvironmentTier | None = None) -> bool:
         if tier is None:
-            tier = resolve_env_tier(
-                settings.environment, github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true"
+            tier = resolve_environment_tier(
+                settings.environment,
+                github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",
+                unknown="production",
             )
         logger.info("Bootloader starting validation", mode=mode.value, tier=tier.value)
 
@@ -292,7 +293,11 @@ class Bootloader:
 
     @staticmethod
     async def _check_s3() -> ServiceStatus:
-        tier = resolve_env_tier(settings.environment, github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true")
+        tier = resolve_environment_tier(
+            settings.environment,
+            github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",
+            unknown="production",
+        )
         return await _probe_status(
             "minio",
             ObjectStorageCheck(
@@ -305,7 +310,7 @@ class Bootloader:
                 public_access_key=settings.s3_public_access_key,
                 public_secret_key=settings.s3_public_secret_key,
                 public_bucket=settings.s3_public_bucket,
-                verify_write=(tier is EnvTier.STAGING),
+                verify_write=(tier is EnvironmentTier.STAGING),
             ),
         )
 
@@ -321,8 +326,6 @@ class Bootloader:
                 base_url=getattr(settings, "ai_base_url", None),
             ),
         )
-
-    _check_openrouter = _check_ai_provider
 
     @staticmethod
     async def _check_cache() -> ServiceStatus:

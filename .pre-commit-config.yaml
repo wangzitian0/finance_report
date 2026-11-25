@@ -64,17 +64,16 @@ repos:
       - id: no-commit-to-branch
         args: [--branch, main]
 
-  # Environment variable consistency check
+  # Environment manifest and .env.example consistency check
   - repo: local
     hooks:
-      - id: check-env-keys
-        name: Check env var consistency
-        # These tools import the backend application graph; use the project
-        # lockfile exactly as CI does instead of pre-commit's empty venv.
-        entry: bash -c 'cd apps/backend && uv run python ../../tools/check_env_keys.py'
+      - id: env-manifests
+        name: Check environment manifests and .env.example
+        # Imports config.py / infra2_sdk from the backend lockfile.
+        entry: uv run --project apps/backend python tools/env_manifests.py --check
         language: system
         pass_filenames: false
-        files: ^(apps/backend/src/config\.py|\.env\.example)$
+        files: ^(apps/backend/src/config\.py|apps/frontend/required-env\.manifest\.json|common/runtime/env_manifests\.py|runtime-hooks\.manifest\.json|\.env\.example)$
         # Only run when relevant files change
 
   # Frontend lint (local == CI parity via apps/frontend/package.json)
@@ -113,6 +112,6 @@ ci:
   skip:
     - ruff-check
     - ruff-format
-    - check-env-keys
+    - env-manifests
     - frontend-lint
     - preflight-static
