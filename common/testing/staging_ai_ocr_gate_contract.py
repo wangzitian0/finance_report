@@ -106,12 +106,14 @@ def _counter(test: str) -> dict[str, int]:
 
 
 def core_journey_tests() -> list[str]:
-    """Return the non-blocking post-deploy core-journey corpus (#2370)."""
+    """Return the non-LLM core-journey corpus, excluding files covered by ``audit_replay`` (#2370, #3215)."""
     data = json.loads(CORE_JOURNEY_MAP_PATH.read_text(encoding="utf-8"))
+    replay = set(audit_replay_files())
     tests = sorted(
         (
             f"{proof['file']}::{proof['test'].split('::', 1)[1]}"
             for proof in data["proofs"]
+            if proof["file"] not in replay
         ),
         key=lambda node: (node.split("::", 1)[0] in CORE_JOURNEY_LAST, node),
     )

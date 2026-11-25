@@ -37,54 +37,12 @@
       ],
       "needs": [
         "code",
-        "running_service",
-        "real_llm"
+        "running_service"
       ],
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 240,
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "optional_env": [
-        "INFRA2_TOUCHED_FILES",
-        "LLM_PROVIDER",
-        "LLM_BASE_URL"
-      ],
-      "cells": {
-        "remove": {
-          "staging.post": {
-            "reason": "preview-only check (schema 2 slot preview_gate)",
-            "issue": "wangzitian0/infra2#1823"
-          },
-          "scheduled_audit": {
-            "reason": "preview-only check (schema 2 slot preview_gate)",
-            "issue": "wangzitian0/infra2#1823"
-          }
-        }
-      }
-    },
-    {
-      "id": "touched_files",
-      "argv": [
-        "python",
-        "-m",
-        "common.testing.test_selection",
-        "--touched-files",
-        "--run"
-      ],
-      "needs": [
-        "code",
-        "running_service",
-        "real_llm"
-      ],
-      "writes": true,
-      "accepts_scale": false,
-      "timeout_seconds": 240,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
-      "optional_env": [
-        "INFRA2_TOUCHED_FILES",
-        "LLM_PROVIDER",
-        "LLM_BASE_URL"
-      ],
       "cells": {
         "remove": {
           "staging.post": {
@@ -111,7 +69,6 @@
       "needs": [
         "code",
         "running_service",
-        "real_llm",
         "staging_data",
         "real_provider"
       ],
@@ -120,8 +77,6 @@
       "timeout_seconds": 300,
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
-        "LLM_PROVIDER",
-        "LLM_BASE_URL",
         "TEST_USER_EMAIL",
         "TEST_USER_PASSWORD"
       ],
@@ -265,17 +220,13 @@
       "needs": [
         "code",
         "running_service",
-        "real_llm",
-        "staging_data",
-        "real_provider"
+        "staging_data"
       ],
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 1200,
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
-        "LLM_PROVIDER",
-        "LLM_BASE_URL",
         "TEST_USER_EMAIL",
         "TEST_USER_PASSWORD"
       ],

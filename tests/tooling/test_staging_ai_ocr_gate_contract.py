@@ -706,3 +706,13 @@ def test_AC_testing_deploy_gates_45_canonical_trace_observation_and_matching_cor
         ],
     )
     assert contract.main() == 0
+
+
+def test_core_journey_is_disjoint_from_audit_replay() -> None:
+    import common.testing.matrix as matrix
+
+    replay_files = set(contract.audit_replay_files())
+    core_nodes = contract.core_journey_tests()
+    core_files = {node.split("::", 1)[0] for node in core_nodes}
+    assert core_files.isdisjoint(replay_files)
+    assert core_files == set(matrix.CORE_JOURNEY_ONLY_FILES)

@@ -464,13 +464,6 @@ WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
         anchor="common.testing.test_selection --stage preview_minimum_e2e --run",
     ),
     WorkflowPytestContract(
-        stage="preview_touched_e2e",
-        workflow="runtime-hooks.manifest.json",
-        marker=STAGING_CORE_E2E_MARKER,
-        paths=("--touched-files",),
-        anchor="common.testing.test_selection --touched-files",
-    ),
-    WorkflowPytestContract(
         stage="staging_core_e2e",
         workflow="runtime-hooks.manifest.json",
         marker=STAGING_CORE_E2E_MARKER,
