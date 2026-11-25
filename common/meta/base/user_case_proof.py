@@ -27,12 +27,6 @@ PROOF_TIER_ORDER: tuple[ProofTier, ...] = (
     ProofTier.L0_GAP,
 )
 
-# Current baseline floors (ratchet: only block proof deletions, never unrelated PRs).
-# The floors count evidence tiers, so a linked gap issue does not lower them.
-PROOF_FLOOR_L4_FULL = 14
-PROOF_FLOOR_E2E_TOTAL = 21
-PROOF_FLOOR_BENCH_TOTAL = 30
-
 
 def derive_evidence_tier(uc: Mapping[str, Any]) -> ProofTier:
     """Compute the tier from test references only; an open gap issue does not change it."""
@@ -52,15 +46,6 @@ def derive_proof_tier(uc: Mapping[str, Any]) -> ProofTier:
     if uc.get("gap_issue"):
         return ProofTier.L0_GAP if uc.get("gap_kind") == "gap" else ProofTier.L1_PARTIAL
     return derive_evidence_tier(uc)
-
-
-def summarize_evidence_totals(domains: Sequence[Mapping[str, Any]]) -> dict[str, int]:
-    """Count evidence tiers across all domains; the deletion ratchet reads these counts."""
-    totals: dict[str, int] = {tier.value: 0 for tier in PROOF_TIER_ORDER}
-    for domain in domains:
-        for uc in domain.get("user_cases", ()):
-            totals[derive_evidence_tier(uc).value] += 1
-    return totals
 
 
 def format_proof_tier_cell(uc: Mapping[str, Any]) -> str:

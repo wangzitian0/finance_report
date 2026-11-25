@@ -13,6 +13,6 @@ Tables belong to one warehouse layer (`DIM` conformed references like `accounts`
 <a id="enum-naming"></a>
 - **Explicit enum names mandatory**: Every `sa.Enum(..., name="...")` requires an explicit name (`test_enums_have_explicit_names`).
 - **PR schema authority**: `cd apps/backend && uv run alembic upgrade head && uv run alembic check`.
-- **Backend test schema fidelity**: Fast unit tests use a **fast fixture schema** built with `Base.metadata.create_all()` (stripping `users.id` FKs only for legacy `detached-owner` rows tracked by `tools/check_detached_owner_shortcuts.py`), while **production-faithful backend business persistence** runs isolated integration tests directly against Alembic migrations.
+- **Backend test schema fidelity**: Fast unit tests use a **fast fixture schema** built with `Base.metadata.create_all()`, while **production-faithful backend business persistence** runs isolated integration tests directly against Alembic migrations.
 - **Migration risk**: Classified in `common/meta/data/migration-risk.yaml` (`tools/check_migration_risk.py`).
 - **Async sessions & Decimal**: Routers own `commit()`/rollback (`get_db`); services call `flush()`. Use `DECIMAL`/`Decimal`, never `float`.

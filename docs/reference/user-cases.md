@@ -31,7 +31,7 @@ Proof tiers are derived purely from checked-in test and gap references in `user_
 - `L2_SURFACE`: `backend_test_ref` + `frontend_test_ref` only (missing both `e2e_test_ref` and `benchmark_cases`)
 - `L1_PARTIAL` / `L0_GAP`: active `gap_issue` tracked in GitHub
 
-Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`). The deletion ratchet counts test references only, so a link does not lower its floors.
+Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`).
 
 | Domain | Total | `L4_FULL` | `L3_E2E` | `L3_BENCH` | `L2_SURFACE` | `L1_PARTIAL` | `L0_GAP` |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -186,9 +186,6 @@ apps/backend/.venv/bin/pytest -n0 --no-cov -o addopts="" tests/tooling/test_user
 # 2. Backend domain invariants suite
 apps/backend/.venv/bin/pytest -n0 --no-cov -o addopts="" apps/backend/tests/flows/test_user_cases_consistency.py -x
 
-# 3. Router contract-maturity gate
-python tools/audit_router_contracts.py --output docs/reference/router-contract-maturity.md
-
-# 4. Verify this doc matches common/meta/flows/user_cases_ssot.json
+# 3. Verify this doc matches common/meta/flows/user_cases_ssot.json
 python tools/generate_user_cases_doc.py --check
 ```

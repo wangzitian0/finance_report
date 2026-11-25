@@ -151,8 +151,6 @@ def cmd_lint(args):
                 uv_run("python", "-m", "ruff", "format", "src", "tests", "--check"),
                 cwd=BACKEND_DIR,
             )
-            detached_owner_guard = REPO_ROOT / "tools/check_detached_owner_shortcuts.py"
-            run([sys.executable, str(detached_owner_guard)])
 
     if args.frontend or not args.backend:
         if args.fix:

@@ -13,7 +13,7 @@ Each package converges by **layer**:
 
 ## Cross-domain DB & flow rules
 
-- Intra-domain FKs are free; cross-domain bare `ForeignKey` is allowed (`UserOwnedMixin` tenancy), cross-domain `relationship()` is banned; `ondelete="CASCADE"` is audited in `common/audit/data/fk-cascade-ownership.json`.
+- Intra-domain FKs are free; cross-domain bare `ForeignKey` is allowed (`UserOwnedMixin` tenancy), cross-domain `relationship()` is banned.
 - End-to-end business user cases live in `common/meta/flows/user_cases_ssot.json`, never duplicated in EPIC tables.
 
 See: [`readme.md`](./readme.md) · [`../../vision.md`](../../vision.md)

@@ -21,7 +21,7 @@ vision.md -> bounded-context invariants & tests -> user_cases_ssot.json -> UI / 
   `apps/backend/src/<pkg>/`): each package owns its domain rules, verified by
   executable domain tests and structural boundary guards
   (`tools/check_app_boundary.py`, `tools/check_base_purity.py`,
-  `tools/check_tier_imports.py`, `tools/check_public_orm_exports.py`).
+  `tools/check_tier_imports.py`).
 - **Layer 2 — Business User Cases** (`common/meta/flows/user_cases_ssot.json`):
   owns the 47 end-to-end business user cases (`UC-01..UC-47` across 8 domains),
   binding UI routes, backend endpoints, and backend/frontend/E2E tests (see
@@ -39,7 +39,7 @@ own implementation status.
 | Layer | Owner | What It Shows | Proof / Guard |
 |---|---|---|---|
 | Goal & culture | `vision.md` | North-star goal, axioms, trade-off rules, and direction for ambiguous choices | Decision filter |
-| Bounded contexts & boundaries | `common/<pkg>/`, `apps/backend/src/<pkg>/` | Package specs (`readme.md`) and five-layer dependency/purity boundaries | `check_app_boundary.py`, `check_base_purity.py`, `check_tier_imports.py`, `check_public_orm_exports.py` |
+| Bounded contexts & boundaries | `common/<pkg>/`, `apps/backend/src/<pkg>/` | Package specs (`readme.md`) and five-layer dependency/purity boundaries | `check_app_boundary.py`, `check_base_purity.py`, `check_tier_imports.py` |
 | Business user cases | `common/meta/flows/user_cases_ssot.json` | 47 end-to-end business user cases (`UC-01..UC-47`) across 8 domains | `tests/tooling/test_user_cases_consistency.py` |
 | Historical EPIC index | `docs/project/EPIC-*.md` | Closed, shrink-only goal stubs and design context | [EPIC Index](docs/project/README.md) |
 

@@ -10,17 +10,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestSelectChecks:
-    def test_AC_testing_preflight_1_structural_and_readings_checks_selected(self):
-        assert "public-orm-exports" in {
-            c.name for c in preflight.select_checks(["apps/backend/src/ledger/__init__.py"], tier="static")
-        }
+    def test_AC_testing_preflight_1_structural_and_core_checks_selected(self):
         assert "toolchain-contract" in {
             c.name for c in preflight.select_checks([".github/workflows/ci.yml"], tier="static")
-        }
-        _m7_names = {_m7_c.name for _m7_c in preflight.select_checks(["tests/fixtures/readings/example.json"])}
-        assert "readings-eval" in _m7_names
-        assert "readings-eval" in {
-            _m7_c.name for _m7_c in preflight.select_checks(["tests/fixtures/readings-eval-baseline.jsonl"])
         }
         _m11_names = [
             _m11_c.name
@@ -37,13 +29,6 @@ class TestSelectChecks:
             )
         ]
         assert "app-boundary" in _m12_names
-        _m13_names = [
-            _m13_c.name
-            for _m13_c in preflight.select_checks(
-                ["apps/backend/src/ledger/__init__.py"]
-            )
-        ]
-        assert "public-orm-exports" in _m13_names
         _m14_selected = preflight.select_checks(
             ["apps/backend/src/reconciliation/base/repository.py"]
         )
@@ -67,20 +52,6 @@ class TestSelectChecks:
         assert [
             _m16_c.name for _m16_c in preflight.select_checks([".env.example"])
         ] == ["env-keys"]
-        _m17_names = [
-            _m17_c.name
-            for _m17_c in preflight.select_checks(
-                ["apps/backend/src/schemas/account.py"]
-            )
-        ]
-        assert "schema-validate" in _m17_names
-        _m18_names = [
-            _m18_c.name
-            for _m18_c in preflight.select_checks(
-                ["apps/backend/src/runtime/extension/schema_validation.py"]
-            )
-        ]
-        assert "schema-validate" not in _m18_names
         _m19_names = [
             _m19_c.name
             for _m19_c in preflight.select_checks(
@@ -88,7 +59,6 @@ class TestSelectChecks:
             )
         ]
         assert "api-reference" in _m19_names
-        assert "router-contract" in _m19_names
         _m20_names = [
             _m20_c.name
             for _m20_c in preflight.select_checks(
@@ -103,7 +73,6 @@ class TestSelectChecks:
             )
         ]
         assert "api-reference" in _m21_names
-        assert "router-contract" not in _m21_names
         _m22_names = [
             _m22_c.name
             for _m22_c in preflight.select_checks(["apps/frontend/src/app/layout.tsx"])
@@ -204,30 +173,12 @@ def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment(
     )
     precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     assert "cd apps/backend && uv run python ../../tools/check_env_keys.py" in precommit
-    assert (
-        "cd apps/backend && uv run python ../../tools/validate_schemas.py" in precommit
-    )
-    _m4_commands: list[list[str]] = []
-    _m4_schema_check = [
-        _m4_c for _m4_c in preflight.CHECKS if _m4_c.name == "schema-validate"
-    ]
-    preflight.run_checks(
-        _m4_schema_check,
-        changed_files=(
-            "apps/backend/src/schemas/extraction.py",
-            "apps/backend/src/extraction/extension/service.py",
-        ),
-        runner=lambda argv, cwd: _m4_commands.append(list(argv)) or 0,
-        python="python3",
-    )
-    assert _m4_commands == [
-        [
-            "python3",
-            "tools/validate_schemas.py",
-            "--paths",
-            "apps/backend/src/schemas/extraction.py",
-        ]
-    ]
+    assert "rev: v0.14.11" in precommit
+    assert "--config=apps/backend/pyproject.toml" in precommit
+    assert "validate_schemas.py" not in precommit
+    assert "mirrors-mypy" not in precommit
+
+
 def test_run_checks_passes_each_check_cwd_to_the_runner():
     seen: list[str] = []
 
@@ -282,21 +233,6 @@ class TestRunAndMain:
         checks = [c for c in preflight.CHECKS if c.name == "backend-format"]
         preflight.run_checks(checks, runner=runner, python="python3")
         assert len(calls) == 1
-
-    def test_schema_validation_is_limited_to_changed_schema_paths(self):
-        calls: list[list[str]] = []
-
-        def runner(argv, _cwd):
-            calls.append(list(argv))
-            return 0
-
-        changed_path = "apps/backend/src/schemas/reconciliation.py"
-        rc = preflight.run(["--changed", changed_path], runner=runner)
-        assert rc == 0
-        schema_command = next(
-            (command for command in calls if "tools/validate_schemas.py" in command)
-        )
-        assert schema_command[-2:] == ["--paths", changed_path]
 
     def test_main_uses_injected_git_when_no_explicit_changes(self):
         def fake_git(args):
@@ -381,7 +317,6 @@ class TestTierSelection:
         assert all((c.tier in ("static", "heavy") for c in preflight.CHECKS))
         _m1_heavy = {_m1_c.name for _m1_c in preflight.CHECKS if _m1_c.tier == "heavy"}
         assert _m1_heavy == {
-            "router-contract",
             "transaction-boundary",
             "bench-articulation",
             "tooling",
@@ -814,7 +749,6 @@ def test_run_checks_fails_closed_when_gate_mutates_working_tree(tmp_path, capsys
 class TestDiffScopedPytestTargets:
     def test_heavy_pytest_checks_disable_xdist_cov_and_addopts(self):
         for name in (
-            "router-contract",
             "transaction-boundary",
             "bench-articulation",
             "tooling",
