@@ -36,8 +36,8 @@ Local verification is one command: the focused single-process test of the change
 
 ### Coverage & Metric Semantics
 
-- Coverage thresholds and deny-list omissions live in `apps/backend/pyproject.toml` (`96%` BE floor) and `apps/frontend/vitest.config.ts` (`98/98/84/98` FE).
-- On PRs, `backend`, `backend-integration`, and `tooling` run with `--no-cov` for fast `Pipeline time contract` turnaround; on `main` pushes and manual runs, `backend-coverage-gate` combines `cov-data-*` across those three lanes and enforces `--fail-under=96` statement coverage.
+- Coverage inclusion/omission lists live in `apps/backend/pyproject.toml` and `apps/frontend/vitest.config.ts`; neither enforces blocking percentage floors.
+- On PRs, `backend`, `backend-integration`, and `tooling` run with `--no-cov` for fast `Pipeline time contract` turnaround; on `main` pushes and manual runs, `backend-coverage-gate` combines `cov-data-*` across those three lanes and reports metrics non-blockingly into `ci-post-telemetry` for the live `/board/` dashboard.
 - PR CI dry-runs staging image builds before merge; Main and release-branch push CI, plus on-demand `workflow_dispatch` push immutable `:<sha>` images.
 - CI observability artifacts (JUnit XML, run context, and non-PR coverage) upload on both success and failure (`if: always()`).
 

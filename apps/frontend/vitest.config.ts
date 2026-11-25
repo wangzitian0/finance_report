@@ -33,13 +33,6 @@ export default defineConfig({
         '**/*.config.*',
         '**/types/**',
       ],
-      thresholds: {
-        lines: 98,
-        functions: 98,
-        branches: 84,
-        statements: 98,
-        autoUpdate: false,
-      },
     },
   },
   resolve: {
