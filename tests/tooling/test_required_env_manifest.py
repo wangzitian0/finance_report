@@ -207,3 +207,16 @@ def test_runtime_hooks_cells_and_honest_needs():
     for non_llm in ("preview_minimum_e2e", "staging_core_e2e", "core_journey"):
         assert "real_llm" not in by_id[non_llm].needs, non_llm
     assert "real_provider" not in by_id["core_journey"].needs
+
+    from infra2_sdk.manifests import CELL_POLICIES
+
+    audit_checks = hooks.checks_for_cell("scheduled_audit")
+    assert (
+        sum(c.timeout_seconds for c in audit_checks)
+        <= CELL_POLICIES["scheduled_audit"].budget_seconds
+    )
+    for oracle_id in ("pdf_corpus_oracle", "financial_scenario_benchmark"):
+        cmd = " ".join(by_id[oracle_id].argv)
+        assert "--json-report" in cmd
+        assert "--output-summary" in cmd
+        assert "HOOK_ARTIFACTS_DIR" in cmd
