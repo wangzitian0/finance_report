@@ -7,9 +7,18 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - '.github/workflows/docs.yml'
+      - 'common/testing/quality_board.py'
+      - 'tools/generate_quality_board.py'
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: '0 4 * * *'
   workflow_dispatch:
 
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -46,6 +55,16 @@ jobs:
 
       - name: Build documentation
         run: mkdocs build --clean
+
+      - name: Generate live quality dashboard
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          INFRA2_TOKEN: ${{ secrets.INFRA2_PAT }}
+        run: |
+          python tools/generate_quality_board.py \
+            --output-dir site/board \
+            --finance-repo "${{ github.repository }}" \
+            --infra2-repo "wangzitian0/infra2"
 
       - name: Setup Pages
         uses: actions/configure-pages@v6
