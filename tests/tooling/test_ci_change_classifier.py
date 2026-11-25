@@ -82,8 +82,9 @@ def test_vitest_skip_set_overlaps_no_path_vitest_reads() -> None:
     files = [f for f in (_ROOT / "apps/frontend/src").rglob("*") if f.is_file()] + [
         _ROOT / "apps/frontend/package.json",
         _ROOT / "apps/frontend/vitest.config.ts",
+        _ROOT / "apps/frontend/vitest.setup.ts",
     ]
-    pattern = r"(?:apps/backend|common|tools)/[A-Za-z0-9_./@-]*"
+    pattern = r"(?:apps/backend|common|tools)(?:/[A-Za-z0-9_./@-]*)?"
     direct = _paths_read_by(files, pattern)
     assert "common/audit/money/conformance/vectors.json" in direct
     # routeMap.test.ts reads user_cases_ssot.json solely for ui_surface; backend_test_ref
@@ -105,7 +106,12 @@ def test_vitest_skip_set_overlaps_no_path_vitest_reads() -> None:
 
 
 def test_backend_skip_set_overlaps_no_path_backend_tests_read() -> None:
-    files = [f for f in (_ROOT / "apps/backend/tests").rglob("*") if f.is_file()]
+    files = [
+        f
+        for d in ("apps/backend/tests", "apps/backend/scripts", "apps/backend/migrations")
+        for f in (_ROOT / d).rglob("*")
+        if f.is_file()
+    ]
     read = _paths_read_by(files, r"apps/frontend(?:/[A-Za-z0-9_./@-]*)?")
     clashes = sorted((r, p) for r in read for p in classifier.BACKEND_TESTS_SKIP_PREFIXES if _overlaps(r, p))
     assert clashes == [], f"Backend tests read a skipped path: {clashes}"
