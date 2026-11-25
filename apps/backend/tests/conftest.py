@@ -294,3 +294,18 @@ def fake_llm(monkeypatch: pytest.MonkeyPatch):
     from tests._support.fake_llm import install_fake_model
 
     return lambda reply: install_fake_model(monkeypatch, reply)
+
+
+def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
+    """Tag L3 invariant core backend files with ``pytest.mark.invariant_core``."""
+    from common.testing.invariant_core import BACKEND_INVARIANT_CORE_REL_FILES
+
+    backend_root = Path(__file__).resolve().parents[1]
+    marker = pytest.mark.invariant_core
+    for item in items:
+        try:
+            rel_path = Path(str(item.path)).resolve().relative_to(backend_root).as_posix()
+        except ValueError:
+            continue
+        if rel_path in BACKEND_INVARIANT_CORE_REL_FILES:
+            item.add_marker(marker)

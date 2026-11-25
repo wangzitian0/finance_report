@@ -33,7 +33,7 @@ from common.meta.extension import migration_risk  # noqa: E402
 from common.runtime import release_images  # noqa: E402
 from common.testing import change_classifier as classifier  # noqa: E402
 from common.testing import check_pr_review_threads as review_gate  # noqa: E402
-from common.testing import matrix, preflight, test_selection  # noqa: E402
+from common.testing import invariant_core, matrix, preflight, test_selection  # noqa: E402
 from common.testing.backend_shard import (  # noqa: E402
     discover_test_files,
     file_durations,
@@ -2095,3 +2095,67 @@ def test_moon_ci_compose_addopts_and_corpus_contracts() -> None:
         )
         in matrix.PR_EVIDENCE_STAGES
     )
+
+
+def test_L3_invariant_core_pillars_and_collection() -> None:
+    """Verify the seven MECE L3 invariant pillars and pytest marker collection."""
+    pillars = invariant_core.INVARIANT_CORE_PILLARS
+    assert set(pillars) == {
+        "double_entry_conservation",
+        "decimal_precision",
+        "three_statement_articulation",
+        "ledger_and_fact_schema_invariants",
+        "multi_tenant_isolation",
+        "authz_and_route_boundaries",
+        "pii_redaction_and_sanitization",
+    }
+    ordered = [path for paths in pillars.values() for path in paths]
+    assert all(paths for paths in pillars.values())
+    assert len(ordered) == len(set(ordered)), "Duplicate file across L3 pillars"
+    assert invariant_core.ALL_INVARIANT_CORE_FILES == frozenset(ordered)
+
+    for rel_path in ordered:
+        target = ROOT / rel_path
+        assert target.is_file(), f"Missing L3 invariant core file: {rel_path}"
+        text = target.read_text(encoding="utf-8")
+        if rel_path.endswith(".py"):
+            assert re.search(r"^\s*(?:async\s+)?def\s+test_", text, re.MULTILINE), (
+                rel_path
+            )
+        else:
+            assert re.search(
+                r"\b(?:it|test)(?:\.(?:each|concurrent|skipIf|runIf))?\s*\(", text
+            ), rel_path
+
+    backend_markers = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["tool"][
+        "pytest"
+    ]["ini_options"]["markers"]
+    root_markers = (ROOT / "pytest.ini").read_text(encoding="utf-8")
+    assert any(m.startswith("invariant_core:") for m in backend_markers)
+    assert re.search(r"^\s*invariant_core\s*:", root_markers, re.MULTILINE)
+
+    collected = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            "-m",
+            "invariant_core",
+            "--no-cov",
+            "-o",
+            "addopts=",
+        ],
+        cwd=BACKEND,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert collected.returncode == 0, collected.stdout + "\n" + collected.stderr
+    collected_files = {
+        line.strip().split("::", 1)[0]
+        for line in collected.stdout.splitlines()
+        if "::" in line and not line.startswith(("=", "-"))
+    }
+    assert collected_files == invariant_core.BACKEND_INVARIANT_CORE_REL_FILES
