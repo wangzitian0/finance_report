@@ -53,16 +53,19 @@ async def test_telemetry_check_http_and_tcp() -> None:
 
     for code, expected in (
         (200, DependencyStatus.PRESENT),
+        (400, DependencyStatus.PRESENT),
         (415, DependencyStatus.PRESENT),
         (401, DependencyStatus.ABSENT),
         (404, DependencyStatus.ABSENT),
+        (405, DependencyStatus.ABSENT),
         (503, DependencyStatus.ABSENT),
     ):
         with patch("httpx.AsyncClient.post", AsyncMock(return_value=_http(code))) as post_fn:
-            res = await TelemetryCheck(endpoint="http://otel-collector:4318").probe()
+            res = await TelemetryCheck(endpoint="https://otel.zitian.party").probe()
         assert res.status is expected
-        assert post_fn.await_args.args[0] == "http://otel-collector:4318/v1/traces"
+        assert post_fn.await_args.args[0] == "https://otel.zitian.party/v1/traces"
 
+    assert (await TelemetryCheck(endpoint="/sock").probe()).status is DependencyStatus.ABSENT
     with patch("httpx.AsyncClient.post", AsyncMock(side_effect=httpx.ConnectError("down"))):
         assert (await TelemetryCheck(endpoint="http://otel-collector:4318/v1/traces").probe()).status is DependencyStatus.ABSENT
 
@@ -78,6 +81,8 @@ async def test_analytics_check_requires_client_id_and_ready_healthcheck() -> Non
     assert get_fn.await_args.args[0] == "https://op.example.com/api/healthcheck"
 
     for outcome in (
+        _http(200),
+        _http(200, {"status": "ok"}),
         _http(200, {"ready": False}),
         _http(404),
         _http(503),
@@ -89,8 +94,9 @@ async def test_analytics_check_requires_client_id_and_ready_healthcheck() -> Non
 
 
 async def test_llm_check_probes_models_chat_fallback_and_redacts_key() -> None:
-    assert (await LlmCheck(api_key=None, provider="zai", small_model="s", multimodal_model="m", base_url="https://ai.example/v1").probe()).status is DependencyStatus.ABSENT
-    no_url = await LlmCheck(api_key="tok", provider="zai", small_model="s", multimodal_model="m", base_url=None).probe()
+    assert (await LlmCheck(api_key=None, provider="zai", base_url="https://ai.example/v1").probe()).status is DependencyStatus.ABSENT
+    assert (await LlmCheck(api_key="   ", provider="zai", base_url="https://ai.example/v1").probe()).status is DependencyStatus.ABSENT
+    no_url = await LlmCheck(api_key="tok", provider="zai", base_url=None).probe()
     assert no_url.status is DependencyStatus.ABSENT and "base_url" in no_url.detail
 
     for code, expected in (
@@ -104,40 +110,38 @@ async def test_llm_check_probes_models_chat_fallback_and_redacts_key() -> None:
             res = await LlmCheck(
                 api_key="secret-llm-key",
                 provider="zai",
-                small_model="s",
-                multimodal_model="m",
                 base_url="https://ai.example/v1/",
             ).probe()
         assert res.status is expected
         assert get_fn.await_args.args[0] == "https://ai.example/v1/models"
         assert get_fn.await_args.kwargs["headers"] == {"Authorization": "Bearer secret-llm-key"}
 
-    for chat_code, expected in (
-        (400, DependencyStatus.PRESENT),
-        (422, DependencyStatus.PRESENT),
-        (401, DependencyStatus.ABSENT),
-        (404, DependencyStatus.ABSENT),
+    for models_code, chat_code, expected in (
+        (404, 200, DependencyStatus.PRESENT),
+        (404, 400, DependencyStatus.PRESENT),
+        (405, 422, DependencyStatus.PRESENT),
+        (404, 429, DependencyStatus.PRESENT),
+        (405, 401, DependencyStatus.ABSENT),
+        (404, 404, DependencyStatus.ABSENT),
     ):
         with (
-            patch("httpx.AsyncClient.get", AsyncMock(return_value=_http(404))),
+            patch("httpx.AsyncClient.get", AsyncMock(return_value=_http(models_code))),
             patch("httpx.AsyncClient.post", AsyncMock(return_value=_http(chat_code))) as post_fn,
         ):
             res = await LlmCheck(
                 api_key="secret-llm-key",
                 provider="zai",
-                small_model="s",
-                multimodal_model="m",
                 base_url="https://ai.example/v1",
             ).probe()
         assert res.status is expected
         assert post_fn.await_args.args[0] == "https://ai.example/v1/chat/completions"
+        if chat_code == 401:
+            assert "Authentication failed" in res.detail
 
     with patch("httpx.AsyncClient.get", AsyncMock(side_effect=RuntimeError("boom secret-llm-key"))):
         err = await LlmCheck(
             api_key="secret-llm-key",
             provider="zai",
-            small_model="s",
-            multimodal_model="m",
             base_url="https://ai.example/v1",
         ).probe()
     assert err.status is DependencyStatus.ABSENT and "secret-llm-key" not in err.detail and "***" in err.detail
@@ -231,14 +235,18 @@ async def test_database_and_object_storage_checks() -> None:
 
 
 async def test_object_storage_public_and_write_delete_probe() -> None:
-    kw = {"endpoint": "http://minio:9000", "access_key": "minio", "secret_key": "minio123", "region": "us-east-1", "bucket": "statements"}
+    kw = {"endpoint": "http://minio:9000", "access_key": "minio", "secret_key": "secret-s3-key", "region": "us-east-1", "bucket": "statements"}
     ok_primary = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.0)
     ok_public = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.1)
-    bad_public = sdk_health.ProbeResult("object_storage", DependencyStatus.ABSENT, "DNS error", 1.1)
+    bad_public = sdk_health.ProbeResult("object_storage", DependencyStatus.ABSENT, "DNS error with secret-s3-key", 1.1)
 
     with patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, bad_public]):
         failed_pub = await ObjectStorageCheck(public_endpoint="https://s3.zitian.party", **kw).probe()
     assert failed_pub.status is DependencyStatus.ABSENT and "public S3 probe failed" in failed_pub.detail
+    assert "secret-s3-key" not in failed_pub.detail and "***" in failed_pub.detail
+
+    asym = await ObjectStorageCheck(public_endpoint="https://s3.zitian.party", public_access_key="pub-only", public_secret_key="  ", **kw).probe()
+    assert asym.status is DependencyStatus.ABSENT and "Incomplete public S3 credentials" in asym.detail
 
     s3_client = MagicMock(put_object=MagicMock(), delete_object=MagicMock(), close=MagicMock())
     with (
@@ -247,25 +255,55 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     ):
         ok = await ObjectStorageCheck(
             public_endpoint="https://s3.zitian.party",
-            public_bucket="statements-pub",
+            public_access_key=" ",
+            public_secret_key="",
+            public_bucket="  ",
             verify_write=True,
             **kw,
         ).probe()
     assert ok.status is DependencyStatus.PRESENT and "write/delete ok" in ok.detail
-    assert probe_fn.call_count == 2 and probe_fn.call_args_list[1].args[0].bucket == "statements-pub"
+    assert probe_fn.call_count == 2
+    assert probe_fn.call_args_list[0].args[0].addressing_style == "path"
+    assert (probe_fn.call_args_list[1].args[0].bucket, probe_fn.call_args_list[1].args[0].secret_access_key) == (
+        "statements",
+        "secret-s3-key",
+    )
+    with patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, ok_public]) as custom_fn:
+        custom_ok = await ObjectStorageCheck(
+            public_endpoint="https://s3.zitian.party",
+            public_bucket="statements-pub",
+            public_access_key="pub-ak",
+            public_secret_key="pub-sk",
+            **kw,
+        ).probe()
+    assert custom_ok.status is DependencyStatus.PRESENT
+    assert (custom_fn.call_args_list[1].args[0].bucket, custom_fn.call_args_list[1].args[0].access_key_id) == (
+        "statements-pub",
+        "pub-ak",
+    )
     s3_client.put_object.assert_called_once()
     s3_client.delete_object.assert_called_once()
     s3_client.close.assert_called_once()
 
-    failing_put = MagicMock(put_object=MagicMock(side_effect=PermissionError("AccessDenied")), delete_object=MagicMock(), close=MagicMock())
+    failing_put = MagicMock(put_object=MagicMock(side_effect=PermissionError("AccessDenied secret-s3-key")), delete_object=MagicMock(), close=MagicMock())
     with (
         patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
         patch("infra2_sdk.runtime.s3.create_s3_client", return_value=failing_put),
     ):
         err = await ObjectStorageCheck(verify_write=True, **kw).probe()
     assert err.status is DependencyStatus.ABSENT and "S3 write/delete probe failed" in err.detail
+    assert "secret-s3-key" not in err.detail
     failing_put.delete_object.assert_called_once()
     failing_put.close.assert_called_once()
+
+    failing_del = MagicMock(put_object=MagicMock(), delete_object=MagicMock(side_effect=PermissionError("DeleteDenied")), close=MagicMock())
+    with (
+        patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
+        patch("infra2_sdk.runtime.s3.create_s3_client", return_value=failing_del),
+    ):
+        err_del = await ObjectStorageCheck(verify_write=True, **kw).probe()
+    assert err_del.status is DependencyStatus.ABSENT and "DeleteDenied" in err_del.detail
+    failing_del.close.assert_called_once()
 
 
 def test_every_declared_dependency_has_a_probe_adapter() -> None:

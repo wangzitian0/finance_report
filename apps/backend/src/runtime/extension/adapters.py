@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import re
 import time
 from typing import Any
 from urllib.parse import urlparse
@@ -64,8 +65,12 @@ class DatabaseCheck:
                 await engine.dispose()
 
 
-def _redact_secret(text: str, secret: str) -> str:
-    return text.replace(secret, "***") if secret else text
+def _redact_secrets(text: str, *secrets: str | None) -> str:
+    redacted = re.sub(r"://([^:@/\s]+:)?[^@/\s]+@", "://***@", text)
+    for secret in secrets:
+        if secret:
+            redacted = redacted.replace(secret, "***")
+    return redacted
 
 
 def _probe_s3_write_delete(s3_settings: S3Settings) -> None:
@@ -124,6 +129,7 @@ class ObjectStorageCheck:
 
     async def probe(self) -> ProbeResult:
         start = time.perf_counter()
+        secrets = (self._access_key, self._secret_key, self._public_access_key, self._public_secret_key)
         try:
             primary = S3Settings(
                 bucket=self._bucket,
@@ -131,40 +137,79 @@ class ObjectStorageCheck:
                 access_key_id=self._access_key,
                 secret_access_key=self._secret_key,
                 region_name=self._region,
+                connect_timeout_seconds=3.0,
+                read_timeout_seconds=3.0,
+                addressing_style="path",
             )
-            primary_res = await asyncio.to_thread(probe_s3, primary)
         except Exception as exc:  # noqa: BLE001
-            return _absent(self.name, str(exc), start)
+            return _absent(self.name, _redact_secrets(str(exc), *secrets), start)
 
-        if primary_res.status is not DependencyStatus.PRESENT:
-            return primary_res
-
-        parts = ["bucket accessible"]
         public_ep = self._public_endpoint.strip() if isinstance(self._public_endpoint, str) else ""
+        public: S3Settings | None = None
         if public_ep:
+            pub_ak = (self._public_access_key or "").strip()
+            pub_sk = (self._public_secret_key or "").strip()
+            if bool(pub_ak) != bool(pub_sk):
+                return _absent(
+                    self.name,
+                    "Incomplete public S3 credentials: set both S3_PUBLIC_ACCESS_KEY and S3_PUBLIC_SECRET_KEY",
+                    start,
+                )
             try:
                 public = S3Settings(
                     bucket=(self._public_bucket or "").strip() or self._bucket,
                     endpoint_url=public_ep,
-                    access_key_id=(self._public_access_key or "").strip() or self._access_key,
-                    secret_access_key=(self._public_secret_key or "").strip() or self._secret_key,
+                    access_key_id=pub_ak or self._access_key,
+                    secret_access_key=pub_sk or self._secret_key,
                     region_name=self._region,
+                    connect_timeout_seconds=3.0,
+                    read_timeout_seconds=3.0,
+                    addressing_style="path",
                 )
-                pub_res = await asyncio.to_thread(probe_s3, public)
             except Exception as exc:  # noqa: BLE001
-                return _absent(self.name, f"public S3 probe failed: {type(exc).__name__}: {exc}", start)
+                return _absent(
+                    self.name,
+                    _redact_secrets(f"public S3 probe failed: {type(exc).__name__}: {exc}", *secrets),
+                    start,
+                )
+
+        try:
+            if public is not None:
+                primary_res, pub_res = await asyncio.gather(
+                    asyncio.to_thread(probe_s3, primary),
+                    asyncio.to_thread(probe_s3, public),
+                )
+            else:
+                primary_res = await asyncio.to_thread(probe_s3, primary)
+                pub_res = None
+        except Exception as exc:  # noqa: BLE001
+            return _absent(self.name, _redact_secrets(str(exc), *secrets), start)
+
+        if primary_res.status is not DependencyStatus.PRESENT:
+            return ProbeResult(self.name, primary_res.status, _redact_secrets(primary_res.detail, *secrets), primary_res.duration_ms)
+
+        parts = ["bucket accessible"]
+        if pub_res is not None:
             if pub_res.status is not DependencyStatus.PRESENT:
-                return _absent(self.name, f"public S3 probe failed: {pub_res.detail}", start)
+                return _absent(
+                    self.name,
+                    _redact_secrets(f"public S3 probe failed: {pub_res.detail}", *secrets),
+                    start,
+                )
             parts.append("public endpoint accessible")
 
         if self._verify_write:
             try:
                 await asyncio.to_thread(_probe_s3_write_delete, primary)
             except Exception as exc:  # noqa: BLE001
-                return _absent(self.name, f"S3 write/delete probe failed: {type(exc).__name__}: {exc}", start)
+                return _absent(
+                    self.name,
+                    _redact_secrets(f"S3 write/delete probe failed: {type(exc).__name__}: {exc}", *secrets),
+                    start,
+                )
             parts.append("write/delete ok")
 
-        if not public_ep and not self._verify_write:
+        if public is None and not self._verify_write:
             return primary_res
         return _ok(self.name, ", ".join(parts), start)
 
@@ -179,14 +224,13 @@ class LlmCheck:
         *,
         api_key: str | None,
         provider: str,
-        small_model: str,
-        multimodal_model: str,
+        small_model: str = "",
+        multimodal_model: str = "",
         base_url: str | None = None,
     ) -> None:
         self._api_key = api_key
         self._provider = provider
-        self._small_model = small_model
-        self._multimodal_model = multimodal_model
+        _ = (small_model, multimodal_model)
         self._base_url = base_url
 
     async def probe(self) -> ProbeResult:
@@ -200,7 +244,7 @@ class LlmCheck:
 
         headers = {"Authorization": f"Bearer {key}"}
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(f"{base}/models", headers=headers)
                 code = int(resp.status_code)
                 if 200 <= code < 300 or code == 429:
@@ -212,10 +256,12 @@ class LlmCheck:
                     chat_code = int(chat_resp.status_code)
                     if chat_code in {200, 400, 422, 429}:
                         return _ok(self.name, f"provider={self._provider} chat_probe={chat_code}", start)
+                    if chat_code in {401, 403}:
+                        return _absent(self.name, f"Authentication failed (HTTP {chat_code})", start)
                     return _absent(self.name, f"LLM endpoint HTTP {chat_code}", start)
                 return _absent(self.name, f"LLM endpoint HTTP {code}", start)
         except Exception as exc:  # noqa: BLE001
-            return _absent(self.name, _redact_secret(f"{type(exc).__name__}: {exc}", key), start)
+            return _absent(self.name, _redact_secrets(f"{type(exc).__name__}: {exc}", key), start)
 
 
 class RedisCheck:
@@ -228,13 +274,8 @@ class RedisCheck:
 
     @staticmethod
     def _redact_url_secret(message: str, url: str) -> str:
-        import re
-
-        redacted = re.sub(r"://([^:@/\s]+:)?[^@/\s]+@", "://***@", message)
         parsed = urlparse(url)
-        if parsed.password:
-            redacted = redacted.replace(parsed.password, "***")
-        return redacted
+        return _redact_secrets(message, parsed.password)
 
     async def probe(self) -> ProbeResult:
         if not self._url:
@@ -291,17 +332,19 @@ class TelemetryCheck:
             url = endpoint.rstrip("/")
             traces_url = url if url.endswith("/v1/traces") else f"{url}/v1/traces"
             try:
-                async with httpx.AsyncClient(timeout=5.0) as client:
+                async with httpx.AsyncClient(timeout=3.0) as client:
                     resp = await client.post(traces_url, json={"resourceSpans": []})
                 code = int(resp.status_code)
-                if 200 <= code < 300 or code in {400, 405, 415}:
+                if 200 <= code < 300 or code in {400, 415}:
                     return _ok(self.name, f"OTLP HTTP {code}", start)
                 return _absent(self.name, f"OTLP HTTP {code}", start)
             except Exception as exc:  # noqa: BLE001
                 return _absent(self.name, f"{type(exc).__name__}: {exc}", start)
+        if not parsed.hostname:
+            return _absent(self.name, "Invalid telemetry endpoint", start)
         try:
             port = parsed.port or 4317
-            _reader, writer = await asyncio.wait_for(asyncio.open_connection(parsed.hostname, port), timeout=5)
+            _reader, writer = await asyncio.wait_for(asyncio.open_connection(parsed.hostname, port), timeout=3)
             writer.close()
             await writer.wait_closed()
             return _ok(self.name, "Collector reachable", start)
@@ -329,7 +372,7 @@ class AnalyticsCheck:
 
         health_url = api_url if api_url.endswith("/healthcheck") else f"{api_url}/healthcheck"
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=3.0) as client:
                 resp = await client.get(health_url)
             code = int(resp.status_code)
             if code != 200:
@@ -337,8 +380,8 @@ class AnalyticsCheck:
             try:
                 payload = resp.json()
             except ValueError:
-                payload = None
-            if isinstance(payload, dict) and "ready" in payload and payload["ready"] is not True:
+                return _absent(self.name, "Analytics returned non-JSON healthcheck response", start)
+            if not isinstance(payload, dict) or payload.get("ready") is not True:
                 return _absent(self.name, f"Analytics not ready: {payload}", start)
             return _ok(self.name, "Analytics HTTP 200", start)
         except Exception as exc:  # noqa: BLE001

@@ -173,12 +173,20 @@ async def test_check_s3_staging_write_delete_and_prod_readonly(mock_settings) ->
     staging_client.put_object.assert_called_once()
     staging_client.delete_object.assert_called_once()
 
-    prod_client = MagicMock()
-    mock_settings.environment = "production"
-    with patch("infra2_sdk.runtime.s3.create_s3_client", return_value=prod_client):
-        st_prod = await Bootloader._check_s3()
-    assert (st_prod.status, st_prod.service) == ("ok", "minio")
-    prod_client.put_object.assert_not_called()
+    for readonly_env in ("production", "prod", "preview", "prod-eu"):
+        ro_client = MagicMock()
+        mock_settings.environment = readonly_env
+        with patch("infra2_sdk.runtime.s3.create_s3_client", return_value=ro_client):
+            st_ro = await Bootloader._check_s3()
+        assert (st_ro.status, st_ro.service) == ("ok", "minio"), readonly_env
+        ro_client.put_object.assert_not_called()
+
+    with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=200, json=lambda: {"ready": True}))) as get_fn:
+        st_analytics = await Bootloader._check_analytics()
+    assert (st_analytics.status, st_analytics.service) == ("ok", "analytics")
+    assert get_fn.await_args.args[0] == "https://openpanel.zitian.party/api/healthcheck"
+    mock_settings.openpanel_client_id = ""
+    assert (await Bootloader._check_analytics()).status == "error"
 
 
 async def test_static_config_basics_exceptions_and_aliases(monkeypatch, mock_settings) -> None:
