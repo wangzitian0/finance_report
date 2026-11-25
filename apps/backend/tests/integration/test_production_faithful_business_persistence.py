@@ -18,7 +18,7 @@ from src.identity import User
 from src.ledger import Account, AccountType, Direction, calculate_account_balance, post_journal_entry
 from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry
 
-pytestmark = [pytest.mark.integration, pytest.mark.no_db, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 
 

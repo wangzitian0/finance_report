@@ -163,15 +163,17 @@ def test_session_teardown_drops_only_a_test_database() -> None:
 
 
 def test_no_db_marker_skips_schema_engine_with_unreachable_database() -> None:
-    """Running a @pytest.mark.no_db backend test must not connect to Postgres."""
+    """Running every @pytest.mark.no_db backend test must pass without connecting to Postgres."""
     import os
     import subprocess
     import sys
 
     repo_root = Path(__file__).resolve().parents[2]
+    unreachable = "postgresql+asyncpg://invalid:invalid@127.0.0.1:1/nope"
     env = {
         **os.environ,
-        "DATABASE_URL": "postgresql+asyncpg://invalid:invalid@127.0.0.1:1/nope",
+        "DATABASE_URL": unreachable,
+        "TEST_DATABASE_URL": unreachable,
     }
     completed = subprocess.run(
         [
@@ -181,7 +183,8 @@ def test_no_db_marker_skips_schema_engine_with_unreachable_database() -> None:
             "--no-cov",
             "-o",
             "addopts=",
-            "tests/runtime/test_manifest.py",
+            "-m",
+            "no_db",
             "-q",
         ],
         cwd=repo_root / "apps/backend",
@@ -191,3 +194,38 @@ def test_no_db_marker_skips_schema_engine_with_unreachable_database() -> None:
         check=False,
     )
     assert completed.returncode == 0, completed.stdout + "\n" + completed.stderr
+
+
+def test_no_db_collected_tests_exclude_integration_suites() -> None:
+    """Tests marked `no_db` must not live inside integration suites."""
+    import subprocess
+    import sys
+
+    repo_root = Path(__file__).resolve().parents[2]
+    collected = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--no-cov",
+            "-o",
+            "addopts=",
+            "-m",
+            "no_db",
+            "--collect-only",
+            "-q",
+        ],
+        cwd=repo_root / "apps/backend",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert collected.returncode == 0, collected.stdout + "\n" + collected.stderr
+    nodeids = [
+        line.strip()
+        for line in collected.stdout.splitlines()
+        if "::" in line and not line.startswith(("=", "-"))
+    ]
+    assert nodeids
+    forbidden = [n for n in nodeids if n.startswith("tests/integration/")]
+    assert forbidden == [], f"Integration tests must not carry pytest.mark.no_db: {forbidden}"

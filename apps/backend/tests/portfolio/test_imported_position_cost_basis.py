@@ -333,7 +333,6 @@ async def test_balance_sheet_adds_the_full_market_value_when_the_broker_account_
     assert [line["amount"] for line in lines] == [Decimal("2100.00")]
 
 
-@pytest.mark.no_db
 def test_migration_0079_clears_the_cost_of_positions_without_a_buy_and_keeps_the_others():
     name = f"fr_2920_cost_{uuid4().hex[:12]}"
     admin = create_engine(migration_db_url("postgres").replace("+asyncpg", ""), isolation_level="AUTOCOMMIT")
