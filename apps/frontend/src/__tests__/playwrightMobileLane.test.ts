@@ -9,9 +9,9 @@ const m = proj(MOBILE_PROJECT_NAME);
 E(m?.use).toMatchObject({ isMobile: true, hasTouch: true });
 E(m?.use?.viewport?.width ?? Infinity).toBeLessThanOrEqual(500);
 E(Array.isArray(m?.testMatch)).toBe(true);
-const matched = (m.testMatch as unknown[]).map(String);
-for (const s of ["attention-surface.spec.ts", "epic022-attention-journey.spec.ts", "epic022-bottom-tab-ia.spec.ts", "epic022-drilldown-journey.spec.ts", "epic022-ia-shell.spec.ts", "workflow-navigation.spec.ts"]) E(matched).toContain(s);
-for (const s of MOBILE_LANE_SPECS) E(existsSync(resolve(dir, s)), s).toBe(true);
+  const matched = (m.testMatch as unknown[]).map(String);
+  E(matched).toEqual(["ui-visual-smoke.spec.ts"]);
+  for (const s of MOBILE_LANE_SPECS) E(existsSync(resolve(dir, s)), s).toBe(true);
 E(proj("chromium")).toBeDefined();
 for (const [env, reuse, port, build] of [[{}, false, 3000, true], [{ PW_REUSE_SERVER: "1" }, true, 3000, true], [{ PORT: "3456" }, false, 3456, true], [{ CI: "true", PORT: "3456" }, false, 3456, false]] as const) {
 const cfg = buildPlaywrightConfig(env as Record<string, string>), url = `http://127.0.0.1:${port}`, command = `${build ? "npm run build && " : ""}npm run start -- --port ${port}`;

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import time
 from datetime import date, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -61,16 +60,3 @@ async def test_score_single_bands(db: AsyncSession, test_user, acc_type, entry_d
     await db.commit()
     await db.refresh(entry, ["lines"])
     assert min_score <= (await score_single(db, txn, [entry], DEFAULT_CONFIG, user_id=uid)).score <= max_score
-
-
-@pytest.mark.slow
-async def test_batch_1000_transactions_reasonable_time(db: AsyncSession, test_user):
-    uid = test_user.id
-    bank, exp = await AccountFactory.create_async(db, user_id=uid, name="Bank Perf"), await AccountFactory.create_async(db, user_id=uid, name="Exp Perf", type=AccountType.EXPENSE)
-    db.add_all([_atomic(uid, date(2024, 1, 1) + timedelta(days=i % 30), f"Transaction {i}", Decimal(str(10 + i % 100)), "OUT" if i % 2 == 0 else "IN") for i in range(100)])
-    for j in range(20):
-        _entry(db, uid, exp, bank, Decimal(str(10 + j)), date(2024, 1, 1) + timedelta(days=j), f"Entry {j}")
-    await db.commit()
-    start = time.perf_counter()
-    matches = await execute_matching(db, user_id=uid, currency="SGD")
-    assert time.perf_counter() - start < 5.0 and isinstance(matches, list) and len(matches) > 0

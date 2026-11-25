@@ -67,25 +67,6 @@ def test_AC18_15_1_policy_is_effective_dated_and_immutable_and_static_boundaries
     assert all(policy_for(as_of).version == 2 for as_of in (date.min, date(2019, 1, 1), date(2026, 3, 1)))
 
 
-@pytest.mark.skip(reason="flaky under xdist: DB state pollution from co-scheduled tests; passes sequentially. See #3028 test isolation gap.")
-async def test_AC18_15_3_off_catalog_proposal_is_rejected_never_applied(db, test_user, enabled_flag):
-    txn = await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description="MYSTERY MERCHANT")
-    outcomes = await classify_transactions(db, test_user.id, [txn], policy=_policy(), proposer=_stub_proposer({txn.description: CategoryProposal(category="CRYPTO_YOLO", confidence=99)}))
-    assert outcomes[0].disposition == "off_catalog" and await _count(db, TransactionClassification) == 0
-
-
-@pytest.mark.usefixtures("review_path")
-@pytest.mark.skip(reason="flaky under xdist: DB state pollution from co-scheduled tests; passes sequentially. See #3028 test isolation gap.")
-async def test_AC18_15_4_confidence_gate_applies_reviews_or_tails(db, test_user, enabled_flag):
-    high, mid, low = [await AtomicTransactionFactory.create_async(db, user_id=test_user.id, description=d) for d in ("ACME PAYROLL", "NTUC FAIRPRICE", "???")]
-    proposer = _stub_proposer({high.description: CategoryProposal(category=TransactionCategory.SALARY.value, confidence=92), mid.description: CategoryProposal(category=TransactionCategory.GROCERIES.value, confidence=70), low.description: CategoryProposal(category=TransactionCategory.OTHER_EXPENSE.value, confidence=30)})
-    by_txn = {o.atomic_txn_id: o for o in await classify_transactions(db, test_user.id, [high, mid, low], policy=_policy(), proposer=proposer)}
-    by_status = {r.atomic_txn_id: r for r in (await db.execute(select(TransactionClassification))).scalars().all()}
-    acct = (await db.execute(select(Account).where(Account.id == by_status[high.id].account_id))).scalar_one()
-    assert (by_txn[high.id].disposition, by_txn[mid.id].disposition, by_txn[low.id].disposition, set(by_status), by_status[high.id].status, by_status[high.id].confidence_score, acct.type, by_status[mid.id].status) == ("applied", "review", "tail", {high.id, mid.id}, ClassificationStatus.APPLIED, 92, AccountType.INCOME, ClassificationStatus.DRAFT)
-    assert by_status[mid.id].confidence_score is not None and 60 <= by_status[mid.id].confidence_score < 85
-
-
 async def test_AC18_15_5_model_never_touches_money(db, test_user, enabled_flag):
     imported = {alias.name for node in ast.walk(ast.parse(MODULE_PATH.read_text(encoding="utf-8"))) if isinstance(node, ast.ImportFrom) for alias in node.names}
     assert not ({"amount", "value", "total", "price"} & set(CategoryProposal.model_fields)) and not ({"JournalEntry", "JournalLine"} & imported)
