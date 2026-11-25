@@ -37,6 +37,7 @@ jobs:
       image_build_required: ${{ steps.classify.outputs.image_build_required }}
       # Per-lane change flags consumed by downstream jobs.
       vitest_required: ${{ steps.classify.outputs.vitest_required }}
+      backend_required: ${{ steps.classify.outputs.backend_required }}
       tooling_required: ${{ steps.classify.outputs.tooling_required }}
       frontend_changed: ${{ steps.classify.outputs.frontend_changed }}
     steps:
@@ -236,7 +237,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    if: needs.changes.outputs.pr_required == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.backend_required == 'true')
 
     services:
       postgres:
@@ -306,7 +307,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    if: needs.changes.outputs.pr_required == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.backend_required == 'true')
     strategy:
       fail-fast: false
       matrix:
@@ -422,7 +423,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.pr_required == 'true'
+    if: needs.changes.outputs.pr_required == 'true' && (github.event_name != 'pull_request' || needs.changes.outputs.backend_required == 'true')
 
     services:
       postgres:
@@ -563,6 +564,19 @@ jobs:
         run: npm run build
         working-directory: apps/frontend
 
+      - name: Archive Next.js build output
+        run: tar --exclude='.next/cache' -czf "$RUNNER_TEMP/frontend-next-build.tar.gz" .next
+        working-directory: apps/frontend
+
+      - name: Upload Next.js build output
+        uses: actions/upload-artifact@v7
+        with:
+          name: frontend-next-build
+          path: ${{ runner.temp }}/frontend-next-build.tar.gz
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 1
+
   frontend-vitest:
     name: Frontend Vitest Coverage
     runs-on: ubuntu-24.04
@@ -614,7 +628,7 @@ jobs:
     name: Frontend Playwright
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    needs: [changes]
+    needs: [changes, frontend-build]
     # AC-testing.ci-structure.11: right-moved off PRs that touch no
     # apps/frontend/** path, mirroring frontend-telemetry-e2e's
     # frontend_changed gate (#1689) -- this job's proof (provider-free
@@ -635,21 +649,18 @@ jobs:
           cache: npm
           cache-dependency-path: apps/frontend/package-lock.json
 
-      - name: Cache Next.js
-        uses: actions/cache@v5
-        with:
-          path: apps/frontend/.next/cache
-          key: nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-${{ hashFiles('apps/frontend/**/*.ts', 'apps/frontend/**/*.tsx') }}
-          restore-keys: |
-            nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-
-            nextjs-${{ runner.os }}-
-
       - name: Install frontend dependencies
         run: npm ci
         working-directory: apps/frontend
 
-      - name: Build Frontend
-        run: npm run build
+      - name: Download Next.js build output
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-next-build
+          path: ${{ runner.temp }}
+
+      - name: Extract Next.js build output
+        run: tar -xzf "$RUNNER_TEMP/frontend-next-build.tar.gz"
         working-directory: apps/frontend
 
       - name: Install Frontend Playwright Browser
@@ -677,15 +688,20 @@ jobs:
     name: Frontend Telemetry E2E
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    needs: [changes]
+    needs: [changes, frontend-build]
     # #1689: right-moved off unrelated PRs (browser install is ~2-3 min). Always
     # runs on main/release push and manual dispatch (this is the production
     # observability canary); on a PR it only runs when apps/frontend/** changed,
     # mirroring container-images' image_build_required pattern above.
     if: >-
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')))
-      || github.event_name == 'workflow_dispatch'
-      || (needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true')
+      !cancelled()
+      && needs.changes.result == 'success'
+      && (needs.frontend-build.result == 'success' || needs.frontend-build.result == 'skipped')
+      && (
+        (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')))
+        || github.event_name == 'workflow_dispatch'
+        || (needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true')
+      )
 
     steps:
       - uses: actions/checkout@v7
@@ -697,7 +713,24 @@ jobs:
           cache: npm
           cache-dependency-path: apps/frontend/package-lock.json
 
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: apps/frontend
+
+      - name: Download Next.js build output
+        if: needs.frontend-build.result == 'success'
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-next-build
+          path: ${{ runner.temp }}
+
+      - name: Extract Next.js build output
+        if: needs.frontend-build.result == 'success'
+        run: tar -xzf "$RUNNER_TEMP/frontend-next-build.tar.gz"
+        working-directory: apps/frontend
+
       - name: Cache Next.js
+        if: needs.frontend-build.result != 'success'
         uses: actions/cache@v5
         with:
           path: apps/frontend/.next/cache
@@ -706,11 +739,8 @@ jobs:
             nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-
             nextjs-${{ runner.os }}-
 
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: apps/frontend
-
       - name: Build Frontend
+        if: needs.frontend-build.result != 'success'
         run: npm run build
         working-directory: apps/frontend
 
@@ -1025,6 +1055,7 @@ jobs:
           echo "Change Classification: ${{ needs.changes.result }}"
           echo "PR Env Required: ${{ needs.changes.outputs.pr_required }}"
           echo "PR Env Reason: ${{ needs.changes.outputs.pr_reason }}"
+          echo "Backend Required: ${{ needs.changes.outputs.backend_required }}"
           echo "Schema Migrations: ${{ needs.schema-migrations.result }}"
           echo "Backend: ${{ needs.backend.result }}"
           echo "Frontend Build: ${{ needs.frontend-build.result }}"
@@ -1049,17 +1080,32 @@ jobs:
             exit 1
           fi
           if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then
-            if [[ "${{ needs.schema-migrations.result }}" != "success" ]]; then
-              echo "::error::Schema migration contract failed"
-              exit 1
-            fi
-            if [[ "${{ needs.backend.result }}" != "success" ]]; then
-              echo "::error::Backend tests failed"
-              exit 1
-            fi
-            if [[ "${{ needs.backend-integration.result }}" != "success" ]]; then
-              echo "::error::Backend integration tests failed"
-              exit 1
+            if [[ "${{ github.event_name }}" != "pull_request" || "${{ needs.changes.outputs.backend_required }}" == "true" ]]; then
+              if [[ "${{ needs.schema-migrations.result }}" != "success" ]]; then
+                echo "::error::Schema migration contract failed"
+                exit 1
+              fi
+              if [[ "${{ needs.backend.result }}" != "success" ]]; then
+                echo "::error::Backend tests failed"
+                exit 1
+              fi
+              if [[ "${{ needs.backend-integration.result }}" != "success" ]]; then
+                echo "::error::Backend integration tests failed"
+                exit 1
+              fi
+            else
+              if [[ "${{ needs.schema-migrations.result }}" != "success" && "${{ needs.schema-migrations.result }}" != "skipped" ]]; then
+                echo "::error::Schema migration contract failed"
+                exit 1
+              fi
+              if [[ "${{ needs.backend.result }}" != "success" && "${{ needs.backend.result }}" != "skipped" ]]; then
+                echo "::error::Backend tests failed"
+                exit 1
+              fi
+              if [[ "${{ needs.backend-integration.result }}" != "success" && "${{ needs.backend-integration.result }}" != "skipped" ]]; then
+                echo "::error::Backend integration tests failed"
+                exit 1
+              fi
             fi
             if [[ "${{ github.event_name }}" != "pull_request" && "${{ needs.backend-coverage-gate.result }}" != "success" ]]; then
               echo "::error::Backend merged coverage gate failed or skipped unexpectedly (${{ needs.backend-coverage-gate.result }})"

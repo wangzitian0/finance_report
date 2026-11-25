@@ -34,16 +34,81 @@ def _paths_read_by(files, pattern: str) -> set[str]:
         for chain in re.findall(r"""['"]apps['"]\s*/\s*['"]frontend['"](?:\s*/\s*['"][^'"]+['"])*""" if 'frontend' in pattern else r"""['"]apps['"]\s*/\s*['"]backend['"](?:\s*/\s*['"][^'"]+['"])*""", text): found.add('/'.join(re.findall(r"""['"]([^'"]+)['"]""", chain)))
     return found
 def _overlaps(literal: str, prefix: str) -> bool: return literal.startswith(prefix) or prefix.startswith(literal.rstrip('/'))
-def test_backend_job_has_no_skip_condition_and_vitest_skip_is_fail_closed() -> None:
-    import yaml; jobs = yaml.safe_load((_ROOT / '.github/workflows/ci.yml').read_text(encoding='utf-8'))['jobs']; assert jobs['backend']['if'] == "needs.changes.outputs.pr_required == 'true'"; assert not hasattr(classifier, 'BACKEND_TESTS_SKIP_PREFIXES')
-    assert classify_changed_paths(['apps/backend/src/main.py', 'apps/backend/src/a/b.py']).vitest_required is False; assert classify_changed_paths(['apps/backend/src/main.py', 'apps/backend/tests/t.py']).vitest_required is True; assert classify_changed_paths(['apps/backend/Dockerfile']).vitest_required is True; assert classify_changed_paths(['apps/backend/src/main.py', 'common/audit/money/x.py']).vitest_required is True; assert classify_changed_paths(['tools/x.py']).vitest_required is True; assert classify_changed_paths(['unlisted/new.file']).vitest_required is True; assert classify_changed_paths([]).vitest_required is True
+def test_backend_and_vitest_routing_is_fail_closed_and_builds_deduplicated() -> None:
+    import yaml
+
+    workflow = yaml.safe_load((_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    jobs = workflow["jobs"]
+    expected_backend_if = (
+        "needs.changes.outputs.pr_required == 'true' "
+        "&& (github.event_name != 'pull_request' || needs.changes.outputs.backend_required == 'true')"
+    )
+    for job_name in ("schema-migrations", "backend", "backend-integration"):
+        assert jobs[job_name]["if"] == expected_backend_if, f"{job_name} missing backend_required skip condition"
+
+    assert classifier.VITEST_SKIP_PREFIXES == ("apps/backend/",)
+    assert classifier.BACKEND_TESTS_SKIP_PREFIXES == ("apps/frontend/",)
+
+    assert classify_changed_paths(["apps/backend/src/main.py", "apps/backend/src/a/b.py"]).vitest_required is False
+    assert classify_changed_paths(["apps/backend/src/main.py", "apps/backend/tests/t.py"]).vitest_required is False
+    assert classify_changed_paths(["apps/backend/Dockerfile"]).vitest_required is False
+    assert classify_changed_paths(["apps/backend/src/main.py"]).backend_required is True
+    assert classify_changed_paths(["apps/backend/src/main.py", "common/audit/money/x.py"]).vitest_required is True
+    assert classify_changed_paths(["tools/x.py"]).vitest_required is True
+    assert classify_changed_paths(["unlisted/new.file"]).vitest_required is True
+    assert classify_changed_paths([]).vitest_required is True
+
+    assert classify_changed_paths(["apps/frontend/src/app/page.tsx"]).backend_required is False
+    assert classify_changed_paths(["apps/frontend/package.json"]).backend_required is False
+    assert classify_changed_paths(["apps/frontend/src/app/page.tsx"]).vitest_required is True
+    assert classify_changed_paths(["apps/frontend/src/app/page.tsx", "common/meta/x.py"]).backend_required is True
+    assert classify_changed_paths([".github/workflows/ci.yml"]).backend_required is True
+    assert classify_changed_paths(["unlisted/new.file"]).backend_required is True
+    assert classify_changed_paths([]).backend_required is True
+
+    assert classify_changed_paths(["docs/project/EPIC-001.md"]).tooling_required is False
+    assert classify_changed_paths(["docs/reference/user-cases.md"]).tooling_required is True
+    assert classify_changed_paths(["docs/hooks.py"]).tooling_required is True
+    assert classify_changed_paths(["docs/user-guide/reports.md"]).tooling_required is True
+
+    for e2e_job in ("frontend-playwright", "frontend-telemetry-e2e"):
+        assert "frontend-build" in jobs[e2e_job]["needs"]
+        uses_values = [str(s.get("uses", "")) for s in jobs[e2e_job]["steps"] if isinstance(s, dict)]
+        with_names = [s.get("with", {}).get("name") for s in jobs[e2e_job]["steps"] if isinstance(s, dict)]
+        assert any("download-artifact" in u for u in uses_values) and "frontend-next-build" in with_names
+
+
 def test_vitest_skip_set_overlaps_no_path_vitest_reads() -> None:
-    files = [f for f in (_ROOT / 'apps/frontend/src').rglob('*') if f.is_file()] + [_ROOT / 'apps/frontend/package.json', _ROOT / 'apps/frontend/vitest.config.ts']; pattern = r'(?:apps/backend|common|tools)/[A-Za-z0-9_./@-]*'; direct = _paths_read_by(files, pattern); indirect: set[str] = set()
+    files = [f for f in (_ROOT / "apps/frontend/src").rglob("*") if f.is_file()] + [
+        _ROOT / "apps/frontend/package.json",
+        _ROOT / "apps/frontend/vitest.config.ts",
+    ]
+    pattern = r"(?:apps/backend|common|tools)/[A-Za-z0-9_./@-]*"
+    direct = _paths_read_by(files, pattern)
+    assert "common/audit/money/conformance/vectors.json" in direct
+    # routeMap.test.ts reads user_cases_ssot.json solely for ui_surface; backend_test_ref
+    # belongs to tests/tooling/test_user_cases_consistency.py (#3215).
+    fe_sources = "\n".join(
+        f.read_text(encoding="utf-8", errors="ignore") for f in (_ROOT / "apps/frontend/src").rglob("*") if f.is_file()
+    )
+    assert "backend_test_ref" not in fe_sources
+    indirect: set[str] = set()
     for path in direct:
-        target = _ROOT / path.rstrip('.')
-        if target.is_file() and target.suffix == '.json': indirect |= _paths_read_by([target], r'apps/backend[A-Za-z0-9_./@-]*')
-    read = direct | indirect; assert 'common/audit/money/conformance/vectors.json' in read; assert 'apps/backend/tests/extraction/test_csv_parsing.py' in read
-    clashes = sorted((r, p) for r in read for p in classifier.VITEST_SKIP_PREFIXES if _overlaps(r, p)); assert clashes == [], f'Vitest reads a skipped path: {clashes}'
+        if path == "common/meta/flows/user_cases_ssot.json":
+            continue
+        target = _ROOT / path.rstrip(".")
+        if target.is_file() and target.suffix == ".json":
+            indirect |= _paths_read_by([target], r"apps/backend[A-Za-z0-9_./@-]*")
+    read = direct | indirect
+    clashes = sorted((r, p) for r in read for p in classifier.VITEST_SKIP_PREFIXES if _overlaps(r, p))
+    assert clashes == [], f"Vitest reads a skipped path: {clashes}"
+
+
+def test_backend_skip_set_overlaps_no_path_backend_tests_read() -> None:
+    files = [f for f in (_ROOT / "apps/backend/tests").rglob("*") if f.is_file()]
+    read = _paths_read_by(files, r"apps/frontend(?:/[A-Za-z0-9_./@-]*)?")
+    clashes = sorted((r, p) for r in read for p in classifier.BACKEND_TESTS_SKIP_PREFIXES if _overlaps(r, p))
+    assert clashes == [], f"Backend tests read a skipped path: {clashes}"
 def _tooling_read_paths() -> set[str]:
     import re
     test_files = sorted((_ROOT / 'tests/tooling').glob('test_*.py'))
