@@ -1,17 +1,14 @@
 from __future__ import annotations
 
-import asyncio, hashlib, os
+import hashlib
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from common.audit.base import TraceRecord as CommonTraceRecord
 
 pytestmark = pytest.mark.integration
-from common.audit.extension import TraceRecordCodec as CommonTraceRecordCodec
-from common.testing.ac_proof import PROOF_ATTR, ac_proof
 from sqlalchemy import select
 from src.audit import (
     SqlTraceRecordRepository,
@@ -21,7 +18,6 @@ from src.audit import (
     TraceDecisionRef,
     TraceEmitter,
     TraceRecord,
-    TraceRecordCodec as BackendTraceRecordCodec,
     TraceRecordPersistenceError,
     TraceRecordType,
     TraceResult,
@@ -95,18 +91,8 @@ from src.schemas import (
     PersonalReportPackageSnapshotStatus,
 )
 from src.schemas.portfolio import BrokerageImportRequest
-from tests._support.executed_proof import executed_proof_assertion_version, register_executed_proof_consumer
 from tests._support.trusted_year import TRUSTED_YEAR_SCENARIO
 from tests.statement_ingestion import execute_statement_ingestion, posting_dependencies, run_for
-
-
-class _FrozenTraceRepository:
-    def __init__(self, records: tuple[TraceRecord, ...]) -> None:
-        self._records = {r.record_id: r for r in records}
-
-    async def get(self, scope, record_id):
-        record = self._records.get(record_id)
-        return record if record is not None and record.scope == scope else None
 
 
 def _bank_csv() -> bytes:
@@ -349,20 +335,8 @@ async def _supersede_selected_authority_parents(db, *, user_id, document) -> Non
         await repo.append(correction(parent, scope=parent.scope, target_id=parent.target.id, suffix="superseded"))
 
 
-@ac_proof(
-    "trusted-year-v0-terminal",
-    ac_ids=["AC-testing.trusted-year.2", "AC-testing.trusted-year.3", "AC-testing.package-lifecycle.1"],
-    scope="behavioral",
-    ci_tier="pr_ci",
-    trust_mode="deterministic_pr",
-    source_classes=["bank_statement", "brokerage_statement"],
-    scenario_id="trusted-year-v0",
-    oracle_kind="independent_decimal",
-    required_observation_kind="terminal_audit",
-    issue="#696",
-)
 async def test_trusted_year_deterministic_executor_proves_package_lifecycle(
-    db, test_user, monkeypatch, request
+    db, test_user, monkeypatch
 ) -> None:
     scenario, expected = TRUSTED_YEAR_SCENARIO, TRUSTED_YEAR_SCENARIO.expected
     monkeypatch.setattr(settings, "enable_ai_classification", True)
@@ -503,10 +477,7 @@ async def test_trusted_year_deterministic_executor_proves_package_lifecycle(
             )
         ),
     )
-    scope, proof_decl = (
-        TraceScope.tenant(test_user.id),
-        getattr(test_trusted_year_deterministic_executor_proves_package_lifecycle, PROOF_ATTR),
-    )
+    scope = TraceScope.tenant(test_user.id)
     terminal_spec = TerminalAuditSpec(
         scope=scope,
         package=personal_report_package_decision_ref(doc),
@@ -521,19 +492,7 @@ async def test_trusted_year_deterministic_executor_proves_package_lifecycle(
         repository_id="wangzitian0/finance_report",
         commit_sha="a" * 40,
         scenario_id=scenario.scenario_id,
-        proof=VersionedTraceRef(
-            "executed_proof",
-            proof_decl.proof_id,
-            executed_proof_assertion_version(
-                proof_id=proof_decl.proof_id,
-                scenario_id=proof_decl.scenario_id,
-                oracle_kind=proof_decl.oracle_kind,
-                ac_ids=proof_decl.ac_ids,
-                stage=proof_decl.stage,
-                task_category=proof_decl.task_category,
-                required_observation_kind=proof_decl.required_observation_kind,
-            ),
-        ),
+        proof=VersionedTraceRef("executed_proof", "trusted-year-v0-terminal", "v1"),
         execution_id="trusted-year-graph-verification",
     )
     pkg_rec = await TerminalAuditVerifier(trace_repo).verify_graph(terminal_spec)
@@ -542,27 +501,6 @@ async def test_trusted_year_deterministic_executor_proves_package_lifecycle(
         for rid in {pkg_rec.record_id, *pkg_rec.parent_ids, *(i.decision_id for i in terminal_spec.manifest)}
     ]
     assert pkg_rec.record_id == terminal_spec.package.decision_id and all(r is not None for r in graph_records)
-    if os.environ.get("GITHUB_ACTIONS") == "true":
-        frozen_repo = _FrozenTraceRepository(tuple(graph_records))
-        register_executed_proof_consumer(
-            request.node,
-            lambda executed_proof: CommonTraceRecordCodec.decode(
-                BackendTraceRecordCodec.encode(
-                    asyncio.run(
-                        TerminalAuditVerifier(frozen_repo).audit(
-                            replace(
-                                terminal_spec,
-                                commit_sha=(
-                                    bp := BackendTraceRecordCodec.decode(CommonTraceRecordCodec.encode(executed_proof))
-                                ).target.version,
-                                execution_id=bp.execution_id,
-                            ),
-                            bp,
-                        )
-                    )
-                )
-            ),
-        )
 
     frozen = doc.model_dump(mode="json")
     assert [

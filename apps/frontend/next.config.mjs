@@ -31,7 +31,7 @@ function parseSources(str) {
     return validSources;
 }
 
-// Canonical base CSP directives (satisfies test_csp_script_src_contract.py).
+// Canonical base CSP directives (satisfies test_runtime_and_env_contracts.py).
 const BASE_SCRIPT_SRC = "script-src 'self' 'unsafe-inline' https://api.openpanel.dev https://static.cloudflareinsights.com";
 const BASE_CONNECT_SRC = "connect-src 'self' https://api.openpanel.dev https://cloudflareinsights.com";
 

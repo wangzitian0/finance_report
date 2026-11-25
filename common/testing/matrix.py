@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import shlex
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass(frozen=True)
@@ -366,11 +370,73 @@ def emit_touched_e2e_shell(changed_files: Sequence[str]) -> str:
     )
 
 
+SUPPLEMENTAL_LLM_FILES = ["tests/e2e/test_statement_upload_e2e.py"]
+CANARY_FILES = ["tests/e2e/test_brokerage_upload_to_portfolio_value.py"]
+CORE_JOURNEY_MAP_PATH = REPO_ROOT / "common/testing/data/core-journey-checkpoints.json"
+CORE_JOURNEY_LAST = ("tests/e2e/test_twelve_month_journey.py",)
+_CONNECTIVITY_FILE = "tests/e2e/test_ai_provider_connectivity.py"
+
+
+def gate_files() -> list[str]:
+    """Return the derived Staging AI/OCR E2E file corpus."""
+    proof_files = {
+        row.file
+        for row in E2E_ROWS
+        if NEEDS_LLM_PROVIDER in row.needs and row.file != _CONNECTIVITY_FILE
+    }
+    return sorted(proof_files | set(SUPPLEMENTAL_LLM_FILES))
+
+
+def canary_files() -> list[str]:
+    """Return the minimal blocking-path AI/OCR canary corpus."""
+    derived = set(gate_files())
+    canary = sorted(CANARY_FILES)
+    missing_from_corpus = [path for path in canary if path not in derived]
+    if missing_from_corpus:
+        raise SystemExit(
+            "Canary files are not in the derived AI/OCR corpus: "
+            + ", ".join(sorted(missing_from_corpus))
+        )
+    return canary
+
+
+def audit_replay_files() -> list[str]:
+    """Return the nightly/manual audit-replay corpus."""
+    canary = set(canary_files())
+    return [path for path in gate_files() if path not in canary]
+
+
+def core_journey_tests() -> list[str]:
+    """Return the non-LLM core-journey corpus, excluding audit-replay files."""
+    data = json.loads(CORE_JOURNEY_MAP_PATH.read_text(encoding="utf-8"))
+    replay = set(audit_replay_files())
+    return sorted(
+        (
+            f"{proof['file']}::{proof['test'].split('::', 1)[1]}"
+            for proof in data["proofs"]
+            if proof["file"] not in replay
+        ),
+        key=lambda node: (node.split("::", 1)[0] in CORE_JOURNEY_LAST, node),
+    )
+
+
+def corpus_files(corpus: str) -> list[str]:
+    selectors = {
+        "all": gate_files,
+        "canary": canary_files,
+        "audit_replay": audit_replay_files,
+        "core_journey": core_journey_tests,
+    }
+    if corpus not in selectors:
+        raise SystemExit(
+            f"Unknown corpus {corpus!r}; expected one of {sorted(selectors)}"
+        )
+    return selectors[corpus]()
+
+
 def staging_ai_ocr_selection(corpus: str = "all") -> tuple[str, ...]:
     """Derive the Staging AI/OCR E2E set for ``corpus`` from the replay contract."""
-    from common.testing import staging_ai_ocr_gate_contract
-
-    return tuple(staging_ai_ocr_gate_contract.corpus_files(corpus))
+    return tuple(corpus_files(corpus))
 
 
 SELECTIONS = {
@@ -413,10 +479,8 @@ def emit_shell(stage: str, *, corpus: str = "all") -> str:
             f"STAGING_CORE_E2E_MARKER={quoted_marker}\n"
             f"STAGING_CORE_E2E_PARALLELISM={STAGING_CORE_E2E_PARALLELISM}"
         )
-    from common.testing import staging_ai_ocr_gate_contract
-
     return (
-        f"{staging_ai_ocr_gate_contract.emit_shell(list(nodes))}\n"
+        f"STAGING_AI_OCR_TESTS=({tests})\n"
         f"STAGING_AI_OCR_MARKER={quoted_marker}"
     )
 

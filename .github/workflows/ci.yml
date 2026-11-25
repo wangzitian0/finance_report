@@ -72,13 +72,12 @@ jobs:
       - name: Normalize Env x Stage gates
         id: gates
         env:
-          ENV_STAGE_REQUIRED: ${{ steps.classify.outputs.env_stage_required }}
-          ENV_STAGE_REASONS: ${{ steps.classify.outputs.env_stage_reasons }}
+          HEAVY_REQUIRED: ${{ steps.classify.outputs.heavy_required }}
+          REASON: ${{ steps.classify.outputs.reason }}
           GITHUB_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           python - <<'PY' >> "$GITHUB_OUTPUT"
-          import json
           import os
 
           ref = os.environ.get("GITHUB_REF", "")
@@ -86,10 +85,8 @@ jobs:
               print("pr_required=false")
               print("pr_reason=tag-push-promotion-only")
           else:
-              required = json.loads(os.environ["ENV_STAGE_REQUIRED"])
-              reasons = json.loads(os.environ["ENV_STAGE_REASONS"])
-              print(f"pr_required={str(required['pr']).lower()}")
-              print(f"pr_reason={reasons['pr']}")
+              print(f"pr_required={os.environ['HEAVY_REQUIRED']}")
+              print(f"pr_reason={os.environ['REASON']}")
           PY
 
   lint:

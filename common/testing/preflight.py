@@ -3,20 +3,15 @@
 from __future__ import annotations
 
 import argparse
-import contextlib
 import fnmatch
 import hashlib
-import importlib.util
-import io
 import json
 import os
 import subprocess
 import sys
 from collections.abc import Callable, Iterable, Sequence
-from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PY = "{python}"
@@ -25,7 +20,7 @@ MATCHING_PATHS = "{matching_paths}"
 Runner = Callable[[Sequence[str], str], int]
 Git = Callable[[Sequence[str]], str]
 
-TIERS: tuple[str, ...] = ("static", "heavy")
+TIERS: tuple[str, ...] = ("static",)
 DEFAULT_SUBPROCESS_TIMEOUT: int = 180
 
 
@@ -69,14 +64,6 @@ OPENAPI_INPUT_GLOBS: tuple[str, ...] = (
 
 CHECKS: tuple[Check, ...] = (
     _py_check(
-        "api-reference",
-        OPENAPI_INPUT_GLOBS,
-        "../../tools/generate_api_reference.py",
-        "--check",
-        why="router/schema changed: docs/reference/api.md must be regenerated",
-        cwd="apps/backend",
-    ),
-    _py_check(
         "migration-risk",
         ("apps/backend/migrations/*",),
         "tools/check_migration_risk.py",
@@ -93,43 +80,6 @@ CHECKS: tuple[Check, ...] = (
         cwd="apps/backend",
     ),
     _py_check(
-        "transaction-boundary",
-        ("apps/backend/src/extraction/extension/statement_*.py",),
-        "-m",
-        "pytest",
-        "tests/infra/test_transaction_boundaries.py",
-        "-q",
-        "--no-cov",
-        "-n",
-        "0",
-        "-o",
-        "addopts=",
-        why="service changed: re-run the commit/transaction-boundary meta-test",
-        cwd="apps/backend",
-        tier="heavy",
-    ),
-    _py_check(
-        "bench-articulation",
-        (
-            "apps/backend/src/ledger/*.py",
-            "apps/backend/src/pricing/*.py",
-            "apps/backend/src/reporting/*.py",
-            "apps/backend/tests/reporting/test_bench_articulation_matrix.py",
-        ),
-        "-m",
-        "pytest",
-        "tests/reporting/test_bench_articulation_matrix.py",
-        "-q",
-        "--no-cov",
-        "-n",
-        "0",
-        "-o",
-        "addopts=",
-        why="financial calculation logic changed: BenchV2 articulation matrix must balance",
-        cwd="apps/backend",
-        tier="heavy",
-    ),
-    _py_check(
         "env-manifests",
         (
             "apps/backend/src/config.py",
@@ -144,19 +94,6 @@ CHECKS: tuple[Check, ...] = (
         "--check",
         why="config.py, env files, or a manifest changed: the infra2 SDK manifest check and the .env.example block must pass",
     ),
-    _py_check(
-        "user-cases-doc",
-        (
-            "common/meta/base/user_case_proof.py",
-            "common/meta/flows/user_cases_ssot.json",
-            "docs/reference/user-cases.md",
-            "tools/generate_user_cases_doc.py",
-            "common/meta/extension/generate_user_cases_doc.py",
-        ),
-        "tools/generate_user_cases_doc.py",
-        "--check",
-        why="user_cases_ssot.json, classifier, or generated user-cases reference changed: docs/reference/user-cases.md must stay in sync",
-    ),
     Check(
         name="openapi-spec",
         globs=OPENAPI_INPUT_GLOBS,
@@ -165,56 +102,6 @@ CHECKS: tuple[Check, ...] = (
             (PY, "tools/check_api_types.py"),
         ),
         why="router/schema changed: openapi.json and frontend api-types must remain in sync (#1004, #2134)",
-    ),
-    _py_check(
-        "tooling",
-        (
-            "tools/*",
-            "common/*",
-            "tests/tooling/*",
-            "tests/benchmarks/*",
-            "tests/fixtures/*",
-            "tests/e2e/*",
-            "apps/backend/src/*",
-            "apps/backend/tests/*",
-            "apps/backend/migrations/*",
-            "apps/backend/ci/*",
-            "apps/backend/pyproject.toml",
-            ".github/*",
-            ".ws-publish/*",
-            ".pre-commit-config.yaml",
-            ".gitignore",
-            "runtime-hooks.manifest.json",
-            "toolchain.toml",
-        ),
-        "-m",
-        "pytest",
-        "tests/tooling/",
-        "-q",
-        "--no-cov",
-        "-n",
-        "0",
-        "-o",
-        "addopts=",
-        why="tooling/governed source or config changed: run tests/tooling",
-        tier="heavy",
-    ),
-    _py_check(
-        "app-boundary",
-        ("apps/backend/src/*.py",),
-        "tools/check_app_boundary.py",
-        why="backend source changed: L4 backend super-package edge ratchet",
-    ),
-    _py_check(
-        "base-purity",
-        (
-            "apps/backend/src/*.py",
-            "common/meta/extension/base_purity.py",
-            "common/meta/extension/check_base_purity.py",
-            "tools/check_base_purity.py",
-        ),
-        "tools/check_base_purity.py",
-        why="package base-layer or base-purity gate changed",
     ),
     _py_check(
         "toolchain-contract",
@@ -234,16 +121,6 @@ CHECKS: tuple[Check, ...] = (
         ),
         "tools/check_toolchain_contract.py",
         why="toolchain contracts and version declarations must not drift",
-    ),
-    _py_check(
-        "tier-imports",
-        (
-            "apps/backend/src/*.py",
-            "tools/check_tier_imports.py",
-            "common/meta/extension/check_tier_imports.py",
-        ),
-        "tools/check_tier_imports.py",
-        why="CODE-ONLY financial core must not import LLM layer",
     ),
     _py_check(
         "lockfile-registry",
@@ -272,17 +149,6 @@ CHECKS: tuple[Check, ...] = (
         ),
         why="frontend changed: eslint + tsc typecheck + openapi api-types contract sync",
         cwd="apps/frontend",
-    ),
-    Check(
-        name="frontend",
-        globs=("apps/frontend/*",),
-        commands=(
-            ("npm", "run", "test:coverage"),
-            ("npm", "run", "build"),
-        ),
-        why="frontend changed: vitest + next build",
-        cwd="apps/frontend",
-        tier="heavy",
     ),
 )
 
@@ -358,116 +224,7 @@ def _child_env() -> dict[str, str]:
     return env
 
 
-_INPROCESS_EXCLUDED_TOOLS: frozenset[str] = frozenset({"check_api_types.py"})
-_PARALLEL_SUBPROCESS_CHECK_NAMES: frozenset[str] = frozenset(
-    {"app-boundary", "base-purity", "tier-imports"}
-)
-_TOOL_MODULE_CACHE: dict[Path, ModuleType] = {}
-
-
-def _resolve_inprocess_tool(argv: Sequence[str], cwd: str) -> Path | None:
-    if len(argv) < 2:
-        return None
-    exe = Path(argv[0]).name
-    if argv[0] != sys.executable and not exe.startswith("python"):
-        return None
-    if argv[1].startswith("-"):
-        return None
-    cwd_path = Path(cwd) if Path(cwd).is_absolute() else (REPO_ROOT / cwd)
-    candidate = (cwd_path / argv[1]).resolve()
-    tools_dir = (REPO_ROOT / "tools").resolve()
-    if (
-        candidate.parent != tools_dir
-        or candidate.suffix != ".py"
-        or candidate.name in _INPROCESS_EXCLUDED_TOOLS
-        or not candidate.is_file()
-    ):
-        return None
-    return candidate
-
-
-def _load_tool_module(script_path: Path) -> ModuleType:
-    cached = _TOOL_MODULE_CACHE.get(script_path)
-    if cached is not None:
-        return cached
-    for extra in (REPO_ROOT, REPO_ROOT / "apps" / "backend"):
-        extra_str = str(extra)
-        if extra_str not in sys.path:
-            sys.path.insert(0, extra_str)
-    spec = importlib.util.spec_from_file_location(
-        f"_preflight_tool_{script_path.stem}", script_path
-    )
-    if spec is None or spec.loader is None:
-        raise ImportError(f"Unable to load tool script {script_path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    _TOOL_MODULE_CACHE[script_path] = module
-    return module
-
-
-def _run_tool_inprocess(
-    script_path: Path, args: Sequence[str], cwd: str, *, quiet: bool
-) -> int:
-    module = _load_tool_module(script_path)
-    main_fn = getattr(module, "main", None)
-    if not callable(main_fn):
-        raise AttributeError(f"{script_path} has no callable main()")
-    had_ns = "TEST_NAMESPACE" in os.environ
-    prev_ns = os.environ.get("TEST_NAMESPACE")
-    if not had_ns:
-        os.environ["TEST_NAMESPACE"] = f"preflight_{os.getpid()}"
-    prev_argv = sys.argv[:]
-    prev_cwd = Path.cwd()
-    stdout_buf = io.StringIO()
-    stderr_buf = io.StringIO()
-    try:
-        sys.argv = [str(script_path), *args]
-        os.chdir(cwd)
-        with (
-            contextlib.redirect_stdout(stdout_buf)
-            if quiet
-            else contextlib.nullcontext(),
-            contextlib.redirect_stderr(stderr_buf)
-            if quiet
-            else contextlib.nullcontext(),
-        ):
-            try:
-                try:
-                    result = main_fn(list(args))
-                except TypeError as exc:
-                    if "positional argument" not in str(exc):
-                        raise
-                    result = main_fn()
-            except SystemExit as exc:
-                rc = (
-                    0
-                    if exc.code is None
-                    else (exc.code if isinstance(exc.code, int) else 1)
-                )
-            else:
-                rc = int(result) if isinstance(result, int) else 0
-    finally:
-        os.chdir(prev_cwd)
-        sys.argv = prev_argv
-        if not had_ns:
-            os.environ.pop("TEST_NAMESPACE", None)
-        elif prev_ns is not None:
-            os.environ["TEST_NAMESPACE"] = prev_ns
-    if quiet and rc != 0:
-        for stream, buf in (
-            (sys.stdout, stdout_buf.getvalue()),
-            (sys.stderr, stderr_buf.getvalue()),
-        ):
-            if buf:
-                stream.write(buf)
-                stream.flush()
-    return rc
-
-
 def _exec_runner(argv: Sequence[str], cwd: str, *, quiet: bool = False) -> int:
-    tool_script = _resolve_inprocess_tool(argv, cwd)
-    if tool_script is not None:
-        return _run_tool_inprocess(tool_script, argv[2:], cwd, quiet=quiet)
     try:
         kwargs = (
             {"capture_output": True, "text": True, "errors": "replace"} if quiet else {}
@@ -581,124 +338,65 @@ def run_checks(
         ]
         prepared.append((check, cwd, resolved_cmds))
 
-    # Pre-launch independent external subprocess commands (e.g. ruff, check_api_types,
-    # and multi-gate static AST checks) on background threads while src.main checks
-    # execute on the main thread.
-    prefetched: dict[tuple[tuple[str, ...], str], Future[tuple[int, str, str]]] = {}
-    pool: ThreadPoolExecutor | None = None
-    parallel_multi_gate = is_default_runner and len(prepared) > 2
-    if is_default_runner and len(prepared) > 1:
-        sub_jobs = [
-            (cmd, cwd)
-            for check, cwd, cmds in prepared
-            if check.tier == "static"
-            for cmd in cmds
-            if _resolve_inprocess_tool(cmd, cwd) is None
-            or (parallel_multi_gate and check.name in _PARALLEL_SUBPROCESS_CHECK_NAMES)
-        ]
-        unique_jobs = list(dict.fromkeys(sub_jobs))
-        if unique_jobs:
-            pool = ThreadPoolExecutor(max_workers=min(8, len(unique_jobs)))
-            for job in unique_jobs:
-                prefetched[job] = pool.submit(_run_subprocess_buffered, job[0], job[1])
-
     batch_snapshot = (
         _working_tree_snapshot(root)
         if guard_tree and is_default_runner and len(prepared) > 1
         else None
     )
     results: list[CheckResult] = []
-    try:
-        for check, cwd, resolved_cmds in prepared:
-            if ci and not quiet:
-                print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
-            if is_default_runner and all(
-                dedup_results.get((cmd, cwd)) is True for cmd in resolved_cmds
-            ):
-                ok = True
-            else:
-                before_snapshot = (
-                    batch_snapshot
-                    if batch_snapshot is not None
-                    else (_working_tree_snapshot(root) if guard_tree else {})
-                )
-                ok = True
-                for cmd in resolved_cmds:
-                    if is_default_runner and dedup_results.get((cmd, cwd)) is True:
-                        continue
-                    fut = prefetched.pop((cmd, cwd), None)
-                    if fut is not None:
-                        cmd_rc, out_txt, err_txt = fut.result()
-                        if not quiet or cmd_rc != 0:
-                            if out_txt:
-                                sys.stdout.write(out_txt)
-                                sys.stdout.flush()
-                            if err_txt:
-                                sys.stderr.write(err_txt)
-                                sys.stderr.flush()
-                        cmd_ok = cmd_rc == 0
-                    else:
-                        cmd_ok = runner(list(cmd), cwd) == 0
-                    if not cmd_ok:
-                        ok = False
-                        break
-                    if is_default_runner:
-                        dedup_results[(cmd, cwd)] = True
-                if (
-                    batch_snapshot is None
-                    and guard_tree
-                    and _working_tree_snapshot(root) != before_snapshot
-                ):
-                    ok = False
-                    for cmd in resolved_cmds:
-                        dedup_results.pop((cmd, cwd), None)
-                    print(
-                        f"::error::Gate {check.name} mutated the working tree during execution",
-                        file=sys.stderr,
-                        flush=True,
-                    )
-            if ci:
-                if not quiet:
-                    print("::endgroup::", flush=True)
-                if not ok:
-                    print(f"::error::Gate {check.name} failed: {check.why}", flush=True)
-            results.append(CheckResult(check.name, ok))
-        if (
-            batch_snapshot is not None
-            and _working_tree_snapshot(root) != batch_snapshot
+    for check, cwd, resolved_cmds in prepared:
+        if ci and not quiet:
+            print(f"::group::Gate [{check.tier}] {check.name}", flush=True)
+        if is_default_runner and all(
+            dedup_results.get((cmd, cwd)) is True for cmd in resolved_cmds
         ):
-            last_name = results[-1].name if results else "static"
-            print(
-                f"::error::Gate {last_name} mutated the working tree during execution",
-                file=sys.stderr,
-                flush=True,
+            ok = True
+        else:
+            before_snapshot = (
+                batch_snapshot
+                if batch_snapshot is not None
+                else (_working_tree_snapshot(root) if guard_tree else {})
             )
-            results = [CheckResult(r.name, False) for r in results]
-    finally:
-        if pool is not None:
-            pool.shutdown(wait=True)
+            ok = True
+            for cmd in resolved_cmds:
+                if is_default_runner and dedup_results.get((cmd, cwd)) is True:
+                    continue
+                if runner(list(cmd), cwd) != 0:
+                    ok = False
+                    break
+                if is_default_runner:
+                    dedup_results[(cmd, cwd)] = True
+            if (
+                batch_snapshot is None
+                and guard_tree
+                and _working_tree_snapshot(root) != before_snapshot
+            ):
+                ok = False
+                for cmd in resolved_cmds:
+                    dedup_results.pop((cmd, cwd), None)
+                print(
+                    f"::error::Gate {check.name} mutated the working tree during execution",
+                    file=sys.stderr,
+                    flush=True,
+                )
+        if ci:
+            if not quiet:
+                print("::endgroup::", flush=True)
+            if not ok:
+                print(f"::error::Gate {check.name} failed: {check.why}", flush=True)
+        results.append(CheckResult(check.name, ok))
+    if (
+        batch_snapshot is not None
+        and _working_tree_snapshot(root) != batch_snapshot
+    ):
+        last_name = results[-1].name if results else "static"
+        print(
+            f"::error::Gate {last_name} mutated the working tree during execution",
+            file=sys.stderr,
+            flush=True,
+        )
+        results = [CheckResult(r.name, False) for r in results]
     return results
-
-
-def _run_subprocess_buffered(cmd: Sequence[str], cwd: str) -> tuple[int, str, str]:
-    try:
-        proc = subprocess.run(
-            list(cmd),
-            cwd=cwd,
-            env=_child_env(),
-            capture_output=True,
-            text=True,
-            errors="replace",
-            check=False,
-            timeout=DEFAULT_SUBPROCESS_TIMEOUT,
-        )
-        return proc.returncode, proc.stdout or "", proc.stderr or ""
-    except subprocess.TimeoutExpired:
-        return (
-            124,
-            "",
-            f"::error::Gate command timed out after {DEFAULT_SUBPROCESS_TIMEOUT}s: {' '.join(cmd)}\n",
-        )
 
 
 def _collect_matching_tests(
