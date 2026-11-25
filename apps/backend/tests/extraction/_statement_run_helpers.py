@@ -1043,6 +1043,11 @@ async def integrity_parse(payload, *, db=None, user_id=None, account_id=None, so
     )
 
 
+# No payload of these tests carries this suffix. `StatementSummaryFactory` takes its suffix from a counter of the
+# worker process, and the counter can reach `0001`, the suffix of `integrity_payload` (#3176).
+INTEGRITY_SOURCE_LAST4 = "6000"
+
+
 async def integrity_source(db, user_id, *, account=None, currency="SGD"):
     document = UploadedDocument(
         user_id=user_id,
@@ -1060,6 +1065,7 @@ async def integrity_source(db, user_id, *, account=None, currency="SGD"):
         account_id=account.id if account else None,
         currency=currency,
         institution="Synthetic Bank",
+        account_last4=INTEGRITY_SOURCE_LAST4,
     )
     db.add(summary)
     await db.flush()
