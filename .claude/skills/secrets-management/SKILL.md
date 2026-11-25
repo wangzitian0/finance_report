@@ -52,7 +52,7 @@ Vault path convention: `secret/data/{project}/{environment}/{component}`
 1. Add to `apps/backend/src/config.py` with type + default
    (`Field(validation_alias=...)`).
 2. Regenerate `.env.example` and `common/runtime/required-env.generated.json`.
-3. Validate: `python tools/check_env_keys.py --diff` (the CI gate).
+3. Validate: `python tools/env_manifests.py --check` (the CI gate).
 4. Name its producer in `config.ENV_SOURCE_CLASSES` (a side table, so no public
    `Field()` changes): `human` → the operator puts the value in 1Password and the
    deploy copies it into Vault; `runtime` → the deploy generates it; `decision` →
@@ -146,7 +146,7 @@ the compose sets `ENVIRONMENT` plus the `decision` values.
 ## The Proof
 
 ```bash
-python tools/check_env_keys.py --diff        # layer consistency (CI gate)
+python tools/env_manifests.py --check        # layer consistency (CI gate)
 moon run :dev -- --check                     # runtime boot validation
 # From infra2: verify keys present via masked wrapper (never raw vault kv get):
 cd "$WS_PATH/infra2" && invoke env.list-all --project=finance_report --service=app

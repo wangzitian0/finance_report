@@ -1,4 +1,4 @@
-<!-- WS_STATIC_START adapter=rules-v2 inputs=84e3ecf2bb717484004df61053452edaefe0e2f18d9e30ca298ee7e3182fbf0f -->
+<!-- WS_STATIC_START adapter=rules-v2 inputs=b99e424d95b940b4a1eb4e28425033224729f9733f030fcaf21780c5a8e16a5e -->
 <!-- Generated file: do not edit by hand. These rules are maintained in the owner's rule source and re-rendered here. -->
 
 ## Engineering discipline
@@ -69,6 +69,7 @@ Full rules: **[docs/agents/red-lines.md](docs/agents/red-lines.md)**
 - **Work order:** **MECE → User Case → Test → Code → Doc** (`common/meta/flows/user_cases_ssot.json` + EPIC in `docs/project/` — never mirror test tables into `docs/project/EPIC-*.md`; failing tests first; minimal code; update owning `common/<pkg>/readme.md`). Details: [docs/agents/orchestration.md](docs/agents/orchestration.md), [common/testing/tdd.md](common/testing/tdd.md).
 - **SSOT first:** Define bounded-context concepts in `common/<pkg>/readme.md` (and cross-cutting metadata in `common/*/data/` or `common/runtime/`); `docs/ssot/` is retired (#1823). Layering registry: [common/meta/readme.md](common/meta/readme.md).
 - **Pre-push gate parity:** `git push` runs `tools/preflight.py --tier=static` automatically via `pre-commit` (install hooks with `make install`; never invoke `moon run :lint && moon run :test` before every push — run focused tests locally and `--tier=static`, leaving full suites to CI).
+- **Quality board & invariant core:** Track CI timing, coverage, and nightly audit freshness at [finance_report/board/](https://wangzitian0.github.io/finance_report/board/). Preserve the L3 invariant core in [common/testing/invariant_core.py](common/testing/invariant_core.py) (`pytest -m invariant_core`).
 
 ## Branch, PR, and Merge Rules
 
