@@ -110,7 +110,7 @@ DEPENDENCY_MANIFEST = DependencyManifest(
             DependencyKind.MODEL_DOMINANT,
             _SP,
             env_vars=("LLM_PROVIDER", "LLM_API_KEY", "LLM_BASE_URL"),
-            summary="The AI provider used for statement extraction (LLM_*); recorded (cassette substitute) in CI/preview, real on staging/prod.",
+            summary="AI provider for statement extraction and advisor (LLM_*); required on staging and production.",
         ),
         _dep(
             "cache",
@@ -143,7 +143,7 @@ DEPENDENCY_MANIFEST = DependencyManifest(
         _dep(
             "market_data",
             DependencyKind.CODE_DOMINANT,
-            frozenset({EnvTier.PRODUCTION}),
+            _SP,
             env_vars=("MARKET_DATA_YAHOO_TIMEOUT_SECONDS",),
             summary="Yahoo Finance market-data fetch for report-side FX.",
         ),

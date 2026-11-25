@@ -15,6 +15,7 @@ from src.runtime import (
     AnalyticsCheck,
     DatabaseCheck,
     EnvTier,
+    LlmCheck,
     MarketDataCheck,
     ObjectStorageCheck,
     RedisCheck,
@@ -25,31 +26,121 @@ from src.runtime import (
 pytestmark = pytest.mark.no_db
 
 
-def _http(code: int) -> MagicMock:
-    return MagicMock(status_code=code)
+def _http(code: int, payload: object = None) -> MagicMock:
+    resp = MagicMock(status_code=code)
+    if payload is None:
+        resp.json.side_effect = ValueError("no json")
+    else:
+        resp.json.return_value = payload
+    return resp
 
 
-@pytest.mark.parametrize(
-    ("make_check", "name", "ok_exc"),
-    [
-        (lambda: TelemetryCheck(endpoint=None), "telemetry", None),
-        (lambda: TelemetryCheck(endpoint="http://otel-collector:4318"), "telemetry", OSError("no route")),
-    ],
-)
-async def test_tcp_checks(make_check, name: str, ok_exc: Exception | None) -> None:
-    check = make_check()
-    if ok_exc is None:
-        res = await check.probe()
-        assert (res.name, res.status) == (name, DependencyStatus.ABSENT) and isinstance(res, sdk_health.ProbeResult)
-        return
+async def test_telemetry_check_http_and_tcp() -> None:
+    absent = await TelemetryCheck(endpoint=None).probe()
+    assert (absent.name, absent.status) == ("telemetry", DependencyStatus.ABSENT) and isinstance(
+        absent, sdk_health.ProbeResult
+    )
+
     reader, writer = (
         AsyncMock(readline=AsyncMock(return_value=b"+PONG\r\n")),
-        MagicMock(drain=AsyncMock(), wait_closed=AsyncMock()),
+        MagicMock(close=MagicMock(), wait_closed=AsyncMock()),
     )
-    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))):
-        assert (await check.probe()).status is DependencyStatus.PRESENT
-    with patch("asyncio.open_connection", AsyncMock(side_effect=ok_exc)):
-        assert (await check.probe()).status is DependencyStatus.ABSENT
+    with patch("asyncio.open_connection", AsyncMock(return_value=(reader, writer))) as open_conn:
+        assert (await TelemetryCheck(endpoint="otel-collector:4317").probe()).status is DependencyStatus.PRESENT
+    open_conn.assert_awaited_once_with("otel-collector", 4317)
+    with patch("asyncio.open_connection", AsyncMock(side_effect=OSError("no route"))):
+        assert (await TelemetryCheck(endpoint="otel-collector:4317").probe()).status is DependencyStatus.ABSENT
+
+    for code, expected in (
+        (200, DependencyStatus.PRESENT),
+        (415, DependencyStatus.PRESENT),
+        (401, DependencyStatus.ABSENT),
+        (404, DependencyStatus.ABSENT),
+        (503, DependencyStatus.ABSENT),
+    ):
+        with patch("httpx.AsyncClient.post", AsyncMock(return_value=_http(code))) as post_fn:
+            res = await TelemetryCheck(endpoint="http://otel-collector:4318").probe()
+        assert res.status is expected
+        assert post_fn.await_args.args[0] == "http://otel-collector:4318/v1/traces"
+
+    with patch("httpx.AsyncClient.post", AsyncMock(side_effect=httpx.ConnectError("down"))):
+        assert (await TelemetryCheck(endpoint="http://otel-collector:4318/v1/traces").probe()).status is DependencyStatus.ABSENT
+
+
+async def test_analytics_check_requires_client_id_and_ready_healthcheck() -> None:
+    assert (await AnalyticsCheck(api_url="", client_id="cid").probe()).status is DependencyStatus.ABSENT
+    missing_cid = await AnalyticsCheck(api_url="https://op.example.com/api", client_id="").probe()
+    assert missing_cid.status is DependencyStatus.ABSENT and "OPENPANEL_CLIENT_ID" in missing_cid.detail
+
+    with patch("httpx.AsyncClient.get", AsyncMock(return_value=_http(200, {"ready": True}))) as get_fn:
+        ok = await AnalyticsCheck(api_url="https://op.example.com/api", client_id="cid").probe()
+    assert ok.status is DependencyStatus.PRESENT
+    assert get_fn.await_args.args[0] == "https://op.example.com/api/healthcheck"
+
+    for outcome in (
+        _http(200, {"ready": False}),
+        _http(404),
+        _http(503),
+        httpx.ConnectError("down"),
+    ):
+        kw = {"side_effect": outcome} if isinstance(outcome, Exception) else {"return_value": outcome}
+        with patch("httpx.AsyncClient.get", AsyncMock(**kw)):
+            assert (await AnalyticsCheck(api_url="https://op.example.com/api", client_id="cid").probe()).status is DependencyStatus.ABSENT
+
+
+async def test_llm_check_probes_models_chat_fallback_and_redacts_key() -> None:
+    assert (await LlmCheck(api_key=None, provider="zai", small_model="s", multimodal_model="m", base_url="https://ai.example/v1").probe()).status is DependencyStatus.ABSENT
+    no_url = await LlmCheck(api_key="tok", provider="zai", small_model="s", multimodal_model="m", base_url=None).probe()
+    assert no_url.status is DependencyStatus.ABSENT and "base_url" in no_url.detail
+
+    for code, expected in (
+        (200, DependencyStatus.PRESENT),
+        (429, DependencyStatus.PRESENT),
+        (401, DependencyStatus.ABSENT),
+        (403, DependencyStatus.ABSENT),
+        (503, DependencyStatus.ABSENT),
+    ):
+        with patch("httpx.AsyncClient.get", AsyncMock(return_value=_http(code))) as get_fn:
+            res = await LlmCheck(
+                api_key="secret-llm-key",
+                provider="zai",
+                small_model="s",
+                multimodal_model="m",
+                base_url="https://ai.example/v1/",
+            ).probe()
+        assert res.status is expected
+        assert get_fn.await_args.args[0] == "https://ai.example/v1/models"
+        assert get_fn.await_args.kwargs["headers"] == {"Authorization": "Bearer secret-llm-key"}
+
+    for chat_code, expected in (
+        (400, DependencyStatus.PRESENT),
+        (422, DependencyStatus.PRESENT),
+        (401, DependencyStatus.ABSENT),
+        (404, DependencyStatus.ABSENT),
+    ):
+        with (
+            patch("httpx.AsyncClient.get", AsyncMock(return_value=_http(404))),
+            patch("httpx.AsyncClient.post", AsyncMock(return_value=_http(chat_code))) as post_fn,
+        ):
+            res = await LlmCheck(
+                api_key="secret-llm-key",
+                provider="zai",
+                small_model="s",
+                multimodal_model="m",
+                base_url="https://ai.example/v1",
+            ).probe()
+        assert res.status is expected
+        assert post_fn.await_args.args[0] == "https://ai.example/v1/chat/completions"
+
+    with patch("httpx.AsyncClient.get", AsyncMock(side_effect=RuntimeError("boom secret-llm-key"))):
+        err = await LlmCheck(
+            api_key="secret-llm-key",
+            provider="zai",
+            small_model="s",
+            multimodal_model="m",
+            base_url="https://ai.example/v1",
+        ).probe()
+    assert err.status is DependencyStatus.ABSENT and "secret-llm-key" not in err.detail and "***" in err.detail
 
 
 async def test_redis_check_uses_redis_ping_and_rejects_auth_errors() -> None:
@@ -83,12 +174,6 @@ async def test_redis_check_uses_redis_ping_and_rejects_auth_errors() -> None:
             lambda: WorkflowEngineCheck(api_url="http://prefect:4200/api"),
             "workflow_engine",
             [(_http(200), DependencyStatus.PRESENT), (httpx.ConnectError("down"), DependencyStatus.ABSENT)],
-        ),
-        (lambda: AnalyticsCheck(api_url=""), "analytics", []),
-        (
-            lambda: AnalyticsCheck(api_url="https://op.example.com/api"),
-            "analytics",
-            [(_http(404), DependencyStatus.PRESENT), (_http(503), DependencyStatus.ABSENT)],
         ),
         (
             lambda: MarketDataCheck(timeout_seconds=5),
@@ -145,6 +230,44 @@ async def test_database_and_object_storage_checks() -> None:
     ) and "secret key" in bad.detail
 
 
+async def test_object_storage_public_and_write_delete_probe() -> None:
+    kw = {"endpoint": "http://minio:9000", "access_key": "minio", "secret_key": "minio123", "region": "us-east-1", "bucket": "statements"}
+    ok_primary = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.0)
+    ok_public = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.1)
+    bad_public = sdk_health.ProbeResult("object_storage", DependencyStatus.ABSENT, "DNS error", 1.1)
+
+    with patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, bad_public]):
+        failed_pub = await ObjectStorageCheck(public_endpoint="https://s3.zitian.party", **kw).probe()
+    assert failed_pub.status is DependencyStatus.ABSENT and "public S3 probe failed" in failed_pub.detail
+
+    s3_client = MagicMock(put_object=MagicMock(), delete_object=MagicMock(), close=MagicMock())
+    with (
+        patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, ok_public]) as probe_fn,
+        patch("infra2_sdk.runtime.s3.create_s3_client", return_value=s3_client),
+    ):
+        ok = await ObjectStorageCheck(
+            public_endpoint="https://s3.zitian.party",
+            public_bucket="statements-pub",
+            verify_write=True,
+            **kw,
+        ).probe()
+    assert ok.status is DependencyStatus.PRESENT and "write/delete ok" in ok.detail
+    assert probe_fn.call_count == 2 and probe_fn.call_args_list[1].args[0].bucket == "statements-pub"
+    s3_client.put_object.assert_called_once()
+    s3_client.delete_object.assert_called_once()
+    s3_client.close.assert_called_once()
+
+    failing_put = MagicMock(put_object=MagicMock(side_effect=PermissionError("AccessDenied")), delete_object=MagicMock(), close=MagicMock())
+    with (
+        patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
+        patch("infra2_sdk.runtime.s3.create_s3_client", return_value=failing_put),
+    ):
+        err = await ObjectStorageCheck(verify_write=True, **kw).probe()
+    assert err.status is DependencyStatus.ABSENT and "S3 write/delete probe failed" in err.detail
+    failing_put.delete_object.assert_called_once()
+    failing_put.close.assert_called_once()
+
+
 def test_every_declared_dependency_has_a_probe_adapter() -> None:
     assert all(Bootloader._required_checks(tier)[1] == [] for tier in EnvTier)
     sdk_owned = {"ProbeResult", "DependencyStatus", "DependencyCheck"}
@@ -165,11 +288,6 @@ def test_every_declared_dependency_has_a_probe_adapter() -> None:
             lambda: WorkflowEngineCheck(api_url="http://prefect:4200/api"),
             "workflow_engine",
             "src.runtime.extension.adapters.probe_orchestrator",
-        ),
-        (
-            lambda: AnalyticsCheck(api_url="https://op.example.com/api"),
-            "analytics",
-            "src.runtime.extension.adapters.probe_http",
         ),
         (lambda: MarketDataCheck(timeout_seconds=5), "market_data", "src.runtime.extension.adapters.probe_http"),
     ],
