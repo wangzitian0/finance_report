@@ -609,7 +609,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: coverage-frontend
-          path: apps/frontend/coverage/lcov.info
+          path: |
+            apps/frontend/coverage/lcov.info
+            apps/frontend/coverage/coverage-summary.json
           overwrite: true
           retention-days: 14
 
@@ -987,7 +989,19 @@ jobs:
           cd apps/backend
           ls -la cov-data-*
           uv run coverage combine cov-data-*
+          uv run coverage json -o coverage-backend.json
+          uv run python -c "import json, pathlib; totals = json.loads(pathlib.Path('coverage-backend.json').read_text(encoding='utf-8')).get('totals', {}); pathlib.Path('coverage-backend-summary.json').write_text(json.dumps({k: totals.get(k) for k in ('percent_covered', 'covered_lines', 'num_statements', 'missing_lines')}, indent=2) + '\n', encoding='utf-8')"
           uv run coverage report --fail-under=96
+
+      - name: Upload backend coverage summary
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-coverage-backend
+          path: apps/backend/coverage-backend-summary.json
+          if-no-files-found: ignore
+          overwrite: true
+          retention-days: 14
 
   finish:
     permissions:
@@ -1047,7 +1061,53 @@ jobs:
             --title "CI Timing Summary" \
             --summary-path "$GITHUB_STEP_SUMMARY" \
             --budget "${{ github.event_name == 'pull_request' && 'pr' || 'main' }}" \
+            --json-out ci-timing-summary.json \
             --comment ${{ github.event_name == 'pull_request' && format('--pr {0}', github.event.pull_request.number) || '' }}
+
+      - name: Download backend coverage summary
+        if: ${{ always() && (needs.backend-coverage-gate.result == 'success' || needs.backend-coverage-gate.result == 'failure') }}
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: ci-coverage-backend
+          path: telemetry-inputs/backend
+
+      - name: Download frontend coverage summary
+        if: ${{ always() && (needs.frontend-vitest.result == 'success' || needs.frontend-vitest.result == 'failure') }}
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: coverage-frontend
+          path: telemetry-inputs/frontend
+
+      - name: Emit CI post telemetry
+        if: ${{ always() }}
+        continue-on-error: true
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          python tools/emit_ci_post_telemetry.py \
+            --timing-json ci-timing-summary.json \
+            --backend-coverage-json telemetry-inputs/backend/coverage-backend-summary.json \
+            --frontend-coverage-json telemetry-inputs/frontend/coverage-summary.json \
+            --needs-json-env NEEDS_JSON \
+            --sha "${{ github.sha }}" \
+            --ref "${{ github.ref }}" \
+            --event-name "${{ github.event_name }}" \
+            --run-id "${{ github.run_id }}" \
+            --run-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --output ci-post-telemetry.json
+
+      - name: Upload CI post telemetry
+        if: ${{ always() }}
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: ci-post-telemetry
+          path: ci-post-telemetry.json
+          if-no-files-found: warn
+          overwrite: true
+          retention-days: 90
 
       - name: Check job status
         if: ${{ always() }}
