@@ -21,20 +21,23 @@ import re
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
 from infra2_sdk.ci import parse_github_time
+from infra2_sdk.manifests import CELL_POLICIES
 
-# The one machine copy of the budgets (#2688, #2996), in seconds. Source: the zitian
-# Workspace tier, section "Pipeline time contract". Docs link that tier and repeat no
-# number. Each value is the upper bound. The release window starts at the first job of the dispatched deploy run, so the
-# tag-push image run and the gap before the dispatch are not in it.
+# Derived from infra2-sdk's stages.yaml (`CELL_POLICIES`) (#3215 Slice 2B). Docs link
+# `Pipeline time contract` and repeat no number. Each value is an upper bound.
 PIPELINE_BUDGET_SECONDS: dict[str, int] = {
-    "pr": 4 * 60,
-    "main": 8 * 60,
-    "release": 15 * 60,
+    "pr": CELL_POLICIES["ci.pre"].budget_seconds,
+    "main": CELL_POLICIES["ci.post"].budget_seconds,
+    "release": (
+        CELL_POLICIES["staging.pre"].budget_seconds
+        + CELL_POLICIES["staging.operation"].budget_seconds
+        + CELL_POLICIES["staging.post"].budget_seconds
+    ),
 }
 SLOWEST_JOBS_IN_COMMENT = 3
 BUDGET_ISSUE_LABEL = "ci-budget"
@@ -163,7 +166,7 @@ def format_timing_summary(
     sorted_jobs = sorted(
         jobs,
         key=lambda job: (
-            job.started_at or datetime.max.replace(tzinfo=timezone.utc),
+            job.started_at or datetime.max.replace(tzinfo=UTC),
             job.name,
         ),
     )
@@ -255,6 +258,68 @@ def format_overrun_comment(
         f"- `{job.name}`: `{format_duration(job.duration_seconds)}`" for job in slowest
     )
     return "\n".join(lines) + "\n"
+
+
+def build_timing_payload(
+    run: dict[str, Any], *, title: str, budget_kind: str | None = None
+) -> dict[str, Any]:
+    """Build machine-readable workflow timing telemetry for CI artifact export."""
+    timing = run_timing(run)
+    sorted_jobs = sorted(
+        timing.jobs,
+        key=lambda job: (
+            job.started_at or datetime.max.replace(tzinfo=UTC),
+            job.name,
+        ),
+    )
+    budget_block: dict[str, Any] | None = None
+    if budget_kind is not None:
+        verdict = budget_verdict(run, budget_kind)
+        if not verdict.measured:
+            state = "not measured"
+        elif verdict.exceeded:
+            state = "OVER"
+        else:
+            state = "within"
+        budget_block = {
+            "kind": verdict.kind,
+            "budget_seconds": verdict.budget_seconds,
+            "execution_seconds": verdict.execution_seconds,
+            "measured": verdict.measured,
+            "exceeded": verdict.exceeded,
+            "state": state,
+        }
+    return {
+        "schema_version": 1,
+        "generated_at_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "run_url": str(run.get("url") or "unknown"),
+        "title": title,
+        "status": str(run.get("status") or "unknown"),
+        "conclusion": str(run.get("conclusion") or "unknown"),
+        "queue_seconds": timing.queue_seconds,
+        "execution_seconds": timing.execution_seconds,
+        "run_seconds": timing.run_seconds,
+        "budget": budget_block,
+        "jobs": [
+            {
+                "name": job.name,
+                "status": job.status,
+                "conclusion": job.conclusion,
+                "duration_seconds": job.duration_seconds,
+                "started_at": (
+                    job.started_at.isoformat().replace("+00:00", "Z")
+                    if job.started_at
+                    else None
+                ),
+                "completed_at": (
+                    job.completed_at.isoformat().replace("+00:00", "Z")
+                    if job.completed_at
+                    else None
+                ),
+            }
+            for job in sorted_jobs
+        ],
+    }
 
 
 def _gh(*args: str) -> str:
@@ -363,6 +428,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="Report an overrun of the --budget on the PR or the ci-budget issue.",
     )
     parser.add_argument("--pr", help="PR number that receives the overrun comment.")
+    parser.add_argument(
+        "--json-out",
+        type=Path,
+        default=None,
+        help="Optional path to write structured timing telemetry JSON.",
+    )
     args = parser.parse_args(argv)
     if args.comment and not args.budget:
         parser.error("--comment needs --budget")
@@ -373,6 +444,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         fh.write("\n")
         fh.write(summary)
     print(f"Wrote workflow timing summary to {args.summary_path}")
+    if args.json_out is not None:
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
+        payload = build_timing_payload(
+            run, title=args.title, budget_kind=args.budget
+        )
+        args.json_out.write_text(
+            json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print(f"Wrote workflow timing JSON to {args.json_out}")
     if args.budget is None:
         return 0
     return check_budget(

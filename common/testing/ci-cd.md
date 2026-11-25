@@ -9,7 +9,7 @@
 - On PRs, `backend_required=false` skips `schema-migrations`, `backend`, and `backend-integration` for pure `apps/frontend/` changes, `vitest_required=false` skips `frontend-vitest` for pure `apps/backend/` changes, and `tooling` runs only for shared, CI, reference-doc, or tooling paths.
 - `frontend-playwright` and `frontend-telemetry-e2e` reuse the `.next` tarball artifact from `frontend-build` (`frontend-telemetry-e2e` builds only when `frontend-build` skips).
 - `main`-only `container-images -> verify-sha-image-published` verifies the `:<sha>` tag digest in GHCR.
-- `finish` aggregates all jobs and appends the `Pipeline time contract` summary via `tools/github_workflow_timing_summary.py`.
+- `finish` aggregates all jobs, appends the `Pipeline time contract` summary (derived from `infra2_sdk.manifests.CELL_POLICIES` via `tools/github_workflow_timing_summary.py`), and uploads non-blocking `ci-post-telemetry` artifacts via `tools/emit_ci_post_telemetry.py`.
 
 ### Env x Stage Contract
 
