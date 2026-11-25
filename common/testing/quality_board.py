@@ -677,6 +677,10 @@ def compute_freshness(
     )
     if ci_count <= 0:
         warn_reasons.append("No ci-post-telemetry artifacts available yet")
+    elif ci_dt is None:
+        warn_reasons.append(
+            "Latest ci.post telemetry timestamp is missing or unparseable"
+        )
     elif ci_age_hours is not None:
         if ci_age_hours > CRITICAL_CI_AGE_HOURS:
             critical_reasons.append(
@@ -786,8 +790,12 @@ def build_dashboard_data(
     }
 
 
-def _svg_sparkline(values: Sequence[float | None], *, stroke: str, unit: str = "") -> str:
-    clean = [float(v) for v in reversed(values) if v is not None]
+def _svg_sparkline(values: Sequence[object], *, stroke: str, unit: str = "") -> str:
+    clean = [
+        float(v)
+        for v in reversed(values)
+        if isinstance(v, (int, float)) and not isinstance(v, bool)
+    ]
     if len(clean) < 2:
         return "<span class=\"muted\">Insufficient trend points</span>"
     w, h, pad = 220, 44, 6
@@ -852,6 +860,13 @@ def _health_card(env_data: Mapping[str, Any]) -> str:
     )
 
 
+def _safe_http_url(url: object) -> str:
+    s = str(url or "").strip()
+    if s.startswith(("https://", "http://")):
+        return html.escape(s)
+    return "#"
+
+
 def render_html(data: Mapping[str, Any]) -> str:
     """Render a standalone HTML dashboard with explicit freshness banner and XSS escaping."""
     fresh = data.get("freshness") or {}
@@ -882,13 +897,12 @@ def render_html(data: Mapping[str, Any]) -> str:
             )
             for c in checks
         )
-        run_link = html.escape(str(run.get("run_url") or "#"))
+        run_link = _safe_http_url(run.get("run_url"))
         rid = html.escape(str(run.get("run_id") or "?"))
         st = str(run.get("status") or "unknown")
         st_kind = "ok" if st == "pass" else "bad"
-        oracle_text = html.escape(
-            json.dumps(run.get("oracle_summaries") or {}, sort_keys=True)
-        )
+        raw_oracle = json.dumps(run.get("oracle_summaries") or {}, sort_keys=True)
+        oracle_text = html.escape(raw_oracle[:180])
         audit_rows.append(
             "<tr>"
             f'<td><a href="{run_link}">{rid}</a></td>'
@@ -897,12 +911,12 @@ def render_html(data: Mapping[str, Any]) -> str:
             f"<td>{_badge(st, st_kind)}</td>"
             f"<td>{int(run.get('completed_checks') or 0)}/{int(run.get('expected_checks') or 0)}</td>"
             f"<td>{checks_badges or '<span class=\"muted\">none</span>'}</td>"
-            f"<td class=\"mono\">{oracle_text[:180]}</td>"
+            f"<td class=\"mono\">{oracle_text}</td>"
             "</tr>"
         )
     if not audit_rows and audit.get("fallback_audit_runs"):
         for fb in audit["fallback_audit_runs"]:
-            rlink = html.escape(str(fb.get("run_url") or "#"))
+            rlink = _safe_http_url(fb.get("run_url"))
             rid = html.escape(str(fb.get("run_id") or "?"))
             concl = str(fb.get("conclusion") or "unknown")
             audit_rows.append(
@@ -928,19 +942,28 @@ def render_html(data: Mapping[str, Any]) -> str:
 
     ci_rows = []
     for r in ci_runs:
-        rurl = html.escape(str(r.get("run_url") or "#"))
+        rurl = _safe_http_url(r.get("run_url"))
         sha = html.escape(str(r.get("sha") or ""))
         be = (r.get("backend") or {}).get("percent_covered")
         fe = (r.get("frontend") or {}).get("lines_pct")
         ex_s = r.get("execution_seconds")
         bu_s = r.get("budget_seconds")
+        dur_text = (
+            f"{ex_s}s / {bu_s}s"
+            if isinstance(ex_s, (int, float))
+            and not isinstance(ex_s, bool)
+            and isinstance(bu_s, (int, float))
+            and not isinstance(bu_s, bool)
+            and bu_s > 0
+            else "n/a"
+        )
         st = str(r.get("budget_state") or "n/a")
         st_kind = "ok" if st == "within" else ("warn" if st == "OVER" else "muted")
         ci_rows.append(
             "<tr>"
             f'<td><a href="{rurl}"><code>{sha}</code></a></td>'
             f"<td>{html.escape(str(r.get('generated_at_utc') or ''))}</td>"
-            f"<td class=\"num\">{f'{ex_s}s / {bu_s}s' if ex_s is not None and bu_s else 'n/a'}</td>"
+            f'<td class="num">{dur_text}</td>'
             f"<td>{_badge(st, st_kind)}</td>"
             f"<td class=\"num\">{f'{be:.2f}%' if isinstance(be, (int, float)) else 'n/a'}</td>"
             f"<td class=\"num\">{f'{fe:.2f}%' if isinstance(fe, (int, float)) else 'n/a'}</td>"

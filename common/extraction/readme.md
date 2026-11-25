@@ -27,7 +27,7 @@
 
 ## SourceCapability Registry
 
-- Source support status and `@ac_proof` traceability map from [`source_capability.py`](../../apps/backend/src/extraction/base/source_capability.py).
+- Source support status maps from [`source_capability.py`](../../apps/backend/src/extraction/base/source_capability.py).
 
 ## Data Models
 

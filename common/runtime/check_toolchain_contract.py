@@ -112,32 +112,6 @@ def _project_setup_minio_action(content: str, toolchain: dict) -> str:
     return "".join(new_lines)
 
 
-def _project_setup_e2e_tests_action(content: str, toolchain: dict) -> str:
-    uv_version = toolchain["runtime"]["uv"]
-    in_install_uv = updated = False
-    new_lines = []
-    for line in content.splitlines(keepends=True):
-        if re.match(r"^[ \t]*-[ \t]*name:[ \t]*['\"]?Install uv['\"]?", line):
-            in_install_uv = True
-        elif in_install_uv and re.match(r"^[ \t]*-", line):
-            in_install_uv = False
-        elif in_install_uv and re.match(
-            r"^[ \t]*version:[ \t]*['\"][^'\"]+['\"]", line
-        ):
-            line = re.sub(
-                r"^([ \t]*version:[ \t]*)['\"][^'\"]+['\"]",
-                r"\g<1>" + f'"{uv_version}"',
-                line,
-            )
-            updated, in_install_uv = True, False
-        new_lines.append(line)
-    if not updated:
-        raise ValueError(
-            "missing required Install uv version pin in setup-e2e-tests/action.yml"
-        )
-    return "".join(new_lines)
-
-
 def _project_setup_backend_env_action(content: str, toolchain: dict) -> str:
     runtime = toolchain["runtime"]
     targets = {"uv-version": runtime["uv"], "python-version": runtime["python"]}
@@ -259,10 +233,6 @@ PROJECTORS: dict[str, tuple[Callable[[str, dict], str], bool]] = {
     ".github/workflows/ci.yml": (_project_ci_workflow, True),
     ".github/workflows/docs.yml": (_project_docs_workflow, True),
     ".github/actions/setup-minio/action.yml": (_project_setup_minio_action, True),
-    ".github/actions/setup-e2e-tests/action.yml": (
-        _project_setup_e2e_tests_action,
-        True,
-    ),
     ".github/actions/setup-backend-env/action.yml": (
         _project_setup_backend_env_action,
         False,
