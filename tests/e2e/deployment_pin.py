@@ -15,13 +15,15 @@ def expected_version_from_env() -> str | None:
     return os.getenv("APP_VERSION_REF", "").strip() or None
 
 
-def resolve_expected_commit(expected_version: str, repo_root: Path = REPO_ROOT) -> str | None:
+def resolve_expected_commit(
+    expected_version: str, repo_root: Path = REPO_ROOT
+) -> str | None:
     """Resolve expected_version via git, CI refs, or clean-room hook HEAD."""
     candidates = [expected_version]
     for env_key in ("COMMIT_REF", "GITHUB_SHA"):
         if (val := os.getenv(env_key, "").strip()) and val not in candidates:
             candidates.append(val)
-    if os.getenv("HOOK_SLOT", "").strip():
+    if (os.getenv("HOOK_CELL") or os.getenv("HOOK_SLOT") or "").strip():
         if expected_version == expected_version_from_env() and "HEAD" not in candidates:
             candidates.append("HEAD")
     for ref in candidates:
@@ -32,14 +34,18 @@ def resolve_expected_commit(expected_version: str, repo_root: Path = REPO_ROOT) 
     return None
 
 
-def assert_pinned_deployment(payload: dict, expected_version: str, expected_commit: str | None) -> None:
+def assert_pinned_deployment(
+    payload: dict, expected_version: str, expected_commit: str | None
+) -> None:
     """Release tags must match exactly; an observed SHA must name their commit."""
     observed = [payload.get("git_sha"), payload.get("version")]
     if not all(observed):
         raise AssertionError("deployed service must publish version and git_sha")
     for version in observed:
         same = bool(
-            expected_commit and re.fullmatch(r"[0-9a-f]{7,40}", version) and expected_commit.startswith(version)
+            expected_commit
+            and re.fullmatch(r"[0-9a-f]{7,40}", version)
+            and expected_commit.startswith(version)
         )
         if version != expected_version and not same:
             if expected_commit is None:
@@ -47,4 +53,6 @@ def assert_pinned_deployment(payload: dict, expected_version: str, expected_comm
                     f"deployed version {version} does not match pinned target {expected_version} "
                     f"(tag/ref {expected_version} is unknown to local git; run 'git fetch --tags' or set COMMIT_REF=<sha>)"
                 )
-            raise AssertionError(f"deployed version {version} does not match pinned target {expected_version}")
+            raise AssertionError(
+                f"deployed version {version} does not match pinned target {expected_version}"
+            )

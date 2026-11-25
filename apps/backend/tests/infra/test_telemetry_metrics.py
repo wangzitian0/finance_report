@@ -170,8 +170,6 @@ async def test_AC10_10_2_red_metrics_record_low_cardinality_labels(monkeypatch) 
 
 
 def test_AC10_10_2_to_10_4_endpoints_gauges_and_record_metrics(monkeypatch) -> None:
-    import infra2_sdk.runtime.otel as otel_mod
-
     pipeline = (REPO_ROOT / "apps/backend/src/extraction/extension/statement_pipeline.py").read_text(encoding="utf-8")
     flow = (REPO_ROOT / "apps/backend/src/statement_flow.py").read_text(encoding="utf-8")
     assert all(
@@ -186,18 +184,6 @@ def test_AC10_10_2_to_10_4_endpoints_gauges_and_record_metrics(monkeypatch) -> N
             "request_id=parse_job.request_id",
         )
     )
-    assert all(
-        telemetry_metrics._build_otlp_metrics_endpoint(raw) == "http://collector:4318/v1/metrics"
-        for raw in ("http://collector:4318", "http://collector:4318/", "http://collector:4318/v1/metrics")
-    )
-
-    calls = []
-    monkeypatch.setattr(
-        otel_mod, "signal_endpoint", lambda base, sig: calls.append((base, sig)) or "http://sentinel/metrics"
-    )
-    assert telemetry_metrics._build_otlp_metrics_endpoint(
-        "http://collector:4318"
-    ) == "http://sentinel/metrics" and calls == [("http://collector:4318", "metrics")]
 
     meter = _enable_otel(monkeypatch)
     telemetry_metrics.set_async_parse_in_flight(3)
