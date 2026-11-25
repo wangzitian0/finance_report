@@ -145,6 +145,7 @@ markers = [
     "no_db: Pure tests that must not initialize the autouse database fixture",
     "db: Tests requiring database access",
     "vcr: Tests replaying recorded HTTP cassettes via pytest-recording",
+    "invariant_core: L3 financial and security invariant core tests",
 ]
 
 # A test that never returns must fail by name inside the PR budget, not at the 15-minute

@@ -12,6 +12,13 @@
 
 Domain packages verify invariants through focused backend/frontend tests, while `common/meta/flows/user_cases_ssot.json` binds the 47 end-to-end business user cases (`UC-01..UC-47`).
 
+### Test Stratification (L1-L4)
+
+- **L1 (Dependency and wiring contracts)**: OpenAPI parity, env manifests, toolchain contracts, router boundaries, and import-layer rules (`tests/tooling/`).
+- **L2 (Honest smoke)**: Environment-branched runtime smoke probes (`common/runtime/shell/smoke_test.sh`, `tests/e2e/test_production_readonly_smoke.py`).
+- **L3 (Invariant core)**: Seven non-overlapping financial and security invariant pillars registered in [`invariant_core.py`](./invariant_core.py) and selectable via `pytest -m invariant_core`.
+- **L4 (Mocked UI and orchestration flows)**: Pruned to essential `user_cases_ssot.json` evidence, telemetry E2E, and visual smoke specs.
+
 ### E2E extension layer
 
 Root specs under `tests/e2e/` are declared per file in `matrix.E2E_ROWS` (`llm_provider`, `market_data`, `deployed_env`, `state_sensitive`, `audited`). Provider-free core journeys form `staging_core_e2e` and `preview_minimum_e2e`; live-LLM checks split between `canary` (`staging.post`) and `audit_replay` (`scheduled_audit`), while `core_journey` runs only the disjoint non-LLM `CORE_JOURNEY_ONLY_FILES` checkpoints (`tests/e2e/journey_checkpoint.py`). Diagnostic hooks capture `e2e_rate_limit.py` 429s, E2E failure bundles, `transport_retry.py` reconnects, and `description_fidelity.py`.
