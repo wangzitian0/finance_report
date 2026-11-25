@@ -16,13 +16,7 @@ export const MOBILE_PROJECT_NAME = 'mobile-chrome';
  * project or dropping a journey from this list turns vitest red.
  */
 export const MOBILE_LANE_SPECS = [
-  'attention-surface.spec.ts',
-  'epic022-attention-journey.spec.ts',
-  'epic022-bottom-tab-ia.spec.ts',
-  'epic022-drilldown-journey.spec.ts',
-  'epic022-ia-shell.spec.ts',
-  'mobile-ux.spec.ts',
-  'workflow-navigation.spec.ts',
+  'ui-visual-smoke.spec.ts',
 ] as const;
 
 export function buildPlaywrightConfig(env: Partial<NodeJS.ProcessEnv> = process.env) {

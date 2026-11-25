@@ -1,61 +1,98 @@
 import { expect, type Locator, type Page } from "@playwright/test";
-import type { PersonalReportPackagePreview } from "../src/lib/types";
 
-type O = Record<string, unknown>;
-type R = Page | Locator;
-const S = "SGD", Z = "0.00", D = (d: string) => `2026-06-${d}`, D0 = `${D("03")}T07:00:00Z`, D1 = `${D("03")}T08:00:00Z`, D2 = D("03"), D3 = D("04"), D4 = "2026-05-20", D5 = "2026-10-31", role = (r: "button" | "link" | "heading") => (p: R, n: string | RegExp, exact = true) => p.getByRole(r, typeof n === "string" ? { name: n, exact } : { name: n });
-export const T = 10_000, VP = [{ name: "desktop", width: 1440, height: 1000 }, { name: "mobile", width: 390, height: 844 }] as const, NVP = [{ label: "mobile", width: 375, height: 812 }, { label: "desktop", width: 1280, height: 800 }] as const, emptyList = (extra: O = {}) => ({ items: [], total: 0, ...extra });
-export const tid = (p: R, id: string) => p.getByTestId(id), txt = (p: R, t: string | RegExp, exact = false) => p.getByText(t, exact ? { exact: true } : undefined), btn = role("button"), lnk = role("link"), hdg = role("heading"), reg = (p: R, name: string) => p.getByRole("region", { name }), vis = (l: Locator, timeout = T) => expect(l).toBeVisible({ timeout }), gone = (l: Locator) => expect(l).toHaveCount(0), att = (l: Locator, k: string, v: string | RegExp) => expect(l).toHaveAttribute(k, v), con = (l: Locator, t: string | RegExp) => expect(l).toContainText(t);
+type RecordPayload = Record<string, unknown>;
+type Scope = Page | Locator;
 
-export async function installApiMocks(page: Page, uid: string, rm: O | ((p: string) => unknown), fb: unknown = {}) {
-  await page.addInitScript(([u, m]) => { localStorage.setItem("finance_user_id", u); localStorage.setItem("finance_user_email", m); }, [uid, `${uid}@example.com`]);
+export const T = 10_000;
+
+export const tid = (scope: Scope, id: string) => scope.getByTestId(id);
+
+export const hdg = (scope: Scope, name: string | RegExp, exact = true) =>
+  scope.getByRole("heading", typeof name === "string" ? { name, exact } : { name });
+
+export const vis = (locator: Locator, timeout = T) => expect(locator).toBeVisible({ timeout });
+
+export async function installApiMocks(
+  page: Page,
+  userId: string,
+  routeMap: RecordPayload | ((path: string) => unknown),
+  fallback: unknown = {},
+) {
+  await page.addInitScript(
+    ([id, email]) => {
+      localStorage.setItem("finance_user_id", id);
+      localStorage.setItem("finance_user_email", email);
+    },
+    [userId, `${userId}@example.com`],
+  );
   await page.route("**/api/**", async (route) => {
-    const p = new URL(route.request().url()).pathname; let b = fb;
-    if (typeof rm === "function") b = rm(p); else if (p in rm) b = rm[p]; else for (const [k, v] of Object.entries(rm)) if (k.endsWith("*") && p.startsWith(k.slice(0, -1))) { b = v; break; }
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(b) });
+    const pathname = new URL(route.request().url()).pathname;
+    let body = fallback;
+    if (typeof routeMap === "function") {
+      body = routeMap(pathname);
+    } else if (pathname in routeMap) {
+      body = routeMap[pathname];
+    } else {
+      for (const [pattern, value] of Object.entries(routeMap)) {
+        if (pattern.endsWith("*") && pathname.startsWith(pattern.slice(0, -1))) {
+          body = value;
+          break;
+        }
+      }
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
   });
 }
 
-export async function gotoReady(p: Page, path: string, vp?: { width: number; height: number }) { if (vp) await p.setViewportSize(vp); await p.goto(path, { waitUntil: "networkidle" }); }
-export async function noHScroll(p: Page, cx = true) { const m = await p.evaluate(() => ({ cw: document.documentElement.clientWidth, sw: document.documentElement.scrollWidth, sx: window.scrollX })); expect(m.sw).toBeLessThanOrEqual(m.cw); if (cx) expect(m.sx).toBe(0); }
+export async function gotoReady(page: Page, path: string, viewport?: { width: number; height: number }) {
+  if (viewport) {
+    await page.setViewportSize(viewport);
+  }
+  await page.goto(path, { waitUntil: "networkidle" });
+}
 
-const RR = (state = "blocked", blocking_count = 1, href = "/reports") => ({ state, blocking_count, href }), EC = (unread = 1, action_required = 1, blocked = 0) => ({ unread, action_required, blocked });
-export const wfStatus = (o: O = {}) => ({ primary_state: "needs_action", next_action: { type: "review_required", count: 1, href: "/review" }, report_readiness: RR(), event_counts: EC(), ...o }),
-  wfSession = (id: string, o: O = {}) => ({ id, status: "active", title: "Upload-to-report session", summary: "S", started_at: D0, last_event_at: D1, source_count: 2, primary_state: "needs_action", report_readiness: RR(), event_counts: EC(), ...o }),
-  wfEvent = (id: string, user_id: string, session_id: string, o: O = {}) => ({ id, user_id, session_id, occurred_at: D1, family: "review.required", severity: "action_required", status: "unread", title: "Review required", summary: "C", source_type: "bank_statement", source_id: id, action_href: "/review", report_impact: "blocked", dedupe_key: id, created_at: D1, updated_at: D1, ...o }),
-  reconStats = (o: O = {}) => ({ total_transactions: 0, matched_transactions: 0, unmatched_transactions: 0, pending_review: 0, auto_accepted: 0, match_rate: 0, score_distribution: {}, ...o }),
-  transfersSummary = () => ({ pending_count: 0, pending_total: Z, current_balance: Z, currency: S, oldest_pending_date: null }),
-  reviewQueue = (o: O = {}) => ({ pending_matches: [], consistency_checks: [], has_unresolved_checks: false, ...o }),
-  bsFixture = (o: O = {}) => ({ as_of_date: D3, currency: S, assets: [], liabilities: [], equity: [], total_assets: Z, total_liabilities: Z, total_equity: Z, net_income: Z, unrealized_fx_gain_loss: Z, net_worth_adjustment_gain_loss: Z, fx_warnings: [], portfolio_warnings: [], opening_balance_warnings: [], equation_delta: Z, cta_adjustment: Z, is_balanced: true, ...o }),
-  bs1k = (account_id = "c", name = "Cash") => bsFixture({ as_of_date: D2, assets: [{ account_id, name, type: "ASSET", parent_id: null, amount: "1000.00" }], total_assets: "1000.00", total_equity: "1000.00" }),
-  isFixture = (o: O = {}) => ({ start_date: "2026-01-01", end_date: D3, currency: S, income: [], expenses: [], total_income: Z, total_expenses: Z, net_income: Z, fx_warnings: [], trends: [], ...o }),
-  cfFixture = (o: O = {}) => ({ start_date: "2026-01-01", end_date: D3, currency: S, operating: [], investing: [], financing: [], summary: { operating_activities: Z, investing_activities: Z, financing_activities: Z, net_cash_flow: Z, beginning_cash: Z, ending_cash: Z }, fx_warnings: [], lineage_summary: { event_count: 0, classified_event_count: 0, unclassified_event_count: 0, opening_stock_event_count: 0 }, proof_state: "unproven" as const, proof_reasons: [], ...o }),
-  stmtFixture = (id: string, o: O = {}) => ({ id, user_id: "u", account_id: "a1", original_filename: `${id}.csv`, institution: "DBS", currency: S, period_start: D("01"), period_end: D("30"), opening_balance: "1000.00", closing_balance: "1123.45", status: "parsed", stage1_status: "pending_review", confidence_score: 98, balance_validated: true, transactions: [], ...o }),
-  lineageFixture = (account_id: string, account_name: string, account_type: string, journal_line_id: string, journal_entry_id: string, amount = "1000.00") => ({ account_id, account_name, account_type, currency: S, as_of_date: D3, start_date: null, total: amount, lines: [{ journal_line_id, journal_entry_id, entry_date: "2026-05-10", memo: "Salary deposit", direction: "DEBIT", original_amount: amount, original_currency: S, amount }] }),
-  dqFixture = (o: O = {}) => { const ok = (n: string) => ({ is_healthy: true, name: n, status: "PASSED", score_impact: 25, summary: "OK", detail: "", details: {}, delta: "0" }); return { score: 100, grade: "A_AUDIT_READY", as_of_date: "2026-10-09", currency: S, equation_invariant: ok("Eq"), temporal_continuity_invariant: ok("TC"), reconciliation_purity_invariant: ok("RP"), lineage_anchors_invariant: ok("LA"), timeline: [], action_items: [], ...o }; },
-  homeRoutes = (o: O = {}): O => ({ "/api/workflow/events": emptyList({ sessions: [] }), ...Object.fromEntries(["accounts", "statements", "reconciliation/unmatched", "journal-entries*"].map((k) => [`/api/${k}`, emptyList()])), "/api/reconciliation/transfers/summary": transfersSummary(), "/api/reconciliation/stats": reconStats(), "/api/reports/balance-sheet*": bsFixture(), "/api/reports/income-statement*": isFixture(), ...o }),
-  noticeRoutes = (sid: string, reconTitle: string, withHome = false) => { const n = { report_readiness: RR("blocked", 2, "/reports/package"), event_counts: EC(2, 1, 1) }, u = `/statements/${sid}`; return { ...(withHome ? homeRoutes() : {}), "/api/workflow/status": wfStatus({ next_action: { type: "review_required", count: 2, href: u }, ...n, active_session: wfSession("s1", n) }), "/api/workflow/events": { total: 2, sessions: [], items: [wfEvent("r", "u", "s1", { title: "Source review required", source_id: sid, action_href: u }), wfEvent("c", "u", "s1", { occurred_at: D0, family: "reconciliation.blocked", severity: "blocked", title: reconTitle, action_href: "/reconciliation?tab=review-queue" })] } }; };
-export async function expectUploadNotice(p: Page, s2: string, href: string) { await tid(p, "upload-workflow-summary").locator(":scope > summary").click({ timeout: T }); await vis(txt(p, "Source review required").first()); await vis(txt(p, s2).first()); for (const h of [href, "/reconciliation?tab=review-queue"]) await expect(p.locator(`a[href="${h}"]`).first()).toBeVisible(); }
-export async function expectPrimaryNav(p: Page, name: string, withHref = false) { const nav = p.getByRole("navigation", { name }); for (const [label, href] of [["Home", "/"], ["Chat", "/chat"], ["Audit", "/audit"], ["More", "/more"]] as const) { const l = lnk(nav, label); await (withHref ? att(l, "href", href) : vis(l)); } await vis(btn(nav, "Add")); return nav; }
-export const packageDoc = (): PersonalReportPackagePreview => {
-  const A = "2025-05-20", P = "personal-financial-report-package", F = "personal_us_gaap_like", d = (i: number) => ({ domain: "personal_income" as const, recognition: "S", measurement: "F", classification: "O", presentation: "U", disclosure: "N", line_mappings: { income_statement: "income.other" }, review_state: "accepted" as const, policy_field_name: "ic", provenance: "deterministic_matrix" as const, evidence_anchors: [{ anchor_id: `j:${i}`, anchor_type: "j", source_system: "c", source_id: `${i}`, description: "L" }] }), Z3 = { realized_pnl: Z, unrealized_pnl: Z, dividend_income: Z, currency: S };
-  return { schema_version: "2", lifecycle: "preview", generated_at: `${D4}T12:00:00Z`, package_id: P, status: "draft", context: { framework_id: F, start_date: A, end_date: D4, as_of_date: D4, currency: S }, contract: { package_id: P, version: "2", period_semantics: {}, supported_frameworks: [F, "personal_hkfrs_like"], selected_framework_id: F, export_contract: { formats: ["json"], csv_columns: [] }, sections: [{ section_id: "balance_sheet", label: "Balance Sheet", owner_epic: "E", period_type: "as_of", required: true, status: "ready" }] }, readiness: { package_id: P, state: "blocked", label: "Blocked", action_href: "/upload", blocking_count: 1, input_coverage: { manifest_decision_count: 0, authoritative_input_count: 0, unproven_input_count: 1 }, blockers: [{ code: "processing_account_unresolved", label: "Processing account unresolved", severity: "blocking", count: 1, reason: "Processing account balance cannot be converted to SGD: No FX rate available for USD/SGD.", action_href: "/upload" }] }, framework_policy: { result_id: "p", framework_id: F, matrix_version: "2", report_period_start: A, report_period_end: D4, generated_at: D4, required_statements: ["balance_sheet"], decision_count: 2, evidence_reference_count: 2, decisions: [d(1), d(2)], gaps: [] }, sections: { balance_sheet: bsFixture({ as_of_date: D4 }), income_statement: isFixture({ start_date: A, end_date: D4 }), cash_flow: cfFixture({ start_date: A, end_date: D4, proof_reasons: ["x"] }), investment_performance: { period_start: A, period_end: D4, as_of_date: D4, holdings: [], xirr: null, time_weighted_return: null, money_weighted_return: null, ...Z3, dividend_yield: null, allocation: [], data_freshness: { stale: false, latest_price_date: null, market_data_provider: null, stale_holdings: [] }, source_links: [], notes: [] }, annualized_income_long_term: { section_id: "annualized_income_long_term", label: "A", as_of_date: D4, trailing_period_start: A, trailing_period_end: D4, trailing_period_days: 365, income: { annualized_salary: Z, annualized_bonus: Z, annualized_dividend: Z, annualized_total: Z, currency: S, calculation_basis: "s" }, restricted_holdings: [], restricted_fair_value_total: Z, restricted_fair_value_total_currency: S, net_worth_treatment: { liquid_net_worth_default: "e", restricted_wealth_basis: "d", exclude_restricted_query: "/r", include_restricted_query: "/r" }, notes: [] }, notes: { section_id: "notes", label: "N", status: "ready", non_compliance_statement: "N", notes: [] }, traceability_appendix: { section_id: "traceability_appendix", label: "A", status: "ready", lines: [], completeness_warnings: [] } } };
-};
-export const mobileUxResolver = () => {
-  const a = "123.45", m = "/api/statements/stmt-mobile", k = "/api/reconciliation/", e = { id: "e1", entry_date: "2026-06-01", status: "posted", source_type: "manual", memo: "Mobile review sample entry", created_at: D1, lines: [{ id: "l1", account_id: "assets:cash", direction: "DEBIT", amount: a, currency: S }, { id: "l2", account_id: "income:salary", direction: "CREDIT", amount: a, currency: S }] };
-  const sr = stmtFixture("stmt-mobile", { account_id: "a1", original_filename: "m.pdf", institution: "M", transactions: [{ id: "txn-mobile-1", txn_date: "2026-06-05", description: "Long mobile grocery transaction from a bank statement", amount: a, direction: "OUT", currency: S, confidence: "medium", confidence_tier: "medium" }] });
-  const r: O = { "/api/statements/classification-suggestions": { items: [{ suggestion_id: "suggestion-mobile", transaction: "Long mobile transaction description", suggested_category_or_match: "Meals", ai_score: 72, ai_reasoning: "M" }] }, "/api/statements/pending-review": { items: [{ id: "stmt-mobile" }], total: 1 }, [m]: sr, [`${m}/review`]: sr, [`${m}/approvals`]: { journal_entries_created: 1 }, [`${m}/rejections`]: { success: true }, [`${k}review-queue`]: reviewQueue({ pending_matches: [{ id: "match-mobile-1", match_score: 91, status: "pending_review", created_at: D1, description: "Long reconciliation match needing mobile approval", amount: a, txn_date: "2026-06-05" }] }), [`${k}matches`]: { approved_count: 1, rejected_count: 1, journal_entries_reconciled: 0 }, [`${k}transfers/summary`]: transfersSummary(), [`${k}stats`]: reconStats(), [`${k}pending`]: emptyList(), "/api/accounts": { items: [{ id: "account-mobile-long", name: "DBS Main", code: "1010", type: "ASSET", currency: S, balance: "123456.78", is_active: true }], total: 1 } };
-  return (p: string) => (p.startsWith("/api/journal-entries/") && p.endsWith("/audit") ? { items: [] } : p.startsWith("/api/journal-entries") ? { items: [e], total: 1 } : r[p] ?? {});
-},
-  uploadLayoutRoutes = (BID: string) => {
-  const P = "2648a0b1-0000-4000-8000-0000000", r = (s: string, fn: string, status: string, ex: O = {}) => stmtFixture(s.length > 5 ? s : `${P}000${s}`, { original_filename: fn, ...ex, status });
-  const STMTS = [r(BID, "IBKR.csv", "parsed", { account_id: null, currency: null, period_start: null, period_end: null, confidence_score: 20, brokerage_import_failed: true, brokerage_import_failure_reason: "does not state an as-of date for 2 of 2 positions" }), r("10", "d10.csv", "parsed", { confidence_score: 80 }), r("11", "cmb_statement_fixture.pdf", "parsed", { period_start: "2025-03-01", period_end: "2025-03-31", confidence_score: 85 }), r("12", "g.pdf", "approved", { period_start: "2025-03-01", period_end: "2025-03-31" }), r("13", "c.pdf", "parsing", { period_start: null, period_end: null, currency: "CNY", confidence_score: null })];
-  return { "/api/statements": { items: STMTS, total: STMTS.length }, "/api/workflow/status": wfStatus({ primary_state: "blocked", next_action: { type: "resolve_blocker", count: 1, href: "/reports?tab=package" }, report_readiness: RR(), event_counts: EC(3, 1, 1) }), "/api/workflow/events": { items: [wfEvent("e1", "u", "s", { severity: "blocked", title: "Package section invariant failed", action_href: "/reports?tab=package" }), wfEvent("e2", "u", "s", { action_href: `/statements/${P}00010` })], total: 2, sessions: [] }, "/api/reconciliation/transfers/pending": { items: [{ entry_id: "tf-1", from_account: "DBS", to_account: "(unmatched destination) GXS Bank ••9912", amount: "1500.00", currency: S, initiated_date: "2026-10-20", days_outstanding: 9, description: "F" }], total: 1 } };
-},
-  reviewPathResolver = (STMT_ID: string, OCT_ID: string, PDF_ID: string, APP_ID: string, LOW: string) => {
-  const rows = ([[1, "Salary", "HIGH", "5000.00", "IN"], [2, "NTUC", "HIGH", "84.20", "OUT"], [3, "Grab", "MEDIUM", "18.40", "OUT"], [4, "SP", "HIGH", "120.55", "OUT"], [5, "Rent", "HIGH", "2200.00", "OUT"], [6, LOW, "LOW", "250.00", "OUT"]] as const).map(([i, description, confidence_tier, amount, direction]) => ({ id: `t${i}`, statement_id: OCT_ID, txn_date: `2026-10-0${i}`, description, amount, direction, currency: S, confidence_tier, confidence_score: confidence_tier === "LOW" ? 35 : 92 }));
-  const a64 = "a".repeat(64), base = stmtFixture(STMT_ID, { account_id: null, opening_balance: Z, closing_balance: Z, confidence_score: 80, transactions: [{ id: "t0", statement_id: STMT_ID, txn_date: "2026-05-02", description: "Salary", amount: "5000.00", direction: "IN", currency: S, confidence: "low", status: "pending" }], source_result_digest: a64, source_missing_facts: [], source_envelope_reviewable: true, reviewed_envelope: null });
-  const oct = { ...base, id: OCT_ID, account_id: "acct-dbs", reviewed_envelope: { id: "ro", source_result_digest: a64, account_id: "acct-dbs", currency: S }, balance_validation_result: { opening_balance: "15000.00", closing_balance: "17326.85", calculated_closing: "17326.85", opening_delta: Z, closing_delta: Z, opening_match: true, closing_match: true, validated_at: D5, previous_closing_balance: "12000.00", previous_period_end: "2026-08-31", cross_period_delta: "3000.00", cross_period_match: false, has_date_gap: true }, transactions: rows };
-  const S2: O = { [STMT_ID]: base, [OCT_ID]: oct, [PDF_ID]: { ...oct, id: PDF_ID, original_filename: "d.pdf", file_path: "s/d.pdf" }, [APP_ID]: { ...oct, id: APP_ID, status: "approved", stage1_status: "approved", account_id: "acct-dbs", reviewed_envelope: {} } };
-  return (p: string) => { const [, , , id, rest] = p.split("/"); if (p === "/api/statements") return { items: [{ ...base, transactions: [] }], total: 1 }; if (p.startsWith("/api/statements/") && id in S2 && (!rest || rest === "review")) return S2[id]; if (p === "/api/statements/pending-review") return { items: [base], total: 1 }; if (/^\/api\/statements\/[^/]+\/conflicts$/.test(p)) return { duplicates: [], transfer_pairs: [] }; return p === "/api/workflow/events" ? emptyList({ sessions: [] }) : p === "/api/accounts" ? emptyList() : {}; };
-};
+export async function noHScroll(page: Page, checkX = true) {
+  const metrics = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    scrollX: window.scrollX,
+  }));
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  if (checkX) {
+    expect(metrics.scrollX).toBe(0);
+  }
+}
+
+export const transfersSummary = () => ({
+  pending_count: 0,
+  pending_total: "0.00",
+  current_balance: "0.00",
+  currency: "SGD",
+  oldest_pending_date: null,
+});
+
+export const reviewQueue = (overrides: RecordPayload = {}) => ({
+  pending_matches: [],
+  consistency_checks: [],
+  has_unresolved_checks: false,
+  ...overrides,
+});
+
+export const stmtFixture = (id: string, overrides: RecordPayload = {}) => ({
+  id,
+  user_id: "u",
+  account_id: "a1",
+  original_filename: `${id}.csv`,
+  institution: "DBS",
+  currency: "SGD",
+  period_start: "2026-06-01",
+  period_end: "2026-06-30",
+  opening_balance: "1000.00",
+  closing_balance: "1123.45",
+  status: "parsed",
+  stage1_status: "pending_review",
+  confidence_score: 98,
+  balance_validated: true,
+  transactions: [],
+  ...overrides,
+});

@@ -297,7 +297,7 @@ jobs:
         # The matrix is the one place that sets the shard count: the job name and
         # --splits read strategy.job-total. Raise it when the slowest shard
         # drives the run past its time budget (#2688).
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6]
 
     services:
       postgres:
@@ -344,13 +344,13 @@ jobs:
 
           seed = Path("ci/backend-test-durations.json")
           if not seed.exists():
-              raise SystemExit(f"pytest-split duration seed is missing: {seed}")
+              raise SystemExit(f"backend shard duration seed is missing: {seed}")
           durations = json.loads(seed.read_text(encoding="utf-8"))
           if len(durations) < 500:
               raise SystemExit(
-                  f"pytest-split duration seed is too small: {len(durations)} entries"
+                  f"backend shard duration seed is too small: {len(durations)} entries"
               )
-          print(f"Loaded pytest-split duration seed with {len(durations)} entries")
+          print(f"Loaded backend shard duration seed with {len(durations)} entries")
           PY
           # File-level seeded split (common/testing/backend_shard.py): every
           # tests/**/test_*.py file lands in exactly one shard.
