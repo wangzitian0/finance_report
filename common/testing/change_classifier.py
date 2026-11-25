@@ -118,18 +118,19 @@ COMPONENT_PREFIXES: dict[str, tuple[str, ...]] = {
     "common": ("common/",),
 }
 
-# Fail-closed Vitest selection (#2996). Vitest is skipped only when EVERY changed path is
-# in this set. An unlisted path runs it. A guard test in
-# tests/tooling/test_ci_change_classifier.py scans what Vitest reads, directly and
-# through the JSON files it loads (it checks `backend_test_ref` paths on disk), and fails when a skip prefix overlaps.
-# The backend shards have no skip: backend tests read paths through contract manifests.
-VITEST_SKIP_PREFIXES = ("apps/backend/src/",)
+# Fail-closed cross-layer test selection (#2996, #3215).
+# - Vitest skips only when EVERY changed path starts with VITEST_SKIP_PREFIXES.
+# - Backend jobs (schema-migrations, backend, backend-integration) skip on PRs
+#   only when EVERY changed path starts with BACKEND_TESTS_SKIP_PREFIXES.
+# - Cross-layer contracts live in tests/tooling/ so neither lane reads the other app.
+VITEST_SKIP_PREFIXES = ("apps/backend/",)
+BACKEND_TESTS_SKIP_PREFIXES = ("apps/frontend/",)
 
 TOOLING_LANE_PREFIXES: tuple[str, ...] = (
     "tools/",
     "tests/",
     "common/",
-    "docs/",
+    "docs/reference/",
     "apps/",
     ".github/",
     ".agents/",
@@ -152,6 +153,8 @@ TOOLING_LANE_EXACT: frozenset[str] = frozenset(
         "docker-compose.yml",
         "toolchain.toml",
         "mkdocs.yml",
+        "docs/hooks.py",
+        "docs/user-guide/reports.md",
         "runtime-hooks.manifest.json",
         "opencode.json",
         ".env.example",
@@ -295,6 +298,10 @@ class ChangeClassification:
     @property
     def vitest_required(self) -> bool:
         return self._runs_unless_all_in(VITEST_SKIP_PREFIXES)
+
+    @property
+    def backend_required(self) -> bool:
+        return self._runs_unless_all_in(BACKEND_TESTS_SKIP_PREFIXES)
 
     @property
     def tooling_required(self) -> bool:
@@ -578,6 +585,7 @@ def write_github_outputs(
             for name in COMPONENT_PREFIXES
         ),
         ("vitest_required", str(classification.vitest_required).lower()),
+        ("backend_required", str(classification.backend_required).lower()),
         ("tooling_required", str(classification.tooling_required).lower()),
     ]
     with output_path.open("a", encoding="utf-8") as fh:

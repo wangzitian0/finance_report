@@ -6,6 +6,8 @@
 
 `.github/workflows/ci.yml` runs `lint` in parallel with `changes`:
 - `changes` fans out to `schema-migrations`, `backend` (seeded file shards), `backend-integration`, `frontend-build`, `frontend-vitest`, `frontend-playwright`, `frontend-telemetry-e2e`, `tooling` (`tests/tooling/`), and `container-images` (`push` only on main/release push or `workflow_dispatch`; PR CI dry-runs staging image builds before merge when `image_build_required=true`).
+- On PRs, `backend_required=false` skips `schema-migrations`, `backend`, and `backend-integration` for pure `apps/frontend/` changes, `vitest_required=false` skips `frontend-vitest` for pure `apps/backend/` changes, and `tooling` runs only for shared, CI, reference-doc, or tooling paths.
+- `frontend-playwright` and `frontend-telemetry-e2e` reuse the `.next` tarball artifact from `frontend-build` (`frontend-telemetry-e2e` builds only when `frontend-build` skips).
 - `main`-only `container-images -> verify-sha-image-published` verifies the `:<sha>` tag digest in GHCR.
 - `finish` aggregates all jobs and appends the `Pipeline time contract` summary via `tools/github_workflow_timing_summary.py`.
 

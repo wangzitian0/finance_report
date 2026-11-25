@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_moon_ci_and_compose_contracts() -> None:

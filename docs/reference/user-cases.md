@@ -5,8 +5,8 @@
 > **Source Registry**: [`common/meta/flows/user_cases_ssot.json`](../../common/meta/flows/user_cases_ssot.json)  
 > **Proof-Tier Classifier**: [`common/meta/base/user_case_proof.py`](../../common/meta/base/user_case_proof.py)  
 > **Compliance Test Suites**:
-> - Backend: [`apps/backend/tests/flows/test_user_cases_consistency.py`](../../apps/backend/tests/flows/test_user_cases_consistency.py)
-> - Frontend: [`apps/frontend/src/__tests__/userCasesConsistency.test.tsx`](../../apps/frontend/src/__tests__/userCasesConsistency.test.tsx)
+> - Cross-layer contracts: [`tests/tooling/test_user_cases_consistency.py`](../../tests/tooling/test_user_cases_consistency.py)
+> - Backend domain invariants: [`apps/backend/tests/flows/test_user_cases_consistency.py`](../../apps/backend/tests/flows/test_user_cases_consistency.py)
 
 ---
 
@@ -177,14 +177,14 @@ Governs recurring subscription tracking, anomaly detection, and read-only natura
 
 ## 4. Invariant Verification & Execution
 
-To continuously guard against regression, both backend and frontend suites validate that every user-case contract aligns with the codebase:
+To continuously guard against regression, the tooling and backend suites verify that every user-case contract matches the codebase:
 
 ```bash
-# 1. Backend User Cases consistency suite
-apps/backend/.venv/bin/pytest -n0 --no-cov -o addopts="" apps/backend/tests/flows/test_user_cases_consistency.py -x
+# 1. Cross-layer User Cases consistency suite
+apps/backend/.venv/bin/pytest -n0 --no-cov -o addopts="" tests/tooling/test_user_cases_consistency.py -x
 
-# 2. Frontend User Cases consistency suite
-cd apps/frontend && npx vitest run src/__tests__/userCasesConsistency.test.tsx
+# 2. Backend domain invariants suite
+apps/backend/.venv/bin/pytest -n0 --no-cov -o addopts="" apps/backend/tests/flows/test_user_cases_consistency.py -x
 
 # 3. Router contract-maturity gate
 python tools/audit_router_contracts.py --output docs/reference/router-contract-maturity.md

@@ -199,31 +199,6 @@ def test_AC_reporting_package_document_1_2_6_7_contract_and_closure() -> None:
         )
     )
     assert all("get_personal_report_package_readiness" not in p.read_text() for p in prod.rglob("*.py"))
-    assert all(
-        "/api/reports/package/readiness" not in p.read_text()
-        for p in (REPOSITORY_ROOT / "apps/frontend/src").rglob("*.ts*")
-    )
-    retired = (
-        "/api/reports/package/contract",
-        "/api/reports/package/readiness",
-        "/api/reports/package/framework-policy",
-        "/api/reports/package/annualized-income-schedule",
-        "/api/reports/package/notes",
-        "/api/reports/package/traceability",
-    )
-    assert all(
-        r not in (REPOSITORY_ROOT / rel).read_text()
-        for rel in (
-            "common/reporting/readme.md",
-            "common/reporting/framework-reporting.md",
-            "common/workflow/workflow-events.md",
-            "common/pricing/readme.md",
-            "docs/user-guide/reports.md",
-        )
-        for r in retired
-    )
-    journey = (REPOSITORY_ROOT / "tests/e2e/test_personal_financial_report_package.py").read_text()
-    assert all(r.removeprefix("/api") not in journey for r in retired)
     assert (
         "confidence_metric_snapshots"
         not in (REPOSITORY_ROOT / "apps/backend/src/runtime/extension/snapshot_anonymizer.py").read_text()
