@@ -173,8 +173,9 @@ def test_AC_testing_toolchain_3_backend_format_uses_invoking_python_environment(
     )
     precommit = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     assert "cd apps/backend && uv run python ../../tools/check_env_keys.py" in precommit
-    assert "rev: v0.14.11" in precommit
-    assert "--config=apps/backend/pyproject.toml" in precommit
+    assert "cd apps/backend && uv run --frozen ruff check src tests" in precommit
+    assert "cd apps/backend && uv run --frozen ruff format src tests --check" in precommit
+    assert "ruff-pre-commit" not in precommit
     assert "validate_schemas.py" not in precommit
     assert "mirrors-mypy" not in precommit
 

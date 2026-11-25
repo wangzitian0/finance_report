@@ -16,20 +16,21 @@ default_install_hook_types: [pre-commit, pre-push]
 default_stages: [pre-commit]
 
 repos:
-  # Ruff - Fast Python linter & formatter (local == CI parity via apps/backend/pyproject.toml)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.11
+  # Ruff - Fast Python linter & formatter (exact local == CI parity via apps/backend/uv.lock)
+  - repo: local
     hooks:
-      # Run linter with auto-fix using the exact backend config CI uses
-      - id: ruff
-        args: [--config=apps/backend/pyproject.toml, --fix, --exit-non-zero-on-fix]
-        types_or: [python, pyi]
-        files: ^apps/backend/(src|tests)/
-      # Run formatter
+      - id: ruff-check
+        name: Backend Ruff lint
+        entry: bash -c 'cd apps/backend && uv run --frozen ruff check src tests'
+        language: system
+        files: ^apps/backend/(src|tests)/.*\.py$
+        pass_filenames: false
       - id: ruff-format
-        args: [--config=apps/backend/pyproject.toml]
-        types_or: [python, pyi]
-        files: ^apps/backend/(src|tests)/
+        name: Backend Ruff format check
+        entry: bash -c 'cd apps/backend && uv run --frozen ruff format src tests --check'
+        language: system
+        files: ^apps/backend/(src|tests)/.*\.py$
+        pass_filenames: false
 
   # Content-level secret scan (AC8.13.136). Filename-based .gitignore only stops
   # tracked credential files; this scans staged *content*, so a `git add -f .env`
@@ -106,9 +107,12 @@ ci:
   autofix_prs: true
   autofix_commit_msg: "style: auto-fix from pre-commit hooks"
   autoupdate_schedule: monthly
-  # Pre-push gates need `uv` and the backend project, which the hosted
-  # pre-commit.ci runner does not provide. They are pre-push stage so pre-commit.ci
-  # (pre-commit stage) skips them anyway; listed here to make that explicit. The
-  # same checks run authoritatively in the GitHub Actions `lint` job.
+  # Local hooks need `uv` and workspace toolchains, which the hosted
+  # pre-commit.ci runner does not provide; the same checks run authoritatively
+  # in the GitHub Actions `lint` job.
   skip:
+    - ruff-check
+    - ruff-format
+    - check-env-keys
+    - frontend-lint
     - preflight-static
