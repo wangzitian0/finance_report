@@ -90,12 +90,6 @@ INVARIANT_VIOLATION_KINDS = (
 INVARIANT_INSTITUTION_CLASSES = ("bank", "brokerage", "unknown")
 
 
-def _build_otlp_metrics_endpoint(endpoint: str) -> str:
-    from infra2_sdk.runtime.otel import signal_endpoint
-
-    return signal_endpoint(endpoint, "metrics")
-
-
 def mark_metrics_export_active(active: bool = True) -> None:
     global _metrics_export_active
     _metrics_export_active = active
