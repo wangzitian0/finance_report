@@ -760,3 +760,32 @@ def test_test_selection_emits_junit_xml_when_hook_artifacts_dir_or_junit_path_is
     )
     assert f"--junitxml={explicit}" in calls[-1]
     assert explicit.parent.is_dir()
+
+    monkeypatch.delenv("HOOK_ARTIFACTS_DIR", raising=False)
+    assert (
+        test_selection.main(
+            ["--stage", "staging_ai_ocr", "--corpus", "all", "--run"],
+            runner=_fake_run,
+        )
+        == 0
+    )
+    assert not any(arg.startswith("--junitxml=") for arg in calls[-1])
+
+    monkeypatch.setenv("HOOK_ARTIFACTS_DIR", str(artifacts_dir))
+    assert (
+        test_selection.main(
+            ["--stage", "staging_ai_ocr", "--corpus", "all", "--run"],
+            runner=_fake_run,
+        )
+        == 0
+    )
+    assert f"--junitxml={artifacts_dir / 'staging_ai_ocr.junit.xml'}" in calls[-1]
+
+    assert (
+        test_selection.main(
+            ["--touched-files", "apps/frontend/src/components/journal/EntryForm.tsx", "--run"],
+            runner=_fake_run,
+        )
+        == 0
+    )
+    assert f"--junitxml={artifacts_dir / 'touched_files.junit.xml'}" in calls[-1]

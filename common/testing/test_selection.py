@@ -29,16 +29,19 @@ def _resolve_junit_path(
     stage: str | None,
     corpus: str | None,
 ) -> Path | None:
-    if explicit is not None:
-        return explicit
-    if not hook_artifacts_dir:
+    if explicit is None and not hook_artifacts_dir:
         return None
     stem = (
         f"{stage}_{corpus}"
         if stage and corpus and corpus != "all"
         else (stage or "selection")
     )
-    return Path(hook_artifacts_dir) / f"{stem}.junit.xml"
+    resolved = (
+        Path(hook_artifacts_dir) / f"{stem}.junit.xml"
+        if explicit is None
+        else explicit
+    )
+    return resolved if resolved.is_absolute() else ROOT_DIR / resolved
 
 
 def run_pytest(
@@ -56,8 +59,9 @@ def run_pytest(
     """
     flags = ["-v", "--tb=short", "-o", "addopts=", "-m", marker]
     if junit_path is not None:
-        junit_path.parent.mkdir(parents=True, exist_ok=True)
-        flags.append(f"--junitxml={junit_path}")
+        resolved_junit = junit_path if junit_path.is_absolute() else ROOT_DIR / junit_path
+        resolved_junit.parent.mkdir(parents=True, exist_ok=True)
+        flags.append(f"--junitxml={resolved_junit}")
     argv = [sys.executable, "-m", "pytest", *nodes, *flags]
     env = {**stage_env, **os.environ, "STRICT_E2E_GATES": "1"}
     return runner(argv, check=False, cwd=ROOT_DIR, env=env).returncode

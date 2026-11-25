@@ -7,6 +7,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 import json
+import sys
 import time
 import uuid
 from collections.abc import Mapping, Sequence
@@ -1110,6 +1111,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--output-summary", type=Path, default=None)
     args = parser.parse_args(argv)
     if args.max_workers < 1:
+        return 2
+    if args.app_url is not None and not args.app_url.strip():
+        print("Error: --app-url must not be empty.", file=sys.stderr)
         return 2
 
     raw_manifest = yaml.safe_load(args.manifest.read_text(encoding="utf-8")) or {}
