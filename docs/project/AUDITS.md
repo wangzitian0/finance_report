@@ -5,7 +5,7 @@ This file indexes project consistency and traceability audits. Use generated rep
 |---|---|
 | `tools/preflight.py --tier=static` | Pre-push structural, lint, OpenAPI, and boundary verification |
 | [traceability-exceptions.md](traceability-exceptions.md) | Classified helper/SSOT tests that serve as shared test infrastructure |
-Live verification runs through `check_app_boundary.py`, `check_base_purity.py`, `check_tier_imports.py`, `check_public_orm_exports.py`, and CI unit/E2E suites (`common/meta/flows/user_cases_ssot.json`).
+Live verification runs through `check_app_boundary.py`, `check_base_purity.py`, `check_tier_imports.py`, and CI unit/E2E suites (`common/meta/flows/user_cases_ssot.json`).
 ## Historical Audits
 | Report | Date | Scope | Status |
 |---|---|---|---|

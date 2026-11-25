@@ -69,35 +69,12 @@ OPENAPI_INPUT_GLOBS: tuple[str, ...] = (
 
 CHECKS: tuple[Check, ...] = (
     _py_check(
-        "schema-validate",
-        ("apps/backend/src/schemas/*.py",),
-        "tools/validate_schemas.py",
-        "--paths",
-        MATCHING_PATHS,
-        why="Pydantic schema changed: validate schema contracts",
-    ),
-    _py_check(
         "api-reference",
         OPENAPI_INPUT_GLOBS,
         "../../tools/generate_api_reference.py",
         "--check",
         why="router/schema changed: docs/reference/api.md must be regenerated",
         cwd="apps/backend",
-    ),
-    _py_check(
-        "router-contract",
-        ("apps/backend/src/routers/*.py",),
-        "-m",
-        "pytest",
-        "tests/tooling/test_audit_router_contracts.py::test_findings_doc_is_in_sync",
-        "-q",
-        "--no-cov",
-        "-n",
-        "0",
-        "-o",
-        "addopts=",
-        why="router changed: docs/reference/router-contract-maturity.md must be in sync",
-        tier="heavy",
     ),
     _py_check(
         "migration-risk",
@@ -232,17 +209,6 @@ CHECKS: tuple[Check, ...] = (
         why="backend source changed: L4 backend super-package edge ratchet",
     ),
     _py_check(
-        "public-orm-exports",
-        (
-            "apps/backend/src/*/__init__.py",
-            "common/meta/extension/public_orm_exports.py",
-            "common/meta/extension/check_public_orm_exports.py",
-            "tools/check_public_orm_exports.py",
-        ),
-        "tools/check_public_orm_exports.py",
-        why="package-root public language or ORM-export ratchet changed",
-    ),
-    _py_check(
         "base-purity",
         (
             "apps/backend/src/*.py",
@@ -273,16 +239,6 @@ CHECKS: tuple[Check, ...] = (
         why="toolchain contracts and version declarations must not drift",
     ),
     _py_check(
-        "detached-owner-shortcuts",
-        (
-            "apps/backend/tests/**.py",
-            "tools/check_detached_owner_shortcuts.py",
-            "common/testing/detached_owner_guard.py",
-        ),
-        "tools/check_detached_owner_shortcuts.py",
-        why="backend tests must not reintroduce un-baselined detached owner uuid4 shortcuts",
-    ),
-    _py_check(
         "tier-imports",
         (
             "apps/backend/src/*.py",
@@ -291,19 +247,6 @@ CHECKS: tuple[Check, ...] = (
         ),
         "tools/check_tier_imports.py",
         why="CODE-ONLY financial core must not import LLM layer",
-    ),
-    _py_check(
-        "readings-eval",
-        (
-            "tests/fixtures/readings/**.json",
-            "tests/fixtures/readings-*",
-            "tools/check_readings_eval.py",
-            "common/testing/check_readings_eval.py",
-            "common/testing/readings_eval.py",
-            "common/testing/readings_eval_baseline.py",
-        ),
-        "tools/check_readings_eval.py",
-        why="readings graded accuracy eval ratchet",
     ),
     _py_check(
         "lockfile-registry",

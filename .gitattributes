@@ -3,12 +3,6 @@
 # frontend modules import it and the build expects it present.
 apps/frontend/src/lib/api-types.ts linguist-generated=true
 
-# tests/fixtures/readings-eval-baseline.jsonl is the readings graded-eval
-# ratchet floor (EPIC-023 AC23.8), stored as sorted JSONL (one case per line).
-# PRs ratcheting DIFFERENT cases auto-merge by union; only same-case
-# edits conflict.
-tests/fixtures/readings-eval-baseline.jsonl merge=union
-
 # Treat PDF fixtures as binary in git diff so binary header bytes (%PDF-1.4\n%\x93\x8c\x8b\x9e)
 # are never decoded as text diffs.
 *.pdf binary

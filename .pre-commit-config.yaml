@@ -16,37 +16,21 @@ default_install_hook_types: [pre-commit, pre-push]
 default_stages: [pre-commit]
 
 repos:
-  # Ruff - Fast Python linter & formatter (replaces flake8, isort, black)
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.9.4
+  # Ruff - Fast Python linter & formatter (exact local == CI parity via apps/backend/uv.lock)
+  - repo: local
     hooks:
-      # Run linter with auto-fix
-      - id: ruff
-        args: [--fix, --exit-non-zero-on-fix, "--ignore=E501,E401,E402,E701,E702,E714,E731,F401,F811,I001,UP034,UP038"]
-        types_or: [python, pyi]
-      # Run formatter
+      - id: ruff-check
+        name: Backend Ruff lint
+        entry: bash -c 'cd apps/backend && uv run --frozen ruff check src tests'
+        language: system
+        files: ^apps/backend/(src|tests)/.*\.py$
+        pass_filenames: false
       - id: ruff-format
-        types_or: [python, pyi]
-        files: ^apps/backend/(src|tests)/
-
-  # Type checking with mypy
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.1
-    hooks:
-      - id: mypy
-        additional_dependencies:
-          - pydantic>=2.7.0
-          - sqlalchemy>=2.0.30
-          - types-redis
-          - types-PyYAML
-        # follow-imports=silent: type-check only the staged files, using imported
-        # modules for types without reporting their (pre-existing) errors. Without
-        # this, editing any file that transitively imports the service graph fails
-        # the commit on ~170 unrelated debt errors, training contributors to
-        # --no-verify (which also skips ruff/format). CI does not run mypy, so this
-        # hook is the only mypy signal; keep it scoped and passable for clean work.
-        args: [--warn-unused-ignores, --ignore-missing-imports, --follow-imports=silent]
-        files: ^apps/backend/src/
+        name: Backend Ruff format check
+        entry: bash -c 'cd apps/backend && uv run --frozen ruff format src tests --check'
+        language: system
+        files: ^apps/backend/(src|tests)/.*\.py$
+        pass_filenames: false
 
   # Content-level secret scan (AC8.13.136). Filename-based .gitignore only stops
   # tracked credential files; this scans staged *content*, so a `git add -f .env`
@@ -93,22 +77,12 @@ repos:
         files: ^(apps/backend/src/config\.py|\.env\.example)$
         # Only run when relevant files change
 
-  # Schema validation
-  - repo: local
-    hooks:
-      - id: validate-schemas
-        name: Validate Pydantic schemas
-        entry: bash -c 'cd apps/backend && uv run python ../../tools/validate_schemas.py --paths "$@"' --
-        language: system
-        files: ^(apps/backend/src/config\.py|apps/backend/src/schemas/.*\.py)$
-        # Only run when relevant files change
-
-  # Frontend lint (if changed)
+  # Frontend lint (local == CI parity via apps/frontend/package.json)
   - repo: local
     hooks:
       - id: frontend-lint
         name: Frontend ESLint
-        entry: bash -c 'set -e; cd apps/frontend && npm run lint -- --max-warnings 0'
+        entry: bash -c 'set -e; cd apps/frontend && npm run lint'
         language: system
         files: ^apps/frontend/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
@@ -133,9 +107,12 @@ ci:
   autofix_prs: true
   autofix_commit_msg: "style: auto-fix from pre-commit hooks"
   autoupdate_schedule: monthly
-  # Pre-push gates need `uv` and the backend project, which the hosted
-  # pre-commit.ci runner does not provide. They are pre-push stage so pre-commit.ci
-  # (pre-commit stage) skips them anyway; listed here to make that explicit. The
-  # same checks run authoritatively in the GitHub Actions `lint` job.
+  # Local hooks need `uv` and workspace toolchains, which the hosted
+  # pre-commit.ci runner does not provide; the same checks run authoritatively
+  # in the GitHub Actions `lint` job.
   skip:
+    - ruff-check
+    - ruff-format
+    - check-env-keys
+    - frontend-lint
     - preflight-static

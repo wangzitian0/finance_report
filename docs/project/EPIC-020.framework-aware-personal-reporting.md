@@ -37,7 +37,7 @@ AI suggestions become trusted only via structured, reviewed policy fields with s
 
 Each layer binds an authority tier (`common/meta/readme.md`):
 
-- `event → L2`: **LLM-LED** — invariant/property + eval + provenance, no exact-golden (`tools/check_readings_eval.py`).
+- `event → L2`: **LLM-LED** — invariant/property + eval + provenance, no exact-golden (`tests/benchmarks/pdf_corpus_oracle.py`).
 - `L2 → L1`: **CODE-LED** (CODE-ONLY today via `framework_policy`) — assert the **code's** decision (`test_framework_policy_coverage.py`).
 - `L1 → report`: **CODE-ONLY** — pure code aggregation, exact / property test.
 

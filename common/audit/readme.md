@@ -6,11 +6,6 @@ Peer to [`meta`](../meta/readme.md): `audit.base` defines the Shared-Kernel valu
 
 `TraceRecord` (`trace/contract/trace_record.contract.md`) is append-only (UUID5 ids, immutable triggers, `supersedes_id` chains). `OBSERVATION` records measurements; `DECISION` folds direct/manifest parent records under transaction-scoped locks via `TraceEmitter` and caller UoW (`current_authoritative_trace_decision_projection` / `current_authoritative_trace_decisions` + `shared_current_authority`). `TerminalAuditVerifier` verifies frozen package decisions.
 
-<a id="deletion-ownership"></a>
-## Deletion ownership
-
-`common/audit/data/fk-cascade-ownership.json` inventories every `ondelete="CASCADE"` foreign key; only `aggregate_internal` is approved permanently while remaining cross-domain sites shrink under `data/fk-cascade-debt-baseline.json`.
-
 ## Source-type trust hierarchy (provenance)
 
 `JournalEntrySourceType` ranks user provenance `manual > user_confirmed > auto_matched > auto_parsed` (`common/reconciliation/readme.md#thresholds`). Conflicting facts never downgrade higher-trust provenance or overwrite `manual` entries automatically.

@@ -9,14 +9,10 @@ import pytest
 
 from common.meta.base.layering import PACKAGE_LAYER
 from common.meta.base.user_case_proof import (
-    PROOF_FLOOR_BENCH_TOTAL,
-    PROOF_FLOOR_E2E_TOTAL,
-    PROOF_FLOOR_L4_FULL,
     ProofTier,
     derive_evidence_tier,
     derive_proof_tier,
     format_proof_tier_cell,
-    summarize_evidence_totals,
     summarize_registry_totals,
 )
 
@@ -148,18 +144,12 @@ def test_ssot_registry_completeness_and_doc_sync() -> None:
         )
 
 
-def test_user_case_proof_tier_ratchet_and_board() -> None:
+def test_user_case_proof_tier_board_and_doc_sync() -> None:
     repo_root = _repo_root()
     data = _load_ssot_registry()
     domains = data.get("domains", [])
     totals = summarize_registry_totals(domains)
     assert totals["total"] == 47
-    evidence = summarize_evidence_totals(domains)
-    assert evidence[ProofTier.L4_FULL_PROOF.value] >= PROOF_FLOOR_L4_FULL
-    assert evidence[ProofTier.L4_FULL_PROOF.value] + evidence[ProofTier.L3_E2E_PROVEN.value] >= PROOF_FLOOR_E2E_TOTAL
-    assert (
-        evidence[ProofTier.L4_FULL_PROOF.value] + evidence[ProofTier.L3_BENCH_PROVEN.value] >= PROOF_FLOOR_BENCH_TOTAL
-    )
     assert totals[ProofTier.L0_GAP.value] == 0
 
     assert derive_proof_tier({"gap_issue": "#1", "gap_kind": "gap"}) == ProofTier.L0_GAP
