@@ -83,7 +83,9 @@ async def test_processing_account_transfers_and_equation(db: AsyncSession, test_
     ("source_type", "should_fail"),
     [(JournalEntrySourceType.MANUAL, True), (JournalEntrySourceType.SYSTEM, False)],
 )
-async def test_processing_account_posting_authority(db: AsyncSession, test_user, source_type, should_fail: bool) -> None:
+async def test_processing_account_posting_authority(
+    db: AsyncSession, test_user, source_type, should_fail: bool
+) -> None:
     uid = test_user.id
     processing = await get_or_create_processing_account(db, uid, currency="SGD")
     cash = await make_account(db, uid, "Cash", AccountType.ASSET, code="1001")
@@ -112,7 +114,13 @@ async def test_transfer_detection_pairing_and_unpaired_queries(db: AsyncSession,
         ("", False),
     ):
         txn = await AtomicTransactionFactory.create_async(
-            db, user_id=uid, source_doc_id=doc.id, txn_date=date.today(), description=desc, amount=Decimal("10.00"), direction=TransactionDirection.OUT
+            db,
+            user_id=uid,
+            source_doc_id=doc.id,
+            txn_date=date.today(),
+            description=desc,
+            amount=Decimal("10.00"),
+            direction=TransactionDirection.OUT,
         )
         assert detect_transfer_pattern(txn.description) is expected
 
@@ -121,18 +129,41 @@ async def test_transfer_detection_pairing_and_unpaired_queries(db: AsyncSession,
 
     cash = await make_account(db, uid, "Cash", AccountType.ASSET, code="1001")
     checking = await make_account(db, uid, "Checking", AccountType.ASSET, code="1002")
-    await create_transfer_out_entry(db, user_id=uid, source_account_id=cash.id, amount=Decimal("100.00"), txn_date=date.today(), description="Transfer to Bank B", currency="SGD")
+    await create_transfer_out_entry(
+        db,
+        user_id=uid,
+        source_account_id=cash.id,
+        amount=Decimal("100.00"),
+        txn_date=date.today(),
+        description="Transfer to Bank B",
+        currency="SGD",
+    )
     assert len(await get_unpaired_transfers(db, uid, currency="SGD")) == 1
     assert await get_processing_balance(db, uid, currency="SGD") == Decimal("100.00")
 
-    await create_transfer_in_entry(db, user_id=uid, dest_account_id=checking.id, amount=Decimal("100.00"), txn_date=date.today(), description="Transfer to Bank B", currency="SGD")
+    await create_transfer_in_entry(
+        db,
+        user_id=uid,
+        dest_account_id=checking.id,
+        amount=Decimal("100.00"),
+        txn_date=date.today(),
+        description="Transfer to Bank B",
+        currency="SGD",
+    )
     pairs = await find_transfer_pairs(db, uid, currency="SGD", description_scorer=score_description, threshold=85)
     assert len(pairs) == 1 and pairs[0].confidence >= 85 and pairs[0].score_breakdown["amount"] == 100.0
 
 
 @pytest.mark.parametrize(
     ("a", "b", "expected"),
-    [("100.00", "100.01", 100.0), ("100.00", "100.10", 95.0), ("100.00", "101.00", 85.0), ("100.00", "105.00", 70.0), ("0", "100.00", 0.0), ("100.00", "110.00", 90.0)],
+    [
+        ("100.00", "100.01", 100.0),
+        ("100.00", "100.10", 95.0),
+        ("100.00", "101.00", 85.0),
+        ("100.00", "105.00", 70.0),
+        ("0", "100.00", 0.0),
+        ("100.00", "110.00", 90.0),
+    ],
 )
 def test_score_amount_match(a, b, expected) -> None:
     assert _score_amount_match(Decimal(a), Decimal(b)) == expected
@@ -206,12 +237,49 @@ async def test_find_transfer_pairs_orders_and_excludes_paired_before_limit(db: A
     uid = test_user.id
     bank_a = await make_account(db, uid, "Bank A", AccountType.ASSET, code="1001")
     bank_b = await make_account(db, uid, "Bank B", AccountType.ASSET, code="1002")
-    unpaired_out = await create_transfer_out_entry(db, user_id=uid, source_account_id=bank_a.id, amount=Decimal("400.00"), txn_date=date(2025, 3, 1), description="Older transfer to Bank B", currency="SGD")
-    unpaired_in = await create_transfer_in_entry(db, user_id=uid, dest_account_id=bank_b.id, amount=Decimal("400.00"), txn_date=date(2025, 3, 1), description="Older transfer to Bank B", currency="SGD")
-    paired_out = await create_transfer_out_entry(db, user_id=uid, source_account_id=bank_a.id, amount=Decimal("250.00"), txn_date=date(2025, 3, 5), description="Already paired A", currency="SGD")
-    paired_in = await create_transfer_in_entry(db, user_id=uid, dest_account_id=bank_b.id, amount=Decimal("999.00"), txn_date=date(2025, 3, 5), description="Already paired B", currency="SGD")
+    unpaired_out = await create_transfer_out_entry(
+        db,
+        user_id=uid,
+        source_account_id=bank_a.id,
+        amount=Decimal("400.00"),
+        txn_date=date(2025, 3, 1),
+        description="Older transfer to Bank B",
+        currency="SGD",
+    )
+    unpaired_in = await create_transfer_in_entry(
+        db,
+        user_id=uid,
+        dest_account_id=bank_b.id,
+        amount=Decimal("400.00"),
+        txn_date=date(2025, 3, 1),
+        description="Older transfer to Bank B",
+        currency="SGD",
+    )
+    paired_out = await create_transfer_out_entry(
+        db,
+        user_id=uid,
+        source_account_id=bank_a.id,
+        amount=Decimal("250.00"),
+        txn_date=date(2025, 3, 5),
+        description="Already paired A",
+        currency="SGD",
+    )
+    paired_in = await create_transfer_in_entry(
+        db,
+        user_id=uid,
+        dest_account_id=bank_b.id,
+        amount=Decimal("999.00"),
+        txn_date=date(2025, 3, 5),
+        description="Already paired B",
+        currency="SGD",
+    )
 
-    assert await find_transfer_pairs(db, uid, currency="SGD", description_scorer=score_description, threshold=85, max_entries=1) == []
+    assert (
+        await find_transfer_pairs(
+            db, uid, currency="SGD", description_scorer=score_description, threshold=85, max_entries=1
+        )
+        == []
+    )
     captured: list = []
     real_execute = db.execute
 
@@ -221,11 +289,22 @@ async def test_find_transfer_pairs_orders_and_excludes_paired_before_limit(db: A
 
     db.execute = AsyncMock(side_effect=spy_execute)
     try:
-        pairs = await find_transfer_pairs(db, uid, currency="SGD", description_scorer=score_description, threshold=85, max_entries=1, exclude_entry_ids={paired_out.id, paired_in.id})
+        pairs = await find_transfer_pairs(
+            db,
+            uid,
+            currency="SGD",
+            description_scorer=score_description,
+            threshold=85,
+            max_entries=1,
+            exclude_entry_ids={paired_out.id, paired_in.id},
+        )
     finally:
         db.execute = real_execute
 
     assert len(pairs) == 1 and (pairs[0].out_entry.id, pairs[0].in_entry.id) == (unpaired_out.id, unpaired_in.id)
     compiled_sql = str(captured[-1].compile(compile_kwargs={"literal_binds": False}))
-    assert "ORDER BY journal_entries.entry_date DESC, journal_entries.created_at DESC, journal_entries.id DESC" in compiled_sql
+    assert (
+        "ORDER BY journal_entries.entry_date DESC, journal_entries.created_at DESC, journal_entries.id DESC"
+        in compiled_sql
+    )
     assert "journal_entries.id NOT IN" in compiled_sql and "LIMIT" in compiled_sql

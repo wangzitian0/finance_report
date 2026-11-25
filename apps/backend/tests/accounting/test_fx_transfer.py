@@ -53,21 +53,42 @@ def test_fx_pair_classify_round_trip_and_conversion() -> None:
     assert pair is not None and swapped is not None and swapped.out_leg.account_id == out_leg.account_id
     assert (pair.out_leg.currency, pair.in_leg.currency, pair.implied_rate) == ("SGD", "USD", _OUT_AMOUNT / _IN_AMOUNT)
     assert pair.rate_deviation <= Decimal("0.005")
-    assert pair_fx_legs(out_leg, in_leg, Decimal("1.364000")) is not None and pair_fx_legs(out_leg, in_leg, Decimal("1.500000")) is None
+    assert (
+        pair_fx_legs(out_leg, in_leg, Decimal("1.364000")) is not None
+        and pair_fx_legs(out_leg, in_leg, Decimal("1.500000")) is None
+    )
 
     classified = classify_internal_transfer(pair, fee=Decimal("2.50"))
     assert classified.is_internal_transfer is True and classified.income_amount == Decimal("0.00")
     assert classify_internal_transfer(pair).net_worth_delta == Decimal("0.00")
     assert classify_internal_transfer(pair, fee=Decimal("3.75")).net_worth_delta == Decimal("-3.75")
-    assert classify_internal_transfer(None, income=Decimal("120.00"), expense=Decimal("45.00")).net_worth_delta == Decimal("75.00")
+    assert classify_internal_transfer(
+        None, income=Decimal("120.00"), expense=Decimal("45.00")
+    ).net_worth_delta == Decimal("75.00")
     assert classify_internal_transfer(None).net_worth_delta == Decimal("0.00")
 
     assert round_trip_realized_pnl(Decimal("1360.00"), rate_out=_MARKET_RATE, rate_back=_MARKET_RATE) == Decimal("0.00")
-    assert round_trip_realized_pnl(Decimal("1360.00"), rate_out=_MARKET_RATE, rate_back=_MARKET_RATE, fee=Decimal("1.20")) == Decimal("-1.20")
-    assert REVALUATION_SOURCE_TYPE is JournalEntrySourceType.FX_REVALUATION and REVALUATION_SOURCE_TYPE.value == "fx_revaluation"
+    assert round_trip_realized_pnl(
+        Decimal("1360.00"), rate_out=_MARKET_RATE, rate_back=_MARKET_RATE, fee=Decimal("1.20")
+    ) == Decimal("-1.20")
+    assert (
+        REVALUATION_SOURCE_TYPE is JournalEntrySourceType.FX_REVALUATION
+        and REVALUATION_SOURCE_TYPE.value == "fx_revaluation"
+    )
 
     conv = build_fx_conversion(pair, fee=Decimal("2.50"), fee_currency="sgd")
-    assert (conv.amount_from, conv.amount_to, conv.rate, conv.currency_from, conv.currency_to, conv.fee, conv.fee_currency, conv.from_account_id, conv.to_account_id, conv.conversion_date) == (
+    assert (
+        conv.amount_from,
+        conv.amount_to,
+        conv.rate,
+        conv.currency_from,
+        conv.currency_to,
+        conv.fee,
+        conv.fee_currency,
+        conv.from_account_id,
+        conv.to_account_id,
+        conv.conversion_date,
+    ) == (
         Decimal("1360.00"),
         Decimal("1000.00"),
         _MARKET_RATE,
@@ -113,7 +134,12 @@ def test_non_candidate_and_invalid_transfer_legs() -> None:
     ):
         with pytest.raises(FxTransferError):
             TransferLeg(
-                user_id=uuid4(), account_id=uuid4(), direction=direction, amount=amount, currency="SGD", occurred_at=occurred_at
+                user_id=uuid4(),
+                account_id=uuid4(),
+                direction=direction,
+                amount=amount,
+                currency="SGD",
+                occurred_at=occurred_at,
             )
 
 
@@ -121,7 +147,9 @@ async def _rate_resolver(base: str, quote: str, _on_date: date) -> Decimal | Non
     b, q = base.upper(), quote.upper()
     if b == q:
         return Decimal("1")
-    return _MARKET_RATE if (b, q) == ("USD", "SGD") else Decimal("1") / _MARKET_RATE if (b, q) == ("SGD", "USD") else None
+    return (
+        _MARKET_RATE if (b, q) == ("USD", "SGD") else Decimal("1") / _MARKET_RATE if (b, q) == ("SGD", "USD") else None
+    )
 
 
 async def _seed_leg(
@@ -139,8 +167,22 @@ async def _seed_leg(
     fx = None if currency == "SGD" else _MARKET_RATE
     db.add_all(
         [
-            JournalLine(journal_entry_id=entry.id, account_id=debit_acc.id, direction=Direction.DEBIT, amount=amount, currency=currency, fx_rate=fx),
-            JournalLine(journal_entry_id=entry.id, account_id=credit_acc.id, direction=Direction.CREDIT, amount=amount, currency=currency, fx_rate=fx),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=debit_acc.id,
+                direction=Direction.DEBIT,
+                amount=amount,
+                currency=currency,
+                fx_rate=fx,
+            ),
+            JournalLine(
+                journal_entry_id=entry.id,
+                account_id=credit_acc.id,
+                direction=Direction.CREDIT,
+                amount=amount,
+                currency=currency,
+                fx_rate=fx,
+            ),
         ]
     )
     await db.flush()

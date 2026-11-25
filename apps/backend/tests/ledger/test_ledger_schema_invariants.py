@@ -16,7 +16,11 @@ async def _valid_posted_entry(db: AsyncSession, user_id, *, memo: str = "posted"
     debit_acc = await make_account(db, user_id, f"{memo} cash", AccountType.ASSET, is_active=True)
     credit_acc = await make_account(db, user_id, f"{memo} income", AccountType.INCOME, is_active=True)
     entry = await make_entry(
-        db, user_id, [(debit_acc.id, Direction.DEBIT, "100.00"), (credit_acc.id, Direction.CREDIT, "100.00")], memo=memo, commit=True
+        db,
+        user_id,
+        [(debit_acc.id, Direction.DEBIT, "100.00"), (credit_acc.id, Direction.CREDIT, "100.00")],
+        memo=memo,
+        commit=True,
     )
     await db.refresh(entry, ["lines"])
     return entry, next(ln for ln in entry.lines if ln.direction == Direction.DEBIT)
@@ -60,7 +64,24 @@ async def test_posted_entry_db_constraints_and_immutability(db: AsyncSession, te
         await db.delete(await db.get(JournalLine, debit_id))
 
     async def add_line():
-        db.add_all([JournalLine(journal_entry_id=entry_id, account_id=extra_cid, direction=Direction.DEBIT, amount=Decimal("1"), currency="SGD"), JournalLine(journal_entry_id=entry_id, account_id=extra_iid, direction=Direction.CREDIT, amount=Decimal("1"), currency="SGD")])
+        db.add_all(
+            [
+                JournalLine(
+                    journal_entry_id=entry_id,
+                    account_id=extra_cid,
+                    direction=Direction.DEBIT,
+                    amount=Decimal("1"),
+                    currency="SGD",
+                ),
+                JournalLine(
+                    journal_entry_id=entry_id,
+                    account_id=extra_iid,
+                    direction=Direction.CREDIT,
+                    amount=Decimal("1"),
+                    currency="SGD",
+                ),
+            ]
+        )
 
     async def mut_rec():
         r = await db.get(JournalEntry, rec_id)
@@ -70,7 +91,9 @@ async def test_posted_entry_db_constraints_and_immutability(db: AsyncSession, te
         await _reject_commit(db, action)
 
     draft_acc = await make_account(db, uid, "draft cash", AccountType.ASSET, is_active=True)
-    draft = await make_entry(db, uid, [(draft_acc.id, Direction.DEBIT, "1.00")], status=JournalEntryStatus.DRAFT, commit=True)
+    draft = await make_entry(
+        db, uid, [(draft_acc.id, Direction.DEBIT, "1.00")], status=JournalEntryStatus.DRAFT, commit=True
+    )
     await db.refresh(draft, ["lines"])
     draft.memo, draft.lines[0].amount = "edited draft", Decimal("2.00")
     await db.commit()
@@ -97,18 +120,34 @@ async def test_void_transition_and_base_currency_immutability(db: AsyncSession, 
     await _set_entry(entry_id, status=JournalEntryStatus.VOID, void_reason="valid", void_reversal_entry_id=rev_id)
     await db.commit()
     await _reject_commit(db, lambda: _set_entry(entry_id, void_reversal_entry_id=None))
-    await _reject_commit(db, lambda: db.delete(db.get_one(JournalEntry, entry_id)) if False else _delete_entry(db, entry_id))
+    await _reject_commit(
+        db, lambda: db.delete(db.get_one(JournalEntry, entry_id)) if False else _delete_entry(db, entry_id)
+    )
 
     await _set_entry(rec_id, status=JournalEntryStatus.RECONCILED)
     await db.commit()
-    await _reject_commit(db, lambda: _set_entry(rec_id, status=JournalEntryStatus.VOID, memo="mutated", void_reason="x", void_reversal_entry_id=rev_id))
+    await _reject_commit(
+        db,
+        lambda: _set_entry(
+            rec_id, status=JournalEntryStatus.VOID, memo="mutated", void_reason="x", void_reversal_entry_id=rev_id
+        ),
+    )
     await _reject_commit(db, lambda: _set_entry(rec_id, status=JournalEntryStatus.VOID, void_reason="missing"))
     await _set_entry(rec_id, status=JournalEntryStatus.VOID, void_reason="valid rec", void_reversal_entry_id=rec_rev_id)
     await db.commit()
     assert (await db.get(JournalEntry, rec_id)).status == JournalEntryStatus.VOID
 
     await _reject_commit(db, lambda: _set_entry(posted_id, status=JournalEntryStatus.RECONCILED, base_currency="USD"))
-    await _reject_commit(db, lambda: _set_entry(posted_id, status=JournalEntryStatus.VOID, void_reason="v", void_reversal_entry_id=rec_rev_id, base_currency="USD"))
+    await _reject_commit(
+        db,
+        lambda: _set_entry(
+            posted_id,
+            status=JournalEntryStatus.VOID,
+            void_reason="v",
+            void_reversal_entry_id=rec_rev_id,
+            base_currency="USD",
+        ),
+    )
 
 
 async def _delete_entry(db: AsyncSession, entry_id) -> None:
@@ -121,7 +160,12 @@ async def test_reconcile_posted_usd_entry_and_enum_deserialization(db: AsyncSess
     cash = await make_account(db, test_user.id, "USD Cash", AccountType.ASSET, "USD", is_active=True)
     rev = await make_account(db, test_user.id, "USD Rev", AccountType.INCOME, "USD", is_active=True)
     entry = await make_entry(
-        db, test_user.id, [(cash.id, Direction.DEBIT, "250.00", "USD"), (rev.id, Direction.CREDIT, "250.00", "USD")], memo="USD inv", base_currency="USD", commit=True
+        db,
+        test_user.id,
+        [(cash.id, Direction.DEBIT, "250.00", "USD"), (rev.id, Direction.CREDIT, "250.00", "USD")],
+        memo="USD inv",
+        base_currency="USD",
+        commit=True,
     )
     entry.status = JournalEntryStatus.RECONCILED
     await db.commit()

@@ -415,7 +415,11 @@ async def _ledger_net_worth_balances(
                 missing_currencies.add(line_currency)
         balances.append(
             (
-                {aid: _quantize_money(amt) for aid, amt in unrounded.items() if account_types[aid] == AccountType.ASSET},
+                {
+                    aid: _quantize_money(amt)
+                    for aid, amt in unrounded.items()
+                    if account_types[aid] == AccountType.ASSET
+                },
                 {
                     aid: _quantize_money(amt)
                     for aid, amt in unrounded.items()

@@ -14,8 +14,7 @@ NON_DEPENDENCY_ENV_FIELDS: dict[str, str] = {
     for category, fields in (
         (
             "security",
-            "secret_key jwt_algorithm access_token_expire_minutes "
-            "cors_origins_str cors_origin_regex trust_proxy",
+            "secret_key jwt_algorithm access_token_expire_minutes cors_origins_str cors_origin_regex trust_proxy",
         ),
         ("deployment", "environment debug git_commit_sha configuration_sha256 next_public_app_url"),
         ("domain", "base_currency"),

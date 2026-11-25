@@ -23,20 +23,41 @@ MONTHS = tuple(f"2026-{m:02d}" for m in range(1, 13))
 SALARY, RENT = Decimal("5000.00"), Decimal("1500.00")
 
 
-async def _ingest_month(db: AsyncSession, user_id, bank: Account, ym: str, *, opening: Decimal, closing: Decimal) -> int:
-    csv_bytes = f"Date,Description,Debit Amount,Credit Amount\n{ym}-05,Salary,,{SALARY}\n{ym}-20,Rent,{RENT},\n".encode()
+async def _ingest_month(
+    db: AsyncSession, user_id, bank: Account, ym: str, *, opening: Decimal, closing: Decimal
+) -> int:
+    csv_bytes = (
+        f"Date,Description,Debit Amount,Credit Amount\n{ym}-05,Salary,,{SALARY}\n{ym}-20,Rent,{RENT},\n".encode()
+    )
     _, stmt, txns = await parse_and_load_statement_projection(
-        ExtractionService(), db=db, source=DocumentSource.resolve(path=Path(f"{ym}.csv"), content=csv_bytes), institution="DBS", user_id=user_id, file_type="csv"
+        ExtractionService(),
+        db=db,
+        source=DocumentSource.resolve(path=Path(f"{ym}.csv"), content=csv_bytes),
+        institution="DBS",
+        user_id=user_id,
+        file_type="csv",
     )
     stmt.account_id, stmt.currency, stmt.period_start, stmt.period_end, stmt.opening_balance, stmt.closing_balance = (
-        bank.id, bank.currency, min(t.txn_date for t in txns), max(t.txn_date for t in txns), opening, closing
+        bank.id,
+        bank.currency,
+        min(t.txn_date for t in txns),
+        max(t.txn_date for t in txns),
+        opening,
+        closing,
     )
     for t in txns:
-        t.currency, t.currency_unresolved, t.currency_resolved_by, t.currency_resolved_at = bank.currency, False, user_id, datetime.now(UTC)
+        t.currency, t.currency_unresolved, t.currency_resolved_by, t.currency_resolved_at = (
+            bank.currency,
+            False,
+            user_id,
+            datetime.now(UTC),
+        )
     await db.flush()
     await classify_rows(db, user_id, txns)
     approved, approved_txns = await approve_statement_with_transactions(db, stmt.id, user_id)
-    outcome = await auto_create_posted_entries_for_statement(db, approved, user_id, dependencies=posting_dependencies(), transactions=approved_txns)
+    outcome = await auto_create_posted_entries_for_statement(
+        db, approved, user_id, dependencies=posting_dependencies(), transactions=approved_txns
+    )
     assert outcome.review_reasons == ()
     return outcome.created_count
 
@@ -65,6 +86,13 @@ async def test_full_year_statement_to_report_ties_out(db: AsyncSession, test_use
     cf = await generate_cash_flow(db, user_id, start_date=p_start, end_date=p_end, currency="SGD")
     exp_inc, exp_exp = SALARY * len(MONTHS), RENT * len(MONTHS)
     exp_net = exp_inc - exp_exp
-    assert (total_created, inc["total_income"], inc["total_expenses"], inc["net_income"], cf["summary"]["ending_cash"], bs["total_assets"], bs["is_balanced"], bs["equation_delta"]) == (
-        2 * len(MONTHS), exp_inc, exp_exp, exp_net, exp_net, exp_net, True, Decimal("0.00")
-    )
+    assert (
+        total_created,
+        inc["total_income"],
+        inc["total_expenses"],
+        inc["net_income"],
+        cf["summary"]["ending_cash"],
+        bs["total_assets"],
+        bs["is_balanced"],
+        bs["equation_delta"],
+    ) == (2 * len(MONTHS), exp_inc, exp_exp, exp_net, exp_net, exp_net, True, Decimal("0.00"))

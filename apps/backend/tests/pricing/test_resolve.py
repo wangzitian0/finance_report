@@ -16,9 +16,26 @@ from src.pricing.extension.resolve import resolve, resolve_series
 _SUBJ, _OTHER = PriceableSubject.security("AAPL"), PriceableSubject.security("MSFT")
 
 
-def _obs(value: str, as_of: date, observed_at: datetime, source: ObservationSource = ObservationSource.CRAWLER, authority: Authority = Authority.CRAWLER, subject: PriceableSubject = _SUBJ, id: UUID | None = None) -> PriceObservation:
+def _obs(
+    value: str,
+    as_of: date,
+    observed_at: datetime,
+    source: ObservationSource = ObservationSource.CRAWLER,
+    authority: Authority = Authority.CRAWLER,
+    subject: PriceableSubject = _SUBJ,
+    id: UUID | None = None,
+) -> PriceObservation:
     ts = observed_at if observed_at.tzinfo else observed_at.replace(tzinfo=UTC)
-    return PriceObservation(subject=subject, value=Decimal(value), as_of=as_of, observed_at=ts, source=source, authority=authority, currency="USD", **({"id": id} if id else {}))
+    return PriceObservation(
+        subject=subject,
+        value=Decimal(value),
+        as_of=as_of,
+        observed_at=ts,
+        source=source,
+        authority=authority,
+        currency="USD",
+        **({"id": id} if id else {}),
+    )
 
 
 def test_resolve_selection_rules_and_tie_breakers():
@@ -46,17 +63,36 @@ def test_resolve_selection_rules_and_tie_breakers():
         resolve(_SUBJ, d1, ResolutionPolicy(min_authority=Authority.MANUAL), [manual]) is manual,
         resolve(_SUBJ, d1, ResolutionPolicy(max_age_days=30), [within]) is within,
         resolve(_SUBJ, d1, ResolutionPolicy(), [c, ov]) is ov,
-        resolve(_SUBJ, d1, ResolutionPolicy(), [_obs("100", date(2026, 5, 1), datetime(2026, 5, 1, 9)), later]) is later,
+        resolve(_SUBJ, d1, ResolutionPolicy(), [_obs("100", date(2026, 5, 1), datetime(2026, 5, 1, 9)), later])
+        is later,
         resolve(_SUBJ, d1, ResolutionPolicy(), [_obs("100", d1, datetime(2026, 6, 1, 9)), backfilled]) is backfilled,
         resolve(_SUBJ, d1, ResolutionPolicy(), [lo_id, hi_id]) is hi_id,
         resolve(_SUBJ, d1, ResolutionPolicy(), [hi_id, lo_id]) is hi_id,
     ) == (True, True, True, True, True, True, True)
 
 
-@pytest.mark.parametrize("policy", [ResolutionPolicy(), ResolutionPolicy(max_age_days=4), ResolutionPolicy(min_authority=Authority.STATEMENT), ResolutionPolicy(max_age_days=2, min_authority=Authority.MANUAL)])
+@pytest.mark.parametrize(
+    "policy",
+    [
+        ResolutionPolicy(),
+        ResolutionPolicy(max_age_days=4),
+        ResolutionPolicy(min_authority=Authority.STATEMENT),
+        ResolutionPolicy(max_age_days=2, min_authority=Authority.MANUAL),
+    ],
+)
 def test_AC_pricing_fx_4_resolve_series_equals_one_resolve_per_date(policy: ResolutionPolicy):
     rng, start = random.Random(2583), date(2026, 6, 1)
-    cands = [_obs(str(rng.randint(90, 110)), start + timedelta(days=rng.randint(0, 40)), datetime(2026, 5, 1, tzinfo=UTC) + timedelta(hours=rng.randint(0, 3)), authority=rng.choice(list(Authority)), subject=rng.choice([_SUBJ, _SUBJ, _OTHER]), id=UUID(int=i + 1)) for i in range(300)]
+    cands = [
+        _obs(
+            str(rng.randint(90, 110)),
+            start + timedelta(days=rng.randint(0, 40)),
+            datetime(2026, 5, 1, tzinfo=UTC) + timedelta(hours=rng.randint(0, 3)),
+            authority=rng.choice(list(Authority)),
+            subject=rng.choice([_SUBJ, _SUBJ, _OTHER]),
+            id=UUID(int=i + 1),
+        )
+        for i in range(300)
+    ]
     dates = [start + timedelta(days=o) for o in range(-3, 46)]
     expected = {}
     for d in dates:

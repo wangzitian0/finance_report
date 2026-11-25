@@ -94,10 +94,7 @@ class TrustedYearExpected:
         for field in self.__dataclass_fields__:
             _money(getattr(self, field), f"expected.{field}")
         if (
-            self.total_liabilities
-            + self.ledger_equity
-            + self.net_income
-            + self.net_worth_adjustment
+            self.total_liabilities + self.ledger_equity + self.net_income + self.net_worth_adjustment
             != self.total_assets
         ):
             raise TrustedYearError("expected balance-sheet equation does not close")
@@ -121,12 +118,8 @@ class TrustedYearScenario:
         if self.opening_cash <= 0:
             raise TrustedYearError("opening_cash must be positive")
         if {movement.type for movement in self.movements} != set(MovementType):
-            raise TrustedYearError(
-                "scenario requires income, expense, and investment purchase"
-            )
-        if not self.expected_manifest or len(set(self.expected_manifest)) != len(
-            self.expected_manifest
-        ):
+            raise TrustedYearError("scenario requires income, expense, and investment purchase")
+        if not self.expected_manifest or len(set(self.expected_manifest)) != len(self.expected_manifest):
             raise TrustedYearError("expected_manifest must be non-empty and unique")
 
 
@@ -148,12 +141,8 @@ TRUSTED_YEAR_SCENARIO = TrustedYearScenario(
     currency="SGD",
     opening_cash=Decimal("10000.00"),
     movements=(
-        TrustedYearMovement(
-            "Salary credit", date(2026, 6, 5), MovementType.INCOME, Decimal("5000.00")
-        ),
-        TrustedYearMovement(
-            "Rent debit", date(2026, 6, 10), MovementType.EXPENSE, Decimal("1000.00")
-        ),
+        TrustedYearMovement("Salary credit", date(2026, 6, 5), MovementType.INCOME, Decimal("5000.00")),
+        TrustedYearMovement("Rent debit", date(2026, 6, 10), MovementType.EXPENSE, Decimal("1000.00")),
         TrustedYearMovement(
             "Buy security",
             date(2026, 6, 15),

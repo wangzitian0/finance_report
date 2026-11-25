@@ -58,9 +58,7 @@ if TYPE_CHECKING:
     )
 
 _GROUPS: dict[str, tuple[str, ...]] = {
-    "src.reporting": (
-        "CashFlowResponse",
-    ),
+    "src.reporting": ("CashFlowResponse",),
     "src.schemas.account": (
         "AccountCreate",
         "AccountListResponse",

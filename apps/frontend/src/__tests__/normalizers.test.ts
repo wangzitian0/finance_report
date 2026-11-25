@@ -1,18 +1,93 @@
 import { expect, it } from "vitest";
 import type { Schemas } from "../lib/api-schema";
-import { toJournalEntryViewModel, toTransactionViewModel } from "../lib/normalizers";
-const ts = "2026-03-01T10:00:00Z", E = expect;
+import {
+  toJournalEntryViewModel,
+  toTransactionViewModel,
+} from "../lib/normalizers";
+const ts = "2026-03-01T10:00:00Z",
+  E = expect;
 it("AC-meta.fe-contract-types.3 normalizers", () => {
-const raw: Schemas["AtomicTransactionResponse"] = { id: "t1", statement_id: "s1", txn_date: "2026-03-01", description: "S", amount: "10.00", direction: "CREDIT", reference: "R1", currency: "SGD", created_at: ts, updated_at: ts };
-E(toTransactionViewModel(raw)).toMatchObject({ ...raw, balance_after: null, status: undefined, confidence_tier: null, confidence: undefined });
-const sum: Schemas["BankTransactionSummary"] = { id: "t2", description: "C", amount: "5.50", currency: "SGD", direction: "DEBIT", txn_date: "2026-03-02", reference: "R2", confidence_tier: "HIGH", statement_id: "s1" };
-const ov = { balance_after: "500.00", status: "matched" as const, confidence: "high" as const, confidence_tier: "HIGH" as const, confidence_reason: "K", raw_text: "S" };
-const vm = toTransactionViewModel(sum, ov);
-E(vm).toMatchObject({ ...sum, ...ov });
-E(Boolean(vm.created_at && vm.updated_at)).toBe(true);
-const base = { id: "je1", user_id: "u1", decision_authority_state: "anchored" as const, entry_date: "2026-03-15", memo: "R", source_type: "manual" as const, status: "posted" as const, created_at: ts, updated_at: ts };
-const ln = (id: string, account_id: string, direction: "DEBIT" | "CREDIT", fx_rate?: string) => ({ id, journal_entry_id: "je1", account_id, direction, amount: "10.00", currency: "SGD", ...(fx_rate ? { fx_rate } : {}), created_at: ts, updated_at: ts });
-const lines = [ln("l1", "a1", "DEBIT", "1.0"), ln("l2", "a2", "CREDIT")];
-E(toJournalEntryViewModel({ ...base, confidence_tier: "HIGH", lines }, "10.00")).toMatchObject({ id: "je1", memo: "R", total_amount: "10.00", lines });
-E(toJournalEntryViewModel({ ...base, id: "je2", status: "draft" as const, lines: [] })).toMatchObject({ id: "je2", lines: [], total_amount: undefined });
+  const raw: Schemas["AtomicTransactionResponse"] = {
+    id: "t1",
+    statement_id: "s1",
+    txn_date: "2026-03-01",
+    description: "S",
+    amount: "10.00",
+    direction: "CREDIT",
+    reference: "R1",
+    currency: "SGD",
+    created_at: ts,
+    updated_at: ts,
+  };
+  E(toTransactionViewModel(raw)).toMatchObject({
+    ...raw,
+    balance_after: null,
+    status: undefined,
+    confidence_tier: null,
+    confidence: undefined,
+  });
+  const sum: Schemas["BankTransactionSummary"] = {
+    id: "t2",
+    description: "C",
+    amount: "5.50",
+    currency: "SGD",
+    direction: "DEBIT",
+    txn_date: "2026-03-02",
+    reference: "R2",
+    confidence_tier: "HIGH",
+    statement_id: "s1",
+  };
+  const ov = {
+    balance_after: "500.00",
+    status: "matched" as const,
+    confidence: "high" as const,
+    confidence_tier: "HIGH" as const,
+    confidence_reason: "K",
+    raw_text: "S",
+  };
+  const vm = toTransactionViewModel(sum, ov);
+  E(vm).toMatchObject({ ...sum, ...ov });
+  E(Boolean(vm.created_at && vm.updated_at)).toBe(true);
+  const base = {
+    id: "je1",
+    user_id: "u1",
+    decision_authority_state: "anchored" as const,
+    entry_date: "2026-03-15",
+    memo: "R",
+    source_type: "manual" as const,
+    status: "posted" as const,
+    created_at: ts,
+    updated_at: ts,
+  };
+  const ln = (
+    id: string,
+    account_id: string,
+    direction: "DEBIT" | "CREDIT",
+    fx_rate?: string,
+  ) => ({
+    id,
+    journal_entry_id: "je1",
+    account_id,
+    direction,
+    amount: "10.00",
+    currency: "SGD",
+    ...(fx_rate ? { fx_rate } : {}),
+    created_at: ts,
+    updated_at: ts,
+  });
+  const lines = [ln("l1", "a1", "DEBIT", "1.0"), ln("l2", "a2", "CREDIT")];
+  E(
+    toJournalEntryViewModel(
+      { ...base, confidence_tier: "HIGH", lines },
+      "10.00",
+    ),
+  ).toMatchObject({ id: "je1", memo: "R", total_amount: "10.00", lines });
+  E(
+    toJournalEntryViewModel({
+      ...base,
+      id: "je2",
+      status: "draft" as const,
+      lines: [],
+    }),
+  ).toMatchObject({ id: "je2", lines: [], total_amount: undefined });
 });

@@ -31,7 +31,14 @@ def _rows(count: int, first_day: date) -> list[dict]:
 
 
 async def _seed_reviewed_statement(db: AsyncSession, user_id: UUID, *, count: int, first_day: date) -> str:
-    seeded = await seed_parsed_statement(db, user_id, institution="DBS", original_filename=f"approve_budget_{first_day.isoformat()}.pdf", opening_balance=Decimal("1000.00"), transactions=_rows(count, first_day))
+    seeded = await seed_parsed_statement(
+        db,
+        user_id,
+        institution="DBS",
+        original_filename=f"approve_budget_{first_day.isoformat()}.pdf",
+        opening_balance=Decimal("1000.00"),
+        transactions=_rows(count, first_day),
+    )
     seeded.statement.period_start, seeded.statement.period_end = first_day, first_day + timedelta(days=count - 1)
     await attach_reviewed_corpus_semantics(db, user_id, seeded.transactions)
     await db.commit()

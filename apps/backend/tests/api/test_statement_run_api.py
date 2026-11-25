@@ -103,18 +103,14 @@ async def _failed_first_run(db, user, statement_id):
     return first.id
 
 
-async def test_post_runs_starts_a_rerun_with_hints_and_digest(
-    client, db, monkeypatch, storage_stub, test_user
-):
+async def test_post_runs_starts_a_rerun_with_hints_and_digest(client, db, monkeypatch, storage_stub, test_user):
     statement = await _statement(db, test_user)
     first_id = await _failed_first_run(db, test_user, statement.id)
     jobs = _capture_dispatch(monkeypatch)
     hints = {"keywords": ["interest", "FX fee"], "note": 'Credits carry a "CR" suffix.\nYear is 2026.'}
 
     body = (
-        response := await client.post(
-            f"/statements/{statement.id}/runs", json={"kind": "extract", "hints": hints}
-        )
+        response := await client.post(f"/statements/{statement.id}/runs", json={"kind": "extract", "hints": hints})
     ).json()
     assert response.status_code == 202 and set(body) == RUN_FIELDS and body["state"] in ("requested", "running")
     assert (
@@ -154,9 +150,7 @@ async def test_post_runs_starts_a_rerun_with_hints_and_digest(
     ).status is BankStatementStatus.PARSING
 
 
-async def test_post_runs_may_omit_body_or_accept_hint_limits(
-    client, db, monkeypatch, storage_stub, test_user
-):
+async def test_post_runs_may_omit_body_or_accept_hint_limits(client, db, monkeypatch, storage_stub, test_user):
     s_empty, s_limits = (
         await _statement(db, test_user, status=BankStatementStatus.REJECTED),
         await _statement(db, test_user),
@@ -200,9 +194,7 @@ async def test_post_runs_may_omit_body_or_accept_hint_limits(
         "model_on_classify",
     ],
 )
-async def test_post_runs_rejects_a_body_outside_the_limits(
-    body, client, db, monkeypatch, storage_stub, test_user
-):
+async def test_post_runs_rejects_a_body_outside_the_limits(body, client, db, monkeypatch, storage_stub, test_user):
     statement = await _statement(db, test_user)
     jobs = _capture_dispatch(monkeypatch)
     response = await client.post(f"/statements/{statement.id}/runs", json=body)
@@ -225,9 +217,7 @@ async def test_post_runs_missing_or_foreign_statement_gives_404(
     assert response.status_code == 404 and await _runs(db, target_id) == [] and jobs == []
 
 
-async def test_post_runs_of_a_csv_statement_with_hints_gives_400(
-    client, db, monkeypatch, storage_stub, test_user
-):
+async def test_post_runs_of_a_csv_statement_with_hints_gives_400(client, db, monkeypatch, storage_stub, test_user):
     statement = await _statement(db, test_user, name="bank.csv")
     jobs = _capture_dispatch(monkeypatch)
     rejected = await client.post(f"/statements/{statement.id}/runs", json={"hints": {"keywords": ["x"]}})
@@ -419,9 +409,7 @@ async def test_get_runs_lists_a_run_whose_stored_hints_no_longer_validate(client
     ]["hints"]["keywords"] == ["ok"]
 
 
-async def test_hints_on_a_csv_statement_give_400_before_any_storage_read(
-    client, db, monkeypatch, test_user
-):
+async def test_hints_on_a_csv_statement_give_400_before_any_storage_read(client, db, monkeypatch, test_user):
     statement = await _statement(db, test_user, name="bank.csv")
     mock_storage = failing_storage(monkeypatch, method="get_object")
     assert (

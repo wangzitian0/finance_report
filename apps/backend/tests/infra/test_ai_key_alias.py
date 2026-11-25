@@ -26,23 +26,32 @@ def test_AC_runtime_env_ai_key_alias_1_resolution_and_probe(monkeypatch, tmp_pat
 
     for name in ("LLM_API_KEY", "AI_API_KEY", "ZAI_API_KEY"):
         monkeypatch.delenv(name, raising=False)
-    for filename, content, expected in (("legacy.env", "ZAI_API_KEY=old\nAI_API_KEY=old-ai\n", ""), ("canonical.env", "ZAI_API_KEY=old\nLLM_API_KEY=canonical\n", "canonical")):
+    for filename, content, expected in (
+        ("legacy.env", "ZAI_API_KEY=old\nAI_API_KEY=old-ai\n", ""),
+        ("canonical.env", "ZAI_API_KEY=old\nLLM_API_KEY=canonical\n", "canonical"),
+    ):
         p = tmp_path / filename
         p.write_text(content, encoding="utf-8")
         assert Settings(_env_file=str(p)).ai_api_key == expected
 
-    for env, expected_status in (({"LLM_API_KEY": "canonical"}, "present"), ({"AI_API_KEY": "legacy-ai", "ZAI_API_KEY": "legacy-zai"}, "absent")):
+    for env, expected_status in (
+        ({"LLM_API_KEY": "canonical"}, "present"),
+        ({"AI_API_KEY": "legacy-ai", "ZAI_API_KEY": "legacy-zai"}, "absent"),
+    ):
         s = _settings(monkeypatch, **env)
         with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=200))):
-            assert asyncio.run(
-                LlmCheck(
-                    api_key=s.ai_api_key,
-                    provider=s.ai_provider,
-                    small_model=s.small_model,
-                    multimodal_model=s.multimodal_model,
-                    base_url=s.ai_base_url,
-                ).probe()
-            ).status.value == expected_status
+            assert (
+                asyncio.run(
+                    LlmCheck(
+                        api_key=s.ai_api_key,
+                        provider=s.ai_provider,
+                        small_model=s.small_model,
+                        multimodal_model=s.multimodal_model,
+                        base_url=s.ai_base_url,
+                    ).probe()
+                ).status.value
+                == expected_status
+            )
 
 
 _LLM_NAMES = ("LLM_PROVIDER", "AI_PROVIDER", "LLM_BASE_URL", "AI_BASE_URL")

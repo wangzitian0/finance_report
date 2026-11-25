@@ -31,11 +31,19 @@ def test_manifest_declares_the_known_external_dependencies() -> None:
         assert all(ev.isupper() and ev in all_keys for ev in dep.env_vars), dep.name
 
     with pytest.raises(ValueError):
-        Dependency(name="x", kind=DependencyKind.CODE_DOMINANT, required_in=frozenset(), env_vars=frozenset({"X"}), summary="s")
+        Dependency(
+            name="x", kind=DependencyKind.CODE_DOMINANT, required_in=frozenset(), env_vars=frozenset({"X"}), summary="s"
+        )
     assert {d.name for d in DEPENDENCY_MANIFEST if d.kind is DependencyKind.MODEL_DOMINANT} == {"llm"}
     assert all({"database", "object_storage"} <= DEPENDENCY_MANIFEST.required_for(t) for t in EnvironmentTier)
-    assert "llm" in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.STAGING) and "llm" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PREVIEW)
-    assert "cache" in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PRODUCTION) and "cache" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PREVIEW)
+    assert "llm" in DEPENDENCY_MANIFEST.required_for(
+        EnvironmentTier.STAGING
+    ) and "llm" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PREVIEW)
+    assert "cache" in DEPENDENCY_MANIFEST.required_for(
+        EnvironmentTier.PRODUCTION
+    ) and "cache" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PREVIEW)
     assert {"market_data"} <= DEPENDENCY_MANIFEST.required_for(EnvironmentTier.STAGING)
-    assert "market_data" in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PRODUCTION) and "market_data" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.GITHUB_CI)
+    assert "market_data" in DEPENDENCY_MANIFEST.required_for(
+        EnvironmentTier.PRODUCTION
+    ) and "market_data" not in DEPENDENCY_MANIFEST.required_for(EnvironmentTier.GITHUB_CI)
     assert {s.value for s in DependencyStatus} == {"present", "absent"}

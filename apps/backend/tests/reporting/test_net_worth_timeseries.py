@@ -238,5 +238,10 @@ async def test_net_worth_monthly_trim_preserves_incomplete_foreign_only_month(db
     assert rep["points"][1]["incomplete"] is False
     assert rep["points"][1]["net_worth"] == Decimal("170.00")
     assert rep["fx_warnings"] == [
-        {"type": "missing_fx_rate_partial_skip", "base_currency": "GBP", "quote_currency": "SGD", "rate_date": "2026-02-28"}
+        {
+            "type": "missing_fx_rate_partial_skip",
+            "base_currency": "GBP",
+            "quote_currency": "SGD",
+            "rate_date": "2026-02-28",
+        }
     ]

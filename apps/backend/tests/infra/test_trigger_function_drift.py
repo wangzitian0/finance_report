@@ -21,9 +21,15 @@ import src.platform.extension.sql
 from src.database import Base
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
-FUNCTION_QUERY = text("SELECT p.proname, pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'fr\\_%' ORDER BY p.proname")
-TRIGGER_QUERY = text("SELECT c.relname || '.' || t.tgname, pg_get_triggerdef(t.oid) FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid WHERE NOT t.tgisinternal ORDER BY c.relname, t.tgname")
-MIGRATION_ONLY = frozenset({"function fr_validate_evidence_edge_tenant_scope", "trigger evidence_edges.trg_evidence_edges_same_user_endpoints"})
+FUNCTION_QUERY = text(
+    "SELECT p.proname, pg_get_functiondef(p.oid) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'fr\\_%' ORDER BY p.proname"
+)
+TRIGGER_QUERY = text(
+    "SELECT c.relname || '.' || t.tgname, pg_get_triggerdef(t.oid) FROM pg_trigger t JOIN pg_class c ON c.oid = t.tgrelid WHERE NOT t.tgisinternal ORDER BY c.relname, t.tgname"
+)
+MIGRATION_ONLY = frozenset(
+    {"function fr_validate_evidence_edge_tenant_scope", "trigger evidence_edges.trg_evidence_edges_same_user_endpoints"}
+)
 _url = lambda async_url, database: make_url(async_url).set(database=database).render_as_string(hide_password=False)
 
 
@@ -66,15 +72,34 @@ def _describe(migrated: dict[str, str], orm: dict[str, str], migration_only: fro
         elif name not in orm:
             problems.append(f"{name}: only the migrated schema has it")
         elif migrated[name] != orm[name]:
-            diff = difflib.unified_diff(migrated[name].replace("; ", ";\n").splitlines(), orm[name].replace("; ", ";\n").splitlines(), "migrated", "orm", lineterm="", n=0)
+            diff = difflib.unified_diff(
+                migrated[name].replace("; ", ";\n").splitlines(),
+                orm[name].replace("; ", ";\n").splitlines(),
+                "migrated",
+                "orm",
+                lineterm="",
+                n=0,
+            )
             problems.append(f"{name}: the definitions differ\n" + "\n".join(list(diff)[:24]))
-    problems.extend(f"{name}: listed in MIGRATION_ONLY, but the migrated schema lacks it" for name in sorted(migration_only - set(migrated) - set(orm)))
+    problems.extend(
+        f"{name}: listed in MIGRATION_ONLY, but the migrated schema lacks it"
+        for name in sorted(migration_only - set(migrated) - set(orm))
+    )
     return problems
 
 
-async def test_AC_ledger_14_7_alembic_and_orm_schemas_hold_the_same_functions_and_triggers(test_database_url: str, scratch_databases: tuple[str, str]) -> None:
+async def test_AC_ledger_14_7_alembic_and_orm_schemas_hold_the_same_functions_and_triggers(
+    test_database_url: str, scratch_databases: tuple[str, str]
+) -> None:
     migrated_name, orm_name = scratch_databases
-    res = subprocess.run([sys.executable, "-m", "alembic", "upgrade", "head"], cwd=BACKEND_DIR, env={**os.environ, "DATABASE_URL": _url(test_database_url, migrated_name)}, capture_output=True, text=True, timeout=600)
+    res = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        cwd=BACKEND_DIR,
+        env={**os.environ, "DATABASE_URL": _url(test_database_url, migrated_name)},
+        capture_output=True,
+        text=True,
+        timeout=600,
+    )
     assert res.returncode == 0, f"alembic failed:\n{res.stdout[-2000:]}\n{res.stderr[-4000:]}"
     orm_engine = create_async_engine(_url(test_database_url, orm_name))
     migrated_engine = create_async_engine(_url(test_database_url, migrated_name))
@@ -85,7 +110,10 @@ async def test_AC_ledger_14_7_alembic_and_orm_schemas_hold_the_same_functions_an
     finally:
         await migrated_engine.dispose()
         await orm_engine.dispose()
-    assert "function fr_guard_journal_entry_immutability" in migrated and "function fr_guard_journal_entry_immutability" in orm
+    assert (
+        "function fr_guard_journal_entry_immutability" in migrated
+        and "function fr_guard_journal_entry_immutability" in orm
+    )
     assert "trigger journal_entries.ck_journal_entries_immutable" in migrated
     assert _describe(migrated, orm, MIGRATION_ONLY) == []
 
@@ -98,10 +126,17 @@ async def test_AC_ledger_14_7_alembic_and_orm_schemas_hold_the_same_functions_an
         ({"function f": "a"}, {}, frozenset(), ["function f: only the migrated schema has it"]),
         ({}, {"trigger t": "a"}, frozenset(), ["trigger t: only the ORM schema has it"]),
         ({"function f": "a"}, {}, frozenset({"function f"}), []),
-        ({"function f": "a"}, {"function f": "a"}, frozenset({"function f"}), ["function f: the ORM schema installs it now. Remove it from MIGRATION_ONLY"]),
+        (
+            {"function f": "a"},
+            {"function f": "a"},
+            frozenset({"function f"}),
+            ["function f: the ORM schema installs it now. Remove it from MIGRATION_ONLY"],
+        ),
         ({}, {}, frozenset({"function f"}), ["function f: listed in MIGRATION_ONLY, but the migrated schema lacks it"]),
     ],
     ids=["equal", "differ", "migrated-only", "orm-only", "listed", "listed-but-orm-has-it", "listed-but-absent"],
 )
-def test_AC_ledger_14_7_the_comparison_names_each_difference(migrated: dict[str, str], orm: dict[str, str], migration_only: frozenset[str], expected: list[str]) -> None:
+def test_AC_ledger_14_7_the_comparison_names_each_difference(
+    migrated: dict[str, str], orm: dict[str, str], migration_only: frozenset[str], expected: list[str]
+) -> None:
     assert [p.splitlines()[0] for p in _describe(migrated, orm, migration_only)] == expected

@@ -25,4 +25,9 @@ async def test_commit_and_rollback_outbox_atomicity(db):
     await db.commit()
     assert await _outbox_count(db) == 1
     row = (await db.execute(sa.select(OutboxRecord))).scalar_one()
-    assert (row.status, row.event_type, row.source_pkg, row.published_at) == (STATUS_PENDING, "test.Thing", "test", None)
+    assert (row.status, row.event_type, row.source_pkg, row.published_at) == (
+        STATUS_PENDING,
+        "test.Thing",
+        "test",
+        None,
+    )

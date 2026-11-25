@@ -231,7 +231,11 @@ async def test_iterate_text_raises_the_failure_of_the_call_in_the_task_of_the_re
     with pytest.raises(ModelCallFailed) as raised:
         async for piece in _open():
             seen.append(piece)
-    assert (seen, raised.value.kind, failures_counter) == (["a ", "b "], ModelFailureKind.UNAVAILABLE, [("reconciliation.semantic_score", "unavailable")])
+    assert (seen, raised.value.kind, failures_counter) == (
+        ["a ", "b "],
+        ModelFailureKind.UNAVAILABLE,
+        [("reconciliation.semantic_score", "unavailable")],
+    )
 
     fake_llm(ModelHTTPError(status_code=429, model_name="m", body="x"))  # a failure before the first chunk
     with pytest.raises(ModelCallFailed) as before:

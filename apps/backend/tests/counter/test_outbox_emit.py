@@ -24,7 +24,14 @@ async def test_record_increment_writes_incremented_atomically(db):
     rows = await _outbox_rows(db)
     assert len(rows) == 1
     row = rows[0]
-    assert (row.event_type, row.source_pkg, row.status, row.payload["user_id"], row.payload["key"], row.payload["count"]) == (
+    assert (
+        row.event_type,
+        row.source_pkg,
+        row.status,
+        row.payload["user_id"],
+        row.payload["key"],
+        row.payload["count"],
+    ) == (
         EVENT_TYPE,
         "counter",
         STATUS_PENDING,
@@ -45,4 +52,7 @@ async def test_rollback_leaves_neither_tally_nor_event(db):
 async def test_increment_op_publishes_through_bus_fake():
     repo, bus = InMemoryCounterRepository(), RecordingEventBus()
     await increment(repo, user_id=uuid4(), key=KEY, bus=bus)
-    assert len(bus.published) == 1 and (bus.published[0].event_type, bus.published[0].payload()["count"]) == (EVENT_TYPE, 1)
+    assert len(bus.published) == 1 and (bus.published[0].event_type, bus.published[0].payload()["count"]) == (
+        EVENT_TYPE,
+        1,
+    )

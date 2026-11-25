@@ -14,9 +14,7 @@ from src.workflow.base.types import (
 PACKAGE_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:personal-financial-report-package")
 RECONCILIATION_WORKFLOW_SOURCE_ID = uuid5(NAMESPACE_URL, "finance-report:reconciliation-pending-review")
 
-_STATEMENT_SPECS: dict[
-    str, tuple[WorkflowEventFamily, str, WorkflowEventSeverity, str, str, WorkflowReportImpact]
-] = {
+_STATEMENT_SPECS: dict[str, tuple[WorkflowEventFamily, str, WorkflowEventSeverity, str, str, WorkflowReportImpact]] = {
     "uploaded": (
         WorkflowEventFamily.SOURCE_UPLOADED,
         "created",

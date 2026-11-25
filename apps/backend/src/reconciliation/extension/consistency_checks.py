@@ -496,9 +496,7 @@ async def list_checks(
 
     base_query = select(ConsistencyCheck).where(*clauses)
     if limit is not None:
-        return await paginate(
-            db, base_query, limit=limit, offset=offset, order_by=(desc(ConsistencyCheck.created_at),)
-        )
+        return await paginate(db, base_query, limit=limit, offset=offset, order_by=(desc(ConsistencyCheck.created_at),))
     checks = list((await db.execute(base_query.order_by(desc(ConsistencyCheck.created_at)).offset(offset))).scalars())
     if offset == 0:
         return checks, len(checks)

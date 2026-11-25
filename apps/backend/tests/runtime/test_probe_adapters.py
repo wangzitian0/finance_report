@@ -67,7 +67,9 @@ async def test_telemetry_check_http_and_tcp() -> None:
 
     assert (await TelemetryCheck(endpoint="/sock").probe()).status is DependencyStatus.ABSENT
     with patch("httpx.AsyncClient.post", AsyncMock(side_effect=httpx.ConnectError("down"))):
-        assert (await TelemetryCheck(endpoint="http://otel-collector:4318/v1/traces").probe()).status is DependencyStatus.ABSENT
+        assert (
+            await TelemetryCheck(endpoint="http://otel-collector:4318/v1/traces").probe()
+        ).status is DependencyStatus.ABSENT
 
 
 async def test_analytics_check_requires_client_id_and_ready_healthcheck() -> None:
@@ -90,12 +92,18 @@ async def test_analytics_check_requires_client_id_and_ready_healthcheck() -> Non
     ):
         kw = {"side_effect": outcome} if isinstance(outcome, Exception) else {"return_value": outcome}
         with patch("httpx.AsyncClient.get", AsyncMock(**kw)):
-            assert (await AnalyticsCheck(api_url="https://op.example.com/api", client_id="cid").probe()).status is DependencyStatus.ABSENT
+            assert (
+                await AnalyticsCheck(api_url="https://op.example.com/api", client_id="cid").probe()
+            ).status is DependencyStatus.ABSENT
 
 
 async def test_llm_check_probes_models_chat_fallback_and_redacts_key() -> None:
-    assert (await LlmCheck(api_key=None, provider="zai", base_url="https://ai.example/v1").probe()).status is DependencyStatus.ABSENT
-    assert (await LlmCheck(api_key="   ", provider="zai", base_url="https://ai.example/v1").probe()).status is DependencyStatus.ABSENT
+    assert (
+        await LlmCheck(api_key=None, provider="zai", base_url="https://ai.example/v1").probe()
+    ).status is DependencyStatus.ABSENT
+    assert (
+        await LlmCheck(api_key="   ", provider="zai", base_url="https://ai.example/v1").probe()
+    ).status is DependencyStatus.ABSENT
     no_url = await LlmCheck(api_key="tok", provider="zai", base_url=None).probe()
     assert no_url.status is DependencyStatus.ABSENT and "base_url" in no_url.detail
 
@@ -235,7 +243,13 @@ async def test_database_and_object_storage_checks() -> None:
 
 
 async def test_object_storage_public_and_write_delete_probe() -> None:
-    kw = {"endpoint": "http://minio:9000", "access_key": "minio", "secret_key": "secret-s3-key", "region": "us-east-1", "bucket": "statements"}
+    kw = {
+        "endpoint": "http://minio:9000",
+        "access_key": "minio",
+        "secret_key": "secret-s3-key",
+        "region": "us-east-1",
+        "bucket": "statements",
+    }
     ok_primary = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.0)
     ok_public = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.1)
     bad_public = sdk_health.ProbeResult("object_storage", DependencyStatus.ABSENT, "DNS error with secret-s3-key", 1.1)
@@ -245,7 +259,9 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     assert failed_pub.status is DependencyStatus.ABSENT and "public S3 probe failed" in failed_pub.detail
     assert "secret-s3-key" not in failed_pub.detail and "***" in failed_pub.detail
 
-    asym = await ObjectStorageCheck(public_endpoint="https://s3.zitian.party", public_access_key="pub-only", public_secret_key="  ", **kw).probe()
+    asym = await ObjectStorageCheck(
+        public_endpoint="https://s3.zitian.party", public_access_key="pub-only", public_secret_key="  ", **kw
+    ).probe()
     assert asym.status is DependencyStatus.ABSENT and "Incomplete public S3 credentials" in asym.detail
 
     s3_client = MagicMock(put_object=MagicMock(), delete_object=MagicMock(), close=MagicMock())
@@ -285,7 +301,11 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     s3_client.delete_object.assert_called_once()
     s3_client.close.assert_called_once()
 
-    failing_put = MagicMock(put_object=MagicMock(side_effect=PermissionError("AccessDenied secret-s3-key")), delete_object=MagicMock(), close=MagicMock())
+    failing_put = MagicMock(
+        put_object=MagicMock(side_effect=PermissionError("AccessDenied secret-s3-key")),
+        delete_object=MagicMock(),
+        close=MagicMock(),
+    )
     with (
         patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
         patch("infra2_sdk.runtime.s3.create_s3_client", return_value=failing_put),
@@ -296,7 +316,9 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     failing_put.delete_object.assert_called_once()
     failing_put.close.assert_called_once()
 
-    failing_del = MagicMock(put_object=MagicMock(), delete_object=MagicMock(side_effect=PermissionError("DeleteDenied")), close=MagicMock())
+    failing_del = MagicMock(
+        put_object=MagicMock(), delete_object=MagicMock(side_effect=PermissionError("DeleteDenied")), close=MagicMock()
+    )
     with (
         patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
         patch("infra2_sdk.runtime.s3.create_s3_client", return_value=failing_del),

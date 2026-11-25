@@ -18,7 +18,10 @@ def _dotted_name(node: ast.expr) -> str | None:
 
 def test_AC_pricing_manualvaluation_10_pricing_owns_the_manual_valuation_mapping() -> None:
     repo_root = Path(__file__).resolve().parents[4]
-    assert (ManualValuationSnapshot.__tablename__, Base.metadata.tables["manual_valuation_snapshots"] is ManualValuationSnapshot.__table__) == ("manual_valuation_snapshots", True)
+    assert (
+        ManualValuationSnapshot.__tablename__,
+        Base.metadata.tables["manual_valuation_snapshots"] is ManualValuationSnapshot.__table__,
+    ) == ("manual_valuation_snapshots", True)
     offenders: set[str] = set()
     for path in (repo_root / "apps/backend/src").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
@@ -31,10 +34,16 @@ def test_AC_pricing_manualvaluation_10_pricing_owns_the_manual_valuation_mapping
             if isinstance(node, ast.Import):
                 aliases.update(a.asname or a.name for a in node.names if a.name == "src.extraction.orm.layer3")
             elif isinstance(node, ast.ImportFrom):
-                if node.module == "src.extraction.orm.layer3" and any(a.name == "*" or a.name.startswith("ManualValuation") for a in node.names):
+                if node.module == "src.extraction.orm.layer3" and any(
+                    a.name == "*" or a.name.startswith("ManualValuation") for a in node.names
+                ):
                     offenders.add(rel)
                 if node.module == "src.extraction.orm":
                     aliases.update(a.asname or a.name for a in node.names if a.name == "layer3")
-            elif isinstance(node, ast.Attribute) and (q := _dotted_name(node)) and any(q.startswith(f"{b}.ManualValuation") for b in aliases):
+            elif (
+                isinstance(node, ast.Attribute)
+                and (q := _dotted_name(node))
+                and any(q.startswith(f"{b}.ManualValuation") for b in aliases)
+            ):
                 offenders.add(rel)
     assert offenders == set()

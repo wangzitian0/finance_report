@@ -40,6 +40,7 @@ ENTRY_DATE = date(2026, 7, 18)
 
 from contextlib import contextmanager
 
+
 @contextmanager
 def _capture_sql(db: AsyncSession):
     texts: list[str] = []
@@ -77,7 +78,11 @@ async def _commands(
         memo = f"Batch command {index}"
         source_identity = f"statement-transaction:{source_id}"
         target = journal_command_target(
-            entry_date=ENTRY_DATE, memo=memo, lines_data=lines_data, base_currency="SGD", source_identity=source_identity
+            entry_date=ENTRY_DATE,
+            memo=memo,
+            lines_data=lines_data,
+            base_currency="SGD",
+            source_identity=source_identity,
         )
         obs, dec = _decision_records(user_id=user_id, target=target)
         await TraceEmitter(repository).emit_many((obs, dec))
@@ -111,7 +116,9 @@ async def _described(db: AsyncSession, entries: list[JournalEntry]) -> list[dict
                 "base_currency": entry.base_currency,
                 "decision_anchor_id": entry.decision_anchor_id,
                 "authority": entry.decision_authority_state,
-                "lines": sorted((ln.line_no, ln.account_id, ln.direction, ln.amount, ln.currency, ln.fx_rate) for ln in lines),
+                "lines": sorted(
+                    (ln.line_no, ln.account_id, ln.direction, ln.amount, ln.currency, ln.fx_rate) for ln in lines
+                ),
             }
         )
     return described
@@ -121,13 +128,17 @@ async def test_batch_matches_sequential_and_has_constant_statement_count(db, tes
     accounts = await _accounts(db, test_user.id)
     commands, repository = await _commands(db, test_user.id, 5, accounts=accounts)
     nested = await db.begin_nested()
-    batch = await submit_anchored_journal_entries(db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository)
+    batch = await submit_anchored_journal_entries(
+        db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
+    )
     batch_facts = await _described(db, batch)
     await nested.rollback()
     assert await db.scalar(select(func.count()).select_from(JournalEntry)) == 0
 
     sequential = [
-        await submit_anchored_journal_entry(db, user_id=test_user.id, command=cmd, base_currency="SGD", trace_repository=repository)
+        await submit_anchored_journal_entry(
+            db, user_id=test_user.id, command=cmd, base_currency="SGD", trace_repository=repository
+        )
         for cmd in commands
     ]
     assert [e.memo for e in batch] == [c.memo for c in commands] == [e.memo for e in sequential]
@@ -137,9 +148,13 @@ async def test_batch_matches_sequential_and_has_constant_statement_count(db, tes
     small, _ = await _commands(db, test_user.id, 2, accounts=accounts, repository=repository)
     large, _ = await _commands(db, test_user.id, 30, accounts=accounts, repository=repository)
     with _capture_sql(db) as small_run:
-        await submit_anchored_journal_entries(db, user_id=test_user.id, commands=small, base_currency="SGD", trace_repository=repository)
+        await submit_anchored_journal_entries(
+            db, user_id=test_user.id, commands=small, base_currency="SGD", trace_repository=repository
+        )
     with _capture_sql(db) as large_run:
-        await submit_anchored_journal_entries(db, user_id=test_user.id, commands=large, base_currency="SGD", trace_repository=repository)
+        await submit_anchored_journal_entries(
+            db, user_id=test_user.id, commands=large, base_currency="SGD", trace_repository=repository
+        )
     assert len(large_run) == len(small_run) <= 10
 
 
@@ -147,15 +162,33 @@ async def test_batch_idempotency_conflict_and_atomicity(db, test_user) -> None:
     commands, repository = await _commands(db, test_user.id, 3)
     mismatched = replace(commands[1], decision_anchor=commands[0].decision_anchor)
     with pytest.raises(DecisionAnchorError, match="target"):
-        await submit_anchored_journal_entries(db, user_id=test_user.id, commands=[commands[0], mismatched, commands[2]], base_currency="SGD", trace_repository=repository)
+        await submit_anchored_journal_entries(
+            db,
+            user_id=test_user.id,
+            commands=[commands[0], mismatched, commands[2]],
+            base_currency="SGD",
+            trace_repository=repository,
+        )
     assert await db.scalar(select(func.count()).select_from(JournalEntry)) == 0
 
-    first = await submit_anchored_journal_entries(db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository)
-    again = await submit_anchored_journal_entries(db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository)
-    assert [e.id for e in again] == [e.id for e in first] and await db.scalar(select(func.count()).select_from(JournalEntry)) == 3
+    first = await submit_anchored_journal_entries(
+        db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
+    )
+    again = await submit_anchored_journal_entries(
+        db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
+    )
+    assert [e.id for e in again] == [e.id for e in first] and await db.scalar(
+        select(func.count()).select_from(JournalEntry)
+    ) == 3
 
     cmd = commands[0]
-    target = journal_command_target(entry_date=ENTRY_DATE, memo=cmd.memo, lines_data=cmd.lines_data, base_currency="SGD", source_identity=cmd.source_identity)
+    target = journal_command_target(
+        entry_date=ENTRY_DATE,
+        memo=cmd.memo,
+        lines_data=cmd.lines_data,
+        base_currency="SGD",
+        source_identity=cmd.source_identity,
+    )
     replacement = _decision_records(user_id=test_user.id, target=target, execution_id="replacement")[-1]
     with pytest.raises(DecisionAnchorError, match="different decision already owns"):
         await submit_anchored_journal_entries(
@@ -172,23 +205,58 @@ async def test_batch_mixed_statuses_dedup_processing_and_chunked_reads(db, test_
     posted_cmds, repository = await _commands(db, test_user.id, 2)
     draft_cmds, _ = await _commands(db, test_user.id, 2, post_immediately=False, repository=repository)
     entries = await submit_anchored_journal_entries(
-        db, user_id=test_user.id, commands=[posted_cmds[0], draft_cmds[0], posted_cmds[1], draft_cmds[1]], base_currency="SGD", trace_repository=repository
+        db,
+        user_id=test_user.id,
+        commands=[posted_cmds[0], draft_cmds[0], posted_cmds[1], draft_cmds[1]],
+        base_currency="SGD",
+        trace_repository=repository,
     )
-    assert [e.status for e in entries] == [JournalEntryStatus.POSTED, JournalEntryStatus.DRAFT, JournalEntryStatus.POSTED, JournalEntryStatus.DRAFT]
-    assert await submit_anchored_journal_entries(db, user_id=test_user.id, commands=[], base_currency="SGD", trace_repository=repository) == []
+    assert [e.status for e in entries] == [
+        JournalEntryStatus.POSTED,
+        JournalEntryStatus.DRAFT,
+        JournalEntryStatus.POSTED,
+        JournalEntryStatus.DRAFT,
+    ]
+    assert (
+        await submit_anchored_journal_entries(
+            db, user_id=test_user.id, commands=[], base_currency="SGD", trace_repository=repository
+        )
+        == []
+    )
 
-    dup = await submit_anchored_journal_entries(db, user_id=test_user.id, commands=[posted_cmds[0], posted_cmds[0]], base_currency="SGD", trace_repository=repository)
+    dup = await submit_anchored_journal_entries(
+        db,
+        user_id=test_user.id,
+        commands=[posted_cmds[0], posted_cmds[0]],
+        base_currency="SGD",
+        trace_repository=repository,
+    )
     assert dup[0].id == dup[1].id
 
     proc_acc = await _accounts(db, test_user.id, debit_code=PROCESSING_ACCOUNT_CODE)
-    sys_cmd, _ = await _commands(db, test_user.id, 1, accounts=proc_acc, source_type=JournalEntrySourceType.SYSTEM, repository=repository)
-    ok_proc = await submit_anchored_journal_entries(db, user_id=test_user.id, commands=sys_cmd, base_currency="SGD", trace_repository=repository)
+    sys_cmd, _ = await _commands(
+        db, test_user.id, 1, accounts=proc_acc, source_type=JournalEntrySourceType.SYSTEM, repository=repository
+    )
+    ok_proc = await submit_anchored_journal_entries(
+        db, user_id=test_user.id, commands=sys_cmd, base_currency="SGD", trace_repository=repository
+    )
     assert ok_proc[0].status == JournalEntryStatus.POSTED
     bad_proc, _ = await _commands(db, test_user.id, 1, accounts=proc_acc, repository=repository)
     with pytest.raises(ValidationError, match="Processing account"):
-        await submit_anchored_journal_entries(db, user_id=test_user.id, commands=bad_proc, base_currency="SGD", trace_repository=repository)
+        await submit_anchored_journal_entries(
+            db, user_id=test_user.id, commands=bad_proc, base_currency="SGD", trace_repository=repository
+        )
 
-    targets = [journal_command_target(entry_date=c.entry_date, memo=c.memo, lines_data=c.lines_data, base_currency="SGD", source_identity=c.source_identity) for c in posted_cmds + draft_cmds + sys_cmd]
+    targets = [
+        journal_command_target(
+            entry_date=c.entry_date,
+            memo=c.memo,
+            lines_data=c.lines_data,
+            base_currency="SGD",
+            source_identity=c.source_identity,
+        )
+        for c in posted_cmds + draft_cmds + sys_cmd
+    ]
     with patch.object(anchored_posting, "_TARGET_READ_CHUNK_SIZE", 2), _capture_sql(db) as statements:
         owners = await anchored_posting._existing_for_targets(db, user_id=test_user.id, targets=targets)
     assert {o.id for o in owners.values()} == {e.id for e in entries + ok_proc} and len(statements) == 4
@@ -202,7 +270,9 @@ async def test_batch_mixed_statuses_dedup_processing_and_chunked_reads(db, test_
 
 async def test_post_journal_entries_checks_each_entry(db, test_user) -> None:
     commands, repository = await _commands(db, test_user.id, 3, post_immediately=False)
-    drafts = await submit_anchored_journal_entries(db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository)
+    drafts = await submit_anchored_journal_entries(
+        db, user_id=test_user.id, commands=commands, base_currency="SGD", trace_repository=repository
+    )
     with pytest.raises(ValidationError, match="does not belong"):
         await post_journal_entries(db, drafts, uuid4(), base_currency="SGD")
     posted = await post_journal_entries(db, drafts, test_user.id, base_currency="SGD")

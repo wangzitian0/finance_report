@@ -172,7 +172,9 @@ async def chat_history(
         messages = (
             (
                 await db.execute(
-                    select(ChatMessage).where(ChatMessage.session_id == session.id).order_by(ChatMessage.created_at.asc())
+                    select(ChatMessage)
+                    .where(ChatMessage.session_id == session.id)
+                    .order_by(ChatMessage.created_at.asc())
                 )
             )
             .scalars()
@@ -186,7 +188,10 @@ async def chat_history(
         )
 
     count_sq = (
-        select(func.count(ChatMessage.id)).where(ChatMessage.session_id == ChatSession.id).correlate(ChatSession).scalar_subquery()
+        select(func.count(ChatMessage.id))
+        .where(ChatMessage.session_id == ChatSession.id)
+        .correlate(ChatSession)
+        .scalar_subquery()
     )
     last_msg_sq = (
         select(ChatMessage.id)
@@ -275,4 +280,6 @@ async def suggestions(
             )
         except Exception as exc:
             logger.warning("Failed to load structured chat suggestions", error=str(exc))
-    return ChatSuggestionsResponse(suggestions=_SUGGESTIONS["zh" if resolved == "zh" else "en"], structured_suggestions=structured)
+    return ChatSuggestionsResponse(
+        suggestions=_SUGGESTIONS["zh" if resolved == "zh" else "en"], structured_suggestions=structured
+    )

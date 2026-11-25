@@ -181,7 +181,9 @@ async def test_check_s3_staging_write_delete_and_prod_readonly(mock_settings) ->
         assert (st_ro.status, st_ro.service) == ("ok", "minio"), readonly_env
         ro_client.put_object.assert_not_called()
 
-    with patch("httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=200, json=lambda: {"ready": True}))) as get_fn:
+    with patch(
+        "httpx.AsyncClient.get", AsyncMock(return_value=MagicMock(status_code=200, json=lambda: {"ready": True}))
+    ) as get_fn:
         st_analytics = await Bootloader._check_analytics()
     assert (st_analytics.status, st_analytics.service) == ("ok", "analytics")
     assert get_fn.await_args.args[0] == "https://openpanel.zitian.party/api/healthcheck"

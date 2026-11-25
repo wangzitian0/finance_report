@@ -335,9 +335,7 @@ async def _supersede_selected_authority_parents(db, *, user_id, document) -> Non
         await repo.append(correction(parent, scope=parent.scope, target_id=parent.target.id, suffix="superseded"))
 
 
-async def test_trusted_year_deterministic_executor_proves_package_lifecycle(
-    db, test_user, monkeypatch
-) -> None:
+async def test_trusted_year_deterministic_executor_proves_package_lifecycle(db, test_user, monkeypatch) -> None:
     scenario, expected = TRUSTED_YEAR_SCENARIO, TRUSTED_YEAR_SCENARIO.expected
     monkeypatch.setattr(settings, "enable_ai_classification", True)
     categories = {"Salary credit": TransactionCategory.SALARY, "Rent debit": TransactionCategory.HOUSING}

@@ -27,7 +27,13 @@ async def test_opening_balance_readiness(
     if opening_date is not None:
         asset = await make_account(db, test_user.id, "Bank", AccountType.ASSET)
         await post_opening_balance_entry(
-            db, test_user.id, entry_date=opening_date, balances={asset.id: Decimal("1000.00")}, currency="SGD", base_currency="SGD", memo="Opening balances"
+            db,
+            test_user.id,
+            entry_date=opening_date,
+            balances={asset.id: Decimal("1000.00")},
+            currency="SGD",
+            base_currency="SGD",
+            memo="Opening balances",
         )
         await db.commit()
     readiness = await get_opening_balance_readiness(db, test_user.id)

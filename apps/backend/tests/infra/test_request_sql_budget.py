@@ -54,17 +54,39 @@ async def _get_readonly_budget(client: AsyncClient, db_engine, path: str, budget
 async def test_readonly_endpoint_sql_budgets(client: AsyncClient, db: AsyncSession, db_engine, test_user: User) -> None:
     await JournalEntryFactory.create_balanced_async(db, test_user.id, entry_date=date(2026, 1, 15), memo="Salary")
     await db.commit()
-    for path, budget in (("/accounts", 8), ("/reconciliation/transfers/summary", None), ("/reports/balance-sheet", 25), ("/workflow/status", None)):
+    for path, budget in (
+        ("/accounts", 8),
+        ("/reconciliation/transfers/summary", None),
+        ("/reports/balance-sheet", 25),
+        ("/workflow/status", None),
+    ):
         await _get_readonly_budget(client, db_engine, path, budget)
     await ensure_workflow_events_synced(db, user_id=test_user.id, base_currency="SGD")
     await db.commit()
     await _get_readonly_budget(client, db_engine, "/workflow/status", 40)
 
 
-async def test_post_statement_approve_and_batch_accept_sql_budgets(client: AsyncClient, db: AsyncSession, db_engine, test_user: User) -> None:
+async def test_post_statement_approve_and_batch_accept_sql_budgets(
+    client: AsyncClient, db: AsyncSession, db_engine, test_user: User
+) -> None:
     first_day = date(2026, 1, 1)
-    rows = [{"description": f"{'Salary' if i % 4 == 0 else 'Merchant'} {i}", "amount": Decimal("500.00") if i % 4 == 0 else Decimal("25.00"), "direction": TransactionDirection.IN if i % 4 == 0 else TransactionDirection.OUT, "date": first_day + timedelta(days=i)} for i in range(8)]
-    seeded = await seed_parsed_statement(db, test_user.id, institution="DBS", original_filename="request_budget_8.pdf", opening_balance=Decimal("1000.00"), transactions=rows)
+    rows = [
+        {
+            "description": f"{'Salary' if i % 4 == 0 else 'Merchant'} {i}",
+            "amount": Decimal("500.00") if i % 4 == 0 else Decimal("25.00"),
+            "direction": TransactionDirection.IN if i % 4 == 0 else TransactionDirection.OUT,
+            "date": first_day + timedelta(days=i),
+        }
+        for i in range(8)
+    ]
+    seeded = await seed_parsed_statement(
+        db,
+        test_user.id,
+        institution="DBS",
+        original_filename="request_budget_8.pdf",
+        opening_balance=Decimal("1000.00"),
+        transactions=rows,
+    )
     seeded.statement.period_start, seeded.statement.period_end = first_day, first_day + timedelta(days=7)
     await attach_reviewed_corpus_semantics(db, test_user.id, seeded.transactions)
     await db.commit()
@@ -78,7 +100,9 @@ async def test_post_statement_approve_and_batch_accept_sql_budgets(client: Async
         match_ids = []
         for idx in range(count):
             _, _, txn, _ = await _seed_approved_statement_with_posted_txn(db, test_user.id, f"{tag}-{idx}")
-            m = ReconciliationMatch(atomic_txn_id=txn.id, match_score=85, status=ReconciliationStatus.PENDING_REVIEW, version=1)
+            m = ReconciliationMatch(
+                atomic_txn_id=txn.id, match_score=85, status=ReconciliationStatus.PENDING_REVIEW, version=1
+            )
             db.add(m)
             await db.flush()
             match_ids.append(str(m.id))

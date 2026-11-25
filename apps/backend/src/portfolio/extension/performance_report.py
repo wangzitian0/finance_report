@@ -193,7 +193,9 @@ async def build_investment_performance_report_schedule(
 
     xirr = await _metric_or_note(
         "XIRR",
-        lambda: performance.calculate_xirr(db=db, user_id=user_id, as_of_date=as_of_date, base_currency=schedule_currency),
+        lambda: performance.calculate_xirr(
+            db=db, user_id=user_id, as_of_date=as_of_date, base_currency=schedule_currency
+        ),
     )
     twr = await _metric_or_note(
         "TWR",

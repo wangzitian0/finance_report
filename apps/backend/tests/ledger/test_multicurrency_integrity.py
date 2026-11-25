@@ -15,7 +15,12 @@ from src.ledger import (
     verify_accounting_equation,
     void_journal_entry,
 )
-from tests.ledger._ledger_helpers import create_anchored_test_journal_entry as create_journal_entry, make_account, make_entry, make_line
+from tests.ledger._ledger_helpers import (
+    create_anchored_test_journal_entry as create_journal_entry,
+    make_account,
+    make_entry,
+    make_line,
+)
 
 
 def test_multicurrency_entry_balances_in_base_currency() -> None:
@@ -23,7 +28,9 @@ def test_multicurrency_entry_balances_in_base_currency() -> None:
     equity_sgd = make_line(Direction.CREDIT, "135.00", "SGD")
     assert bank_usd.amount * bank_usd.fx_rate == equity_sgd.amount == Decimal("135.00")
     validate_journal_balance([bank_usd, equity_sgd])
-    validate_journal_balance([make_line(Direction.DEBIT, "100.00", None), make_line(Direction.CREDIT, "100.00", "USD")], base_currency="USD")
+    validate_journal_balance(
+        [make_line(Direction.DEBIT, "100.00", None), make_line(Direction.CREDIT, "100.00", "USD")], base_currency="USD"
+    )
     with pytest.raises(ValidationError):
         validate_journal_balance([bank_usd, make_line(Direction.CREDIT, "100.00", "SGD")])
 
@@ -34,7 +41,10 @@ async def test_accounting_equation_uses_base_currency_balances(db: AsyncSession,
     await make_entry(
         db,
         test_user.id,
-        [(usd_asset.id, Direction.DEBIT, "100.00", "USD", Decimal("1.350000")), (equity.id, Direction.CREDIT, "135.00", "SGD")],
+        [
+            (usd_asset.id, Direction.DEBIT, "100.00", "USD", Decimal("1.350000")),
+            (equity.id, Direction.CREDIT, "135.00", "SGD"),
+        ],
         entry_date=date(2026, 1, 1),
         memo="USD opening balance",
     )
@@ -52,7 +62,12 @@ async def test_effective_usd_base_and_historical_void_base(db: AsyncSession, tes
         "USD base",
         [
             {"account_id": usd_asset.id, "direction": Direction.DEBIT, "amount": Decimal("100.00"), "currency": "USD"},
-            {"account_id": usd_equity.id, "direction": Direction.CREDIT, "amount": Decimal("100.00"), "currency": "USD"},
+            {
+                "account_id": usd_equity.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("100.00"),
+                "currency": "USD",
+            },
         ],
         base_currency="USD",
     )
@@ -73,7 +88,12 @@ async def test_effective_usd_base_and_historical_void_base(db: AsyncSession, tes
         "Historical SGD",
         [
             {"account_id": sgd_asset.id, "direction": Direction.DEBIT, "amount": Decimal("100.00"), "currency": "SGD"},
-            {"account_id": sgd_equity.id, "direction": Direction.CREDIT, "amount": Decimal("100.00"), "currency": "SGD"},
+            {
+                "account_id": sgd_equity.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("100.00"),
+                "currency": "SGD",
+            },
         ],
         base_currency="SGD",
     )
@@ -93,8 +113,20 @@ async def test_void_rejects_all_fx_entry_without_historical_basis(db: AsyncSessi
         date(2026, 1, 1),
         "All-FX",
         [
-            {"account_id": usd_asset.id, "direction": Direction.DEBIT, "amount": Decimal("100.00"), "currency": "USD", "fx_rate": Decimal("1.350000")},
-            {"account_id": eur_equity.id, "direction": Direction.CREDIT, "amount": Decimal("90.00"), "currency": "EUR", "fx_rate": Decimal("1.500000")},
+            {
+                "account_id": usd_asset.id,
+                "direction": Direction.DEBIT,
+                "amount": Decimal("100.00"),
+                "currency": "USD",
+                "fx_rate": Decimal("1.350000"),
+            },
+            {
+                "account_id": eur_equity.id,
+                "direction": Direction.CREDIT,
+                "amount": Decimal("90.00"),
+                "currency": "EUR",
+                "fx_rate": Decimal("1.500000"),
+            },
         ],
         base_currency="SGD",
     )

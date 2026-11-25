@@ -186,7 +186,9 @@ class ObjectStorageCheck:
             return _absent(self.name, _redact_secrets(str(exc), *secrets), start)
 
         if primary_res.status is not DependencyStatus.PRESENT:
-            return ProbeResult(self.name, primary_res.status, _redact_secrets(primary_res.detail, *secrets), primary_res.duration_ms)
+            return ProbeResult(
+                self.name, primary_res.status, _redact_secrets(primary_res.detail, *secrets), primary_res.duration_ms
+            )
 
         parts = ["bucket accessible"]
         if pub_res is not None:

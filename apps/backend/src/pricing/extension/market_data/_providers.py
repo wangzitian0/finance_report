@@ -128,9 +128,7 @@ _STOCK_SYNC_SPEC = _MarketSyncSpec(
     scope_name=_stock_scope,
     latest_date=_latest_stock_price_date,
     stored_dates=_stored_stock_price_dates,
-    fetch_series=lambda symbol, start_date, end_date: _fetch_validated_stock_price_series(
-        symbol, start_date, end_date
-    ),
+    fetch_series=lambda symbol, start_date, end_date: _fetch_validated_stock_price_series(symbol, start_date, end_date),
     persist_observation=_persist_stock_price,  # type: ignore[arg-type]
     observation_date=_observation_date,
     observation_matches_scope=lambda obs, scope: (
@@ -282,9 +280,7 @@ def _parse_yahoo_fx_response_series(
     payload: dict[str, Any], base_currency: str, quote_currency: str, start_date: date, end_date: date
 ) -> list[FxRateObservation]:
     _, rows = _parse_yahoo_close_rows(payload, start_date=start_date, end_date=end_date)
-    return [
-        FxRateObservation(base_currency, quote_currency, _quantize_rate(r), d, "yahoo_finance") for d, r in rows
-    ]
+    return [FxRateObservation(base_currency, quote_currency, _quantize_rate(r), d, "yahoo_finance") for d, r in rows]
 
 
 def _parse_yahoo_stock_response_series(
@@ -323,7 +319,9 @@ def _parse_stooq_stock_csv_series(
     ]
 
 
-async def _fetch_yahoo_fx_rate(base_currency: str, quote_currency: str, requested_date: date) -> FxRateObservation | None:
+async def _fetch_yahoo_fx_rate(
+    base_currency: str, quote_currency: str, requested_date: date
+) -> FxRateObservation | None:
     return await _latest_in_window(
         lambda s, e: _fetch_yahoo_fx_rate_series(base_currency, quote_currency, s, e), requested_date, "rate_date"
     )
@@ -377,10 +375,16 @@ async def _fetch_yahoo_stock_price_series(
         failure_message="Yahoo Finance stock range fetch failed",
         log_context={"symbol": normalized, "start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
     )
-    return None if response is None else _parse_yahoo_stock_response_series(response.json(), normalized, start_date, end_date)
+    return (
+        None
+        if response is None
+        else _parse_yahoo_stock_response_series(response.json(), normalized, start_date, end_date)
+    )
 
 
-async def _fetch_stooq_fx_rate(base_currency: str, quote_currency: str, requested_date: date) -> FxRateObservation | None:
+async def _fetch_stooq_fx_rate(
+    base_currency: str, quote_currency: str, requested_date: date
+) -> FxRateObservation | None:
     return await _latest_in_window(
         lambda s, e: _fetch_stooq_fx_rate_series(base_currency, quote_currency, s, e), requested_date, "rate_date"
     )
@@ -400,7 +404,11 @@ async def _fetch_stooq_fx_rate_series(
             "end_date": end_date.isoformat(),
         },
     )
-    return None if response is None else _parse_stooq_fx_csv_series(response.text, base_currency, quote_currency, start_date, end_date)
+    return (
+        None
+        if response is None
+        else _parse_stooq_fx_csv_series(response.text, base_currency, quote_currency, start_date, end_date)
+    )
 
 
 async def _fetch_stooq_stock_price(symbol: str, requested_date: date) -> StockPriceObservation | None:

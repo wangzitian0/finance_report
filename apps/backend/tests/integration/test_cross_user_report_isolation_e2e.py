@@ -24,7 +24,10 @@ async def _seed_user(db: AsyncSession, uid, prefix: str, cap: str, sal: str) -> 
             user_id=uid,
             entry_date=date(2026, 3, 15),
             memo="iso",
-            lines_data=[{"account_id": bank.id, "direction": "DEBIT", "amount": amt, "currency": "SGD"}, {"account_id": credit.id, "direction": "CREDIT", "amount": amt, "currency": "SGD"}],
+            lines_data=[
+                {"account_id": bank.id, "direction": "DEBIT", "amount": amt, "currency": "SGD"},
+                {"account_id": credit.id, "direction": "CREDIT", "amount": amt, "currency": "SGD"},
+            ],
             source_type=JournalEntrySourceType.MANUAL,
         )
         await post_journal_entry(db, entry.id, uid)
@@ -40,16 +43,37 @@ async def test_reports_exclude_other_users_entries(db: AsyncSession, test_user: 
     a_bs = await generate_balance_sheet(db, user_a, as_of_date=p_end, currency="SGD")
     a_is = await generate_income_statement(db, user_a, start_date=p_start, end_date=p_end, currency="SGD")
     b_bs = await generate_balance_sheet(db, user_b, as_of_date=p_end, currency="SGD")
-    assert (a_bs["total_assets"], a_bs["is_balanced"], a_is["total_income"], a_is["net_income"], b_bs["total_assets"]) == (
-        Decimal("1500.00"), True, Decimal("500.00"), Decimal("500.00"), Decimal("17776.00")
-    )
+    assert (
+        a_bs["total_assets"],
+        a_bs["is_balanced"],
+        a_is["total_income"],
+        a_is["net_income"],
+        b_bs["total_assets"],
+    ) == (Decimal("1500.00"), True, Decimal("500.00"), Decimal("500.00"), Decimal("17776.00"))
     a_lines = {line["name"] for sec in ("assets", "liabilities", "equity") for line in a_bs[sec]}
     assert not any(name.startswith("B ") for name in a_lines), a_lines
 
     service = ValuationService()
-    await service.create_valuation_snapshot(db, user_id=user_a, value=Decimal("200000.00"), component_type=ManualValuationComponentType.PROPERTY_VALUE, as_of_date=p_end, currency="SGD", source="A appraisal")
-    await service.create_valuation_snapshot(db, user_id=user_b, value=Decimal("800000.00"), component_type=ManualValuationComponentType.PROPERTY_VALUE, as_of_date=p_end, currency="SGD", source="B appraisal")
-    await db.commit()
-    assert ((await service.get_latest_valuation_components(db, user_a, as_of_date=p_end)).total_assets, (await service.get_latest_valuation_components(db, user_b, as_of_date=p_end)).total_assets) == (
-        Decimal("200000.00"), Decimal("800000.00")
+    await service.create_valuation_snapshot(
+        db,
+        user_id=user_a,
+        value=Decimal("200000.00"),
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=p_end,
+        currency="SGD",
+        source="A appraisal",
     )
+    await service.create_valuation_snapshot(
+        db,
+        user_id=user_b,
+        value=Decimal("800000.00"),
+        component_type=ManualValuationComponentType.PROPERTY_VALUE,
+        as_of_date=p_end,
+        currency="SGD",
+        source="B appraisal",
+    )
+    await db.commit()
+    assert (
+        (await service.get_latest_valuation_components(db, user_a, as_of_date=p_end)).total_assets,
+        (await service.get_latest_valuation_components(db, user_b, as_of_date=p_end)).total_assets,
+    ) == (Decimal("200000.00"), Decimal("800000.00"))

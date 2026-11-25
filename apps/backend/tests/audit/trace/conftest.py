@@ -22,7 +22,11 @@ from src.audit import (
 
 
 def authority(
-    *, tier: str = "CODE-ONLY", proof_kind: str = "exact", provenance: str = "deterministic", stage: str = "github_ci.merge_authority"
+    *,
+    tier: str = "CODE-ONLY",
+    proof_kind: str = "exact",
+    provenance: str = "deterministic",
+    stage: str = "github_ci.merge_authority",
 ) -> TraceAuthorityProfile:
     return TraceAuthorityProfile(
         package="audit",

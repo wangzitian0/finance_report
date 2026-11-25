@@ -116,7 +116,10 @@ def _line_confidence_tier(line: dict[str, Any]) -> str | None:
 
 
 def _worst_lines_tier(lines: list[dict[str, Any]]) -> str:
-    return worst_confidence_tier([_line_confidence_tier(line) for line in lines], default="DETERMINISTIC") or "DETERMINISTIC"
+    return (
+        worst_confidence_tier([_line_confidence_tier(line) for line in lines], default="DETERMINISTIC")
+        or "DETERMINISTIC"
+    )
 
 
 class AIAdvisorService:
@@ -225,14 +228,19 @@ class AIAdvisorService:
             net_income_bs = Decimal(str(balance.get("net_income") or "0.00"))
             net_worth = total_assets - total_liabilities
             currency = str(balance.get("currency") or resolved_base)
-            bs_lines = [*cast(list[dict[str, Any]], balance.get("assets") or []), *cast(list[dict[str, Any]], balance.get("liabilities") or [])]
+            bs_lines = [
+                *cast(list[dict[str, Any]], balance.get("assets") or []),
+                *cast(list[dict[str, Any]], balance.get("liabilities") or []),
+            ]
             bs_tier = str(balance["confidence_tier"]) if balance.get("confidence_tier") else _worst_lines_tier(bs_lines)
             ending_unrealized_fx = Decimal(str(balance["unrealized_fx_gain_loss"]))
         except ReportError:
             currency = resolved_base
             bs_tier = "UNAVAILABLE"
 
-        async def _load_inc(s_date: date, e_date: date, fx: Decimal | None = None) -> tuple[Decimal, Decimal, list[dict[str, Any]], list[dict[str, Any]]]:
+        async def _load_inc(
+            s_date: date, e_date: date, fx: Decimal | None = None
+        ) -> tuple[Decimal, Decimal, list[dict[str, Any]], list[dict[str, Any]]]:
             inc = cast(
                 dict[str, Any],
                 await generate_income_statement(
@@ -255,7 +263,9 @@ class AIAdvisorService:
         monthly_income: Decimal | None = None
         monthly_expenses: Decimal | None = None
         try:
-            monthly_income, monthly_expenses, inc_lines, exp_lines = await _load_inc(start_date, today, ending_unrealized_fx)
+            monthly_income, monthly_expenses, inc_lines, exp_lines = await _load_inc(
+                start_date, today, ending_unrealized_fx
+            )
             if monthly_income == Decimal("0") and monthly_expenses == Decimal("0"):
                 latest_pnl_date = await db.scalar(
                     select(func.max(JournalEntry.entry_date))
@@ -270,8 +280,12 @@ class AIAdvisorService:
                     )
                 )
                 if latest_pnl_date is not None:
-                    hist_end = latest_pnl_date.replace(day=calendar.monthrange(latest_pnl_date.year, latest_pnl_date.month)[1])
-                    monthly_income, monthly_expenses, inc_lines, exp_lines = await _load_inc(latest_pnl_date.replace(day=1), hist_end)
+                    hist_end = latest_pnl_date.replace(
+                        day=calendar.monthrange(latest_pnl_date.year, latest_pnl_date.month)[1]
+                    )
+                    monthly_income, monthly_expenses, inc_lines, exp_lines = await _load_inc(
+                        latest_pnl_date.replace(day=1), hist_end
+                    )
             inc_tier = _worst_lines_tier([*inc_lines, *exp_lines])
         except ReportError:
             exp_lines = []
@@ -280,11 +294,15 @@ class AIAdvisorService:
         try:
             breakdown = cast(
                 dict[str, Any],
-                await get_category_breakdown(db, user_id, breakdown_type=AccountType.EXPENSE, period="monthly", currency=currency),
+                await get_category_breakdown(
+                    db, user_id, breakdown_type=AccountType.EXPENSE, period="monthly", currency=currency
+                ),
             )
             top_items = cast(list[dict[str, Any]], breakdown.get("items") or [])[:3]
             if not top_items and exp_lines:
-                sorted_exp = sorted(exp_lines, key=lambda line: Decimal(str(line.get("amount") or "0")), reverse=True)[:3]
+                sorted_exp = sorted(exp_lines, key=lambda line: Decimal(str(line.get("amount") or "0")), reverse=True)[
+                    :3
+                ]
                 top_items = [
                     {"category_name": line["name"], "total": line["amount"]}
                     for line in sorted_exp
@@ -448,9 +466,7 @@ class AIAdvisorService:
     async def _load_market_data_status(self, db: AsyncSession, user_id: UUID) -> dict[str, Any]:
         try:
             fx_pairs = await app_reads.fx_pairs()(db, user_id, include_default=True)
-            statuses = await get_market_data_status(
-                db, pairs=fx_pairs, symbols=await active_stock_symbols(db, user_id)
-            )
+            statuses = await get_market_data_status(db, pairs=fx_pairs, symbols=await active_stock_symbols(db, user_id))
         except Exception as exc:
             logger.warning("Failed to load advisor market data status", error=str(exc))
             statuses = []
@@ -756,7 +772,9 @@ class AIAdvisorService:
                 )
             ).all()
         )
-        return [{"role": m.role.value, "content": m.content} for m in reversed(rows) if m.role != ChatMessageRole.SYSTEM]
+        return [
+            {"role": m.role.value, "content": m.content} for m in reversed(rows) if m.role != ChatMessageRole.SYSTEM
+        ]
 
     async def _stream_and_store(
         self,

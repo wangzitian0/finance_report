@@ -211,7 +211,9 @@ def _rule(
         },
         line_mappings=line_mappings,
         required_evidence=list(_DEFAULT_EVIDENCE) if required_evidence is None else required_evidence,
-        disclosure_requirements=list(_DEFAULT_DISCLOSURE) if disclosure_requirements is None else disclosure_requirements,
+        disclosure_requirements=list(_DEFAULT_DISCLOSURE)
+        if disclosure_requirements is None
+        else disclosure_requirements,
         blocker_conditions=list(_DEFAULT_BLOCKERS) if blocker_conditions is None else blocker_conditions,
     )
 
@@ -252,9 +254,7 @@ def get_framework_policy_matrix(framework_id: PersonalReportingFrameworkId) -> F
             if is_us
             else "Measure at quoted fair value when market data is fresh; preserve cost basis and fair-value movement evidence."
         ),
-        "Marketable investment asset."
-        if is_us
-        else "Financial asset measured with HK-like fair-value presentation.",
+        "Marketable investment asset." if is_us else "Financial asset measured with HK-like fair-value presentation.",
         (
             "US-like balance sheet marketable securities with unrealized gain note discipline."
             if is_us
@@ -319,7 +319,9 @@ def _result_id(
             "gaps": sorted((g.model_dump(mode="json") for g in gaps), key=key_fn),
         }
     )[:16]
-    return f"policy-result:{framework_id.value}:{report_period_start.isoformat()}:{report_period_end.isoformat()}:{digest}"
+    return (
+        f"policy-result:{framework_id.value}:{report_period_start.isoformat()}:{report_period_end.isoformat()}:{digest}"
+    )
 
 
 def _anchor(

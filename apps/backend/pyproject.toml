@@ -88,10 +88,8 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "BLE"]
 ignore = [
     "E501",  # Line too long - handled by formatter, 120 is reasonable
-    "E401",
     "E402",
     "E701",
-    "E702",
     "E714",
     "E731",
     "I001",
@@ -119,9 +117,6 @@ ignore = [
 "src/platform/extension/relay.py" = ["BLE001"]
 "src/reporting/extension/income_statement.py" = ["BLE001"]
 "src/routers/chat.py" = ["BLE001"]
-
-[tool.ruff.format]
-exclude = ["src/**", "tests/**"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src"]

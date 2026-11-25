@@ -345,9 +345,7 @@ class FrameworkPolicyMatrix(BaseModel):
     @model_validator(mode="after")
     def validate_rules_line_mappings(self) -> "FrameworkPolicyMatrix":
         for rule in self.rules:
-            _check_line_mappings(
-                rule.line_mappings, self.framework_id, f"Rule for domain {rule.domain.value} maps to"
-            )
+            _check_line_mappings(rule.line_mappings, self.framework_id, f"Rule for domain {rule.domain.value} maps to")
         return self
 
 

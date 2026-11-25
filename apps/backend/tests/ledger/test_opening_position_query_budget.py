@@ -22,11 +22,18 @@ NEEDED_DECISION_COUNT = 2 * RECORD_COUNT + 1
 async def _seed_openings_and_activity(sessions) -> tuple[UUID, list[UUID], set[UUID], UUID, UUID]:
     async with sessions() as setup:
         user = await UserFactory.create_async(setup, email=f"opening-budget-{uuid4()}@example.invalid")
-        accounts = [await make_account(setup, user.id, f"Opening {index}", AccountType.ASSET) for index in range(RECORD_COUNT)]
+        accounts = [
+            await make_account(setup, user.id, f"Opening {index}", AccountType.ASSET) for index in range(RECORD_COUNT)
+        ]
         record_entry_ids = set()
         for index, account in enumerate(accounts):
             entry = await initialize_opening_positions(
-                setup, user.id, entry_date=date(2026, 1, 1), balances={account.id: Decimal(100 + index)}, currency="SGD", base_currency="SGD"
+                setup,
+                user.id,
+                entry_date=date(2026, 1, 1),
+                balances={account.id: Decimal(100 + index)},
+                currency="SGD",
+                base_currency="SGD",
             )
             record_entry_ids.add(entry.id)
         await setup.refresh(entry, ["lines"])

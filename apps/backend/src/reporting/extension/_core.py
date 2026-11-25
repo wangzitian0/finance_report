@@ -528,7 +528,9 @@ async def _aggregate_equity_translation_variance_sql(
     if not rows:
         return Decimal("0.00")
 
-    spot_rates = await _get_fx_rates_map(db, {row.currency.upper() for row in rows}, target, as_of_date, fx_warnings=fx_warnings)
+    spot_rates = await _get_fx_rates_map(
+        db, {row.currency.upper() for row in rows}, target, as_of_date, fx_warnings=fx_warnings
+    )
     total_variance = Decimal("0.00")
     for row in rows:
         curr = row.currency.upper()

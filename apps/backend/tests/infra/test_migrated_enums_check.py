@@ -87,7 +87,11 @@ def test_AC_meta_phase0_26_the_database_side_groups_labels_and_drops_async_suffi
     from contextlib import nullcontext
 
     seen, queries = [], []
-    cursor = nullcontext(SimpleNamespace(execute=queries.append, fetchall=lambda: [("k_enum", "extract"), ("k_enum", "classify"), ("s_enum", "x")]))
+    cursor = nullcontext(
+        SimpleNamespace(
+            execute=queries.append, fetchall=lambda: [("k_enum", "extract"), ("k_enum", "classify"), ("s_enum", "x")]
+        )
+    )
     conn = nullcontext(SimpleNamespace(cursor=lambda: cursor))
     monkeypatch.setattr(check.psycopg2, "connect", lambda url: seen.append(url) or conn)
     assert check.migrated_enums("postgresql+asyncpg://db/app") == {"k_enum": KIND, "s_enum": frozenset({"x"})}

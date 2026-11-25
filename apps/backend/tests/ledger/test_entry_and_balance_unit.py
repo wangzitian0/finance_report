@@ -27,24 +27,38 @@ def _money(val: str, ccy: str = "USD") -> Money:
 
 def test_entry_and_leg_construction_and_invariants() -> None:
     assert len(Entry.transfer(debit=A, credit=B, money=_money("10.00")).legs) == 2
-    assert len(
-        Entry.of(
-            Leg(A, Direction.DEBIT, _money("100.00")),
-            Leg(B, Direction.CREDIT, _money("80.00")),
-            Leg(C, Direction.CREDIT, _money("20.00")),
-        ).legs
-    ) == 3
-    assert len(
-        Entry.of(
-            Leg(A, Direction.DEBIT, _money("10.00", "USD")),
-            Leg(B, Direction.CREDIT, _money("10.00", "USD")),
-            Leg(A, Direction.DEBIT, _money("5.00", "SGD")),
-            Leg(B, Direction.CREDIT, _money("5.00", "SGD")),
-        ).legs
-    ) == 4
+    assert (
+        len(
+            Entry.of(
+                Leg(A, Direction.DEBIT, _money("100.00")),
+                Leg(B, Direction.CREDIT, _money("80.00")),
+                Leg(C, Direction.CREDIT, _money("20.00")),
+            ).legs
+        )
+        == 3
+    )
+    assert (
+        len(
+            Entry.of(
+                Leg(A, Direction.DEBIT, _money("10.00", "USD")),
+                Leg(B, Direction.CREDIT, _money("10.00", "USD")),
+                Leg(A, Direction.DEBIT, _money("5.00", "SGD")),
+                Leg(B, Direction.CREDIT, _money("5.00", "SGD")),
+            ).legs
+        )
+        == 4
+    )
     for err, fn in (
-        (UnbalancedEntryError, lambda: Entry.of(Leg(A, Direction.DEBIT, _money("100.00")), Leg(B, Direction.CREDIT, _money("80.00")))),
-        (UnbalancedEntryError, lambda: Entry.of(Leg(A, Direction.DEBIT, _money("10.00", "USD")), Leg(B, Direction.CREDIT, _money("10.00", "SGD")))),
+        (
+            UnbalancedEntryError,
+            lambda: Entry.of(Leg(A, Direction.DEBIT, _money("100.00")), Leg(B, Direction.CREDIT, _money("80.00"))),
+        ),
+        (
+            UnbalancedEntryError,
+            lambda: Entry.of(
+                Leg(A, Direction.DEBIT, _money("10.00", "USD")), Leg(B, Direction.CREDIT, _money("10.00", "SGD"))
+            ),
+        ),
         (DegenerateEntryError, lambda: Entry.of()),
         (DegenerateEntryError, lambda: Entry.of(Leg(A, Direction.DEBIT, _money("10.00")))),
         (UnbalancedEntryError, lambda: Leg(A, Direction.DEBIT, _money("0.00"))),
@@ -65,7 +79,10 @@ def test_entry_and_leg_construction_and_invariants() -> None:
         ([make_line(Direction.DEBIT, "50.00"), make_line(Direction.DEBIT, "50.00")], "not balanced"),
         ([make_line(Direction.CREDIT, "100.00")], "at least 2 lines"),
         ([], "at least 2 lines"),
-        ([make_line(Direction.DEBIT, "100.00", "USD"), make_line(Direction.CREDIT, "100.00", "SGD")], "fx_rate required for currency USD"),
+        (
+            [make_line(Direction.DEBIT, "100.00", "USD"), make_line(Direction.CREDIT, "100.00", "SGD")],
+            "fx_rate required for currency USD",
+        ),
     ],
 )
 def test_validate_journal_balance_cases(lines, match) -> None:
@@ -86,7 +103,10 @@ def test_fx_rates_and_concurrent_validation() -> None:
     assert Decimal("100.50") + Decimal("50.25") == Decimal("150.75")
 
     def _worker(worker_id: int) -> bool:
-        lines = [make_line(Direction.DEBIT, "100.00"), make_line(Direction.CREDIT, "100.00" if worker_id % 2 == 0 else "90.00")]
+        lines = [
+            make_line(Direction.DEBIT, "100.00"),
+            make_line(Direction.CREDIT, "100.00" if worker_id % 2 == 0 else "90.00"),
+        ]
         try:
             validate_journal_balance(lines)
             return True

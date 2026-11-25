@@ -1,1 +1,50 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query"; import type { ReactNode } from "react"; import { expect } from "vitest"; import { declaredInvalidations } from "./mutationInvalidationMatrix"; export const PROBE_SUFFIX = "__invalidation_probe__"; export function createInvalidationProbe( flow: string, dynamicSuffix: readonly unknown[] = [], ) { const declared = declaredInvalidations(flow); if (declared.length === 0) { throw new Error( `flow '${flow}' declares no invalidations — there is nothing to probe`, ); }; const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false }, }, }); const seededKeys = declared.map((key) => [...key, ...dynamicSuffix, PROBE_SUFFIX]); for (const key of seededKeys) { client.setQueryData(key, { probe: true }); }; function Wrapper({ children }: { children: ReactNode }) { return <QueryClientProvider client={client}>{children}</QueryClientProvider>; }; return { client, wrapper: Wrapper, expectDeclaredInvalidated() { for (const key of seededKeys) { expect( client.getQueryState(key)?.isInvalidated, `flow '${flow}' must invalidate ${JSON.stringify(key)} ` + "(declared in MUTATION_INVALIDATION_MATRIX)", ).toBe(true); } }, expectNothingInvalidated() { for (const key of seededKeys) { expect(client.getQueryState(key)?.isInvalidated).toBe(false); } }, }; }
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
+import { expect } from "vitest";
+import { declaredInvalidations } from "./mutationInvalidationMatrix";
+export const PROBE_SUFFIX = "__invalidation_probe__";
+export function createInvalidationProbe(
+  flow: string,
+  dynamicSuffix: readonly unknown[] = [],
+) {
+  const declared = declaredInvalidations(flow);
+  if (declared.length === 0) {
+    throw new Error(
+      `flow '${flow}' declares no invalidations — there is nothing to probe`,
+    );
+  }
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const seededKeys = declared.map((key) => [
+    ...key,
+    ...dynamicSuffix,
+    PROBE_SUFFIX,
+  ]);
+  for (const key of seededKeys) {
+    client.setQueryData(key, { probe: true });
+  }
+  function Wrapper({ children }: { children: ReactNode }) {
+    return (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+  }
+  return {
+    client,
+    wrapper: Wrapper,
+    expectDeclaredInvalidated() {
+      for (const key of seededKeys) {
+        expect(
+          client.getQueryState(key)?.isInvalidated,
+          `flow '${flow}' must invalidate ${JSON.stringify(key)} ` +
+            "(declared in MUTATION_INVALIDATION_MATRIX)",
+        ).toBe(true);
+      }
+    },
+    expectNothingInvalidated() {
+      for (const key of seededKeys) {
+        expect(client.getQueryState(key)?.isInvalidated).toBe(false);
+      }
+    },
+  };
+}

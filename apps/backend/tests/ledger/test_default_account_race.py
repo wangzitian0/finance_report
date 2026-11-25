@@ -44,7 +44,9 @@ _processing = lambda session, uid: get_or_create_processing_account(session, uid
 _CREATORS = [
     pytest.param(_processing, Account.code == PROCESSING_ACCOUNT_CODE, id="processing"),
     pytest.param(
-        lambda s, uid: get_or_create_account(s, name="General Expense (SGD)", account_type=AccountType.EXPENSE, currency="SGD", user_id=uid),
+        lambda s, uid: get_or_create_account(
+            s, name="General Expense (SGD)", account_type=AccountType.EXPENSE, currency="SGD", user_id=uid
+        ),
         Account.name == "General Expense (SGD)",
         id="default-account",
     ),
@@ -93,13 +95,19 @@ async def test_AC_ledger_71_5_two_requests_that_create_two_accounts_in_opposite_
 
     async def worker(first_name, second_name):
         async with sessions() as session:
-            await get_or_create_account(session, name=first_name, account_type=AccountType.EXPENSE, currency="SGD", user_id=user_id)
+            await get_or_create_account(
+                session, name=first_name, account_type=AccountType.EXPENSE, currency="SGD", user_id=user_id
+            )
             first_done[first_name].set()
             await asyncio.wait_for(first_done[second_name].wait(), timeout=NO_WAIT_SECONDS)
-            await get_or_create_account(session, name=second_name, account_type=AccountType.EXPENSE, currency="SGD", user_id=user_id)
+            await get_or_create_account(
+                session, name=second_name, account_type=AccountType.EXPENSE, currency="SGD", user_id=user_id
+            )
             await session.commit()
 
-    await asyncio.wait_for(asyncio.gather(worker("Account A", "Account B"), worker("Account B", "Account A")), timeout=NO_WAIT_SECONDS * 2)
+    await asyncio.wait_for(
+        asyncio.gather(worker("Account A", "Account B"), worker("Account B", "Account A")), timeout=NO_WAIT_SECONDS * 2
+    )
     async with sessions() as check:
         names = (await check.execute(select(Account.name).where(Account.user_id == user_id))).scalars().all()
     assert sorted(names) == ["Account A", "Account B"]
@@ -123,8 +131,14 @@ async def test_AC_ledger_71_5_account_creation_transaction_boundaries(db_engine,
         assert await other.get(Account, account_id) is None
 
 
-async def test_AC_ledger_71_5_without_an_own_session_the_caller_creates_the_account_under_the_lock(db_engine, monkeypatch):
-    monkeypatch.setattr(account_service, "create_session_maker_from_db", lambda _db: (_ for _ in ()).throw(RuntimeError("Async engine unavailable")))
+async def test_AC_ledger_71_5_without_an_own_session_the_caller_creates_the_account_under_the_lock(
+    db_engine, monkeypatch
+):
+    monkeypatch.setattr(
+        account_service,
+        "create_session_maker_from_db",
+        lambda _db: (_ for _ in ()).throw(RuntimeError("Async engine unavailable")),
+    )
     sessions, user_id = await _committed_user(db_engine)
     first, second = sessions(), sessions()
     try:
@@ -141,7 +155,9 @@ async def test_AC_ledger_71_5_without_an_own_session_the_caller_creates_the_acco
     assert second_account.id == first_account.id
 
 
-async def test_AC_ledger_71_5_a_lock_that_the_caller_holds_makes_the_creation_fail_instead_of_hang(db_engine, monkeypatch):
+async def test_AC_ledger_71_5_a_lock_that_the_caller_holds_makes_the_creation_fail_instead_of_hang(
+    db_engine, monkeypatch
+):
     monkeypatch.setattr(account_service, "ACCOUNT_CREATION_LOCK_TIMEOUT", "300ms")
     sessions, user_id = await _committed_user(db_engine)
     caller = sessions()
@@ -193,7 +209,16 @@ async def test_AC_ledger_2674_1_all_default_and_system_account_creators_route_th
         ),
         ctx=RequestContext(db, test_user.id),
     )
-    assert (obe.code, uge.code, broker.code, broker.currency, bank_acc.code, stmt.account_id, adj_resp.difference, len(calls)) == (
+    assert (
+        obe.code,
+        uge.code,
+        broker.code,
+        broker.currency,
+        bank_acc.code,
+        stmt.account_id,
+        adj_resp.difference,
+        len(calls),
+    ) == (
         account_service.OPENING_BALANCE_EQUITY_CODE,
         account_service.UNEXPLAINED_GAP_EQUITY_CODE,
         "AUTO-ASSET",

@@ -24,11 +24,20 @@ async def app_client() -> AsyncClient:
 
 def _stub_health(monkeypatch, *, s3_status: str) -> None:
     for name in (n for n in dir(Bootloader) if n.startswith("_check_")):
-        monkeypatch.setattr(Bootloader, name, AsyncMock(return_value=ServiceStatus(name, s3_status if name == "_check_s3" else "ok", "stub")))
+        monkeypatch.setattr(
+            Bootloader,
+            name,
+            AsyncMock(return_value=ServiceStatus(name, s3_status if name == "_check_s3" else "ok", "stub")),
+        )
 
 
-@pytest.mark.parametrize(("s3_status", "paths", "expected_code"), [("ok", ("/livez", "/readyz", "/health?full=1"), 200), ("error", ("/health?full=1",), 503)])
-async def test_AC_observability_19_1_and_2_health_probes(app_client: AsyncClient, monkeypatch, s3_status: str, paths: tuple[str, ...], expected_code: int) -> None:
+@pytest.mark.parametrize(
+    ("s3_status", "paths", "expected_code"),
+    [("ok", ("/livez", "/readyz", "/health?full=1"), 200), ("error", ("/health?full=1",), 503)],
+)
+async def test_AC_observability_19_1_and_2_health_probes(
+    app_client: AsyncClient, monkeypatch, s3_status: str, paths: tuple[str, ...], expected_code: int
+) -> None:
     _stub_health(monkeypatch, s3_status=s3_status)
     for path in paths:
         resp = await app_client.get(path)
@@ -37,8 +46,17 @@ async def test_AC_observability_19_1_and_2_health_probes(app_client: AsyncClient
 
 def test_AC_observability_19_1_and_3_probe_access_filter_and_routes() -> None:
     flt = _ProbeAccessFilter()
-    make_rec = lambda p: logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', ("127.0.0.1", "GET", p, "1.1", 200), None)
+    make_rec = lambda p: logging.LogRecord(
+        "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', ("127.0.0.1", "GET", p, "1.1", 200), None
+    )
     assert all(flt.filter(make_rec(p)) is False for p in PROBE_PATHS)
-    assert all(flt.filter(make_rec(p)) is True for p in ("/openapi.json", "/healthz", "/health/", "/api/health", "/healthcheck", "/ping"))
+    assert all(
+        flt.filter(make_rec(p)) is True
+        for p in ("/openapi.json", "/healthz", "/health/", "/api/health", "/healthcheck", "/ping")
+    )
     served = {getattr(ctx.route, "path", None) for ctx in iter_route_contexts(main_module.app.routes)}
-    assert main_module._PROBE_PATHS and main_module._PROBE_PATHS <= served and main_module._RATE_LIMIT_EXEMPT_PATHS <= served
+    assert (
+        main_module._PROBE_PATHS
+        and main_module._PROBE_PATHS <= served
+        and main_module._RATE_LIMIT_EXEMPT_PATHS <= served
+    )

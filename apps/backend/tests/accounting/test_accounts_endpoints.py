@@ -64,7 +64,12 @@ async def test_system_accounts_cannot_be_updated_or_deleted(client: AsyncClient,
         assert resp.status_code == 400 and "System accounts cannot be modified or deleted" in resp.json()["detail"]
 
     inactive_broker = Account(
-        user_id=test_user.id, name="Moomoo SG", type=AccountType.ASSET, currency="SGD", code="AUTO-ASSET", is_active=False
+        user_id=test_user.id,
+        name="Moomoo SG",
+        type=AccountType.ASSET,
+        currency="SGD",
+        code="AUTO-ASSET",
+        is_active=False,
     )
     db.add(inactive_broker)
     await db.commit()
@@ -120,7 +125,9 @@ async def test_accounts_service_crud_and_not_found(db: AsyncSession, test_user) 
         uid,
         AccountCreate(name="Operating", type=AccountType.ASSET, currency="SGD", code="1001", description="Main"),
     )
-    await account_service.create_account(db, uid, AccountCreate(name="Card", type=AccountType.LIABILITY, currency="SGD"))
+    await account_service.create_account(
+        db, uid, AccountCreate(name="Card", type=AccountType.LIABILITY, currency="SGD")
+    )
     fetched = await account_service.get_account(db, uid, acc1.id)
     assert fetched.id == acc1.id and fetched.code == "1001"
     updated = await account_service.update_account(

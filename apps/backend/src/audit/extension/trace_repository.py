@@ -204,7 +204,10 @@ class SqlTraceRecordRepository:
         )
         heads: Counter[TraceLineage] = Counter()
         for chunk in _chunks(
-            sorted(set(lineages), key=lambda item: (item.target_kind, item.target_id, item.assertion_kind, item.assertion_id)),
+            sorted(
+                set(lineages),
+                key=lambda item: (item.target_kind, item.target_id, item.assertion_kind, item.assertion_id),
+            ),
             _READ_CHUNK_SIZE,
         ):
             rows = (

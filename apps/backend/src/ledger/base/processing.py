@@ -108,11 +108,19 @@ def _calculate_pair_confidence(
             (line.account_id for line in out_entry.lines if line.direction == Direction.DEBIT), None
         )
     out_amount = next(
-        (line.amount for line in out_entry.lines if line.account_id == processing_account_id and line.direction == Direction.DEBIT),
+        (
+            line.amount
+            for line in out_entry.lines
+            if line.account_id == processing_account_id and line.direction == Direction.DEBIT
+        ),
         Decimal("0"),
     )
     in_amount = next(
-        (line.amount for line in in_entry.lines if line.account_id == processing_account_id and line.direction == Direction.CREDIT),
+        (
+            line.amount
+            for line in in_entry.lines
+            if line.account_id == processing_account_id and line.direction == Direction.CREDIT
+        ),
         Decimal("0"),
     )
     breakdown = {
