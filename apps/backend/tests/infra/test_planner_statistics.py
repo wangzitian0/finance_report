@@ -132,6 +132,7 @@ async def _seed_year(session: AsyncSession) -> User:
     return user
 
 
+@pytest.mark.db
 async def test_AC_testing_backend_test_planner_2_a_year_load_keeps_true_size_estimates_and_a_fast_cash_flow(
     test_database_url: str,
 ) -> None:
