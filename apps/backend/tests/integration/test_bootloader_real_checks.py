@@ -10,7 +10,7 @@ from src.config import settings
 _REAL_CHECK_DATABASE = Bootloader._check_database
 _REAL_CHECK_S3 = Bootloader._check_s3
 _MOCK_MESSAGE = "Mocked for tests"
-pytestmark = [pytest.mark.integration, pytest.mark.no_db, pytest.mark.asyncio]
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 _as_static = lambda func: staticmethod(func) if isinstance(func, types.FunctionType) else func
 _real_checks_patched = lambda: patch.multiple(Bootloader, _check_database=_as_static(_REAL_CHECK_DATABASE), _check_s3=_as_static(_REAL_CHECK_S3))
 

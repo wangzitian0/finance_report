@@ -318,7 +318,6 @@ def test_AC_extraction_2994_8_9_run_hints_validation_bounds():
             RunHints.model_validate(payload)
 
 
-@pytest.mark.no_db
 async def test_AC_extraction_2994_10_the_migration_backfills_one_running_run_per_parsing_statement():
     await verify_runs_migration_backfill()
 
@@ -335,7 +334,6 @@ async def test_AC_extraction_2994_delegated_run_checks(db, db_engine, test_user,
         await verify_worker_retry_reaper_and_user_start(db, db_engine, test_user)
 
 
-@pytest.mark.no_db
 def test_AC_extraction_2983_migration_sub_account_key_upgrade_and_downgrade():
     """#2983: 0077_stmt_summary_sub_account widens uniqueness, matches ORM via alembic check, and guards downgrade."""
     name = f"fr_ac_2983_sub_{uuid4().hex[:12]}"

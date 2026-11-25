@@ -18,8 +18,6 @@ from sqlalchemy.engine import Engine
 
 from tests.extraction._statement_run_helpers import BACKEND_DIR, migration_db_url, run_alembic
 
-pytestmark = pytest.mark.no_db
-
 _BEFORE = "0080_stmt_institution_nullable"
 _REVISION = "0081_drop_llm_provider_layer"
 _TABLES = ("llm_providers", "llm_scene_bindings")
