@@ -188,7 +188,7 @@
       ],
       "writes": true,
       "accepts_scale": false,
-      "timeout_seconds": 1200,
+      "timeout_seconds": 900,
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
@@ -224,7 +224,7 @@
       ],
       "writes": true,
       "accepts_scale": false,
-      "timeout_seconds": 1200,
+      "timeout_seconds": 900,
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
         "TEST_USER_EMAIL",
@@ -244,7 +244,7 @@
       "argv": [
         "sh",
         "-c",
-        "python -m tests.benchmarks.pdf_corpus_oracle --app-url \"$APP_URL\" --max-workers 1"
+        "mkdir -p \"${HOOK_ARTIFACTS_DIR:-.artifacts/hooks}\" && python -m tests.benchmarks.pdf_corpus_oracle --app-url \"$APP_URL\" --max-workers 1 --json-report \"${HOOK_ARTIFACTS_DIR:-.artifacts/hooks}/pdf_corpus_oracle.json\" --output-summary \"${HOOK_ARTIFACTS_DIR:-.artifacts/hooks}/pdf_corpus_oracle_summary.json\""
       ],
       "needs": [
         "code",
@@ -277,7 +277,7 @@
       "argv": [
         "sh",
         "-c",
-        "python -m tests.benchmarks.run_financial_scenario_benchmark --app-url \"$APP_URL\" --case 1,2,3,4,5,6"
+        "mkdir -p \"${HOOK_ARTIFACTS_DIR:-.artifacts/hooks}\" && python -m tests.benchmarks.run_financial_scenario_benchmark --app-url \"$APP_URL\" --case 1,2,3,4,5,6 --json-report \"${HOOK_ARTIFACTS_DIR:-.artifacts/hooks}/financial_scenario_benchmark.json\" --output-summary \"${HOOK_ARTIFACTS_DIR:-.artifacts/hooks}/financial_scenario_benchmark_summary.json\""
       ],
       "needs": [
         "code",

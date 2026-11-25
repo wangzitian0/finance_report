@@ -177,3 +177,36 @@ def test_benchmark_block_check_rejects_a_missing_digest_refusal() -> None:
     client = httpx.Client(base_url="http://api.test", transport=httpx.MockTransport(handler))
     with pytest.raises(RuntimeError, match="Expected balance mismatch approval block"):
         ScenarioBenchmarkRunner("http://api.test").assert_approval_blocked_by_balance_mismatch(client, "stmt-1")
+
+
+def test_financial_scenario_hook_emits_structured_json_and_summary(tmp_path: Path) -> None:
+    from types import SimpleNamespace
+    from tests.benchmarks.run_financial_scenario_benchmark import _build_report_data, _save_reports
+    from tests.benchmarks.case_types import CaseResult
+
+    manifest = load_hooks_manifest(REPO_ROOT / "runtime-hooks.manifest.json")
+    audit_text = hook_text(manifest, "scheduled_audit")
+    assert "financial_scenario_benchmark.json" in audit_text
+    assert "financial_scenario_benchmark_summary.json" in audit_text
+
+    json_report = tmp_path / "bench.json"
+    summary_report = tmp_path / "bench_summary.json"
+    args = SimpleNamespace(
+        version_ref="v0.2.99",
+        app_url="https://report-staging.zitian.party",
+        json_report=json_report,
+        output_summary=summary_report,
+    )
+    results = [
+        CaseResult(
+            case_id="case_1",
+            case_name="Case 1",
+            status="PASS",
+            duration_seconds=1.25,
+            details={"equation_delta": "0.00"},
+        )
+    ]
+    report = _build_report_data(args, results, True)
+    _save_reports(args, report)
+    assert json.loads(json_report.read_text(encoding="utf-8"))["summary"]["passed"] == 1
+    assert json.loads(summary_report.read_text(encoding="utf-8"))["status"] == "PASS"

@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
 import json
 import time
 import uuid
@@ -16,6 +18,7 @@ from typing import Any
 import httpx
 import yaml
 
+from tests.benchmarks.benchmark_summary import sanitize_for_json, write_utf8_atomic
 from tests.fixtures.provider_review import wait_for_statement_runs_sync
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -915,35 +918,44 @@ def run_live_pdf_statement_verification(
     }
 
 
-def main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST_PATH)
-    parser.add_argument("--app-url", type=str, default=None)
-    parser.add_argument("--fixture", action="append", default=None)
-    parser.add_argument("--max-workers", type=int, default=1)
-    args = parser.parse_args(argv)
-
-    corpus = load_pdf_benchmark_corpus(args.manifest, REPO_ROOT)
-    selected = (
-        [s for s in corpus if s.fixture_id in set(args.fixture)]
-        if args.fixture
-        else list(corpus)
-    )
-    if not selected:
-        return 2
-    for spec in selected:
+def _run_offline_fixture(spec: CorpusStatementSpec) -> dict[str, Any]:
+    t0 = time.perf_counter()
+    failures: list[str] = []
+    eq_delta = ZERO
+    try:
         oracle = compute_independent_three_statement_oracle([spec])
-        if (
-            oracle.balance_sheet.accounting_equation_delta != ZERO
-            or spec.balance_chain_delta != ZERO
-        ):
-            return 1
-    if not args.app_url:
-        return 0
+        eq_delta = oracle.balance_sheet.accounting_equation_delta
+        if eq_delta != ZERO:
+            failures.append(f"accounting_equation_delta={eq_delta}")
+        if spec.balance_chain_delta != ZERO:
+            failures.append(f"balance_chain_delta={spec.balance_chain_delta}")
+        error_message = None
+    except Exception as exc:  # noqa: BLE001
+        error_message = f"{type(exc).__name__}: {exc}"
+        failures.append(error_message)
+    return {
+        "fixture_id": spec.fixture_id,
+        "institution": spec.institution,
+        "dimension": spec.dimension,
+        "currency": spec.currency,
+        "status": "FAIL" if failures else "PASS",
+        "duration_seconds": round(time.perf_counter() - t0, 3),
+        "accounting_equation_delta": str(eq_delta),
+        "balance_chain_delta": str(spec.balance_chain_delta),
+        "failures": failures,
+        "error_message": error_message,
+    }
 
-    with httpx.Client(base_url=args.app_url.rstrip("/"), timeout=120.0) as client:
-        all_passed = True
-        for spec in selected:
+
+def _run_live_fixture(app_url: str, spec: CorpusStatementSpec) -> dict[str, Any]:
+    t0 = time.perf_counter()
+    stmt_id: str | None = None
+    del_status: int | None = None
+    comparison: dict[str, Any] | None = None
+    failures: list[str] = []
+    error_message: str | None = None
+    try:
+        with httpx.Client(base_url=app_url.rstrip("/"), timeout=120.0) as client:
             reg = client.post(
                 "/api/auth/register",
                 json={
@@ -953,14 +965,175 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
             if reg.status_code not in (200, 201):
-                return 1
+                raise RuntimeError(
+                    f"Registration failed for {spec.fixture_id}: {reg.status_code} {reg.text}"
+                )
             client.headers.update(
                 {"Authorization": f"Bearer {reg.json()['access_token']}"}
             )
             res = run_live_pdf_statement_verification(client, spec, root_dir=REPO_ROOT)
-            if not res["comparison"]["passed"]:
-                all_passed = False
-        return 0 if all_passed else 1
+        stmt_id = res.get("statement_id")
+        del_status = res.get("delete_status")
+        comparison = res.get("comparison")
+        comp_failures = (
+            list(comparison.get("failures") or [])
+            if isinstance(comparison, dict)
+            else []
+        )
+        failures = [str(f) for f in comp_failures]
+        passed = bool(isinstance(comparison, dict) and comparison.get("passed"))
+        if not passed and not failures:
+            failures = [f"Oracle comparison did not pass for {spec.fixture_id}"]
+    except Exception as exc:  # noqa: BLE001
+        error_message = f"{type(exc).__name__}: {exc}"
+        failures = [error_message]
+        passed = False
+    return {
+        "fixture_id": spec.fixture_id,
+        "institution": spec.institution,
+        "dimension": spec.dimension,
+        "currency": spec.currency,
+        "status": "PASS" if passed else "FAIL",
+        "duration_seconds": round(time.perf_counter() - t0, 3),
+        "statement_id": stmt_id,
+        "delete_status": del_status,
+        "comparison": comparison,
+        "failures": failures,
+        "error_message": error_message,
+    }
+
+
+def _execute_fixtures(
+    selected: Sequence[CorpusStatementSpec],
+    *,
+    app_url: str | None,
+    max_workers: int,
+) -> list[dict[str, Any]]:
+    run_one = (lambda spec: _run_live_fixture(app_url, spec)) if app_url else _run_offline_fixture
+    if max_workers <= 1 or len(selected) <= 1:
+        return [run_one(spec) for spec in selected]
+    with ThreadPoolExecutor(max_workers=min(max_workers, len(selected))) as pool:
+        return list(pool.map(run_one, selected))
+
+
+def _build_oracle_report_data(
+    results: list[dict[str, Any]],
+    *,
+    manifest_version: str,
+    app_url: str | None,
+) -> dict[str, Any]:
+    total = len(results)
+    passed = sum(1 for r in results if r.get("status") == "PASS")
+    failed = total - passed
+    total_duration = round(sum(float(r.get("duration_seconds") or 0.0) for r in results), 3)
+    return {
+        "suite": "pdf_corpus_oracle",
+        "manifest_version": manifest_version,
+        "app_url": app_url or "",
+        "mode": "live" if app_url else "offline",
+        "run_at": datetime.now(UTC).isoformat(),
+        "summary": {
+            "total": total,
+            "passed": passed,
+            "failed": failed,
+            "success": total > 0 and failed == 0,
+            "duration_seconds": total_duration,
+        },
+        "results": results,
+    }
+
+
+def extract_pdf_oracle_summary(report_data: Mapping[str, Any]) -> dict[str, Any]:
+    summary = report_data.get("summary") or {}
+    results = list(report_data.get("results") or [])
+    total = int(summary.get("total", len(results)))
+    passed = int(summary.get("passed", sum(1 for r in results if r.get("status") == "PASS")))
+    failed = int(summary.get("failed", total - passed))
+    success = bool(summary.get("success", total > 0 and failed == 0))
+    return {
+        "suite": "pdf_corpus_oracle",
+        "manifest_version": report_data.get("manifest_version", ""),
+        "run_at": report_data.get("run_at", ""),
+        "app_url": report_data.get("app_url", ""),
+        "mode": report_data.get("mode", "offline"),
+        "status": "PASS" if success else "FAIL",
+        "fixtures_total": total,
+        "fixtures_passed": passed,
+        "fixtures_failed": failed,
+        "duration_seconds": float(summary.get("duration_seconds", 0.0)),
+        "failures_by_fixture": {
+            str(r["fixture_id"]): list(r.get("failures") or [])
+            for r in results
+            if r.get("status") != "PASS"
+        },
+    }
+
+
+def _save_oracle_outputs(
+    report_data: dict[str, Any],
+    *,
+    json_report: Path | None,
+    output_summary: Path | None,
+) -> None:
+    safe_report = sanitize_for_json(report_data)
+    if json_report:
+        write_utf8_atomic(json_report, json.dumps(safe_report, indent=2))
+    if output_summary:
+        summary_data = sanitize_for_json(extract_pdf_oracle_summary(safe_report))
+        write_utf8_atomic(output_summary, json.dumps(summary_data, indent=2))
+
+
+def _print_oracle_summary(
+    results: Sequence[Mapping[str, Any]],
+    report_data: Mapping[str, Any],
+    json_report: Path | None,
+) -> None:
+    for r in results:
+        print(
+            f"{r['status']} | {r['fixture_id']} ({r.get('duration_seconds', 0.0):.2f}s)"
+        )
+        if r.get("error_message"):
+            print(f"  Error: {r['error_message']}")
+    s = report_data["summary"]
+    print(f"Total: {s['total']} | Passed: {s['passed']} | Failed: {s['failed']}")
+    if json_report:
+        print(f"Report saved to: {json_report}")
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--manifest", type=Path, default=DEFAULT_MANIFEST_PATH)
+    parser.add_argument("--app-url", type=str, default=None)
+    parser.add_argument("--fixture", action="append", default=None)
+    parser.add_argument("--max-workers", type=int, default=1)
+    parser.add_argument("--json-report", type=Path, default=None)
+    parser.add_argument("--output-summary", type=Path, default=None)
+    args = parser.parse_args(argv)
+    if args.max_workers < 1:
+        return 2
+
+    raw_manifest = yaml.safe_load(args.manifest.read_text(encoding="utf-8")) or {}
+    manifest_version = str(raw_manifest.get("version") or "")
+    corpus = load_pdf_benchmark_corpus(args.manifest, REPO_ROOT)
+    selected = (
+        [s for s in corpus if s.fixture_id in set(args.fixture)]
+        if args.fixture
+        else list(corpus)
+    )
+    if not selected:
+        return 2
+
+    results = _execute_fixtures(
+        selected, app_url=args.app_url, max_workers=args.max_workers
+    )
+    report_data = _build_oracle_report_data(
+        results, manifest_version=manifest_version, app_url=args.app_url
+    )
+    _save_oracle_outputs(
+        report_data, json_report=args.json_report, output_summary=args.output_summary
+    )
+    _print_oracle_summary(results, report_data, args.json_report)
+    return 0 if report_data["summary"]["success"] else 1
 
 
 if __name__ == "__main__":

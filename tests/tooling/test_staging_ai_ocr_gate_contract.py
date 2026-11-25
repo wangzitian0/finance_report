@@ -716,3 +716,47 @@ def test_core_journey_is_disjoint_from_audit_replay() -> None:
     core_files = {node.split("::", 1)[0] for node in core_nodes}
     assert core_files.isdisjoint(replay_files)
     assert core_files == set(matrix.CORE_JOURNEY_ONLY_FILES)
+
+
+def test_test_selection_emits_junit_xml_when_hook_artifacts_dir_or_junit_path_is_set(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from common.testing import test_selection
+
+    calls: list[list[str]] = []
+
+    def _fake_run(argv: list[str], **_kw):
+        calls.append(argv)
+        return SimpleNamespace(returncode=0)
+
+    artifacts_dir = tmp_path / "hook_artifacts"
+    monkeypatch.setenv("HOOK_ARTIFACTS_DIR", str(artifacts_dir))
+    assert (
+        test_selection.main(
+            ["--stage", "staging_ai_ocr", "--corpus", "audit_replay", "--run"],
+            runner=_fake_run,
+        )
+        == 0
+    )
+    expected_auto = artifacts_dir / "staging_ai_ocr_audit_replay.junit.xml"
+    assert f"--junitxml={expected_auto}" in calls[-1]
+    assert artifacts_dir.is_dir()
+
+    explicit = tmp_path / "custom" / "result.xml"
+    assert (
+        test_selection.main(
+            [
+                "--stage",
+                "staging_core_e2e",
+                "--run",
+                "--junit-path",
+                str(explicit),
+            ],
+            runner=_fake_run,
+        )
+        == 0
+    )
+    assert f"--junitxml={explicit}" in calls[-1]
+    assert explicit.parent.is_dir()

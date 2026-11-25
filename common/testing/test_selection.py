@@ -22,11 +22,31 @@ from common.testing import matrix  # noqa: E402
 MATRIX_YAML = ROOT_DIR / "common" / "testing" / "data" / "test-execution-matrix.yaml"
 
 
+def _resolve_junit_path(
+    explicit: Path | None,
+    *,
+    hook_artifacts_dir: str | None,
+    stage: str | None,
+    corpus: str | None,
+) -> Path | None:
+    if explicit is not None:
+        return explicit
+    if not hook_artifacts_dir:
+        return None
+    stem = (
+        f"{stage}_{corpus}"
+        if stage and corpus and corpus != "all"
+        else (stage or "selection")
+    )
+    return Path(hook_artifacts_dir) / f"{stem}.junit.xml"
+
+
 def run_pytest(
     nodes: Sequence[str],
     marker: str,
     *,
     stage_env: Mapping[str, str],
+    junit_path: Path | None = None,
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
 ) -> int:
     """Run ``python -m pytest`` in the repository root; return its exit code.
@@ -34,7 +54,10 @@ def run_pytest(
     Child env: stage env defaults, overridden by the parent env, plus the forced
     ``STRICT_E2E_GATES=1``: without it a rejected AI/OCR statement is a skip (#2914).
     """
-    flags = ("-v", "--tb=short", "-o", "addopts=", "-m", marker)
+    flags = ["-v", "--tb=short", "-o", "addopts=", "-m", marker]
+    if junit_path is not None:
+        junit_path.parent.mkdir(parents=True, exist_ok=True)
+        flags.append(f"--junitxml={junit_path}")
     argv = [sys.executable, "-m", "pytest", *nodes, *flags]
     env = {**stage_env, **os.environ, "STRICT_E2E_GATES": "1"}
     return runner(argv, check=False, cwd=ROOT_DIR, env=env).returncode
@@ -62,6 +85,12 @@ def main(
     parser.add_argument("--shell", action="store_true", help="Emit bash assignments.")
     parser.add_argument(
         "--run", action="store_true", help="Run pytest on the selection."
+    )
+    parser.add_argument(
+        "--junit-path",
+        type=Path,
+        default=None,
+        help="Optional path for --junitxml when --run executes (defaults to HOOK_ARTIFACTS_DIR when set).",
     )
     parser.add_argument(
         "--emit-matrix",
@@ -110,7 +139,15 @@ def main(
                 print("no touched journey: pytest not started")
                 return 0
             env = matrix.stage_env(matrix.STAGING_CORE_E2E_STAGE)
-            return run_pytest(nodes, marker, stage_env=env, runner=runner)
+            junit_path = _resolve_junit_path(
+                args.junit_path,
+                hook_artifacts_dir=os.environ.get("HOOK_ARTIFACTS_DIR"),
+                stage="touched_files",
+                corpus=None,
+            )
+            return run_pytest(
+                nodes, marker, stage_env=env, junit_path=junit_path, runner=runner
+            )
         if args.shell:
             print(matrix.emit_touched_e2e_shell(touched_files))
             return 0
@@ -139,7 +176,15 @@ def main(
             print(f"ERROR: {error}", file=sys.stderr)
             return 2
         env = matrix.stage_env(args.stage)
-        return run_pytest(nodes, marker, stage_env=env, runner=runner)
+        junit_path = _resolve_junit_path(
+            args.junit_path,
+            hook_artifacts_dir=os.environ.get("HOOK_ARTIFACTS_DIR"),
+            stage=args.stage,
+            corpus=args.corpus if args.stage == matrix.STAGING_AI_OCR_STAGE else None,
+        )
+        return run_pytest(
+            nodes, marker, stage_env=env, junit_path=junit_path, runner=runner
+        )
 
     if args.shell:
         print(matrix.emit_shell(args.stage, corpus=args.corpus))
