@@ -4,7 +4,10 @@ from pathlib import Path
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import select
+
+pytestmark = pytest.mark.integration
 from src.extraction import BankStatementStatus, DocumentSource
 from src.extraction.extension.service import ExtractionService
 from src.ledger import Account, AccountType

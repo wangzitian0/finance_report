@@ -43,7 +43,7 @@ async def _admin_exec(*stmts: str) -> None:
 
 
 async def test_alembic_business_persistence_keeps_user_fk_contract() -> None:
-    db_name = f"fr_ac8_13_127_{uuid4().hex[:16]}"
+    db_name = f"finance_report_test_ac8_13_127_{uuid4().hex[:16]}"
     db_url = _db_url(db_name)
     engine = None
     await _admin_exec(f'DROP DATABASE IF EXISTS "{db_name}" WITH (FORCE)', f'CREATE DATABASE "{db_name}"')

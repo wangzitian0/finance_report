@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 from sqlalchemy import select
+
+pytestmark = pytest.mark.integration
 from src.config import settings
 from src.extraction import ClassificationStatus, DocumentSource, StatementPostingStatus
 from src.extraction.extension import transaction_classification

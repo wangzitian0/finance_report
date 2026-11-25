@@ -18,7 +18,7 @@ from sqlalchemy.pool import NullPool
 from src.extraction.orm.bank_custody_binding import BankCustodyBinding
 from src.identity import User
 from src.reporting import generate_cash_flow
-from tests._support.test_isolation import get_test_db_name, sanitize_namespace
+from tests._support.db_isolation import get_test_db_name, sanitize_namespace
 from tests.factories import seed_year_of_journal_entries
 
 YEAR_TABLES = ("accounts", "journal_entries", "journal_lines")
@@ -132,6 +132,7 @@ async def _seed_year(session: AsyncSession) -> User:
     return user
 
 
+@pytest.mark.db
 async def test_AC_testing_backend_test_planner_2_a_year_load_keeps_true_size_estimates_and_a_fast_cash_flow(
     test_database_url: str,
 ) -> None:

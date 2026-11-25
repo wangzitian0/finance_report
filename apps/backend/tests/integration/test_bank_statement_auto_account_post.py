@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import AsyncMock
 
+import pytest
 from sqlalchemy import select
+
+pytestmark = pytest.mark.integration
 from src.extraction import BankStatementStatus, ClassificationStatus, DocumentSource, RuleType
 from src.extraction.extension.service import ExtractionService
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement

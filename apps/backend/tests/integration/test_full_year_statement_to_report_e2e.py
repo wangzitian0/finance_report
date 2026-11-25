@@ -4,7 +4,10 @@ from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
+
+pytestmark = pytest.mark.integration
 from src.config import settings
 from src.extraction import DocumentSource
 from src.extraction.extension import transaction_classification

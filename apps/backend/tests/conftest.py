@@ -111,7 +111,7 @@ def worker_id(request):
     if hasattr(request.config, 'workerinput'): return request.config.workerinput['workerid']
     return 'master'
 def get_test_db_url(worker_id: str) -> str:
-    from tests._support.test_isolation import get_namespace, get_test_db_name, sanitize_namespace; raw_namespace = os.environ.get('TEST_NAMESPACE'); namespace = sanitize_namespace(raw_namespace) if raw_namespace else get_namespace(); base_db_name = get_test_db_name(namespace); base_url = normalize_url(os.environ.get('DATABASE_URL', f'postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}')) or f'postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}'
+    from tests._support.db_isolation import get_namespace, get_test_db_name, sanitize_namespace; raw_namespace = os.environ.get('TEST_NAMESPACE'); namespace = sanitize_namespace(raw_namespace) if raw_namespace else get_namespace(); base_db_name = get_test_db_name(namespace); base_url = normalize_url(os.environ.get('DATABASE_URL', f'postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}')) or f'postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}'
     if raw_namespace: base_url = make_url(base_url).set(database=base_db_name).render_as_string(hide_password=False)
     if worker_id != 'master': url_obj = make_url(base_url); assert url_obj.database is not None; worker_suffix = f'_{worker_id}'; max_base_len = 63 - len(worker_suffix); worker_db_name = f'{url_obj.database[:max_base_len]}{worker_suffix}'; new_url = url_obj.set(database=worker_db_name); return new_url.render_as_string(hide_password=False)
     return base_url
@@ -146,7 +146,7 @@ async def _drop_test_database(db_url: str, db_name: str) -> None:
 async def _schema_engine(test_database_url):
     import atexit
 
-    from tests._support.test_isolation import (
+    from tests._support.db_isolation import (
         get_namespace,
         is_droppable_test_db,
         register_namespace,
@@ -189,13 +189,32 @@ async def _cleanup_dirty_tables(engine) -> None:
 _DB_FIXTURES = {'db', 'db_engine', 'client', 'public_client', 'test_user', 'test_user_id', 'db_session'}
 @pytest_asyncio.fixture(scope='function')
 async def db_engine(request, _schema_engine):
-    if request.node.get_closest_marker('no_db'): yield None; return
-    if not (_DB_FIXTURES.intersection(request.fixturenames) or request.node.get_closest_marker('db')): yield None; return
-    await _cleanup_dirty_tables(_schema_engine); yield _schema_engine
-@pytest_asyncio.fixture(scope='function', autouse=True)
-async def patch_database_connection(db_engine):
-    if db_engine is None: yield; return
-    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker; from src import database; test_maker = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False); database.set_test_session_maker(test_maker); yield; database.set_test_session_maker(None)
+    if request.node.get_closest_marker('no_db'):
+        yield None
+        return
+    if not (_DB_FIXTURES.intersection(request.fixturenames) or request.node.get_closest_marker('db')):
+        yield None
+        return
+    await _cleanup_dirty_tables(_schema_engine)
+    yield _schema_engine
+@pytest.fixture(scope='function', autouse=True)
+def patch_database_connection(request):
+    if request.node.get_closest_marker('no_db'):
+        yield
+        return
+    if not (_DB_FIXTURES.intersection(request.fixturenames) or request.node.get_closest_marker('db')):
+        yield
+        return
+    engine = request.getfixturevalue('db_engine')
+    if engine is None:
+        yield
+        return
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+    from src import database
+    test_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+    database.set_test_session_maker(test_maker)
+    yield
+    database.set_test_session_maker(None)
 @pytest_asyncio.fixture(scope='function')
 async def db(db_engine):
     async_session = async_sessionmaker(db_engine, class_=AsyncSession, expire_on_commit=False)

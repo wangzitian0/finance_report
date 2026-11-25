@@ -94,7 +94,7 @@ def test_drop_namespace_databases_targets_master_and_worker_dbs(monkeypatch) -> 
 def test_register_namespace_lease_lifecycle_and_dead_pid_pruning(
     tmp_path: Path,
 ) -> None:
-    from apps.backend.tests._support import test_isolation as ti
+    from apps.backend.tests._support import db_isolation as ti
 
     lease_file = tmp_path / "active_namespaces.json"
     dead_pid = 999_999_999
@@ -143,7 +143,7 @@ def test_reap_ephemeral_only_and_active_worktree_protection(
 
 def test_session_teardown_drops_only_a_test_database() -> None:
     """The session teardown must not drop the DATABASE_URL development database."""
-    from apps.backend.tests._support import test_isolation as ti
+    from apps.backend.tests._support import db_isolation as ti
 
     assert ti.is_droppable_test_db("finance_report_test")
     assert ti.is_droppable_test_db("finance_report_test_gw3")
@@ -160,3 +160,34 @@ def test_session_teardown_drops_only_a_test_database() -> None:
     assert len(drop_calls) == 1
     guard_line = conftest.splitlines()[conftest.splitlines().index(drop_calls[0]) - 1]
     assert "is_droppable_test_db(db_name)" in guard_line
+
+
+def test_no_db_marker_skips_schema_engine_with_unreachable_database() -> None:
+    """Running a @pytest.mark.no_db backend test must not connect to Postgres."""
+    import os
+    import subprocess
+    import sys
+
+    repo_root = Path(__file__).resolve().parents[2]
+    env = {
+        **os.environ,
+        "DATABASE_URL": "postgresql+asyncpg://invalid:invalid@127.0.0.1:1/nope",
+    }
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            "--no-cov",
+            "-o",
+            "addopts=",
+            "tests/runtime/test_manifest.py",
+            "-q",
+        ],
+        cwd=repo_root / "apps/backend",
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stdout + "\n" + completed.stderr
