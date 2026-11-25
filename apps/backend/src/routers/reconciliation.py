@@ -367,9 +367,7 @@ async def list_anomalies(txn_id: UUID, *, ctx: ReadCtx, pagination: Pagination) 
     """Return reconciliation anomalies."""
     db, user_id = ctx.db, ctx.user_id
     txn = await get_owned_reconciliation_transaction(db, txn_id, user_id)
-    anomalies = await detect_anomalies(
-        db, txn, user_id=user_id, limit=pagination.limit, offset=pagination.offset
-    )
+    anomalies = await detect_anomalies(db, txn, user_id=user_id, limit=pagination.limit, offset=pagination.offset)
     return [AnomalyResponse(**a.__dict__) for a in anomalies]
 
 

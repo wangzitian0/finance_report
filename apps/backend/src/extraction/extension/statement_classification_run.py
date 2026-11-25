@@ -72,7 +72,9 @@ class ClassifyOutcome(StrEnum):
     PARTIAL = "partial"  # an asked row has no answer: the approve sends it to the economic review
     NOTHING_TO_CLASSIFY = "nothing_to_classify"  # every row had an answer or a rule, or no row qualified
     SKIPPED_STATE = "skipped_state"  # the statement is gone, not PARSED, or its rows cannot be resolved
-    SKIPPED_DISABLED = "skipped_disabled"  # no model: the user turned it off, or the deployment has none (not_configured)
+    SKIPPED_DISABLED = (
+        "skipped_disabled"  # no model: the user turned it off, or the deployment has none (not_configured)
+    )
     TIMED_OUT = "timed_out"  # past the deadline: the batches written stay
     FAILED = "failed"  # an error: the batches written stay
 

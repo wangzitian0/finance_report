@@ -25,19 +25,42 @@ async def _static_scopes(_db: object) -> MarketDataScopes:
 
 
 def test_next_market_data_sync_at_and_no_forbidden_imports() -> None:
-    before, after = datetime(2026, 1, 6, 21, 0, tzinfo=MARKET_DATA_SYNC_TZ), datetime(2026, 1, 6, 23, 0, tzinfo=MARKET_DATA_SYNC_TZ)
+    before, after = (
+        datetime(2026, 1, 6, 21, 0, tzinfo=MARKET_DATA_SYNC_TZ),
+        datetime(2026, 1, 6, 23, 0, tzinfo=MARKET_DATA_SYNC_TZ),
+    )
     tree = ast.parse(Path(scheduler_module.__file__).read_text(encoding="utf-8"))
-    forbidden = ("src.extraction", "src.ledger", "src.portfolio", "src.reconciliation", "src.reporting", "src.services", "src.routers")
+    forbidden = (
+        "src.extraction",
+        "src.ledger",
+        "src.portfolio",
+        "src.reconciliation",
+        "src.reporting",
+        "src.services",
+        "src.routers",
+    )
     imported = [
         mod
         for node in ast.walk(tree)
-        for mod in ([node.module] if isinstance(node, ast.ImportFrom) and node.module else [a.name for a in node.names] if isinstance(node, ast.Import) else [])
+        for mod in (
+            [node.module]
+            if isinstance(node, ast.ImportFrom) and node.module
+            else [a.name for a in node.names]
+            if isinstance(node, ast.Import)
+            else []
+        )
         if mod.startswith(forbidden)
     ]
-    assert (next_market_data_sync_at(before), next_market_data_sync_at(after), imported) == (datetime(2026, 1, 6, 22, 0, tzinfo=MARKET_DATA_SYNC_TZ), datetime(2026, 1, 7, 22, 0, tzinfo=MARKET_DATA_SYNC_TZ), [])
+    assert (next_market_data_sync_at(before), next_market_data_sync_at(after), imported) == (
+        datetime(2026, 1, 6, 22, 0, tzinfo=MARKET_DATA_SYNC_TZ),
+        datetime(2026, 1, 7, 22, 0, tzinfo=MARKET_DATA_SYNC_TZ),
+        [],
+    )
 
 
-async def test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     created_sessions: list[object] = []
     active_sessions = 0
     calls: list[tuple[str, object, object]] = []
@@ -76,7 +99,14 @@ async def test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider(
             kind="fx",
             end_date=date(2026, 1, 6),
             skipped=0,
-            items=(PlannedScopeSync(scope=("USD", "SGD"), scope_name="USD/SGD", last_date=None, requested_dates=frozenset({date(2026, 1, 6)})),),
+            items=(
+                PlannedScopeSync(
+                    scope=("USD", "SGD"),
+                    scope_name="USD/SGD",
+                    last_date=None,
+                    requested_dates=frozenset({date(2026, 1, 6)}),
+                ),
+            ),
         )
 
     async def fake_plan_stock(db, *, symbols):
@@ -85,7 +115,11 @@ async def test_AC_pricing_marketdata_12_daily_sync_uses_injected_scope_provider(
             kind="stock",
             end_date=date(2026, 1, 6),
             skipped=0,
-            items=(PlannedScopeSync(scope="AAPL", scope_name="AAPL", last_date=None, requested_dates=frozenset({date(2026, 1, 6)})),),
+            items=(
+                PlannedScopeSync(
+                    scope="AAPL", scope_name="AAPL", last_date=None, requested_dates=frozenset({date(2026, 1, 6)})
+                ),
+            ),
         )
 
     async def fake_fetch_fx(plan):

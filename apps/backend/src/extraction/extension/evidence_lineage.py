@@ -61,10 +61,14 @@ async def upsert_nodes_batch(
         return {}
     entity_ids = [s[2] for s in specs]
     existing = (
-        await db.execute(
-            select(EvidenceNode).where(EvidenceNode.user_id == user_id, EvidenceNode.entity_id.in_(entity_ids))
+        (
+            await db.execute(
+                select(EvidenceNode).where(EvidenceNode.user_id == user_id, EvidenceNode.entity_id.in_(entity_ids))
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     by_key = {(n.node_kind, n.entity_type, n.entity_id): n for n in existing}
     created = False
     for kind, etype, eid, props in specs:
@@ -93,14 +97,18 @@ async def upsert_edges_batch(
     from_ids = {s[0].id for s in specs}
     to_ids = {s[1].id for s in specs}
     existing = (
-        await db.execute(
-            select(EvidenceEdge).where(
-                EvidenceEdge.user_id == user_id,
-                EvidenceEdge.from_node_id.in_(from_ids),
-                EvidenceEdge.to_node_id.in_(to_ids),
+        (
+            await db.execute(
+                select(EvidenceEdge).where(
+                    EvidenceEdge.user_id == user_id,
+                    EvidenceEdge.from_node_id.in_(from_ids),
+                    EvidenceEdge.to_node_id.in_(to_ids),
+                )
             )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     by_key = {(e.from_node_id, e.to_node_id, e.relation): e for e in existing}
     created = False
     for from_node, to_node, relation, props in specs:
@@ -243,7 +251,13 @@ class EvidenceLineageService:
         max_depth: int | None = DEFAULT_MAX_DEPTH,
     ) -> list[EvidenceTraversalStep]:
         return await self._traverse_from_entity(
-            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind, max_depth=max_depth, downstream=True
+            db,
+            user_id=user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            node_kind=node_kind,
+            max_depth=max_depth,
+            downstream=True,
         )
 
     async def get_upstream(
@@ -257,7 +271,13 @@ class EvidenceLineageService:
         max_depth: int | None = DEFAULT_MAX_DEPTH,
     ) -> list[EvidenceTraversalStep]:
         return await self._traverse_from_entity(
-            db, user_id=user_id, entity_type=entity_type, entity_id=entity_id, node_kind=node_kind, max_depth=max_depth, downstream=False
+            db,
+            user_id=user_id,
+            entity_type=entity_type,
+            entity_id=entity_id,
+            node_kind=node_kind,
+            max_depth=max_depth,
+            downstream=False,
         )
 
     async def _traverse_from_entity(
@@ -296,7 +316,9 @@ class EvidenceLineageService:
                         .where(EvidenceEdge.user_id == user_id, match_col.in_(frontier))
                         .order_by(EvidenceEdge.created_at.asc(), EvidenceEdge.id.asc())
                     )
-                ).scalars().all()
+                )
+                .scalars()
+                .all()
             )
             unvisited = {getattr(e, next_attr) for e in edges} - visited
             node_by_id = (
@@ -308,7 +330,9 @@ class EvidenceLineageService:
                             .where(EvidenceNode.user_id == user_id, EvidenceNode.id.in_(unvisited))
                             .order_by(EvidenceNode.created_at.asc(), EvidenceNode.id.asc())
                         )
-                    ).scalars().all()
+                    )
+                    .scalars()
+                    .all()
                 }
                 if unvisited
                 else {}

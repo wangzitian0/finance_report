@@ -53,5 +53,10 @@ async def test_get_db_create_session_maker_and_init_db(public_client, db):
 def test_split_postgresql_ddl_respects_dollar_quotes():
     sql = "CREATE OR REPLACE FUNCTION f() RETURNS trigger AS $$\nBEGIN\n IF NEW.val IS NULL THEN RAISE EXCEPTION 'cannot be null'; END IF;\n RETURN NEW;\nEND;\n$$ LANGUAGE plpgsql;\nDROP TRIGGER IF EXISTS trg_test ON my_table;\nCREATE TRIGGER trg_test BEFORE INSERT ON my_table FOR EACH ROW EXECUTE FUNCTION f();"
     stmts = split_postgresql_ddl(sql)
-    assert len(stmts) == 3 and stmts[0].startswith("CREATE OR REPLACE FUNCTION") and "RAISE EXCEPTION 'cannot be null';" in stmts[0] and stmts[0].endswith("$$ LANGUAGE plpgsql;")
+    assert (
+        len(stmts) == 3
+        and stmts[0].startswith("CREATE OR REPLACE FUNCTION")
+        and "RAISE EXCEPTION 'cannot be null';" in stmts[0]
+        and stmts[0].endswith("$$ LANGUAGE plpgsql;")
+    )
     assert stmts[1] == "DROP TRIGGER IF EXISTS trg_test ON my_table;" and stmts[2].startswith("CREATE TRIGGER trg_test")

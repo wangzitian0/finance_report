@@ -190,14 +190,17 @@ async def test_AC_audit_39_8_usd_user_reports_and_revaluation_use_user_effective
     assert Decimal(str(bs["total_assets"])) == Decimal("320.00")
     assert Decimal(str(bs["unrealized_fx_gain_loss"])) == Decimal("10.00")
     assert bs["is_balanced"] is True
-    inc_resp = await client.get(
-        f"/reports/income-statement?start_date=2025-03-01&end_date={report_day.isoformat()}"
-    )
+    inc_resp = await client.get(f"/reports/income-statement?start_date=2025-03-01&end_date={report_day.isoformat()}")
     assert inc_resp.status_code == 200, inc_resp.text
     inc = inc_resp.json()
     assert inc["currency"] == "USD"
     assert Decimal(str(inc["total_income"])) == Decimal("310.00")
     inc_domain = await generate_income_statement(
-        db, test_user.id, start_date=date(2025, 3, 1), end_date=report_day, currency=resolved_base, base_currency=resolved_base
+        db,
+        test_user.id,
+        start_date=date(2025, 3, 1),
+        end_date=report_day,
+        currency=resolved_base,
+        base_currency=resolved_base,
     )
     assert inc_domain["unrealized_fx_gain_loss"] == Decimal("10.00")

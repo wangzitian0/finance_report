@@ -58,7 +58,11 @@ async def test_journal_router_error_responses(client, db, test_user) -> None:
     post_resp = await client.post(f"/journal-entries/{unproven.id}/postings")
     assert post_resp.status_code == 400 and "legacy-unproven" in post_resp.json()["detail"].lower()
 
-    with patch("src.routers.journal.void_journal_entry", new_callable=AsyncMock, side_effect=ValidationError("Cannot void draft entry")):
+    with patch(
+        "src.routers.journal.void_journal_entry",
+        new_callable=AsyncMock,
+        side_effect=ValidationError("Cannot void draft entry"),
+    ):
         void_resp = await client.post(f"/journal-entries/{unproven.id}/voidings", json={"reason": "Test void"})
         assert void_resp.status_code == 400 and "draft" in void_resp.json()["detail"].lower()
 
@@ -71,7 +75,9 @@ async def test_journal_wire_bounds_and_tags_validation(client, db, test_user) ->
             JournalLineCreate(account_id=cash.id, direction=Direction.DEBIT, amount=bad_amount, currency="SGD")
     for bad_fx in ("1000000000000.000000", "1E+15", "1.1234567"):
         with pytest.raises(PydanticValidationError):
-            JournalLineCreate(account_id=cash.id, direction=Direction.DEBIT, amount="100.00", currency="USD", fx_rate=bad_fx)
+            JournalLineCreate(
+                account_id=cash.id, direction=Direction.DEBIT, amount="100.00", currency="USD", fx_rate=bad_fx
+            )
     for bad_tags in ({"rate": 1.25}, {"nested": [1, 1e16]}, {"bad\x00key": "ok"}, {"key": "bad\x00val"}):
         resp = await client.post(
             "/journal-entries",
@@ -79,7 +85,13 @@ async def test_journal_wire_bounds_and_tags_validation(client, db, test_user) ->
                 "entry_date": str(date.today()),
                 "memo": "Bad tags",
                 "lines": [
-                    {"account_id": str(cash.id), "direction": "DEBIT", "amount": "100.00", "currency": "SGD", "tags": bad_tags},
+                    {
+                        "account_id": str(cash.id),
+                        "direction": "DEBIT",
+                        "amount": "100.00",
+                        "currency": "SGD",
+                        "tags": bad_tags,
+                    },
                     {"account_id": str(rev.id), "direction": "CREDIT", "amount": "100.00", "currency": "SGD"},
                 ],
             },

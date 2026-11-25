@@ -89,7 +89,9 @@ class ReconciliationMatchBatchRequest(BaseModel):
         default=None,
         description="Optional reconciliation run scope for conflict checks and match filtering.",
     )
-    min_score: Annotated[int | None, Field(ge=0, le=100, description="Minimum match score required when accepting.")] = None
+    min_score: Annotated[
+        int | None, Field(ge=0, le=100, description="Minimum match score required when accepting.")
+    ] = None
 
 
 class ReconciliationMatchBatchResponse(BaseModel):

@@ -240,14 +240,19 @@ async def test_a_request_without_a_recording_reaches_the_test_and_is_not_a_model
 
 
 def _text_chunk(content: str, finish_reason: str | None = None) -> dict:
-    return {"choices": [{"index": 0, "delta": {"role": "assistant", "content": content}, "finish_reason": finish_reason}]}
+    return {
+        "choices": [{"index": 0, "delta": {"role": "assistant", "content": content}, "finish_reason": finish_reason}]
+    }
 
 
 # Review of #3194, round 4: a 200 answer with no text is a reply that the provider gave and we cannot use.
 EMPTY_REPLIES = [
     ("empty content, finish stop", _sse(_text_chunk("", "stop"))),
     ("no choices", _sse({"choices": []})),
-    ("reasoning only", _sse({"choices": [{"index": 0, "delta": {"reasoning_content": "thinking"}, "finish_reason": "stop"}]})),
+    (
+        "reasoning only",
+        _sse({"choices": [{"index": 0, "delta": {"reasoning_content": "thinking"}, "finish_reason": "stop"}]}),
+    ),
     ("cut by the token limit, no text", _sse(_text_chunk("", "length"))),
     ("content filter, no text", _sse(_text_chunk("", "content_filter"))),
 ]

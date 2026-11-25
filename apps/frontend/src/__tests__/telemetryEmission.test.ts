@@ -1,4 +1,52 @@
-import { afterEach, describe, expect, it, vi } from "vitest"; import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http"; import { SimpleSpanProcessor, WebTracerProvider } from "@opentelemetry/sdk-trace-web"; import { ANALYTICS_EVENTS, track } from "@/lib/analytics"; const OTLP_TRACES_ENDPOINT = "http://collector.test/v1/traces"; describe("AC24.2 FE telemetry + analytics emission (#1169)", () => { afterEach(() => { vi.restoreAllMocks()
-delete (window as unknown as { op?: unknown }).op }); it("emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)", async () => { const exporter = new OTLPTraceExporter({ url: OTLP_TRACES_ENDPOINT }); const exportSpy = vi .spyOn(exporter, "export") .mockImplementation((_spans, resultCallback) => { resultCallback({ code: 0 }) }); const provider = new WebTracerProvider({ spanProcessors: [new SimpleSpanProcessor(exporter)], })
-provider.getTracer("ac24.2.1-emission-test").startSpan("web-vital.LCP").end(); await provider.forceFlush(); expect(exportSpy).toHaveBeenCalledTimes(1); const [exportedSpans] = exportSpy.mock.calls[0]; expect(exportedSpans).toHaveLength(1); expect(exportedSpans[0].name).toBe("web-vital.LCP") }); it("dispatches an OpenPanel event via window.op when configured (AC24.2.2)", () => { const opCalls: unknown[][] = [] ;(window as unknown as { op: (...args: unknown[]) => void }).op = (...args: unknown[]) => { opCalls.push(args) }
-track(ANALYTICS_EVENTS.REPORT_GENERATED, { surface: "reports" }); expect(opCalls).toHaveLength(1); const [command, event, props] = opCalls[0]; expect(command).toBe("track"); expect(event).toBe(ANALYTICS_EVENTS.REPORT_GENERATED); expect(props).toMatchObject({ surface: "reports" }) }); it("is a hermetic no-op when OpenPanel is not configured (AC24.2.2)", () => { expect((window as unknown as { op?: unknown }).op).toBeUndefined(); expect(() => track(ANALYTICS_EVENTS.UPLOAD_STARTED)).not.toThrow() }) }) // AC-observability.fe-telemetry.4 AC-observability.fe-telemetry.5 EPIC-024
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import {
+  SimpleSpanProcessor,
+  WebTracerProvider,
+} from "@opentelemetry/sdk-trace-web";
+import { ANALYTICS_EVENTS, track } from "@/lib/analytics";
+const OTLP_TRACES_ENDPOINT = "http://collector.test/v1/traces";
+describe("AC24.2 FE telemetry + analytics emission (#1169)", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    delete (window as unknown as { op?: unknown }).op;
+  });
+  it("emits a finished browser OTel span to the real OTLP exporter's export() (AC24.2.1)", async () => {
+    const exporter = new OTLPTraceExporter({ url: OTLP_TRACES_ENDPOINT });
+    const exportSpy = vi
+      .spyOn(exporter, "export")
+      .mockImplementation((_spans, resultCallback) => {
+        resultCallback({ code: 0 });
+      });
+    const provider = new WebTracerProvider({
+      spanProcessors: [new SimpleSpanProcessor(exporter)],
+    });
+    provider
+      .getTracer("ac24.2.1-emission-test")
+      .startSpan("web-vital.LCP")
+      .end();
+    await provider.forceFlush();
+    expect(exportSpy).toHaveBeenCalledTimes(1);
+    const [exportedSpans] = exportSpy.mock.calls[0];
+    expect(exportedSpans).toHaveLength(1);
+    expect(exportedSpans[0].name).toBe("web-vital.LCP");
+  });
+  it("dispatches an OpenPanel event via window.op when configured (AC24.2.2)", () => {
+    const opCalls: unknown[][] = [];
+    (window as unknown as { op: (...args: unknown[]) => void }).op = (
+      ...args: unknown[]
+    ) => {
+      opCalls.push(args);
+    };
+    track(ANALYTICS_EVENTS.REPORT_GENERATED, { surface: "reports" });
+    expect(opCalls).toHaveLength(1);
+    const [command, event, props] = opCalls[0];
+    expect(command).toBe("track");
+    expect(event).toBe(ANALYTICS_EVENTS.REPORT_GENERATED);
+    expect(props).toMatchObject({ surface: "reports" });
+  });
+  it("is a hermetic no-op when OpenPanel is not configured (AC24.2.2)", () => {
+    expect((window as unknown as { op?: unknown }).op).toBeUndefined();
+    expect(() => track(ANALYTICS_EVENTS.UPLOAD_STARTED)).not.toThrow();
+  });
+}); // AC-observability.fe-telemetry.4 AC-observability.fe-telemetry.5 EPIC-024

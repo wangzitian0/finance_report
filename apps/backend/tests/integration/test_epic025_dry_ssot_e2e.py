@@ -26,6 +26,10 @@ async def test_reporting_calc_extraction_preserves_balance_sheet(client, test_us
     resp = await client.get("/reports/balance-sheet")
     assert resp.status_code == 200
     data = resp.json()
-    assert (Decimal(str(data["total_assets"])), Decimal(str(data["total_liabilities"])), Decimal(str(data["total_equity"])), Decimal(str(data["equation_delta"])), data["is_balanced"]) == (
-        Decimal("1000.00"), Decimal("0.00"), Decimal("1000.00"), Decimal("0.00"), True
-    )
+    assert (
+        Decimal(str(data["total_assets"])),
+        Decimal(str(data["total_liabilities"])),
+        Decimal(str(data["total_equity"])),
+        Decimal(str(data["equation_delta"])),
+        data["is_balanced"],
+    ) == (Decimal("1000.00"), Decimal("0.00"), Decimal("1000.00"), Decimal("0.00"), True)

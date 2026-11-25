@@ -42,6 +42,7 @@ from src.reporting import (
     generate_income_statement,
 )
 
+
 @pytest.mark.no_db
 def test_backend_domain_invariants() -> None:
     extracted = {

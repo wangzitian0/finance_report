@@ -394,11 +394,11 @@ class _ProjectedEvent:
             self.session_id = session_id
 
 
-async def _current_package_readiness_dict(
-    db: AsyncSession, *, user_id: UUID, base_currency: str | None = None
-) -> dict:
+async def _current_package_readiness_dict(db: AsyncSession, *, user_id: UUID, base_currency: str | None = None) -> dict:
     try:
-        return (await current_package_readiness(db, user_id=user_id, base_currency=base_currency)).model_dump(mode="json")
+        return (await current_package_readiness(db, user_id=user_id, base_currency=base_currency)).model_dump(
+            mode="json"
+        )
     except ReportError as exc:
         return PersonalReportPackageReadinessResponse(
             package_id="personal-financial-report-package",
@@ -457,9 +457,7 @@ async def _derive_workflow_inputs(
         if package_readiness is None
         else package_readiness
     )
-    derived_payloads.extend(
-        build_readiness_blocker_event_payload(b) for b in resolved_readiness.get("blockers", [])
-    )
+    derived_payloads.extend(build_readiness_blocker_event_payload(b) for b in resolved_readiness.get("blockers", []))
     report_state_payload = build_report_state_event_payload(resolved_readiness)
     return (
         resolved_readiness,
@@ -470,14 +468,16 @@ async def _derive_workflow_inputs(
     )
 
 
-async def sync_workflow_events_for_user(
-    db: AsyncSession, *, user_id: UUID, base_currency: str | None = None
-) -> dict:
+async def sync_workflow_events_for_user(db: AsyncSession, *, user_id: UUID, base_currency: str | None = None) -> dict:
     """Derive deterministic workflow events from user records and return package readiness (#987, #1675)."""
     workflow_session: WorkflowSession | None = None
-    package_readiness, uploaded_payloads, derived_payloads, report_state_payload, statement_ids = (
-        await _derive_workflow_inputs(db, user_id=user_id, base_currency=base_currency)
-    )
+    (
+        package_readiness,
+        uploaded_payloads,
+        derived_payloads,
+        report_state_payload,
+        statement_ids,
+    ) = await _derive_workflow_inputs(db, user_id=user_id, base_currency=base_currency)
     existing_event_by_source_id = (
         {
             e.source_id: e
@@ -611,9 +611,7 @@ async def _read_package_readiness(
     return await _current_package_readiness_dict(db, user_id=user_id, base_currency=base_currency), False
 
 
-async def ensure_workflow_events_synced(
-    db: AsyncSession, *, user_id: UUID, base_currency: str | None = None
-) -> dict:
+async def ensure_workflow_events_synced(db: AsyncSession, *, user_id: UUID, base_currency: str | None = None) -> dict:
     """Derive workflow events only when input stamp changed or sync state expired (#2583)."""
     stamp = await workflow_input_stamp(db, user_id=user_id)
     if (stored := await _reusable_package_readiness(db, user_id=user_id, fingerprint=stamp)) is not None:
@@ -1117,10 +1115,15 @@ async def get_workflow_status(
     ).one()
 
     if not is_synced:
-        package_readiness, uploaded_payloads, derived_payloads, report_state_payload, _ = (
-            await _derive_workflow_inputs(db, user_id=user_id, package_readiness=package_readiness)
+        package_readiness, uploaded_payloads, derived_payloads, report_state_payload, _ = await _derive_workflow_inputs(
+            db, user_id=user_id, package_readiness=package_readiness
         )
-        if uploaded_payloads or derived_payloads or report_state_payload is not None or int(agg.mutable_active or 0) > 0:
+        if (
+            uploaded_payloads
+            or derived_payloads
+            or report_state_payload is not None
+            or int(agg.mutable_active or 0) > 0
+        ):
             projected_events, _, active_session = await _project_user_workflow_in_memory(
                 db,
                 user_id=user_id,
@@ -1156,7 +1159,9 @@ async def get_workflow_status(
     if (blocked_count or package_readiness_state == WorkflowReportReadinessState.BLOCKED) and blocked_count:
         blocked_event = await representative_event(WorkflowEvent.severity == WorkflowEventSeverity.BLOCKED)
         blocked_href_fallback = blocked_event.action_href if blocked_event else None
-    elif not (blocked_count or package_readiness_state == WorkflowReportReadinessState.BLOCKED) and action_required_count:
+    elif (
+        not (blocked_count or package_readiness_state == WorkflowReportReadinessState.BLOCKED) and action_required_count
+    ):
         ev = await representative_event(WorkflowEvent.severity == WorkflowEventSeverity.ACTION_REQUIRED)
         action_href_fallback = ev.action_href if ev else None
 

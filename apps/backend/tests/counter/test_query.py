@@ -15,7 +15,12 @@ async def test_global_vs_per_user_and_unknown_count():
     await increment(repo, user_id=u1, key=KEY)
     await increment(repo, user_id=u1, key=KEY)
     await increment(repo, user_id=u2, key=KEY)
-    assert (await get_count(repo, key=KEY, user_id=u1), await get_count(repo, key=KEY, user_id=u2), await get_count(repo, key=KEY), await get_count(repo, key=KEY, user_id=None)) == (
+    assert (
+        await get_count(repo, key=KEY, user_id=u1),
+        await get_count(repo, key=KEY, user_id=u2),
+        await get_count(repo, key=KEY),
+        await get_count(repo, key=KEY, user_id=None),
+    ) == (
         Count(2),
         Count(1),
         Count(3),

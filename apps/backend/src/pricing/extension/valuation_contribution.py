@@ -231,9 +231,7 @@ async def _emit_single_input_decision(
     return (await TraceEmitter(repository).emit_many((obs, dec)))[-1]
 
 
-async def emit_manual_valuation_decision(
-    db: AsyncSession, *, user_id: UUID, observation: PriceObservation
-) -> UUID:
+async def emit_manual_valuation_decision(db: AsyncSession, *, user_id: UUID, observation: PriceObservation) -> UUID:
     target = manual_valuation_target(observation)
     policy = ManualValuationAttestationPolicy()
     repository = SqlTraceRecordRepository(db, pricing_trace_policy_registry())
@@ -317,7 +315,12 @@ async def resolve_valuation_contribution(
         return _unproven(subject=subject, as_of=as_of, policy=policy, reason_code="no_eligible_observation")
     if observation.source not in {ObservationSource.MANUAL, ObservationSource.OVERRIDE}:
         return await _resolved_market_contribution(
-            db, user_id=user_id, subject=observation.subject, requested_as_of=as_of, policy=policy, observation=observation
+            db,
+            user_id=user_id,
+            subject=observation.subject,
+            requested_as_of=as_of,
+            policy=policy,
+            observation=observation,
         )
     return await _manual_observation_contribution(
         db, user_id=user_id, observation=observation, as_of=as_of, policy=policy

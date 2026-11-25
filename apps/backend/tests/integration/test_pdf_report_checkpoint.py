@@ -133,9 +133,9 @@ async def uploaded_pdf(client, db, test_user, monkeypatch):
             parts = [part for content in sent for part in (content if isinstance(content, list) else [content])]
             seen_text = [part for part in parts if isinstance(part, str)]
             assert not any(isinstance(part, (ImageUrl, BinaryContent)) for part in parts)  # a text PDF sends text only
-            assert len([t for t in seen_text if t.startswith("[Page 1]")]) == 1 and "GENERATED CHECKPOINT BANK" in "".join(
-                seen_text
-            )
+            assert len(
+                [t for t in seen_text if t.startswith("[Page 1]")]
+            ) == 1 and "GENERATED CHECKPOINT BANK" in "".join(seen_text)
             yield PdfCheckpoint(statement_id, user_id, statement.account_id, content)
     finally:
         StorageService._checked_buckets.clear()

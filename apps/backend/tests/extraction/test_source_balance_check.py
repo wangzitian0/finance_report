@@ -6,7 +6,11 @@ from decimal import Decimal
 import pytest
 
 from src.extraction import BankStatementStatus, Stage1Status
-from src.extraction.base.source_balance_check import SourceBalanceVerdict, check_closing_balance_against_text, text_money_values
+from src.extraction.base.source_balance_check import (
+    SourceBalanceVerdict,
+    check_closing_balance_against_text,
+    text_money_values,
+)
 from src.extraction.extension.statement_posting import try_auto_approve_high_confidence_statement
 from src.extraction.orm.statement_summary import StatementSummary
 from tests.api._statement_router_fixtures import add_txn, build_statement, create_statement_account
@@ -23,7 +27,13 @@ PRINTED_STATEMENT = (
 
 
 def _verdict(text: str | None, closing: str | None, **overrides) -> SourceBalanceVerdict:
-    return check_closing_balance_against_text(text, closing=None if closing is None else Decimal(closing), opening=overrides.pop("opening", OPENING), amounts=overrides.pop("amounts", AMOUNTS), **overrides)
+    return check_closing_balance_against_text(
+        text,
+        closing=None if closing is None else Decimal(closing),
+        opening=overrides.pop("opening", OPENING),
+        amounts=overrides.pop("amounts", AMOUNTS),
+        **overrides,
+    )
 
 
 def _with_closing(printed: str) -> str:
@@ -45,12 +55,25 @@ def test_AC_extraction_closing_balance_source_1_computed_closing_is_flagged():
         _verdict(PRINTED_STATEMENT.replace("55.00", "fifty-five").replace("23.60", "twenty-three"), "4837.50"),
         _verdict(_with_closing("Closing Balance 4\u2009837.55"), "837.55"),
     ) == (
-        SourceBalanceVerdict.CLOSING_NOT_IN_TEXT, SourceBalanceVerdict.VERIFIED, SourceBalanceVerdict.CLOSING_NOT_IN_TEXT,
-        SourceBalanceVerdict.VERIFIED, SourceBalanceVerdict.TEXT_UNUSABLE, SourceBalanceVerdict.TEXT_UNUSABLE,
-        SourceBalanceVerdict.TEXT_UNUSABLE, SourceBalanceVerdict.TEXT_UNUSABLE, SourceBalanceVerdict.CLOSING_NOT_IN_TEXT,
-        SourceBalanceVerdict.TEXT_UNUSABLE, SourceBalanceVerdict.VERIFIED,
+        SourceBalanceVerdict.CLOSING_NOT_IN_TEXT,
+        SourceBalanceVerdict.VERIFIED,
+        SourceBalanceVerdict.CLOSING_NOT_IN_TEXT,
+        SourceBalanceVerdict.VERIFIED,
+        SourceBalanceVerdict.TEXT_UNUSABLE,
+        SourceBalanceVerdict.TEXT_UNUSABLE,
+        SourceBalanceVerdict.TEXT_UNUSABLE,
+        SourceBalanceVerdict.TEXT_UNUSABLE,
+        SourceBalanceVerdict.CLOSING_NOT_IN_TEXT,
+        SourceBalanceVerdict.TEXT_UNUSABLE,
+        SourceBalanceVerdict.VERIFIED,
     )
-    assert {Decimal("1234.50"), Decimal("99.5"), Decimal("7"), Decimal("1234.56"), Decimal("12345.60")} <= text_money_values("a 1,234.50 b 99.5 c 7 d 1.234,56 e 12 345.60")
+    assert {
+        Decimal("1234.50"),
+        Decimal("99.5"),
+        Decimal("7"),
+        Decimal("1234.56"),
+        Decimal("12345.60"),
+    } <= text_money_values("a 1,234.50 b 99.5 c 7 d 1.234,56 e 12 345.60")
 
 
 @pytest.mark.parametrize(
@@ -96,15 +119,39 @@ def test_AC_extraction_3112_missing_printed_opening_balance_with_printed_closing
 async def test_auto_approve_balance_mismatch_clears_balance_validated_flag(db, test_user):
     custody_account = await create_statement_account(db, test_user.id, "DBS Validation Test Account")
     statement = build_statement(test_user.id, "hash_balance_mismatch_clears_flag", 90)
-    statement.status, statement.balance_validated, statement.account_id, statement.opening_balance, statement.closing_balance, statement.currency = (
-        BankStatementStatus.APPROVED, True, custody_account.id, Decimal("2000.00"), Decimal("4837.55"), "SGD"
-    )
+    (
+        statement.status,
+        statement.balance_validated,
+        statement.account_id,
+        statement.opening_balance,
+        statement.closing_balance,
+        statement.currency,
+    ) = (BankStatementStatus.APPROVED, True, custody_account.id, Decimal("2000.00"), Decimal("4837.55"), "SGD")
     db.add(statement)
     await db.flush()
-    await add_txn(db, statement, txn_date=date(2025, 1, 10), description="Payment received", amount=Decimal("2837.50"), direction="IN")
+    await add_txn(
+        db,
+        statement,
+        txn_date=date(2025, 1, 10),
+        description="Payment received",
+        amount=Decimal("2837.50"),
+        direction="IN",
+    )
     await db.commit()
-    created = await try_auto_approve_high_confidence_statement(db, statement.id, test_user.id, dependencies=posting_dependencies())
+    created = await try_auto_approve_high_confidence_statement(
+        db, statement.id, test_user.id, dependencies=posting_dependencies()
+    )
     refreshed = await db.get(StatementSummary, statement.id)
-    assert refreshed is not None and (created, refreshed.status, refreshed.stage1_status, refreshed.balance_validated, refreshed.validation_error) == (
-        0, BankStatementStatus.PARSED, Stage1Status.PENDING_REVIEW, False, "Balance mismatch: delta=0.05 exceeds tolerance 0.001"
+    assert refreshed is not None and (
+        created,
+        refreshed.status,
+        refreshed.stage1_status,
+        refreshed.balance_validated,
+        refreshed.validation_error,
+    ) == (
+        0,
+        BankStatementStatus.PARSED,
+        Stage1Status.PENDING_REVIEW,
+        False,
+        "Balance mismatch: delta=0.05 exceeds tolerance 0.001",
     )

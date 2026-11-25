@@ -19,6 +19,7 @@ def default_list() -> Any:
 def default_obj(factory: Callable[[], _V]) -> _V:  # noqa: UP047
     return Field(default_factory=factory)
 
+
 CurrencyCode = Annotated[str, BeforeValidator(normalize_currency_code), Field(min_length=3, max_length=3)]
 MoneyAmount = Annotated[Decimal, Field(decimal_places=2)]
 NonNegativeMoneyAmount = Annotated[Decimal, Field(decimal_places=2, ge=Decimal("0"))]

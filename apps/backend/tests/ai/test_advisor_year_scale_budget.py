@@ -35,7 +35,14 @@ def advisor_warnings(monkeypatch: pytest.MonkeyPatch) -> list[str]:
     monkeypatch.setattr(
         advisor_service_module,
         "logger",
-        type("_Recorder", (), {"warning": lambda _s, ev, *a, **kw: (warnings.append(ev), inner.warning(ev, *a, **kw)), "__getattr__": lambda _s, name: getattr(inner, name)})(),
+        type(
+            "_Recorder",
+            (),
+            {
+                "warning": lambda _s, ev, *a, **kw: (warnings.append(ev), inner.warning(ev, *a, **kw)),
+                "__getattr__": lambda _s, name: getattr(inner, name),
+            },
+        )(),
     )
     return warnings
 
@@ -56,13 +63,33 @@ async def test_AC_advisor_context_6_sql_budgets_at_year_scale(
     with _StatementCounter(db_engine) as sugg_counter:
         response = await client.get("/chat/suggestions", params={"include_structured": "true"})
     structured = response.json()["structured_suggestions"]
-    assert response.status_code == 200 and structured and {i["confidence_tier"] for i in structured} >= {"blocked", "stale"} and sugg_counter.count < SQL_BUDGET
+    assert (
+        response.status_code == 200
+        and structured
+        and {i["confidence_tier"] for i in structured} >= {"blocked", "stale"}
+        and sugg_counter.count < SQL_BUDGET
+    )
 
     service = AIAdvisorService()
     await service.get_financial_context(db, test_user.id, base_currency="SGD")
     with _StatementCounter(db_engine) as ctx_counter:
         context = await service.get_financial_context(db, test_user.id, base_currency="SGD")
-    assert (context["total_assets"], context["total_liabilities"], context["balance_sheet_confidence_tier"], context["income_statement_confidence_tier"], advisor_warnings) == (
-        "SGD 100000.00", "SGD 20000.00", "DETERMINISTIC", "MANUAL_TRUSTED", [],
+    assert (
+        context["total_assets"],
+        context["total_liabilities"],
+        context["balance_sheet_confidence_tier"],
+        context["income_statement_confidence_tier"],
+        advisor_warnings,
+    ) == (
+        "SGD 100000.00",
+        "SGD 20000.00",
+        "DETERMINISTIC",
+        "MANUAL_TRUSTED",
+        [],
     )
-    assert context["monthly_income"] != "SGD 0.00" and "[blocked]" in context["advisor_suggestions"] and "[stale]" in context["advisor_suggestions"] and ctx_counter.count < SQL_BUDGET
+    assert (
+        context["monthly_income"] != "SGD 0.00"
+        and "[blocked]" in context["advisor_suggestions"]
+        and "[stale]" in context["advisor_suggestions"]
+        and ctx_counter.count < SQL_BUDGET
+    )

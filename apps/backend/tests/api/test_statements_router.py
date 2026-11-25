@@ -61,11 +61,7 @@ def _post_upload(
     institution: str | None = "DBS",
     account_id=None,
 ):
-    data = {
-        k: str(v)
-        for k, v in (("institution", institution), ("account_id", account_id))
-        if v is not None
-    }
+    data = {k: str(v) for k, v in (("institution", institution), ("account_id", account_id)) if v is not None}
     return client.post(
         "/statements",
         files={"file": (filename, content, "text/csv" if filename.endswith(".csv") else "application/pdf")},
@@ -95,17 +91,11 @@ def _patch_parse_document(
     monkeypatch.setattr(statement_parsing_mod.ExtractionService, "parse_documents", fake_parse)
 
 
-async def test_upload_statement_duplicate(
-    client: AsyncClient, monkeypatch, storage_stub, test_user
-):
+async def test_upload_statement_duplicate(client: AsyncClient, monkeypatch, storage_stub, test_user):
     _patch_parse_document(monkeypatch, test_user.id)
-    assert (
-        await _post_upload(client, "statement.pdf", b"duplicate-statement")
-    ).status_code == status.HTTP_202_ACCEPTED
+    assert (await _post_upload(client, "statement.pdf", b"duplicate-statement")).status_code == status.HTTP_202_ACCEPTED
     await statement_pipeline.wait_for_parse_tasks()
-    assert (
-        await _post_upload(client, "statement.pdf", b"duplicate-statement")
-    ).status_code == status.HTTP_409_CONFLICT
+    assert (await _post_upload(client, "statement.pdf", b"duplicate-statement")).status_code == status.HTTP_409_CONFLICT
 
 
 @pytest.mark.parametrize(
@@ -181,17 +171,13 @@ async def test_upload_rejects_cross_user_account_id(client: AsyncClient, db, mon
     assert mock_storage.upload_bytes.call_count == 0
 
 
-async def test_upload_ocr_pipeline_source_and_audit_logs(
-    client: AsyncClient, db, monkeypatch, storage_stub, test_user
-):
+async def test_upload_ocr_pipeline_source_and_audit_logs(client: AsyncClient, db, monkeypatch, storage_stub, test_user):
     content = b"audit-log-input"
     mock_parse, mock_info = AsyncMock(return_value=None), MagicMock()
     monkeypatch.setattr("src.composition.compose_statement_ingestion_use_case", _compose_mock_ingestion(mock_parse))
     monkeypatch.setattr("src.routers.statements.logger.info", mock_info)
 
-    assert (
-        resp := await _post_upload(client, "staging-audit.pdf", content)
-    ).status_code == status.HTTP_202_ACCEPTED
+    assert (resp := await _post_upload(client, "staging-audit.pdf", content)).status_code == status.HTTP_202_ACCEPTED
     created = resp.json()
     document = await db.get(UploadedDocument, (await db.get(StatementSummary, created["id"])).uploaded_document_id)
     source_node = (
@@ -330,9 +316,7 @@ async def test_statement_scoped_brokerage_import_audit_logs(client: AsyncClient,
     )
 
 
-async def test_pending_review_and_decisions(
-    client: AsyncClient, db, monkeypatch, storage_stub, test_user
-):
+async def test_pending_review_and_decisions(client: AsyncClient, db, monkeypatch, storage_stub, test_user):
     contents = [b"review-70", b"review-90"]
     score_by_hash = {hashlib.sha256(c).hexdigest(): s for c, s in zip(contents, [70, 90])}
     _patch_parse_document(
@@ -666,9 +650,7 @@ async def test_get_statement_document_streams_and_handles_errors(
         )
 
 
-async def test_list_and_transactions_flow(
-    client: AsyncClient, monkeypatch, storage_stub, test_user
-):
+async def test_list_and_transactions_flow(client: AsyncClient, monkeypatch, storage_stub, test_user):
     _patch_parse_document(
         monkeypatch,
         test_user.id,

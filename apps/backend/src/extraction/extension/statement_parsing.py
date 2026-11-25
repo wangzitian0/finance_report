@@ -584,9 +584,7 @@ async def _claim_statement_ingestion_phase(
                 error_type="InvalidHints",
             )
             return (
-                StatementIngestionOutcome(
-                    statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED
-                ),
+                StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED),
                 None,
             )
     return None, hints
@@ -1012,9 +1010,7 @@ async def _execute_statement_ingestion(
                         phase=current_phase,
                         error_type=type(exc).__name__,
                     )
-                    raise RetryableStatementIngestionError(
-                        f"Statement extraction application failure: {exc}"
-                    ) from exc
+                    raise RetryableStatementIngestionError(f"Statement extraction application failure: {exc}") from exc
 
                 logger.info(
                     "statement.parse.extraction_completed",

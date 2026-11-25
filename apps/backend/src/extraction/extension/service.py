@@ -1105,7 +1105,10 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                     raise ExtractionError("AI response must be a strict JSON object (no arrays).")
                 logger.info("AI extraction successful (streaming)", model=model)
                 return parsed
-            except (json.JSONDecodeError, RecursionError) as e:  # nesting of 100000 brackets is a reply that cannot be read
+            except (
+                json.JSONDecodeError,
+                RecursionError,
+            ) as e:  # nesting of 100000 brackets is a reply that cannot be read
                 repaired = self._repair_json_object(content)
                 if repaired is not None:
                     try:

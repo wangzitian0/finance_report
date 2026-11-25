@@ -99,9 +99,7 @@ def _secondary_custody_account_ids(
     if not stmt_currencies:
         return ()
     matches = bindings_by_identity.get((statement.institution, statement.account_last4), ())
-    secondary = {
-        aid for ccy, aid in matches if aid != primary_account_id and ccy in stmt_currencies
-    }
+    secondary = {aid for ccy, aid in matches if aid != primary_account_id and ccy in stmt_currencies}
     return tuple(sorted(secondary, key=str))
 
 
@@ -118,11 +116,15 @@ async def resolve_statement_contribution(
         return _unproven(statement_id, "missing_statement")
     doc_id = statement.uploaded_document_id
     if statement.current_extraction_result_id is None:
-        return _unproven(statement.id, "missing_current_source_result", source_document_id=doc_id, account_id=statement.account_id)
+        return _unproven(
+            statement.id, "missing_current_source_result", source_document_id=doc_id, account_id=statement.account_id
+        )
 
     source_record = await db.get(StatementExtractionResultRecord, statement.current_extraction_result_id)
     if source_record is None or source_record.user_id != user_id or source_record.statement_id != statement.id:
-        return _unproven(statement.id, "missing_current_source_result", source_document_id=doc_id, account_id=statement.account_id)
+        return _unproven(
+            statement.id, "missing_current_source_result", source_document_id=doc_id, account_id=statement.account_id
+        )
     try:
         source_result = StatementExtractionResult.from_payload(source_record.payload)
     except (KeyError, TypeError, ValueError):
@@ -240,6 +242,4 @@ async def list_statement_contributions(
         )
         for sid in statement_ids
     ]
-    return tuple(
-        c for c in contributions if c.effective_period_end is not None and c.effective_period_end <= as_of
-    )
+    return tuple(c for c in contributions if c.effective_period_end is not None and c.effective_period_end <= as_of)

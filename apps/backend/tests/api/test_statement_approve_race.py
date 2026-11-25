@@ -38,19 +38,31 @@ from tests.api._statement_router_fixtures import create_statement_account
 from tests.factories import seed_parsed_statement
 from tests.integration.test_statement_corpus_journeys import attach_reviewed_corpus_semantics
 
-CSV_FOR_WORKER = (
-    b"Statement Currency,Date,Description,Debit Amount,Credit Amount\n"
-    b"SGD,2026-01-05,Salary,,5000.00\n"
-)
+CSV_FOR_WORKER = b"Statement Currency,Date,Description,Debit Amount,Credit Amount\nSGD,2026-01-05,Salary,,5000.00\n"
 ROWS = [
-    {"description": "Salary Jan", "amount": Decimal("2500.00"), "direction": TransactionDirection.IN, "date": date(2026, 1, 5)},
-    {"description": "Rent Jan", "amount": Decimal("12.50"), "direction": TransactionDirection.OUT, "date": date(2026, 1, 6)},
+    {
+        "description": "Salary Jan",
+        "amount": Decimal("2500.00"),
+        "direction": TransactionDirection.IN,
+        "date": date(2026, 1, 5),
+    },
+    {
+        "description": "Rent Jan",
+        "amount": Decimal("12.50"),
+        "direction": TransactionDirection.OUT,
+        "date": date(2026, 1, 6),
+    },
 ]
 
 
 async def _approvable_statement(db, user):
     seeded = await seed_parsed_statement(
-        db, user.id, institution="DBS", original_filename="race.pdf", opening_balance=Decimal("1000.00"), transactions=ROWS
+        db,
+        user.id,
+        institution="DBS",
+        original_filename="race.pdf",
+        opening_balance=Decimal("1000.00"),
+        transactions=ROWS,
     )
     seeded.document.file_path = "statements/race.pdf"
     seeded.statement.account_last4 = "1234"
@@ -107,7 +119,9 @@ async def test_AC_extraction_2994_83_an_approve_after_a_committed_rerun_posts_no
             )
             rerun_ids.append(rerun.id)
             await other_tab.execute(
-                update(StatementSummary).where(StatementSummary.id == statement_id).values(status=BankStatementStatus.PARSING)
+                update(StatementSummary)
+                .where(StatementSummary.id == statement_id)
+                .values(status=BankStatementStatus.PARSING)
             )
             await other_tab.commit()
         return await original(*args, **kwargs)
@@ -159,9 +173,7 @@ async def test_AC_extraction_2994_84_a_parse_failure_leaves_an_approved_statemen
 
     async with maker() as session:
         parsed = await session.get(StatementSummary, statement_id)
-        await handle_parse_failure(
-            parsed, session, job=job, message="The parse failed.", error_type="ExtractionError"
-        )
+        await handle_parse_failure(parsed, session, job=job, message="The parse failed.", error_type="ExtractionError")
 
     after = await _fresh(db, statement_id)
     assert after.status is BankStatementStatus.APPROVED, "a failed parse must not reject an approved statement"
@@ -190,7 +202,9 @@ async def _running_run(db, statement_id, user):
 
 async def test_AC_extraction_2994_87_an_approve_refuses_a_statement_with_an_active_run(client, db, test_user):
     statement_id = await _approvable_statement(db, test_user)
-    run_id = await _running_run(db, statement_id, test_user)  # The state that a stale envelope confirmation left behind.
+    run_id = await _running_run(
+        db, statement_id, test_user
+    )  # The state that a stale envelope confirmation left behind.
 
     response = await client.post(f"/statements/{statement_id}/approvals", json={})
 

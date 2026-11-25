@@ -20,7 +20,12 @@ def test_stream_redactor_and_storage_service() -> None:
     with patch.object(service.client, "head_bucket") as mock_head:
         service._ensure_bucket()
         mock_head.assert_not_called()
-    with patch.object(service.client, "get_object", side_effect=ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")), pytest.raises(StorageError, match="Failed to download"):
+    with (
+        patch.object(
+            service.client, "get_object", side_effect=ClientError({"Error": {"Code": "NoSuchKey"}}, "GetObject")
+        ),
+        pytest.raises(StorageError, match="Failed to download"),
+    ):
         service.get_object("missing.pdf")
     body = MagicMock()
     body.read.return_value = b"test content"

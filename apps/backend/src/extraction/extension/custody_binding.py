@@ -52,7 +52,12 @@ def is_credit_card_statement(
     text_sample = f"{institution or ''} {filename or ''}".lower()
     if any(marker in text_sample for marker in _CREDIT_CARD_MARKERS):
         return True
-    return opening_balance is not None and closing_balance is not None and opening_balance < Decimal("0") and closing_balance <= Decimal("0")
+    return (
+        opening_balance is not None
+        and closing_balance is not None
+        and opening_balance < Decimal("0")
+        and closing_balance <= Decimal("0")
+    )
 
 
 def custody_account_type_for_statement(

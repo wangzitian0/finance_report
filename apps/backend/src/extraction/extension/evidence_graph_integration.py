@@ -119,7 +119,9 @@ class EvidenceGraphIntegrationService:
             node_kind="source_document",
             entity_type="uploaded_document",
             entity_id=uploaded_document.id,
-            properties=doc_node_props(uploaded_document, doc_type_value=doc_type.value if doc_type is not None else None),
+            properties=doc_node_props(
+                uploaded_document, doc_type_value=doc_type.value if doc_type is not None else None
+            ),
         )
         nodes_by_key = await upsert_nodes_batch(
             db,
@@ -161,7 +163,9 @@ class EvidenceGraphIntegrationService:
         if not postings:
             return
 
-        doc_ids = list(dict.fromkeys(did for _, txn in postings for did in extract_source_document_ids(txn.source_documents)))
+        doc_ids = list(
+            dict.fromkeys(did for _, txn in postings for did in extract_source_document_ids(txn.source_documents))
+        )
         docs_by_id = (
             {
                 doc.id: doc
@@ -171,7 +175,9 @@ class EvidenceGraphIntegrationService:
                             UploadedDocument.user_id == user_id, UploadedDocument.id.in_(doc_ids)
                         )
                     )
-                ).scalars().all()
+                )
+                .scalars()
+                .all()
             }
             if doc_ids
             else {}
@@ -206,7 +212,12 @@ class EvidenceGraphIntegrationService:
             for did in extract_source_document_ids(txn.source_documents):
                 if src_node := nodes_by_key.get(("source_document", "uploaded_document", did)):
                     edge_specs.append(
-                        (src_node, atomic_node, "deduped_into", {"dedup_hash": txn.dedup_hash, "adapter": "layer2_dual_write"})
+                        (
+                            src_node,
+                            atomic_node,
+                            "deduped_into",
+                            {"dedup_hash": txn.dedup_hash, "adapter": "layer2_dual_write"},
+                        )
                     )
             if entry_node := nodes_by_key.get(("ledger_entry", "journal_entry", entry.id)):
                 edge_specs.append((atomic_node, entry_node, "posted_as", {"adapter": "journal_posting"}))

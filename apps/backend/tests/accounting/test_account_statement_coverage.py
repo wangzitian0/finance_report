@@ -77,7 +77,14 @@ async def _seed_and_fetch(
             "Pending Balance Boundary",
             "2025-03-01",
             [
-                ("ac372-m-jan", date(2025, 1, 1), date(2025, 1, 31), "1000.00", None, {"status": BankStatementStatus.PARSED}),
+                (
+                    "ac372-m-jan",
+                    date(2025, 1, 1),
+                    date(2025, 1, 31),
+                    "1000.00",
+                    None,
+                    {"status": BankStatementStatus.PARSED},
+                ),
                 ("ac372-m-feb", date(2025, 2, 1), date(2025, 2, 28), "1100.00", "1200.00", {}),
             ],
             ("2025-02-28", "1200.00", False, True, "monthly", False),
@@ -119,7 +126,15 @@ async def test_account_coverage_happy_and_empty_states(
         item["cadence"],
         item["has_daily_snapshot_override"],
         item["issues"],
-    ) == (exp_date, None if exp_bal is None else Decimal(exp_bal), exp_stale, exp_complete, exp_cadence, exp_override, [])
+    ) == (
+        exp_date,
+        None if exp_bal is None else Decimal(exp_bal),
+        exp_stale,
+        exp_complete,
+        exp_cadence,
+        exp_override,
+        [],
+    )
 
 
 async def test_account_coverage_defects_and_empty_user(client: AsyncClient, db: AsyncSession, test_user) -> None:
@@ -160,7 +175,11 @@ async def test_account_coverage_defects_and_empty_user(client: AsyncClient, db: 
     )
     assert {"duplicate_period", "overlap", "gap"}.issubset({i["type"] for i in defects["item"]["issues"]})
     gap = next(i for i in defects["item"]["issues"] if i["type"] == "gap")
-    assert (gap["period_start"], gap["period_end"], Decimal(str(gap["delta"]))) == ("2025-02-16", "2025-03-31", Decimal("125.00"))
+    assert (gap["period_start"], gap["period_end"], Decimal(str(gap["delta"]))) == (
+        "2025-02-16",
+        "2025-03-31",
+        Decimal("125.00"),
+    )
 
     acct, biz = await _seed_and_fetch(
         client,
@@ -176,5 +195,11 @@ async def test_account_coverage_defects_and_empty_user(client: AsyncClient, db: 
     assert biz["item"]["coverage_complete"] is True and biz["item"]["issues"] == []
     await _add_stmt(db, test_user.id, acct, "gap-may", date(2025, 5, 1), date(2025, 5, 31), "2350.00", "2600.00")
     await db.commit()
-    item2 = next(i for i in (await client.get("/statements/coverage?as_of=2025-06-01&stale_after_days=45")).json()["items"] if i["account_id"] == str(acct.id))
-    assert item2["coverage_complete"] is False and any(i["type"] == "gap" and Decimal(str(i["delta"])) == Decimal("350.00") for i in item2["issues"])
+    item2 = next(
+        i
+        for i in (await client.get("/statements/coverage?as_of=2025-06-01&stale_after_days=45")).json()["items"]
+        if i["account_id"] == str(acct.id)
+    )
+    assert item2["coverage_complete"] is False and any(
+        i["type"] == "gap" and Decimal(str(i["delta"])) == Decimal("350.00") for i in item2["issues"]
+    )

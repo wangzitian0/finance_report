@@ -159,7 +159,10 @@ async def _persist_market_observation_series(
         persisted_dates: list[date] = []
         for observation in validated.observations:
             observation_date = spec.observation_date(observation)
-            if not spec.observation_matches_scope(observation, item.scope) or observation_date not in item.requested_dates:
+            if (
+                not spec.observation_matches_scope(observation, item.scope)
+                or observation_date not in item.requested_dates
+            ):
                 continue
             await spec.persist_observation(db, observation)
             persisted_dates.append(observation_date)

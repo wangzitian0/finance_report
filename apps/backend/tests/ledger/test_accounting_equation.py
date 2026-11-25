@@ -80,7 +80,10 @@ async def test_accounting_equation_holds_with_all_account_types(
         (expense_account.id, liability_account.id, "200"),
     ):
         await make_entry(
-            db, test_user_id, [(debit_acc, Direction.DEBIT, amount), (credit_acc, Direction.CREDIT, amount)], commit=True
+            db,
+            test_user_id,
+            [(debit_acc, Direction.DEBIT, amount), (credit_acc, Direction.CREDIT, amount)],
+            commit=True,
         )
     assert await verify_accounting_equation(db, test_user_id, base_currency="SGD") is True
     for acc, expected in (
@@ -105,7 +108,12 @@ async def test_posted_entry_cannot_be_reposted(db: AsyncSession, test_user_id, a
 
 @pytest.mark.parametrize(
     ("debit_amt", "credit_amt", "valid"),
-    [("999999999.99", "999999999.99", True), ("0.01", "0.01", True), ("100.01", "100.00", True), ("100.02", "100.00", False)],
+    [
+        ("999999999.99", "999999999.99", True),
+        ("0.01", "0.01", True),
+        ("100.01", "100.00", True),
+        ("100.02", "100.00", False),
+    ],
 )
 async def test_amount_boundaries_and_precision_tolerance(debit_amt, credit_amt, valid):
     lines = [make_line(Direction.DEBIT, debit_amt), make_line(Direction.CREDIT, credit_amt)]

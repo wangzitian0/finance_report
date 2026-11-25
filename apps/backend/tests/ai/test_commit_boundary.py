@@ -28,7 +28,9 @@ async def test_advisor_session_and_message_use_flush_not_commit(db: AsyncSession
     msg_id = msg.id
     assert resumed.id == existing_id and msg_id is not None
     await db.rollback()
-    assert (await db.execute(select(ChatSession).where(ChatSession.id == existing_id))).scalar_one() is not None and (await db.execute(select(ChatMessage).where(ChatMessage.id == msg_id))).scalar_one_or_none() is None
+    assert (await db.execute(select(ChatSession).where(ChatSession.id == existing_id))).scalar_one() is not None and (
+        await db.execute(select(ChatMessage).where(ChatMessage.id == msg_id))
+    ).scalar_one_or_none() is None
 
 
 async def test_post_chat_releases_db_session_during_llm_stream(

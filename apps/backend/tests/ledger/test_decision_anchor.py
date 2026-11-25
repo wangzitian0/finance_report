@@ -84,7 +84,11 @@ class _Policy:
 
 
 def _decision_records(
-    *, user_id: UUID, target: VersionedTraceRef, result: TraceResult = TraceResult.AUTHORITATIVE, execution_id: str = "test-decision-anchor"
+    *,
+    user_id: UUID,
+    target: VersionedTraceRef,
+    result: TraceResult = TraceResult.AUTHORITATIVE,
+    execution_id: str = "test-decision-anchor",
 ) -> tuple[TraceRecord, ...]:
     scope = TraceScope.tenant(user_id)
     obs = TraceRecord.observation(
@@ -150,7 +154,11 @@ async def _seed_anchored(
     source_identity = f"statement-transaction:{uuid4()}"
     lines_data = lines_pair(debit.id, credit.id, amount)
     target = journal_command_target(
-        entry_date=date(2026, 7, 18), memo=memo, lines_data=lines_data, base_currency="SGD", source_identity=source_identity
+        entry_date=date(2026, 7, 18),
+        memo=memo,
+        lines_data=lines_data,
+        base_currency="SGD",
+        source_identity=source_identity,
     )
     obs, decision = _decision_records(user_id=user_id, target=target, execution_id=execution_id)
     repository = SqlTraceRecordRepository(db, TraceDecisionPolicyRegistry((_Policy(),)))
@@ -195,7 +203,11 @@ def test_registry_confidence_tier_and_contribution_invariants() -> None:
             lines=(),
             state="unproven",
             reason_code="missing_current_decision_anchor",
-            decision=TraceDecisionRef(uuid4(), VersionedTraceRef("journal_command", "entry-1", "1"), VersionedTraceRef("ledger_authority", "posted", "1")),
+            decision=TraceDecisionRef(
+                uuid4(),
+                VersionedTraceRef("journal_command", "entry-1", "1"),
+                VersionedTraceRef("ledger_authority", "posted", "1"),
+            ),
         )
 
 
@@ -207,7 +219,12 @@ async def test_decision_anchor_rejects_noncurrent_or_mismatched_authority() -> N
     await validate_decision_anchor(_TraceRepository((decision,), current=decision), user_id=uid, anchor=anchor)
     for match, repo, caller_uid, expected in (
         ("current", _TraceRepository((decision,), current=None), uid, None),
-        ("target", _TraceRepository((decision,), current=decision), uid, VersionedTraceRef(target.kind, target.id, "b" * 64)),
+        (
+            "target",
+            _TraceRepository((decision,), current=decision),
+            uid,
+            VersionedTraceRef(target.kind, target.id, "b" * 64),
+        ),
         ("tenant", _TraceRepository((decision,), current=decision), uuid4(), None),
     ):
         with pytest.raises(DecisionAnchorError, match=match):
@@ -219,20 +236,46 @@ async def test_submit_anchored_journal_entry_idempotent_immutable_and_contributi
 ) -> None:
     uid = test_user.id
     source_id, target, obs, decision, repository, command = await _seed_anchored(db, uid, "Anchored salary")
-    first = await submit_anchored_journal_entry(db, user_id=uid, command=command, trace_repository=repository, base_currency="SGD")
-    retry = await submit_anchored_journal_entry(db, user_id=uid, command=command, trace_repository=repository, base_currency="SGD")
+    first = await submit_anchored_journal_entry(
+        db, user_id=uid, command=command, trace_repository=repository, base_currency="SGD"
+    )
+    retry = await submit_anchored_journal_entry(
+        db, user_id=uid, command=command, trace_repository=repository, base_currency="SGD"
+    )
     reclassified = await submit_anchored_journal_entry(
-        db, user_id=uid, command=replace(command, source_type=JournalEntrySourceType.USER_CONFIRMED), trace_repository=repository, base_currency="SGD"
+        db,
+        user_id=uid,
+        command=replace(command, source_type=JournalEntrySourceType.USER_CONFIRMED),
+        trace_repository=repository,
+        base_currency="SGD",
     )
     assert retry.id == first.id == reclassified.id
     assert first.decision_anchor_id == decision.record_id
     assert first.decision_authority_state is JournalEntryAuthorityState.ANCHORED
 
-    current = list((await db.execute(current_anchored_journal_entries(user_id=uid, target_kind="journal_command", target_id=source_id))).scalars())
+    current = list(
+        (
+            await db.execute(
+                current_anchored_journal_entries(user_id=uid, target_kind="journal_command", target_id=source_id)
+            )
+        ).scalars()
+    )
     assert [item.id for item in current] == [first.id]
-    assert (await db.execute(current_anchored_journal_entries(user_id=uid, target_kind="journal_command", target_id=f"statement-transaction:{uuid4()}"))).scalar_one_or_none() is None
-    contributions = await list_journal_contributions(db, user_id=uid, start_date=date(2026, 7, 1), end_date=date(2026, 7, 31))
-    assert len(contributions) == 1 and contributions[0].is_authoritative and contributions[0].decision_id == decision.record_id
+    assert (
+        await db.execute(
+            current_anchored_journal_entries(
+                user_id=uid, target_kind="journal_command", target_id=f"statement-transaction:{uuid4()}"
+            )
+        )
+    ).scalar_one_or_none() is None
+    contributions = await list_journal_contributions(
+        db, user_id=uid, start_date=date(2026, 7, 1), end_date=date(2026, 7, 31)
+    )
+    assert (
+        len(contributions) == 1
+        and contributions[0].is_authoritative
+        and contributions[0].decision_id == decision.record_id
+    )
 
     await db.commit()
     first.decision_anchor_id = uuid4()
@@ -243,7 +286,11 @@ async def test_submit_anchored_journal_entry_idempotent_immutable_and_contributi
     changed = _decision_records(user_id=uid, target=target, execution_id="replacement")[-1]
     with pytest.raises(DecisionAnchorError, match="source target"):
         await submit_anchored_journal_entry(
-            db, user_id=uid, command=replace(command, decision_anchor=DecisionAnchor.from_record(changed)), trace_repository=_TraceRepository((changed,), current=changed), base_currency="SGD"
+            db,
+            user_id=uid,
+            command=replace(command, decision_anchor=DecisionAnchor.from_record(changed)),
+            trace_repository=_TraceRepository((changed,), current=changed),
+            base_currency="SGD",
         )
 
     correction = TraceRecord.observation(
@@ -261,11 +308,28 @@ async def test_submit_anchored_journal_entry_idempotent_immutable_and_contributi
         supersedes_id=obs.record_id,
     )
     await repository.append(correction)
-    assert list((await db.execute(current_anchored_journal_entries(user_id=uid, target_kind="journal_command", target_id=source_id))).scalars()) == []
+    assert (
+        list(
+            (
+                await db.execute(
+                    current_anchored_journal_entries(user_id=uid, target_kind="journal_command", target_id=source_id)
+                )
+            ).scalars()
+        )
+        == []
+    )
 
 
 async def _post_draft(
-    client: AsyncClient, debit_id, credit_id, memo: str, d_amt: str, c_amt: str, d_ccy: str = "SGD", c_ccy: str = "SGD", fx_rate: str | None = None
+    client: AsyncClient,
+    debit_id,
+    credit_id,
+    memo: str,
+    d_amt: str,
+    c_amt: str,
+    d_ccy: str = "SGD",
+    c_ccy: str = "SGD",
+    fx_rate: str | None = None,
 ) -> tuple[dict, object]:
     d_line = {"account_id": str(debit_id), "direction": "DEBIT", "amount": d_amt, "currency": d_ccy}
     if fx_rate:
@@ -283,15 +347,28 @@ async def test_manual_journal_api_attestation_and_legacy_rows(client: AsyncClien
     debit = await make_account(db, test_user.id, f"manual cash {uuid4()}", AccountType.ASSET)
     credit = await make_account(db, test_user.id, f"manual income {uuid4()}", AccountType.INCOME, commit=True)
     payload, resp = await _post_draft(client, debit.id, credit.id, "Manual attested income", "100.00", "100.00")
-    assert resp.status_code == 201 and resp.json()["decision_authority_state"] == "anchored" and resp.json()["decision_anchor_id"]
+    assert (
+        resp.status_code == 201
+        and resp.json()["decision_authority_state"] == "anchored"
+        and resp.json()["decision_anchor_id"]
+    )
     assert (await client.post("/journal-entries", json={**payload, "source_type": "auto_parsed"})).status_code == 422
     conflict = await client.post("/journal-entries", json={**payload, "rationale": "Different rationale."})
     assert conflict.status_code == 400 and "different manual attestation" in conflict.json()["detail"]
 
-    legacy = JournalEntry(user_id=test_user.id, entry_date=date(2020, 1, 1), memo="Legacy", source_type=JournalEntrySourceType.AUTO_PARSED, source_id=uuid4())
+    legacy = JournalEntry(
+        user_id=test_user.id,
+        entry_date=date(2020, 1, 1),
+        memo="Legacy",
+        source_type=JournalEntrySourceType.AUTO_PARSED,
+        source_id=uuid4(),
+    )
     db.add(legacy)
     await db.flush()
-    assert legacy.decision_authority_state is JournalEntryAuthorityState.LEGACY_UNPROVEN and legacy.decision_anchor_id is None
+    assert (
+        legacy.decision_authority_state is JournalEntryAuthorityState.LEGACY_UNPROVEN
+        and legacy.decision_anchor_id is None
+    )
     assert await _find_existing_entry(db, user_id=test_user.id, transaction_id=legacy.source_id) is None
 
 
@@ -306,7 +383,13 @@ async def test_anchored_sink_failure_rollback_and_single_persistence_boundary(
     monkeypatch.setattr(anchored_posting, "_create_anchored_journal_entry", fail)
     with pytest.raises(RuntimeError, match="injected ledger sink failure"):
         await anchored_posting.submit_system_journal_entry(
-            db, user_id=uid, entry_date=date(2026, 7, 18), memo="Atomic fault", lines_data=lines_pair(uuid4(), uuid4(), "1.00"), base_currency="SGD", operation="fault-injection"
+            db,
+            user_id=uid,
+            entry_date=date(2026, 7, 18),
+            memo="Atomic fault",
+            lines_data=lines_pair(uuid4(), uuid4(), "1.00"),
+            base_currency="SGD",
+            operation="fault-injection",
         )
     await db.rollback()
     projection = trace_decision_projection(TraceScope.tenant(uid)).subquery()
@@ -348,12 +431,18 @@ async def test_AC_ledger_79_9_post_uses_the_base_currency_stored_on_the_draft(
     created_base = Currency(settings.base_currency).code
     changed_base = "USD" if created_base != "USD" else "EUR"
     debit = await make_account(db, test_user.id, f"payroll cash {uuid4()}", AccountType.ASSET, created_base)
-    credit = await make_account(db, test_user.id, f"payroll income {uuid4()}", AccountType.INCOME, created_base, commit=True)
-    _, created = await _post_draft(client, debit.id, credit.id, "Monthly payroll", "8000.00", "8000.00", created_base, created_base)
+    credit = await make_account(
+        db, test_user.id, f"payroll income {uuid4()}", AccountType.INCOME, created_base, commit=True
+    )
+    _, created = await _post_draft(
+        client, debit.id, credit.id, "Monthly payroll", "8000.00", "8000.00", created_base, created_base
+    )
     assert created.status_code == 201
     entry_id = UUID(created.json()["id"])
     if change == "user_override":
-        assert (await client.put("/users/me/settings/base-currency", json={"base_currency": changed_base})).status_code == 200
+        assert (
+            await client.put("/users/me/settings/base-currency", json={"base_currency": changed_base})
+        ).status_code == 200
     else:
         db.add(AppConfig(key=BASE_CURRENCY_KEY, value=changed_base))
         await db.commit()
@@ -365,7 +454,12 @@ async def test_AC_ledger_79_9_post_uses_the_base_currency_stored_on_the_draft(
 
 def _reverse_unordered_journal_line_reads(state: ORMExecuteState) -> Result | None:
     stmt = state.statement
-    if state.is_select and isinstance(stmt, Select) and not stmt._order_by_clauses and any(col.get("expr") is JournalLine for col in stmt.column_descriptions):
+    if (
+        state.is_select
+        and isinstance(stmt, Select)
+        and not stmt._order_by_clauses
+        and any(col.get("expr") is JournalLine for col in stmt.column_descriptions)
+    ):
         return state.invoke_statement(statement=stmt.order_by(JournalLine.line_no.desc()))
     return None
 
@@ -388,15 +482,24 @@ async def test_post_order_and_decimal_scale_invariants(client: AsyncClient, db: 
     _, r1 = await _post_draft(client, debit.id, credit.id, "Checking Deposit", "1000.00", "1000.00")
     draft1 = r1.json()["id"]
     with _reverse_line_reads():
-        assert [ln.account_id for ln in await db.scalars(select(JournalLine).where(JournalLine.journal_entry_id == UUID(draft1)))] == [credit.id, debit.id]
+        assert [
+            ln.account_id
+            for ln in await db.scalars(select(JournalLine).where(JournalLine.journal_entry_id == UUID(draft1)))
+        ] == [credit.id, debit.id]
         posted = await client.post(f"/journal-entries/{draft1}/postings")
-    assert posted.status_code == 200 and [ln["account_id"] for ln in posted.json()["lines"]] == [str(debit.id), str(credit.id)]
+    assert posted.status_code == 200 and [ln["account_id"] for ln in posted.json()["lines"]] == [
+        str(debit.id),
+        str(credit.id),
+    ]
 
     _, r2 = await _post_draft(client, usd.id, sgd.id, "Short decimals", "100", "135", "USD", "SGD", fx_rate="1.35")
     assert (await client.post(f"/journal-entries/{r2.json()['id']}/postings")).json()["status"] == "posted"
     for match, data in (
         ("more than 2 decimal places", [{"account_id": usd.id, "amount": Decimal("1.234")}]),
-        ("more than 6 decimal places", [{"account_id": usd.id, "amount": Decimal("1"), "fx_rate": Decimal("1.1234567")}]),
+        (
+            "more than 6 decimal places",
+            [{"account_id": usd.id, "amount": Decimal("1"), "fx_rate": Decimal("1.1234567")}],
+        ),
     ):
         with pytest.raises(ValidationError, match=match):
             anchored_posting._at_stored_scale(data)

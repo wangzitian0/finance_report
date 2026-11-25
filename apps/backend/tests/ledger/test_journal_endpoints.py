@@ -43,14 +43,22 @@ async def test_journal_entry_endpoints_lifecycle(client: AsyncClient, db: AsyncS
     draft_del = (await client.post("/journal-entries", json=_payload(date.today(), "Draft del", "10.00"))).json()
 
     assert (await client.get("/journal-entries", params={"status_filter": "draft"})).json()["total"] >= 2
-    start_ids = {i["id"] for i in (await client.get("/journal-entries", params={"start_date": date.today().isoformat()})).json()["items"]}
-    end_ids = {i["id"] for i in (await client.get("/journal-entries", params={"end_date": older_date.isoformat()})).json()["items"]}
+    start_ids = {
+        i["id"]
+        for i in (await client.get("/journal-entries", params={"start_date": date.today().isoformat()})).json()["items"]
+    }
+    end_ids = {
+        i["id"]
+        for i in (await client.get("/journal-entries", params={"end_date": older_date.isoformat()})).json()["items"]
+    }
     assert older["id"] not in start_ids and older["id"] in end_ids
 
     assert (await client.get(f"/journal-entries/{entry['id']}")).status_code == 200
     assert (await client.get(f"/journal-entries/{uuid4()}")).status_code == 404
     assert (await client.post(f"/journal-entries/{entry['id']}/postings")).json()["status"] == "posted"
-    assert (await client.post(f"/journal-entries/{entry['id']}/voidings", json={"reason": "Test void"})).json()["status"] == "posted"
+    assert (await client.post(f"/journal-entries/{entry['id']}/voidings", json={"reason": "Test void"})).json()[
+        "status"
+    ] == "posted"
     assert (await client.post(f"/journal-entries/{uuid4()}/postings")).status_code == 404
     assert (await client.post(f"/journal-entries/{uuid4()}/voidings", json={"reason": "missing"})).status_code == 400
 
@@ -75,8 +83,12 @@ async def test_journal_router_direct_and_void_memo_limit(db: AsyncSession, test_
             entry_date=date.today(),
             memo="Direct",
             lines=[
-                JournalLineCreate(account_id=bank.id, direction=Direction.DEBIT, amount=Decimal("100.00"), currency="SGD"),
-                JournalLineCreate(account_id=revenue.id, direction=Direction.CREDIT, amount=Decimal("100.00"), currency="SGD"),
+                JournalLineCreate(
+                    account_id=bank.id, direction=Direction.DEBIT, amount=Decimal("100.00"), currency="SGD"
+                ),
+                JournalLineCreate(
+                    account_id=revenue.id, direction=Direction.CREDIT, amount=Decimal("100.00"), currency="SGD"
+                ),
             ],
         ),
         ctx,
@@ -86,18 +98,26 @@ async def test_journal_router_direct_and_void_memo_limit(db: AsyncSession, test_
             entry_date=date.today() - timedelta(days=7),
             memo="Older",
             lines=[
-                JournalLineCreate(account_id=bank.id, direction=Direction.DEBIT, amount=Decimal("50.00"), currency="SGD"),
-                JournalLineCreate(account_id=revenue.id, direction=Direction.CREDIT, amount=Decimal("50.00"), currency="SGD"),
+                JournalLineCreate(
+                    account_id=bank.id, direction=Direction.DEBIT, amount=Decimal("50.00"), currency="SGD"
+                ),
+                JournalLineCreate(
+                    account_id=revenue.id, direction=Direction.CREDIT, amount=Decimal("50.00"), currency="SGD"
+                ),
             ],
         ),
         ctx,
     )
-    listed = await list_journal_entries(status_filter=JournalEntryStatus.DRAFT, start_date=date.today(), limit=50, offset=0, ctx=ctx)
+    listed = await list_journal_entries(
+        status_filter=JournalEntryStatus.DRAFT, start_date=date.today(), limit=50, offset=0, ctx=ctx
+    )
     older_list = await list_journal_entries(end_date=older.entry_date, limit=50, offset=0, ctx=ctx)
     assert any(i.id == created.id for i in listed.items) and any(i.id == older.id for i in older_list.items)
     assert (await get_journal_entry(created.id, ctx=ctx)).id == created.id
     assert (await post_entry(created.id, ctx=ctx)).status == JournalEntryStatus.POSTED
-    assert (await void_entry(created.id, VoidJournalEntryRequest(reason="Test void"), ctx=ctx)).status == JournalEntryStatus.POSTED
+    assert (
+        await void_entry(created.id, VoidJournalEntryRequest(reason="Test void"), ctx=ctx)
+    ).status == JournalEntryStatus.POSTED
     for fn in (
         lambda: get_journal_entry(uuid4(), ctx=ctx),
         lambda: post_entry(uuid4(), ctx=ctx),
@@ -107,7 +127,9 @@ async def test_journal_router_direct_and_void_memo_limit(db: AsyncSession, test_
             await fn()
 
     memo = "M" * 500
-    full_entry = await create_journal_entry(db, uid, date(2026, 1, 1), memo, lines_pair(bank.id, revenue.id, "10.00"), base_currency="SGD")
+    full_entry = await create_journal_entry(
+        db, uid, date(2026, 1, 1), memo, lines_pair(bank.id, revenue.id, "10.00"), base_currency="SGD"
+    )
     await post_journal_entry(db, full_entry.id, uid, base_currency="SGD")
     await db.commit()
     reversal = await void_journal_entry(db, full_entry.id, "Correction", uid, base_currency="SGD")

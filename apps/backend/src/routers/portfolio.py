@@ -84,9 +84,7 @@ async def _allocation_response(
 
 
 @router.post("/brokerage-imports", response_model=BrokerageImportResponse, status_code=status.HTTP_200_OK)
-async def import_brokerage_positions(
-    request: BrokerageImportRequest, ctx: Ctx
-) -> BrokerageImportResponse:
+async def import_brokerage_positions(request: BrokerageImportRequest, ctx: Ctx) -> BrokerageImportResponse:
     """Import parsed brokerage holdings from a statement or payload into AtomicPosition and ManagedPosition."""
     db, user_id = ctx.db, ctx.user_id
     if request.statement_id is not None:
@@ -254,7 +252,9 @@ async def get_investment_performance_report_schedule(
         raise PreconditionFailedError("as_of_date must be >= period_end")
     currency = currency.strip().upper()
     if currency != "SGD":
-        raise PreconditionFailedError("Investment performance report schedule currently supports SGD presentation currency")
+        raise PreconditionFailedError(
+            "Investment performance report schedule currently supports SGD presentation currency"
+        )
     return await build_investment_performance_report_schedule(
         db,
         user_id,

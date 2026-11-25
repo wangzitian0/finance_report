@@ -45,7 +45,14 @@ async def _run(attempts: list, *, max_attempts: int = 2):
 
 @pytest.mark.parametrize(
     "error",
-    [ExtractionError("model failed"), ValueError("v"), KeyError("k"), TypeError("t"), AttributeError("a"), ArithmeticError("n")],
+    [
+        ExtractionError("model failed"),
+        ValueError("v"),
+        KeyError("k"),
+        TypeError("t"),
+        AttributeError("a"),
+        ArithmeticError("n"),
+    ],
     ids=lambda error: type(error).__name__,
 )
 async def test_AC_extraction_later_pass_failure_keeps_the_kept_pass_and_says_so(error, caplog):

@@ -1,4 +1,3 @@
-
 import pytest
 from src.counter import CounterKey, InvalidCounterKeyError
 

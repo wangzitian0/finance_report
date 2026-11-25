@@ -50,7 +50,9 @@ async def test_cross_tenant_parent_rejected_on_create_and_update_and_allows_owne
     )
     assert resp_cross_create.status_code == 404
 
-    count_b = (await db.execute(select(func.count()).select_from(Account).where(Account.user_id == user_b.id))).scalar_one()
+    count_b = (
+        await db.execute(select(func.count()).select_from(Account).where(Account.user_id == user_b.id))
+    ).scalar_one()
     assert count_b == 0
 
     resp_b_own = await client.post(

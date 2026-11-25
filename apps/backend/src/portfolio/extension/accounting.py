@@ -186,8 +186,22 @@ class InvestmentAccountingService:
         currency_obj = Currency.of(currency)
         sell_tags = {"asset_identifier": order.asset_identifier}
         legs = [
-            Leg(cash_account.id, Direction.DEBIT, Money(proceeds, currency_obj), order.fx_rate, "investment_sell", sell_tags),
-            Leg(investment_account.id, Direction.CREDIT, Money(cost_basis, currency_obj), order.fx_rate, "investment_sell", sell_tags),
+            Leg(
+                cash_account.id,
+                Direction.DEBIT,
+                Money(proceeds, currency_obj),
+                order.fx_rate,
+                "investment_sell",
+                sell_tags,
+            ),
+            Leg(
+                investment_account.id,
+                Direction.CREDIT,
+                Money(cost_basis, currency_obj),
+                order.fx_rate,
+                "investment_sell",
+                sell_tags,
+            ),
         ]
         if realized_pnl != Decimal("0"):
             legs.append(
@@ -214,8 +228,10 @@ class InvestmentAccountingService:
         position_quantity = (position.quantity_qty - trade_quantity).quantize()
         position.quantity = position_quantity.value
         position.cost_basis = (
-            (position.cost_basis_money or Money.zero(currency_obj)) - Money(cost_basis, currency_obj)
-        ).quantize().amount
+            ((position.cost_basis_money or Money.zero(currency_obj)) - Money(cost_basis, currency_obj))
+            .quantize()
+            .amount
+        )
         position.realized_pnl = (position.realized_pnl_money + Money(realized_pnl, currency_obj)).quantize().amount
         position.cost_basis_method = cost_basis_method
         if position_quantity.is_zero():
@@ -284,10 +300,37 @@ class InvestmentAccountingService:
         div_tags = {"asset_identifier": event.asset_identifier}
         legs: list[Leg] = []
         if net_cash > Decimal("0"):
-            legs.append(Leg(cash_account.id, Direction.DEBIT, Money(net_cash, currency_obj), event.fx_rate, "investment_dividend", div_tags))
+            legs.append(
+                Leg(
+                    cash_account.id,
+                    Direction.DEBIT,
+                    Money(net_cash, currency_obj),
+                    event.fx_rate,
+                    "investment_dividend",
+                    div_tags,
+                )
+            )
         if tax > Decimal("0") and tax_account is not None:
-            legs.append(Leg(tax_account.id, Direction.DEBIT, Money(tax, currency_obj), event.fx_rate, "investment_dividend_tax", div_tags))
-        legs.append(Leg(income_account.id, Direction.CREDIT, Money(gross, currency_obj), event.fx_rate, "investment_dividend", div_tags))
+            legs.append(
+                Leg(
+                    tax_account.id,
+                    Direction.DEBIT,
+                    Money(tax, currency_obj),
+                    event.fx_rate,
+                    "investment_dividend_tax",
+                    div_tags,
+                )
+            )
+        legs.append(
+            Leg(
+                income_account.id,
+                Direction.CREDIT,
+                Money(gross, currency_obj),
+                event.fx_rate,
+                "investment_dividend",
+                div_tags,
+            )
+        )
 
         posted = await post_entry(
             db,
@@ -363,26 +406,32 @@ class InvestmentAccountingService:
             raise PortfolioNotFoundError("Holding not found")
 
         ccy = currency.upper()
-        resolved_cash_id = cash_account_id or (
-            await self._resolve_default_account(
-                db,
-                user_id=user_id,
-                account_type=AccountType.ASSET,
-                code=DEFAULT_SETTLEMENT_CASH_CODE,
-                name=f"Brokerage Cash ({ccy})",
-                currency=ccy,
-            )
-        ).id
-        resolved_income_id = dividend_income_account_id or (
-            await self._resolve_default_account(
-                db,
-                user_id=user_id,
-                account_type=AccountType.INCOME,
-                code=DEFAULT_DIVIDEND_INCOME_CODE,
-                name=f"Dividend Income ({ccy})",
-                currency=ccy,
-            )
-        ).id
+        resolved_cash_id = (
+            cash_account_id
+            or (
+                await self._resolve_default_account(
+                    db,
+                    user_id=user_id,
+                    account_type=AccountType.ASSET,
+                    code=DEFAULT_SETTLEMENT_CASH_CODE,
+                    name=f"Brokerage Cash ({ccy})",
+                    currency=ccy,
+                )
+            ).id
+        )
+        resolved_income_id = (
+            dividend_income_account_id
+            or (
+                await self._resolve_default_account(
+                    db,
+                    user_id=user_id,
+                    account_type=AccountType.INCOME,
+                    code=DEFAULT_DIVIDEND_INCOME_CODE,
+                    name=f"Dividend Income ({ccy})",
+                    currency=ccy,
+                )
+            ).id
+        )
 
         resolved_base = require_base_currency(base_currency)
         fx_rate = (
@@ -534,7 +583,9 @@ class InvestmentAccountingService:
         currency: str,
         cost_basis_method: CostBasisMethod,
     ) -> ManagedPosition:
-        position = await self._find_position(db, user_id=user_id, account_id=account_id, asset_identifier=asset_identifier)
+        position = await self._find_position(
+            db, user_id=user_id, account_id=account_id, asset_identifier=asset_identifier
+        )
         if position is not None:
             return position
 
@@ -562,7 +613,9 @@ class InvestmentAccountingService:
         account_id: UUID,
         asset_identifier: str,
     ) -> ManagedPosition:
-        position = await self._find_position(db, user_id=user_id, account_id=account_id, asset_identifier=asset_identifier)
+        position = await self._find_position(
+            db, user_id=user_id, account_id=account_id, asset_identifier=asset_identifier
+        )
         if position is None:
             raise InvestmentAccountingValidationError(f"position {asset_identifier} not found")
         return position

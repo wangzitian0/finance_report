@@ -1,1 +1,21 @@
-import { describe, expect, it } from "vitest"; import { Currency, InvalidCurrencyError, normalizeCurrency } from "./currency"; describe("Currency", () => { it.each([null, undefined, 702])( "AC-audit.19.1 rejects the non-string wire value %s with InvalidCurrencyError", (value) => { const read = () => normalizeCurrency(value as unknown as string); expect(read).toThrow(InvalidCurrencyError); expect(read).toThrow("currency code must be a string"); expect(() => new Currency(value as unknown as string)).toThrow( InvalidCurrencyError, ); }, ); it("AC-audit.19.1 renders as its normalized ISO-4217 code in string contexts", () => { const currency = new Currency(" sgd "); expect(String(currency)).toBe("SGD"); expect(`${currency}`).toBe("SGD"); expect(Currency.of(currency)).toBe(currency); }); });
+import { describe, expect, it } from "vitest";
+import { Currency, InvalidCurrencyError, normalizeCurrency } from "./currency";
+describe("Currency", () => {
+  it.each([null, undefined, 702])(
+    "AC-audit.19.1 rejects the non-string wire value %s with InvalidCurrencyError",
+    (value) => {
+      const read = () => normalizeCurrency(value as unknown as string);
+      expect(read).toThrow(InvalidCurrencyError);
+      expect(read).toThrow("currency code must be a string");
+      expect(() => new Currency(value as unknown as string)).toThrow(
+        InvalidCurrencyError,
+      );
+    },
+  );
+  it("AC-audit.19.1 renders as its normalized ISO-4217 code in string contexts", () => {
+    const currency = new Currency(" sgd ");
+    expect(String(currency)).toBe("SGD");
+    expect(`${currency}`).toBe("SGD");
+    expect(Currency.of(currency)).toBe(currency);
+  });
+});

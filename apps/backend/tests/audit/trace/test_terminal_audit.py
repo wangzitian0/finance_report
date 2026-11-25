@@ -32,7 +32,13 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[5]
 PROOF_ID = "trusted-year-v0-terminal"
 PROOF_ASSERTION_VERSION = "v1"
 _authority = lambda package, *, stage="product.runtime": TraceAuthorityProfile(
-    package=package, tier="CODE-ONLY", proof_kind="exact", provenance="deterministic", execution_stage=stage, assertion_owner_digest="b" * 64, producer_version="fixture@1"
+    package=package,
+    tier="CODE-ONLY",
+    proof_kind="exact",
+    provenance="deterministic",
+    execution_stage=stage,
+    assertion_owner_digest="b" * 64,
+    producer_version="fixture@1",
 )
 _ref = lambda record: TraceDecisionRef(record.record_id, record.target, record.assertion)
 
@@ -64,7 +70,26 @@ class _Repository:
 
 
 def _construct_from(record: TraceRecord, **overrides) -> TraceRecord:
-    values = {f: getattr(record, f) for f in ("record_type", "scope", "target", "target_class", "assertion", "authority", "result", "execution_id", "causality", "evidence_manifest_digest", "occurred_at", "parent_ids", "supersedes_id", "score", "reason_code")}
+    values = {
+        f: getattr(record, f)
+        for f in (
+            "record_type",
+            "scope",
+            "target",
+            "target_class",
+            "assertion",
+            "authority",
+            "result",
+            "execution_id",
+            "causality",
+            "evidence_manifest_digest",
+            "occurred_at",
+            "parent_ids",
+            "supersedes_id",
+            "score",
+            "reason_code",
+        )
+    }
     values.update(overrides)
     return TraceRecord._construct(**values)
 
@@ -73,35 +98,82 @@ def _graph():
     scope = TraceScope.tenant(UUID("10000000-0000-0000-0000-000000000001"))
     input_target = VersionedTraceRef("fixture_input", "input-1", "v1")
     input_obs = TraceRecord.observation(
-        scope=scope, target=input_target, target_class=TraceTargetClass.FINANCIAL, assertion=VersionedTraceRef("fixture_invariant", "valid", "v1"),
-        authority=_authority("ledger"), result=TraceResult.PASS, execution_id="input-run-1", evidence_manifest_digest="c" * 64, occurred_at=OCCURRED_AT, score=None, reason_code="fixture_valid",
+        scope=scope,
+        target=input_target,
+        target_class=TraceTargetClass.FINANCIAL,
+        assertion=VersionedTraceRef("fixture_invariant", "valid", "v1"),
+        authority=_authority("ledger"),
+        result=TraceResult.PASS,
+        execution_id="input-run-1",
+        evidence_manifest_digest="c" * 64,
+        occurred_at=OCCURRED_AT,
+        score=None,
+        reason_code="fixture_valid",
     )
     input_dec = TraceRecord.decision(
-        scope=scope, target=input_target, policy=_Policy(assertion=VersionedTraceRef("fixture_authority", "accepted", "v1"), authority=_authority("ledger"), causality=TraceCausality.DIRECT),
-        execution_id=input_obs.execution_id, occurred_at=OCCURRED_AT, parents=(input_obs,),
+        scope=scope,
+        target=input_target,
+        policy=_Policy(
+            assertion=VersionedTraceRef("fixture_authority", "accepted", "v1"),
+            authority=_authority("ledger"),
+            causality=TraceCausality.DIRECT,
+        ),
+        execution_id=input_obs.execution_id,
+        occurred_at=OCCURRED_AT,
+        parents=(input_obs,),
     )
     pkg_target = VersionedTraceRef("fixture_package", "package-1", "d" * 64)
     pkg_obs = TraceRecord.observation(
-        scope=scope, target=pkg_target, target_class=TraceTargetClass.FINANCIAL, assertion=VersionedTraceRef("fixture_invariant", "package-valid", "v1"),
-        authority=_authority("reporting"), result=TraceResult.PASS, execution_id="package-run-1", evidence_manifest_digest=pkg_target.version, occurred_at=OCCURRED_AT, score=None, reason_code="fixture_valid",
+        scope=scope,
+        target=pkg_target,
+        target_class=TraceTargetClass.FINANCIAL,
+        assertion=VersionedTraceRef("fixture_invariant", "package-valid", "v1"),
+        authority=_authority("reporting"),
+        result=TraceResult.PASS,
+        execution_id="package-run-1",
+        evidence_manifest_digest=pkg_target.version,
+        occurred_at=OCCURRED_AT,
+        score=None,
+        reason_code="fixture_valid",
     )
     pkg_dec = TraceRecord.decision(
-        scope=scope, target=pkg_target, policy=_Policy(assertion=VersionedTraceRef("fixture_authority", "package-ready", "v1"), authority=_authority("reporting"), causality=TraceCausality.MANIFEST),
-        execution_id=pkg_obs.execution_id, occurred_at=OCCURRED_AT, parents=(pkg_obs, input_dec),
+        scope=scope,
+        target=pkg_target,
+        policy=_Policy(
+            assertion=VersionedTraceRef("fixture_authority", "package-ready", "v1"),
+            authority=_authority("reporting"),
+            causality=TraceCausality.MANIFEST,
+        ),
+        execution_id=pkg_obs.execution_id,
+        occurred_at=OCCURRED_AT,
+        parents=(pkg_obs, input_dec),
     )
     spec = TerminalAuditSpec(
-        scope=scope, package=_ref(pkg_dec), manifest=(_ref(input_dec),), repository_id="wangzitian0/finance_report",
-        commit_sha=COMMIT, scenario_id="trusted-year-v0", proof=VersionedTraceRef("executed_proof", PROOF_ID, PROOF_ASSERTION_VERSION), execution_id="123.2",
+        scope=scope,
+        package=_ref(pkg_dec),
+        manifest=(_ref(input_dec),),
+        repository_id="wangzitian0/finance_report",
+        commit_sha=COMMIT,
+        scenario_id="trusted-year-v0",
+        proof=VersionedTraceRef("executed_proof", PROOF_ID, PROOF_ASSERTION_VERSION),
+        execution_id="123.2",
     )
     return (_Repository((input_obs, input_dec, pkg_obs, pkg_dec)), spec, input_obs, input_dec, pkg_obs, pkg_dec)
 
 
 async def test_AC_audit_terminal_trace_1_verifies_exact_frozen_graph() -> None:
     repository, spec, input_obs, input_dec, _, package = _graph()
-    rep_obs = _construct_from(input_obs, target=VersionedTraceRef("fixture_input", "input-1", "v2"), supersedes_id=input_obs.record_id)
+    rep_obs = _construct_from(
+        input_obs, target=VersionedTraceRef("fixture_input", "input-1", "v2"), supersedes_id=input_obs.record_id
+    )
     rep_dec = TraceRecord.decision(
-        scope=spec.scope, target=rep_obs.target, policy=_Policy(assertion=input_dec.assertion, authority=input_dec.authority, causality=TraceCausality.DIRECT),
-        execution_id=rep_obs.execution_id, occurred_at=OCCURRED_AT, parents=(rep_obs,), supersedes_id=input_dec.record_id,
+        scope=spec.scope,
+        target=rep_obs.target,
+        policy=_Policy(assertion=input_dec.assertion, authority=input_dec.authority, causality=TraceCausality.DIRECT),
+        execution_id=rep_obs.execution_id,
+        occurred_at=OCCURRED_AT,
+        parents=(rep_obs,),
+        supersedes_id=input_dec.record_id,
     )
     repository.records.update({rep_obs.record_id: rep_obs, rep_dec.record_id: rep_dec})
     assert await TerminalAuditVerifier(repository).verify_graph(spec) == package
@@ -110,9 +182,18 @@ async def test_AC_audit_terminal_trace_1_verifies_exact_frozen_graph() -> None:
 @pytest.mark.parametrize(
     ("counterexample", "expected_owner"),
     [
-        ("missing", "unknown"), ("cross_scope", "ledger"), ("id_mismatch", "ledger"), ("wrong_type", "ledger"),
-        ("wrong_result", "ledger"), ("target", "ledger"), ("assertion", "ledger"), ("read_failure", "unknown"),
-        ("parent_read_failure", "reporting"), ("parent_missing", "reporting"), ("parent_coordinate", "reporting"), ("disconnected", "reporting"),
+        ("missing", "unknown"),
+        ("cross_scope", "ledger"),
+        ("id_mismatch", "ledger"),
+        ("wrong_type", "ledger"),
+        ("wrong_result", "ledger"),
+        ("target", "ledger"),
+        ("assertion", "ledger"),
+        ("read_failure", "unknown"),
+        ("parent_read_failure", "reporting"),
+        ("parent_missing", "reporting"),
+        ("parent_coordinate", "reporting"),
+        ("disconnected", "reporting"),
     ],
 )
 async def test_AC_audit_terminal_trace_2_counterexamples_fail_closed(counterexample: str, expected_owner: str) -> None:
@@ -123,7 +204,11 @@ async def test_AC_audit_terminal_trace_2_counterexamples_fail_closed(counterexam
         repo.fail_reads.add(input_dec.record_id if counterexample == "read_failure" else pkg_obs.record_id)
     elif counterexample in ("cross_scope", "id_mismatch", "parent_coordinate"):
         target = pkg_obs if counterexample == "parent_coordinate" else input_dec
-        override = {"execution_id": "different-run"} if counterexample == "id_mismatch" else {"scope": TraceScope.tenant(uuid4())}
+        override = (
+            {"execution_id": "different-run"}
+            if counterexample == "id_mismatch"
+            else {"scope": TraceScope.tenant(uuid4())}
+        )
         repo.records[target.record_id] = _construct_from(target, **override)
     elif counterexample == "wrong_result":
         rejected = _construct_from(input_dec, result=TraceResult.REJECTED, reason_code="fixture_rejected")
@@ -175,8 +260,20 @@ async def test_AC_audit_terminal_trace_3_to_5_canonical_audit_and_redaction() ->
     verifier = TerminalAuditVerifier(repository)
     proof = _executed_proof(spec)
     terminal = await verifier.audit(spec, proof)
-    assert (terminal.record_type, terminal.result, terminal.assertion, terminal.authority.package, terminal.authority.producer_version, TraceRecordCodec.decode(TraceRecordCodec.encode(terminal))) == (
-        TraceRecordType.OBSERVATION, TraceResult.PASS, VersionedTraceRef("terminal_audit", spec.scenario_id, TERMINAL_AUDIT_POLICY_VERSION), "audit", f"git@{spec.commit_sha}", terminal,
+    assert (
+        terminal.record_type,
+        terminal.result,
+        terminal.assertion,
+        terminal.authority.package,
+        terminal.authority.producer_version,
+        TraceRecordCodec.decode(TraceRecordCodec.encode(terminal)),
+    ) == (
+        TraceRecordType.OBSERVATION,
+        TraceResult.PASS,
+        VersionedTraceRef("terminal_audit", spec.scenario_id, TERMINAL_AUDIT_POLICY_VERSION),
+        "audit",
+        f"git@{spec.commit_sha}",
+        terminal,
     )
 
     for bad_proof in (
@@ -195,15 +292,36 @@ async def test_AC_audit_terminal_trace_3_to_5_canonical_audit_and_redaction() ->
     audit_source = REPOSITORY_ROOT / "apps/backend/src/audit"
     terminal_source = (audit_source / "extension/terminal_audit.py").read_text()
     wire = TraceRecordCodec.encode(terminal)
-    assert not (audit_source / "extension/promotion_trace.py").exists() and "PromotionTrace" not in "".join(p.read_text() for p in audit_source.rglob("*.py"))
+    assert not (audit_source / "extension/promotion_trace.py").exists() and "PromotionTrace" not in "".join(
+        p.read_text() for p in audit_source.rglob("*.py")
+    )
     assert "PersonalReportPackage" not in terminal_source and "scan_surfaces" not in terminal_source
     assert set(json.loads(wire)) == {
-        "assertion", "authority", "causality", "content_digest", "evidence_manifest_digest", "execution_id", "occurred_at",
-        "parent_ids", "reason_code", "record_id", "record_type", "result", "schema_version", "scope", "score", "supersedes_id", "target", "target_class",
+        "assertion",
+        "authority",
+        "causality",
+        "content_digest",
+        "evidence_manifest_digest",
+        "execution_id",
+        "occurred_at",
+        "parent_ids",
+        "reason_code",
+        "record_id",
+        "record_type",
+        "result",
+        "schema_version",
+        "scope",
+        "score",
+        "supersedes_id",
+        "target",
+        "target_class",
     } and not any(tok in wire.lower() for tok in ("amount", "source_text", "prompt", "email", "secret"))
 
     input_ref = spec.manifest[0]
-    repository.records[input_ref.decision_id] = _construct_from(repository.records[input_ref.decision_id], authority=replace(repository.records[input_ref.decision_id].authority, package="private owner payload"))
+    repository.records[input_ref.decision_id] = _construct_from(
+        repository.records[input_ref.decision_id],
+        authority=replace(repository.records[input_ref.decision_id].authority, package="private owner payload"),
+    )
     with pytest.raises(RuntimeError) as raised:
         await verifier.verify_graph(spec)
     assert raised.value.owner == "unknown"
@@ -222,7 +340,9 @@ async def test_AC_audit_terminal_trace_3_to_5_canonical_audit_and_redaction() ->
         ({"commit_sha": "main"}, ValueError, "commit SHA"),
     ],
 )
-def test_terminal_audit_spec_rejects_ambiguous_coordinates(changes: dict, error: type[Exception], match: str | None) -> None:
+def test_terminal_audit_spec_rejects_ambiguous_coordinates(
+    changes: dict, error: type[Exception], match: str | None
+) -> None:
     _, spec, *_ = _graph()
     with pytest.raises(error, match=match):
         replace(spec, **changes)

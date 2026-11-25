@@ -10,9 +10,19 @@ from src.reconciliation.extension.consistency_checks import detect_duplicates, d
 from tests.factories import AtomicTransactionFactory
 
 
-async def _add_txns(db: AsyncSession, user_id, rows: list[tuple[Decimal, TransactionDirection, str, date, str]]) -> None:
+async def _add_txns(
+    db: AsyncSession, user_id, rows: list[tuple[Decimal, TransactionDirection, str, date, str]]
+) -> None:
     for amount, direction, currency, txn_date, description in rows:
-        await AtomicTransactionFactory.create_async(db, user_id=user_id, amount=amount, direction=direction, currency=currency, txn_date=txn_date, description=description)
+        await AtomicTransactionFactory.create_async(
+            db,
+            user_id=user_id,
+            amount=amount,
+            direction=direction,
+            currency=currency,
+            txn_date=txn_date,
+            description=description,
+        )
 
 
 async def test_consistency_checks_strictly_partition_by_currency(db: AsyncSession, test_user):

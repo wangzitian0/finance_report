@@ -68,7 +68,9 @@ class PackageReadinessDecisionPolicy(DeclarativeTracePolicy):
 
     def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
         obs = [
-            p for p in parents if p.record_type is TraceRecordType.OBSERVATION and p.reason_code == "package_sections_valid"
+            p
+            for p in parents
+            if p.record_type is TraceRecordType.OBSERVATION and p.reason_code == "package_sections_valid"
         ]
         decisions = [p for p in parents if p.record_type is TraceRecordType.DECISION]
         valid = (

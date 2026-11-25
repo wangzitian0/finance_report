@@ -45,7 +45,26 @@ class PermissivePolicy:
 
 
 def _construct_from(record: TraceRecord, **overrides) -> TraceRecord:
-    values = {f: getattr(record, f) for f in ("record_type", "scope", "target", "target_class", "assertion", "authority", "result", "execution_id", "causality", "evidence_manifest_digest", "occurred_at", "parent_ids", "supersedes_id", "score", "reason_code")}
+    values = {
+        f: getattr(record, f)
+        for f in (
+            "record_type",
+            "scope",
+            "target",
+            "target_class",
+            "assertion",
+            "authority",
+            "result",
+            "execution_id",
+            "causality",
+            "evidence_manifest_digest",
+            "occurred_at",
+            "parent_ids",
+            "supersedes_id",
+            "score",
+            "reason_code",
+        )
+    }
     values.update(overrides)
     return TraceRecord._construct(**values)
 
@@ -62,7 +81,15 @@ def _construct_from(record: TraceRecord, **overrides) -> TraceRecord:
     ],
 )
 def test_authority_profile_rejects_unregistered_combinations(kwargs: dict, message: str) -> None:
-    values = {"package": "audit", "tier": "CODE-ONLY", "proof_kind": "exact", "provenance": "deterministic", "execution_stage": "github_ci.merge_authority", "assertion_owner_digest": "a" * 64, "producer_version": "test@1"}
+    values = {
+        "package": "audit",
+        "tier": "CODE-ONLY",
+        "proof_kind": "exact",
+        "provenance": "deterministic",
+        "execution_stage": "github_ci.merge_authority",
+        "assertion_owner_digest": "a" * 64,
+        "producer_version": "test@1",
+    }
     values.update(kwargs)
     with pytest.raises(TraceRecordValidationError, match=message):
         TraceAuthorityProfile(**values)
@@ -70,10 +97,19 @@ def test_authority_profile_rejects_unregistered_combinations(kwargs: dict, messa
 
 def test_scope_refs_registry_codec_and_projection_fail_closed() -> None:
     policy, parent = decision_policy(), observation()
-    kw = {"scope": parent.scope, "target": parent.target, "execution_id": parent.execution_id, "occurred_at": parent.occurred_at}
+    kw = {
+        "scope": parent.scope,
+        "target": parent.target,
+        "execution_id": parent.execution_id,
+        "occurred_at": parent.occurred_at,
+    }
     decision = TraceRecord.decision(policy=policy, parents=[parent], **kw)
-    correction = observation(scope=parent.scope, target_version="v2", assertion_version="v2", supersedes_id=parent.record_id)
-    assert decision.evidence_manifest_digest == hashlib.sha256(json.dumps([parent.content_digest], separators=(",", ":")).encode("utf-8")).hexdigest() and current_heads([parent, decision, correction]) == [correction]
+    correction = observation(
+        scope=parent.scope, target_version="v2", assertion_version="v2", supersedes_id=parent.record_id
+    )
+    assert decision.evidence_manifest_digest == hashlib.sha256(
+        json.dumps([parent.content_digest], separators=(",", ":")).encode("utf-8")
+    ).hexdigest() and current_heads([parent, decision, correction]) == [correction]
 
     payload = parent.wire_payload()
     missing = {k: v for k, v in payload.items() if k != "reason_code"}
@@ -89,15 +125,27 @@ def test_scope_refs_registry_codec_and_projection_fail_closed() -> None:
         (lambda: TraceDecisionPolicyRegistry().resolve(policy.assertion), "no registered"),
         (lambda: TraceRecord.decision(policy=PermissivePolicy(), parents=[], **kw), "at least one parent"),
         (lambda: TraceRecord.decision(policy=PermissivePolicy(), parents=[parent, parent], **kw), "unique"),
-        (lambda: TraceRecord.decision(policy=PermissivePolicy(result=TraceResult.PASS), parents=[parent], **kw), "decision result"),
-        (lambda: TraceRecord.decision(policy=PermissivePolicy(causality="direct"), parents=[parent], **kw), "registered causality"),
+        (
+            lambda: TraceRecord.decision(policy=PermissivePolicy(result=TraceResult.PASS), parents=[parent], **kw),
+            "decision result",
+        ),
+        (
+            lambda: TraceRecord.decision(policy=PermissivePolicy(causality="direct"), parents=[parent], **kw),
+            "registered causality",
+        ),
         (lambda: TraceRecordCodec.decode("{"), "valid JSON"),
         (lambda: TraceRecordCodec.decode("[]"), "must be an object"),
         (lambda: TraceRecordCodec.decode(json.dumps(missing)), "missing fields"),
         (lambda: TraceRecordCodec.decode(json.dumps({**payload, "schema_version": "2"})), "unsupported"),
-        (lambda: TraceRecordCodec.decode(json.dumps({**payload, "content_digest": "0" * 64})), "content_digest mismatch"),
+        (
+            lambda: TraceRecordCodec.decode(json.dumps({**payload, "content_digest": "0" * 64})),
+            "content_digest mismatch",
+        ),
         (lambda: TraceRecordCodec.decode(json.dumps({**payload, "record_id": str(uuid4())})), "record_id mismatch"),
-        (lambda: TraceRecordCodec.decode(json.dumps({**payload, "record_type": "invalid"})), "invalid TraceRecord payload"),
+        (
+            lambda: TraceRecordCodec.decode(json.dumps({**payload, "record_type": "invalid"})),
+            "invalid TraceRecord payload",
+        ),
         (lambda: TraceConfidenceProjection("", "v1", (parent.lineage,)), "required"),
         (lambda: TraceConfidenceProjection("cohort", "v1", ()), "non-empty and unique"),
         (lambda: TraceConfidenceProjection("cohort", "v1", (parent.lineage, parent.lineage)), "non-empty and unique"),
@@ -110,10 +158,14 @@ def test_scope_refs_registry_codec_and_projection_fail_closed() -> None:
 @pytest.mark.parametrize(
     ("overrides", "message"),
     [
-        ({"scope": "tenant"}, "scope must"), ({"target_class": "financial"}, "target_class must"),
-        ({"result": TraceResult.AUTHORITATIVE}, "OBSERVATION requires"), ({"causality": TraceCausality.DIRECT}, "OBSERVATION requires"),
-        ({"record_type": "unknown"}, "unknown TraceRecord type"), ({"evidence_manifest_digest": "bad"}, "lowercase sha256"),
-        ({"occurred_at": datetime(2026, 7, 17)}, "timezone-aware"), ({"score": Decimal("1")}, "audit Ratio"),
+        ({"scope": "tenant"}, "scope must"),
+        ({"target_class": "financial"}, "target_class must"),
+        ({"result": TraceResult.AUTHORITATIVE}, "OBSERVATION requires"),
+        ({"causality": TraceCausality.DIRECT}, "OBSERVATION requires"),
+        ({"record_type": "unknown"}, "unknown TraceRecord type"),
+        ({"evidence_manifest_digest": "bad"}, "lowercase sha256"),
+        ({"occurred_at": datetime(2026, 7, 17)}, "timezone-aware"),
+        ({"score": Decimal("1")}, "audit Ratio"),
         ({"score": Ratio(Decimal("2"))}, "within"),
     ],
 )
@@ -124,7 +176,13 @@ def test_record_constructor_rejects_invalid_structural_values(overrides: dict, m
 
 @pytest.mark.parametrize(
     ("field", "value", "message"),
-    [("schema_version", 1, "scalar types"), ("causality", 1, "causality"), ("supersedes_id", 1, "supersedes_id"), ("parent_ids", [1], "parent_ids"), ("scope", [], "scope must be an object")],
+    [
+        ("schema_version", 1, "scalar types"),
+        ("causality", 1, "causality"),
+        ("supersedes_id", 1, "supersedes_id"),
+        ("parent_ids", [1], "parent_ids"),
+        ("scope", [], "scope must be an object"),
+    ],
 )
 def test_wire_payload_rejects_noncanonical_scalar_shapes(field: str, value, message: str) -> None:
     with pytest.raises(TraceRecordValidationError, match=message):
@@ -139,17 +197,52 @@ async def test_emitter_and_confidence_cohort_projection() -> None:
 
     passed = observation(target_id="machine-a")
     failed = observation(scope=passed.scope, target_id="machine-b", result=TraceResult.FAIL, score="0")
-    manual = observation(scope=passed.scope, target_id="manual-extra", profile=authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic"))
-    correction = observation(scope=passed.scope, target_id="machine-b", target_version="v2", assertion_version="v2", supersedes_id=failed.record_id)
-    assert TraceConfidenceProjection(cohort_id="machine-extraction", cohort_version="v1", members=(passed.lineage, failed.lineage)).evaluate([passed, failed, manual, correction]).value == Decimal("1")
+    manual = observation(
+        scope=passed.scope,
+        target_id="manual-extra",
+        profile=authority(tier="CODE-ONLY", proof_kind="exact", provenance="deterministic"),
+    )
+    correction = observation(
+        scope=passed.scope,
+        target_id="machine-b",
+        target_version="v2",
+        assertion_version="v2",
+        supersedes_id=failed.record_id,
+    )
+    assert TraceConfidenceProjection(
+        cohort_id="machine-extraction", cohort_version="v1", members=(passed.lineage, failed.lineage)
+    ).evaluate([passed, failed, manual, correction]).value == Decimal("1")
 
     f1 = observation(target_id="shared-target", assertion_id="parser-shape")
-    f2 = observation(scope=f1.scope, target_id="shared-target", assertion_id="balance-invariant", result=TraceResult.FAIL, score="0")
-    assert TraceConfidenceProjection(cohort_id="two-independent-assertions", cohort_version="v1", members=(TraceLineage.from_refs(f1.target, f1.assertion), TraceLineage.from_refs(f2.target, f2.assertion))).evaluate([f1, f2]).value == Decimal("0.5")
+    f2 = observation(
+        scope=f1.scope, target_id="shared-target", assertion_id="balance-invariant", result=TraceResult.FAIL, score="0"
+    )
+    assert TraceConfidenceProjection(
+        cohort_id="two-independent-assertions",
+        cohort_version="v1",
+        members=(TraceLineage.from_refs(f1.target, f1.assertion), TraceLineage.from_refs(f2.target, f2.assertion)),
+    ).evaluate([f1, f2]).value == Decimal("0.5")
 
     parent = observation()
-    decision = TraceRecord.decision(scope=parent.scope, target=parent.target, policy=decision_policy(assertion_id="terminal-confidence"), execution_id=parent.execution_id, occurred_at=parent.occurred_at, parents=[parent])
-    term_proj = TraceConfidenceProjection(cohort_id="terminal-decisions", cohort_version="v1", members=(decision.lineage,))
+    decision = TraceRecord.decision(
+        scope=parent.scope,
+        target=parent.target,
+        policy=decision_policy(assertion_id="terminal-confidence"),
+        execution_id=parent.execution_id,
+        occurred_at=parent.occurred_at,
+        parents=[parent],
+    )
+    term_proj = TraceConfidenceProjection(
+        cohort_id="terminal-decisions", cohort_version="v1", members=(decision.lineage,)
+    )
     assert term_proj.evaluate([parent, decision]).value == Decimal("1")
     with pytest.raises(TraceRecordValidationError, match="missing"):
-        term_proj.evaluate([parent, decision, observation(scope=parent.scope, target_version="v2", assertion_version="v2", supersedes_id=parent.record_id)])
+        term_proj.evaluate(
+            [
+                parent,
+                decision,
+                observation(
+                    scope=parent.scope, target_version="v2", assertion_version="v2", supersedes_id=parent.record_id
+                ),
+            ]
+        )

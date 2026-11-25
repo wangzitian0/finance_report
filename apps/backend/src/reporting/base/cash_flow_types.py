@@ -13,6 +13,8 @@ from src.ledger import JournalEntryAuthorityState
 CurrencyStr = Annotated[str, Field(min_length=3, max_length=3)]
 NonNegInt = Annotated[int, Field(ge=0)]
 PosInt = Annotated[int, Field(ge=1)]
+
+
 def _default_list() -> Any:
     return Field(default_factory=lambda: [])
 

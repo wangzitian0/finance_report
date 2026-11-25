@@ -61,15 +61,15 @@ class OpeningPositionPolicy(DeclarativeTracePolicy):
     causality: TraceCausality = TraceCausality.MANIFEST
 
     def fold(self, parents: Sequence[TraceRecord]) -> TraceDecisionOutcome:
-        inputs = [
-            p for p in parents if p.assertion == VersionedTraceRef("ledger_opening_input", "starting-stock", "1")
-        ]
+        inputs = [p for p in parents if p.assertion == VersionedTraceRef("ledger_opening_input", "starting-stock", "1")]
         sources = [p for p in parents if p not in inputs]
         valid = (
             len(inputs) == 1
             and inputs[0].result is TraceResult.PASS
             and len(sources) <= 1
-            and all(p.result is TraceResult.AUTHORITATIVE and p.target_class is TraceTargetClass.FINANCIAL for p in sources)
+            and all(
+                p.result is TraceResult.AUTHORITATIVE and p.target_class is TraceTargetClass.FINANCIAL for p in sources
+            )
         )
         return TraceDecisionOutcome(
             TraceResult.AUTHORITATIVE if valid else TraceResult.REJECTED,

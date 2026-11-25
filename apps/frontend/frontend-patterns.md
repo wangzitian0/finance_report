@@ -33,7 +33,7 @@ Use shared primitives in `apps/frontend/src/components/ui/index.tsx` (`Button`, 
 ### Global Accessibility Baseline
 
 - `apps/frontend/src/app/globals.css` enforces `prefers-reduced-motion: reduce` and `:focus-visible` outlines (`outline: 2px solid var(--accent)`, `shadow-focus`) across controls and skip-link targets.
-- Use Lucide icons/text rather than Unicode glyphs, keep human copy free of internal jargon (`apps/frontend/src/__tests__/designTokens.test.tsx`), and preserve `/audit` (`?from=attention`) return links.
+- Use Lucide icons/text rather than Unicode glyphs, keep human copy free of internal jargon, and preserve `/audit` (`?from=attention`) return links.
 
 ### Mobile Install Baseline
 

@@ -23,7 +23,10 @@ EXPECTED = {
     "DBS": (OUTPUT_DIR / "dbs_statement_fixture.pdf", OUTPUT_DIR / "dbs_statement_fixture_expected.json"),
     "CMB": (OUTPUT_DIR / "cmb_statement_fixture.pdf", OUTPUT_DIR / "cmb_statement_fixture_expected.json"),
     "GXS": (OUTPUT_DIR / "gxs_statement_fixture.pdf", OUTPUT_DIR / "gxs_statement_fixture_expected.json"),
-    "MariBank": (OUTPUT_DIR / "maribank_statement_fixture.pdf", OUTPUT_DIR / "maribank_statement_fixture_expected.json"),
+    "MariBank": (
+        OUTPUT_DIR / "maribank_statement_fixture.pdf",
+        OUTPUT_DIR / "maribank_statement_fixture_expected.json",
+    ),
 }
 
 

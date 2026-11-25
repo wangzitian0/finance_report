@@ -21,4 +21,9 @@ async def test_increment_per_user_and_emits_event():
 
     assert len(bus.published) == 1
     ev = bus.published[0]
-    assert (ev.user_id, ev.key, ev.count, ev.event_type) == (u1, KEY, 1, "counter.Incremented") and ev.occurred_at is not None
+    assert (ev.user_id, ev.key, ev.count, ev.event_type) == (
+        u1,
+        KEY,
+        1,
+        "counter.Incremented",
+    ) and ev.occurred_at is not None

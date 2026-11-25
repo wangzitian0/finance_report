@@ -190,13 +190,19 @@ def test_domain_packages_do_not_import_config_app() -> None:
                     imports_config_app = (
                         mod.startswith("src.config_app")
                         or (mod == "src" and any(a.name == "config_app" for a in node.names))
-                        or (node.level > 0 and (mod == "config_app" or mod.startswith("config_app.") or any(a.name == "config_app" for a in node.names)))
+                        or (
+                            node.level > 0
+                            and (
+                                mod == "config_app"
+                                or mod.startswith("config_app.")
+                                or any(a.name == "config_app" for a in node.names)
+                            )
+                        )
                     )
                     if imports_config_app:
                         violators.append(f"{path.relative_to(_SRC_DIR)}:{node.lineno}")
                 elif isinstance(node, ast.Import) and any(
-                    alias.name == "src.config_app" or alias.name.startswith("src.config_app.")
-                    for alias in node.names
+                    alias.name == "src.config_app" or alias.name.startswith("src.config_app.") for alias in node.names
                 ):
                     violators.append(f"{path.relative_to(_SRC_DIR)}:{node.lineno}")
     assert violators == [], f"Unexpected src.config_app imports in domain packages: {violators}"
@@ -237,13 +243,14 @@ def test_api_tests_do_not_import_src_routers() -> None:
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
                 mod = node.module or ""
-                if mod == "src.routers" or mod.startswith("src.routers.") or (
-                    mod == "src" and any(a.name == "routers" for a in node.names)
+                if (
+                    mod == "src.routers"
+                    or mod.startswith("src.routers.")
+                    or (mod == "src" and any(a.name == "routers" for a in node.names))
                 ):
                     violators.append(f"{path.relative_to(api_tests_dir)}:{node.lineno}")
             elif isinstance(node, ast.Import) and any(
-                alias.name == "src.routers" or alias.name.startswith("src.routers.")
-                for alias in node.names
+                alias.name == "src.routers" or alias.name.startswith("src.routers.") for alias in node.names
             ):
                 violators.append(f"{path.relative_to(api_tests_dir)}:{node.lineno}")
     assert violators == [], f"Unexpected src.routers imports in tests/api: {violators}"

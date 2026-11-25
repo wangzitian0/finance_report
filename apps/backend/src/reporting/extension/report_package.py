@@ -51,7 +51,9 @@ def jsonable(value: Any) -> Any:
     return value.value if isinstance(value, Enum) else value
 
 
-def package_dates(*, start_date: date | None, end_date: date | None, as_of_date: date | None) -> tuple[date, date, date]:
+def package_dates(
+    *, start_date: date | None, end_date: date | None, as_of_date: date | None
+) -> tuple[date, date, date]:
     report_end = end_date or as_of_date or date.today()
     return start_date or report_end - timedelta(days=365), report_end, as_of_date or report_end
 
@@ -159,9 +161,7 @@ def package_snapshot_csv(snapshot: PersonalReportPackageSnapshotResponse) -> str
     writer.writerow(doc.contract.export_contract.csv_columns)
     for line in doc.sections.traceability_appendix.lines:
         sp = section_payloads.get(line.section_id, {})
-        currency = (
-            resolve_payload_field(sp, line.currency_field) or snapshot.currency if line.currency_field else ""
-        )
+        currency = resolve_payload_field(sp, line.currency_field) or snapshot.currency if line.currency_field else ""
         writer.writerow(
             [
                 snapshot.package_id,

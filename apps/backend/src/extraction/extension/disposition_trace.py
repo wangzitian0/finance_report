@@ -407,17 +407,15 @@ async def authorize_financial_command(
     _require_authoritative_source_decision(upstream_decision, scope=scope, source_id=source_id)
     auth_policy = FinancialCommandAuthorizationTracePolicy()
     execution_id = f"journal-command:{target.id}:{target.version}"
-    auth_head = await emitter.repository.decision_head(
-        scope, TraceLineage.from_refs(target, auth_policy.assertion)
-    )
+    auth_head = await emitter.repository.decision_head(scope, TraceLineage.from_refs(target, auth_policy.assertion))
     if auth_head is not None and auth_head.ancestry_current and auth_head.record.target == target:
         return DecisionAnchor.from_record(auth_head.record)
 
-    observation = _payload_observation(scope=scope, target=target, execution_id=execution_id, upstream=upstream_decision)
-    payload_policy = JournalCommandPayloadTracePolicy()
-    guard_head = await emitter.repository.decision_head(
-        scope, TraceLineage.from_refs(target, payload_policy.assertion)
+    observation = _payload_observation(
+        scope=scope, target=target, execution_id=execution_id, upstream=upstream_decision
     )
+    payload_policy = JournalCommandPayloadTracePolicy()
+    guard_head = await emitter.repository.decision_head(scope, TraceLineage.from_refs(target, payload_policy.assertion))
     if guard_head is not None and guard_head.ancestry_current and guard_head.record.target == target:
         payload_guard = guard_head.record
     else:
@@ -488,7 +486,10 @@ async def authorize_financial_commands_many(
     fresh = [
         idx
         for idx, (auth_lin, guard_lin) in enumerate(lineages)
-        if heads is not None and auth_lin not in heads and guard_lin not in heads and uses[auth_lin] == uses[guard_lin] == 1
+        if heads is not None
+        and auth_lin not in heads
+        and guard_lin not in heads
+        and uses[auth_lin] == uses[guard_lin] == 1
     ]
     anchors: dict[int, DecisionAnchor] = {}
     records: list[TraceRecord] = []
@@ -497,10 +498,20 @@ async def authorize_financial_commands_many(
         execution_id = f"journal-command:{target.id}:{target.version}"
         obs = _payload_observation(scope=scope, target=target, execution_id=execution_id, upstream=upstream)
         guard = TraceRecord.decision(
-            scope=scope, target=target, policy=payload_policy, execution_id=execution_id, occurred_at=upstream.occurred_at, parents=(obs,)
+            scope=scope,
+            target=target,
+            policy=payload_policy,
+            execution_id=execution_id,
+            occurred_at=upstream.occurred_at,
+            parents=(obs,),
         )
         auth = TraceRecord.decision(
-            scope=scope, target=target, policy=auth_policy, execution_id=execution_id, occurred_at=upstream.occurred_at, parents=(upstream, guard)
+            scope=scope,
+            target=target,
+            policy=auth_policy,
+            execution_id=execution_id,
+            occurred_at=upstream.occurred_at,
+            parents=(upstream, guard),
         )
         records.extend((obs, guard, auth))
     if records:

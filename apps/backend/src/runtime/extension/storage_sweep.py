@@ -49,7 +49,10 @@ def _list_storage_keys(storage: StorageService) -> list[tuple[str, datetime]]:
 
 
 def _is_preview() -> bool:
-    return resolve_environment_tier(str(getattr(settings, "environment", "")), unknown="production") is EnvironmentTier.PREVIEW
+    return (
+        resolve_environment_tier(str(getattr(settings, "environment", "")), unknown="production")
+        is EnvironmentTier.PREVIEW
+    )
 
 
 async def sweep_orphaned_storage_objects(

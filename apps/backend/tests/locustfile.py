@@ -1,55 +1,174 @@
-import os; import random; from io import BytesIO; from locust import HttpUser, between, events, task; from reportlab.lib.pagesizes import letter; from reportlab.pdfgen import canvas; from src.observability import get_logger; logger = get_logger(__name__)
-def generate_test_pdf() -> BytesIO: buffer = BytesIO(); p = canvas.Canvas(buffer, pagesize=letter); p.drawString(100, 750, 'Bank Statement'); p.drawString(100, 730, 'Account: 1234567890'); p.drawString(100, 710, 'Date: 2024-01-15'); p.drawString(100, 690, 'Transaction: Purchase at Store - $50.00'); p.showPage(); p.save(); buffer.seek(0); return buffer
+import os
+import random
+from io import BytesIO
+from locust import HttpUser, between, events, task
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+from src.observability import get_logger
+
+logger = get_logger(__name__)
+
+
+def generate_test_pdf() -> BytesIO:
+    buffer = BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    p.drawString(100, 750, "Bank Statement")
+    p.drawString(100, 730, "Account: 1234567890")
+    p.drawString(100, 710, "Date: 2024-01-15")
+    p.drawString(100, 690, "Transaction: Purchase at Store - $50.00")
+    p.showPage()
+    p.save()
+    buffer.seek(0)
+    return buffer
+
+
 class FinanceReportUser(HttpUser):
     wait_time = between(1, 3)
-    def on_start(self) -> None: token = os.getenv('TEST_USER_TOKEN', 'mock-token-not-for-prod'); self.client.headers = {'Authorization': f'Bearer {token}'}
+
+    def on_start(self) -> None:
+        token = os.getenv("TEST_USER_TOKEN", "mock-token-not-for-prod")
+        self.client.headers = {"Authorization": f"Bearer {token}"}
+
     @task(5)
-    def view_dashboard(self) -> None: self.client.get('/api/health')
+    def view_dashboard(self) -> None:
+        self.client.get("/api/health")
+
     @task(3)
     def list_accounts(self) -> None:
-        with self.client.get('/api/accounts', catch_response=True) as response:
-            if response.status_code == 200: response.success()
-            elif response.status_code in (401, 403): logger.warning(f'Auth failed in load test: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')
-            else: logger.error('Unexpected status in load test', extra={'endpoint': '/api/accounts', 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
+        with self.client.get("/api/accounts", catch_response=True) as response:
+            if response.status_code == 200:
+                response.success()
+            elif response.status_code in (401, 403):
+                logger.warning(f"Auth failed in load test: {response.status_code}")
+                response.failure(f"Auth failed: {response.status_code}")
+            else:
+                logger.error(
+                    "Unexpected status in load test",
+                    extra={"endpoint": "/api/accounts", "status": response.status_code},
+                )
+                response.failure(f"Unexpected: {response.status_code}")
+
     @task(2)
     def list_journal_entries(self) -> None:
-        params = {'offset': random.randint(0, 100), 'limit': 20}
-        with self.client.get('/api/journal-entries', params=params, catch_response=True) as response:
-            if response.status_code == 200: response.success()
-            elif response.status_code in (401, 403): logger.warning(f'Auth failed in load test: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')
-            else: logger.error('Unexpected status', extra={'endpoint': '/api/journal-entries', 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
+        params = {"offset": random.randint(0, 100), "limit": 20}
+        with self.client.get("/api/journal-entries", params=params, catch_response=True) as response:
+            if response.status_code == 200:
+                response.success()
+            elif response.status_code in (401, 403):
+                logger.warning(f"Auth failed in load test: {response.status_code}")
+                response.failure(f"Auth failed: {response.status_code}")
+            else:
+                logger.error(
+                    "Unexpected status", extra={"endpoint": "/api/journal-entries", "status": response.status_code}
+                )
+                response.failure(f"Unexpected: {response.status_code}")
+
     @task(1)
     def upload_statement(self) -> None:
-        pdf_buffer = generate_test_pdf(); files = {'file': ('test_statement.pdf', pdf_buffer, 'application/pdf')}; data = {'institution': 'Test Bank', 'account_number': f'ACC{random.randint(1000, 9999)}', 'account_name': 'Test Account'}
-        with self.client.post('/api/statements', files=files, data=data, catch_response=True, timeout=60) as response:
-            if response.status_code == 202: response.success()
-            elif response.status_code == 400: logger.warning(f'Validation failed: {response.text[:200]}'); response.failure(f'Validation failed: {response.text[:200]}')
-            elif response.status_code in (401, 403): logger.warning(f'Auth failed: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')
-            elif response.status_code == 429: logger.warning('Rate limited'); response.failure('Rate limited')
-            elif response.status_code >= 500: logger.error('Server error', extra={'status': response.status_code}); response.failure(f'Server error: {response.status_code}')
-            else: logger.error('Unexpected status', extra={'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
+        pdf_buffer = generate_test_pdf()
+        files = {"file": ("test_statement.pdf", pdf_buffer, "application/pdf")}
+        data = {
+            "institution": "Test Bank",
+            "account_number": f"ACC{random.randint(1000, 9999)}",
+            "account_name": "Test Account",
+        }
+        with self.client.post("/api/statements", files=files, data=data, catch_response=True, timeout=60) as response:
+            if response.status_code == 202:
+                response.success()
+            elif response.status_code == 400:
+                logger.warning(f"Validation failed: {response.text[:200]}")
+                response.failure(f"Validation failed: {response.text[:200]}")
+            elif response.status_code in (401, 403):
+                logger.warning(f"Auth failed: {response.status_code}")
+                response.failure(f"Auth failed: {response.status_code}")
+            elif response.status_code == 429:
+                logger.warning("Rate limited")
+                response.failure("Rate limited")
+            elif response.status_code >= 500:
+                logger.error("Server error", extra={"status": response.status_code})
+                response.failure(f"Server error: {response.status_code}")
+            else:
+                logger.error("Unexpected status", extra={"status": response.status_code})
+                response.failure(f"Unexpected: {response.status_code}")
+
     @task(2)
     def run_reconciliation(self) -> None:
-        with self.client.post('/api/reconciliation/runs', catch_response=True, timeout=30) as response:
-            if response.status_code == 200: response.success()
-            elif response.status_code in (401, 403): logger.warning(f'Auth failed: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')
-            elif response.status_code == 429: logger.warning('Rate limited'); response.failure('Rate limited')
-            else: logger.error('Unexpected status', extra={'endpoint': '/api/reconciliation/runs', 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
+        with self.client.post("/api/reconciliation/runs", catch_response=True, timeout=30) as response:
+            if response.status_code == 200:
+                response.success()
+            elif response.status_code in (401, 403):
+                logger.warning(f"Auth failed: {response.status_code}")
+                response.failure(f"Auth failed: {response.status_code}")
+            elif response.status_code == 429:
+                logger.warning("Rate limited")
+                response.failure("Rate limited")
+            else:
+                logger.error(
+                    "Unexpected status", extra={"endpoint": "/api/reconciliation/runs", "status": response.status_code}
+                )
+                response.failure(f"Unexpected: {response.status_code}")
+
     @task(3)
     def view_reconciliation_stats(self) -> None:
-        with self.client.get('/api/reconciliation/stats', catch_response=True) as response:
-            if response.status_code == 200: response.success()
-            elif response.status_code in (401, 403): logger.warning(f'Auth failed: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')
-            else: logger.error('Unexpected status', extra={'endpoint': '/api/reconciliation/stats', 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
+        with self.client.get("/api/reconciliation/stats", catch_response=True) as response:
+            if response.status_code == 200:
+                response.success()
+            elif response.status_code in (401, 403):
+                logger.warning(f"Auth failed: {response.status_code}")
+                response.failure(f"Auth failed: {response.status_code}")
+            else:
+                logger.error(
+                    "Unexpected status", extra={"endpoint": "/api/reconciliation/stats", "status": response.status_code}
+                )
+                response.failure(f"Unexpected: {response.status_code}")
+
     @task(2)
     def view_reports(self) -> None:
-        report_type = random.choice(['balance-sheet', 'income-statement', 'cash-flow']); endpoint = f'/api/reports/{report_type}'; params = {'as_of_date': '2024-01-31'} if report_type == 'balance-sheet' else {}
+        report_type = random.choice(["balance-sheet", "income-statement", "cash-flow"])
+        endpoint = f"/api/reports/{report_type}"
+        params = {"as_of_date": "2024-01-31"} if report_type == "balance-sheet" else {}
         with self.client.get(endpoint, params=params, catch_response=True, timeout=30) as response:
-            if response.status_code == 200: response.success()
-            elif response.status_code in (401, 403): logger.warning(f'Auth failed: {response.status_code}'); response.failure(f'Auth failed: {response.status_code}')
-            else: logger.error('Unexpected status', extra={'endpoint': endpoint, 'status': response.status_code}); response.failure(f'Unexpected: {response.status_code}')
+            if response.status_code == 200:
+                response.success()
+            elif response.status_code in (401, 403):
+                logger.warning(f"Auth failed: {response.status_code}")
+                response.failure(f"Auth failed: {response.status_code}")
+            else:
+                logger.error("Unexpected status", extra={"endpoint": endpoint, "status": response.status_code})
+                response.failure(f"Unexpected: {response.status_code}")
+
+
 @events.quitting.add_listener
 def _(environment, **kwargs) -> None:
-    if environment.stats.total.fail_ratio > 0.05: logger.error('Performance test FAILED', extra={'error_rate': environment.stats.total.fail_ratio, 'avg_response_time': environment.stats.total.avg_response_time, 'threshold': '5%'}); print(f'\n❌ FAIL: Error rate {environment.stats.total.fail_ratio:.2%} exceeds 5%'); environment.process_exit_code = 1
-    elif environment.stats.total.avg_response_time > 2000: logger.warning('Performance test WARNING', extra={'error_rate': environment.stats.total.fail_ratio, 'avg_response_time': environment.stats.total.avg_response_time, 'threshold': '2000ms'}); print(f'\n⚠️  WARNING: Avg response time {environment.stats.total.avg_response_time:.0f}ms exceeds 2s')
-    else: logger.info('Performance test PASSED', extra={'error_rate': environment.stats.total.fail_ratio, 'avg_response_time': environment.stats.total.avg_response_time}); print(f'\n✅ PASS: Error rate {environment.stats.total.fail_ratio:.2%}, Avg {environment.stats.total.avg_response_time:.0f}ms')
+    if environment.stats.total.fail_ratio > 0.05:
+        logger.error(
+            "Performance test FAILED",
+            extra={
+                "error_rate": environment.stats.total.fail_ratio,
+                "avg_response_time": environment.stats.total.avg_response_time,
+                "threshold": "5%",
+            },
+        )
+        print(f"\n❌ FAIL: Error rate {environment.stats.total.fail_ratio:.2%} exceeds 5%")
+        environment.process_exit_code = 1
+    elif environment.stats.total.avg_response_time > 2000:
+        logger.warning(
+            "Performance test WARNING",
+            extra={
+                "error_rate": environment.stats.total.fail_ratio,
+                "avg_response_time": environment.stats.total.avg_response_time,
+                "threshold": "2000ms",
+            },
+        )
+        print(f"\n⚠️  WARNING: Avg response time {environment.stats.total.avg_response_time:.0f}ms exceeds 2s")
+    else:
+        logger.info(
+            "Performance test PASSED",
+            extra={
+                "error_rate": environment.stats.total.fail_ratio,
+                "avg_response_time": environment.stats.total.avg_response_time,
+            },
+        )
+        print(
+            f"\n✅ PASS: Error rate {environment.stats.total.fail_ratio:.2%}, Avg {environment.stats.total.avg_response_time:.0f}ms"
+        )

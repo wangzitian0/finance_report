@@ -13,11 +13,26 @@ pytestmark = pytest.mark.no_db
 
 def test_every_config_env_var_is_classified() -> None:
     assert check_env_classification(Settings) == []
-    assert any("database_url" in e for e in check_env_classification(Settings, non_dependency_fields={**NON_DEPENDENCY_ENV_FIELDS, "database_url": "tuning"}))
+    assert any(
+        "database_url" in e
+        for e in check_env_classification(
+            Settings, non_dependency_fields={**NON_DEPENDENCY_ENV_FIELDS, "database_url": "tuning"}
+        )
+    )
     all_keys = {key for field in Settings.model_fields for key in settings_env_keys(Settings, field)}
     assert all(ev in all_keys for dep in DEPENDENCY_MANIFEST for ev in dep.env_vars)
 
-    stray = DependencyManifest((Dependency(name="ghost", kind=DependencyKind.CODE_DOMINANT, required_in=frozenset({EnvironmentTier.PRODUCTION}), env_vars=frozenset({"GHOST_BACKEND_URL"}), summary="stray"),))
+    stray = DependencyManifest(
+        (
+            Dependency(
+                name="ghost",
+                kind=DependencyKind.CODE_DOMINANT,
+                required_in=frozenset({EnvironmentTier.PRODUCTION}),
+                env_vars=frozenset({"GHOST_BACKEND_URL"}),
+                summary="stray",
+            ),
+        )
+    )
     assert any("GHOST_BACKEND_URL" in e for e in check_env_classification(Settings, manifest=stray))
 
     declared = {ev for dep in DEPENDENCY_MANIFEST for ev in dep.env_vars}
@@ -29,7 +44,12 @@ def test_every_config_env_var_is_classified() -> None:
             matched_count += 1
     assert matched_count > 0
     assert set(NON_DEPENDENCY_ENV_FIELDS.values()) <= NON_DEPENDENCY_CATEGORIES
-    assert {"S3_PUBLIC_ENDPOINT", "S3_PUBLIC_ACCESS_KEY", "S3_PUBLIC_SECRET_KEY", "S3_PUBLIC_BUCKET"} <= DEPENDENCY_MANIFEST.get("object_storage").env_vars
+    assert {
+        "S3_PUBLIC_ENDPOINT",
+        "S3_PUBLIC_ACCESS_KEY",
+        "S3_PUBLIC_SECRET_KEY",
+        "S3_PUBLIC_BUCKET",
+    } <= DEPENDENCY_MANIFEST.get("object_storage").env_vars
 
 
 def test_guardrail_rejects_an_unclassified_new_field() -> None:

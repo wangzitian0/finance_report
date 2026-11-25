@@ -111,11 +111,7 @@ def _child_fk_links() -> list[tuple[Table, list[tuple[Column[Any], Column[Any]]]
                     chains[table.name] = [(fk.parent, fk.column), *chains[target]]
                     changed = True
                     break
-    return [
-        (table, chains[table.name])
-        for table in reversed(tables)
-        if table.name in chains and chains[table.name]
-    ]
+    return [(table, chains[table.name]) for table in reversed(tables) if table.name in chains and chains[table.name]]
 
 
 def _owned_target_subquery(chain: Sequence[tuple[Column[Any], Column[Any]]], id_list: Sequence[UUID]):

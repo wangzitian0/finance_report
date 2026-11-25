@@ -102,7 +102,14 @@ def test_AC_extraction_3112_later_pages_keep_the_column_layout_of_the_header_pag
     offsets = _amount_offsets(pages[0], "Debit", "Credit", pages[1], ("BOOK STORE", "REFUND"))
     assert offsets == (0, 0), offsets
     # Control: without the document layout, the flat text of the same page is off by more than 2 characters.
-    assert max(_amount_offsets(pages[0], "Debit", "Credit", _flat_pages(_table_pdf("Debit", "Credit"))[1], ("BOOK STORE", "REFUND"))) > 2
+    assert (
+        max(
+            _amount_offsets(
+                pages[0], "Debit", "Credit", _flat_pages(_table_pdf("Debit", "Credit"))[1], ("BOOK STORE", "REFUND")
+            )
+        )
+        > 2
+    )
 
 
 @pytest.mark.no_db

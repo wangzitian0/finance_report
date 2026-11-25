@@ -72,7 +72,12 @@ def test_journal_line_and_entry_schemas() -> None:
 
 @pytest.mark.parametrize(
     ("text", "expected"),
-    [("Monthly Salary", "salary"), ("Annual Bonus", "bonus"), ("Dividend payout", "dividend"), ("grocery refund", None)],
+    [
+        ("Monthly Salary", "salary"),
+        ("Annual Bonus", "bonus"),
+        ("Dividend payout", "dividend"),
+        ("grocery refund", None),
+    ],
 )
 def test_income_bucket_and_quantize_money(text, expected) -> None:
     assert income_bucket(text) == expected

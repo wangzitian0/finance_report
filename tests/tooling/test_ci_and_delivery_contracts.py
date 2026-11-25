@@ -2159,3 +2159,26 @@ def test_L3_invariant_core_pillars_and_collection() -> None:
         if "::" in line and not line.startswith(("=", "-"))
     }
     assert collected_files == invariant_core.BACKEND_INVARIANT_CORE_REL_FILES
+
+
+def test_backend_ruff_format_is_enabled_and_non_empty() -> None:
+    """Verify ruff format inspects real backend source and test files cleanly."""
+    pyproject = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
+    fmt_cfg = pyproject.get("tool", {}).get("ruff", {}).get("format", {})
+    excluded = fmt_cfg.get("exclude", [])
+    assert "src/**" not in excluded and "tests/**" not in excluded
+    lint_ignore = (
+        pyproject.get("tool", {}).get("ruff", {}).get("lint", {}).get("ignore", [])
+    )
+    assert "E401" not in lint_ignore and "E702" not in lint_ignore
+
+    res = subprocess.run(
+        [sys.executable, "-m", "ruff", "format", "--check", "src", "tests"],
+        cwd=BACKEND,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert res.returncode == 0, res.stdout + "\n" + res.stderr
+    match = re.search(r"(\d+)\s+files?\s+already\s+formatted", res.stdout)
+    assert match is not None and int(match.group(1)) > 500, res.stdout

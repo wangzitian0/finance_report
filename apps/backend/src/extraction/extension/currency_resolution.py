@@ -34,20 +34,10 @@ models only) so both the ingest path (``deduplication``) and the review path
 
 """
 
-
-
 from __future__ import annotations
 
 
-
 from dataclasses import dataclass
-
-
-
-
-
-
-
 
 
 from src.audit.money import Currency, InvalidCurrencyError
@@ -58,30 +48,18 @@ from src.observability import get_logger
 from src.platform import BaseAppException
 
 
-
 logger = get_logger(__name__)
 
 
-
 __all__ = [
-
     "UNRESOLVED_PLACEHOLDER",
-
     "CurrencyUnresolvedError",
-
     "ResolvedCurrency",
-
     "resolve_ingest_currency",
-
-
 ]
 
 
-
-
-
 class CurrencyUnresolvedError(BaseAppException, ValueError):
-
     """A transaction whose currency was never human-confirmed was promoted.
 
 
@@ -94,20 +72,12 @@ class CurrencyUnresolvedError(BaseAppException, ValueError):
 
     """
 
-
-
     def __init__(self, message: str) -> None:
-
         super().__init__(error_id="currency_unresolved", message=message, status_code=409)
 
 
-
-
-
 @dataclass(frozen=True)
-
 class ResolvedCurrency:
-
     """Outcome of resolving a transaction's currency at the ingest boundary.
 
 
@@ -120,14 +90,9 @@ class ResolvedCurrency:
 
     """
 
-
-
     code: str
 
     unresolved: bool
-
-
-
 
 
 # Non-authoritative placeholder stored in the ``currency`` NOT NULL column while a
@@ -145,15 +110,9 @@ class ResolvedCurrency:
 UNRESOLVED_PLACEHOLDER = "XXX"
 
 
-
-
-
 def resolve_ingest_currency(
-
     *candidates: str | None,
-
 ) -> ResolvedCurrency:
-
     """Decide a transaction's currency from ingest-boundary candidates, in priority order.
 
 
@@ -171,17 +130,13 @@ def resolve_ingest_currency(
     """
 
     for candidate in candidates:
-
         if candidate is None:
-
             continue
 
         try:
-
             return ResolvedCurrency(code=Currency.of(candidate).code, unresolved=False)
 
         except InvalidCurrencyError:
-
             continue
 
     return ResolvedCurrency(code=UNRESOLVED_PLACEHOLDER, unresolved=True)

@@ -75,8 +75,12 @@ async def _seed_usd_position_with_sgd_fx(db: AsyncSession, user_id: object) -> t
                 realized_pnl=Decimal("0.00"),
                 cost_basis_method=CostBasisMethod.FIFO,
             ),
-            FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=acq_date, source="test"),
-            FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=as_of_date, source="test"),
+            FxRate(
+                base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=acq_date, source="test"
+            ),
+            FxRate(
+                base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=as_of_date, source="test"
+            ),
         ]
     )
     await db.flush()
@@ -109,9 +113,7 @@ async def test_performance_schedule_converts_holdings_and_totals_to_sgd_when_bas
     assert schedule.currency == "SGD"
 
 
-async def test_performance_schedule_keeps_usd_when_presentation_and_base_are_usd(
-    db: AsyncSession, test_user
-) -> None:
+async def test_performance_schedule_keeps_usd_when_presentation_and_base_are_usd(db: AsyncSession, test_user) -> None:
     """Keep USD figures unchanged when both presentation currency and base currency are USD."""
     period_start, period_end, as_of_date = await _seed_usd_position_with_sgd_fx(db, test_user.id)
 
