@@ -20,14 +20,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from infra2_sdk.fastapi import init_service
-from infra2_sdk.runtime.environment import resolve_environment_tier as resolve_sdk_environment_tier
-from infra2_sdk.runtime.health import (
-    Dependency as SdkDependency,
-    DependencyKind as SdkDependencyKind,
-    DependencyManifest as SdkDependencyManifest,
-    DependencyStatus,
-    ProbeResult,
-)
+from infra2_sdk.runtime.environment import resolve_environment_tier
+from infra2_sdk.runtime.health import DependencyStatus, ProbeResult
 from infra2_sdk.runtime.otel import PROBE_PATHS
 from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -87,7 +81,6 @@ from src.runtime import (
     BACKGROUND_JOBS,
     BACKGROUND_JOBS_BY_CLI,
     DEPENDENCY_MANIFEST,
-    resolve_env_tier,
     run_storage_sweep,
     sweep_orphaned_storage_objects,
 )
@@ -313,22 +306,6 @@ def _boot_method_check(dep_name: str, method_name: str) -> _BootCheck:
     return _BootCheck(dep_name, _run)
 
 
-def _build_sdk_manifest() -> SdkDependencyManifest:
-    sdk_deps: list[SdkDependency] = []
-    for dep in DEPENDENCY_MANIFEST:
-        tiers = frozenset(resolve_sdk_environment_tier(t.value) for t in dep.required_in)
-        sdk_deps.append(
-            SdkDependency(
-                name=dep.name,
-                kind=SdkDependencyKind(dep.kind.value),
-                required_in=tiers,
-                env_vars=dep.env_vars,
-                summary=dep.summary,
-            )
-        )
-    return SdkDependencyManifest(sdk_deps)
-
-
 def _health_extra() -> dict[str, Any]:
     in_gha = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
     return {
@@ -336,7 +313,7 @@ def _health_extra() -> dict[str, Any]:
         "version": settings.git_commit_sha,
         "git_sha": settings.git_commit_sha,
         "observability": get_observability_status(),
-        "sdk_environment_tier": resolve_sdk_environment_tier(
+        "sdk_environment_tier": resolve_environment_tier(
             settings.environment, github_actions=in_gha, unknown="production"
         ).value,
     }
@@ -344,7 +321,7 @@ def _health_extra() -> dict[str, Any]:
 
 def _build_health_checks() -> list[_BootCheck]:
     in_gha = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
-    tier = resolve_env_tier(settings.environment, github_actions=in_gha)
+    tier = resolve_environment_tier(settings.environment, github_actions=in_gha, unknown="production")
     probed, _ = Bootloader._required_checks(tier)
     checks: list[_BootCheck] = []
     for name in sorted(probed):
@@ -368,7 +345,7 @@ init_service(
     app,
     "finance-report-backend",
     checks=_build_health_checks(),
-    manifest=_build_sdk_manifest(),
+    manifest=DEPENDENCY_MANIFEST,
     strict_otel=True,
     log_level=logging.DEBUG if settings.debug else logging.INFO,
     health_extra=_health_extra,

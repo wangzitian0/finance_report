@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import pytest
+from infra2_sdk.runtime.environment import EnvironmentTier
+from infra2_sdk.runtime.health import Dependency, DependencyKind, DependencyManifest
 
 from src.config import Settings
-from src.runtime import DEPENDENCY_MANIFEST, NON_DEPENDENCY_ENV_FIELDS, Dependency, DependencyKind, DependencyManifest, EnvTier, check_env_classification
+from src.runtime import DEPENDENCY_MANIFEST, NON_DEPENDENCY_ENV_FIELDS, check_env_classification
 from src.runtime.base.env_classification import NON_DEPENDENCY_CATEGORIES, settings_env_keys
 
 pytestmark = pytest.mark.no_db
@@ -15,7 +17,7 @@ def test_every_config_env_var_is_classified() -> None:
     all_keys = {key for field in Settings.model_fields for key in settings_env_keys(Settings, field)}
     assert all(ev in all_keys for dep in DEPENDENCY_MANIFEST for ev in dep.env_vars)
 
-    stray = DependencyManifest((Dependency(name="ghost", kind=DependencyKind.CODE_DOMINANT, required_in=frozenset({EnvTier.PRODUCTION}), env_vars=frozenset({"GHOST_BACKEND_URL"}), summary="stray"),))
+    stray = DependencyManifest((Dependency(name="ghost", kind=DependencyKind.CODE_DOMINANT, required_in=frozenset({EnvironmentTier.PRODUCTION}), env_vars=frozenset({"GHOST_BACKEND_URL"}), summary="stray"),))
     assert any("GHOST_BACKEND_URL" in e for e in check_env_classification(Settings, manifest=stray))
 
     declared = {ev for dep in DEPENDENCY_MANIFEST for ev in dep.env_vars}

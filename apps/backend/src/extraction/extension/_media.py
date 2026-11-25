@@ -447,8 +447,6 @@ class _MediaMixin:
 
 
 def _redact_presigned_url(url: str) -> str | None:
-    # Imported lazily: src.runtime.extension.storage pulls boto3 at module level, which
-    # the minimal tooling env (that imports this package root) does not install.
-    from src.runtime import redact_presigned_url
+    from infra2_sdk.runtime.s3 import redact_presigned_url
 
     return redact_presigned_url(url)

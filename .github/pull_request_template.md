@@ -42,7 +42,7 @@ Closes #<!-- issue number -->
 - [ ] `sa.Enum` instances all have explicit `name="..._enum"` parameter
 - [ ] `NEXT_PUBLIC_` variables added to `apps/frontend/Dockerfile` `ARG`/`ENV` (if applicable)
 - [ ] Separate infra2 PR linked for production Vault/Compose changes (if applicable)
-- [ ] `tools/check_env_keys.py` passes (if env vars changed)
+- [ ] `tools/env_manifests.py --check` passes (if env vars changed)
 - [ ] `apps/backend/.venv/bin/python tools/preflight.py --tier=static` passes
 - [ ] No real financial data — amounts, balances, account numbers, holder names, local paths, or real statement filenames are redacted or generated/anonymized.
 

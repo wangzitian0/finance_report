@@ -2,70 +2,20 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from infra2_sdk.runtime.environment import EnvironmentTier
+from infra2_sdk.runtime.health import Dependency, DependencyKind, DependencyManifest
 
-from src.runtime.base.kind import DependencyKind
-from src.runtime.base.tiers import EnvTier
+__all__ = ["DEPENDENCY_MANIFEST"]
 
-__all__ = ["DEPENDENCY_MANIFEST", "Dependency", "DependencyManifest"]
-
-
-@dataclass(frozen=True)
-class Dependency:
-    """One external backend the app depends on."""
-
-    name: str
-    kind: DependencyKind
-    required_in: frozenset[EnvTier]
-    env_vars: frozenset[str]
-    summary: str
-
-    def __post_init__(self) -> None:
-        if not self.name:
-            raise ValueError("Dependency.name must be non-empty")
-        if not self.required_in:
-            raise ValueError(
-                f"dependency {self.name!r} is required in no tier; a dependency "
-                "must be required somewhere (no silent-optional dependencies)"
-            )
-        if not self.env_vars:
-            raise ValueError(
-                f"dependency {self.name!r} declares no env vars; runtime is the "
-                "SSOT for which env vars configure each external dependency"
-            )
-
-
-class DependencyManifest:
-    """The frozen set of declared dependencies, with tier/name lookups."""
-
-    def __init__(self, dependencies: tuple[Dependency, ...]) -> None:
-        names = [d.name for d in dependencies]
-        if len(names) != len(set(names)):
-            raise ValueError("duplicate dependency name in manifest")
-        self._by_name: dict[str, Dependency] = {d.name: d for d in dependencies}
-
-    def __iter__(self):
-        return iter(self._by_name.values())
-
-    def names(self) -> frozenset[str]:
-        return frozenset(self._by_name)
-
-    def get(self, name: str) -> Dependency:
-        return self._by_name[name]
-
-    def required_for(self, tier: EnvTier) -> frozenset[str]:
-        return frozenset(d.name for d in self._by_name.values() if tier in d.required_in)
-
-
-_ALL = frozenset(EnvTier)
-_VPS = frozenset({EnvTier.PREVIEW, EnvTier.STAGING, EnvTier.PRODUCTION})
-_SP = frozenset({EnvTier.STAGING, EnvTier.PRODUCTION})
+_ALL = frozenset(EnvironmentTier)
+_VPS = frozenset({EnvironmentTier.PREVIEW, EnvironmentTier.STAGING, EnvironmentTier.PRODUCTION})
+_SP = frozenset({EnvironmentTier.STAGING, EnvironmentTier.PRODUCTION})
 
 
 def _dep(
     name: str,
     kind: DependencyKind,
-    required_in: frozenset[EnvTier],
+    required_in: frozenset[EnvironmentTier],
     *,
     env_vars: tuple[str, ...],
     summary: str,

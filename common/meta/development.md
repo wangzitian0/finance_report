@@ -25,4 +25,4 @@ Local verification is the focused single-process test of the change (`pytest -n0
 
 ## Environment Variables
 
-`apps/backend/src/config.py` and `.env.example` are kept in sync by `tools/check_env_keys.py` (`env_keys.py`). Related: [environments.md](../runtime/environments.md) · [ci-cd.md](../testing/ci-cd.md) · [deployment.md](../runtime/deployment.md).
+`apps/backend/src/config.py`, `common/runtime/required-env.generated.json`, and `.env.example` are kept in sync by `tools/env_manifests.py --check`. Related: [environments.md](../runtime/environments.md) · [ci-cd.md](../testing/ci-cd.md) · [deployment.md](../runtime/deployment.md).

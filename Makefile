@@ -58,7 +58,7 @@ check: lint env-check
 	@echo "✅ All checks passed"
 
 env-check:
-	python tools/check_env_keys.py
+	uv run --project apps/backend python tools/env_manifests.py --check
 
 clean:
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

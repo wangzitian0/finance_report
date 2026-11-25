@@ -82,12 +82,6 @@ CHECKS: tuple[Check, ...] = (
         "tools/check_migration_risk.py",
         why="Alembic migration changed: classify migration risk",
     ),
-    _py_check(
-        "env-keys",
-        (".env.example", ".env", ".env.*"),
-        "tools/check_env_keys.py",
-        why="env files changed: env-var key consistency",
-    ),
     Check(
         name="backend-format",
         globs=("apps/backend/*.py",),
@@ -142,10 +136,13 @@ CHECKS: tuple[Check, ...] = (
             "apps/frontend/required-env.manifest.json",
             "common/runtime/env_manifests.py",
             "runtime-hooks.manifest.json",
+            ".env.example",
+            ".env",
+            ".env.*",
         ),
         "tools/env_manifests.py",
         "--check",
-        why="config.py or a manifest changed: the infra2 SDK manifest check and the .env.example block must pass",
+        why="config.py, env files, or a manifest changed: the infra2 SDK manifest check and the .env.example block must pass",
     ),
     _py_check(
         "user-cases-doc",

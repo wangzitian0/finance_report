@@ -74,7 +74,7 @@
       ],
       "writes": true,
       "accepts_scale": false,
-      "timeout_seconds": 300,
+      "timeout_seconds": 240,
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
         "TEST_USER_EMAIL",
@@ -150,7 +150,7 @@
       ],
       "writes": true,
       "accepts_scale": false,
-      "timeout_seconds": 300,
+      "timeout_seconds": 240,
       "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
