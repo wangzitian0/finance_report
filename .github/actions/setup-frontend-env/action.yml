@@ -1,0 +1,28 @@
+name: 'Setup Frontend Environment'
+description: 'Configure Node, restore exact-key node_modules cache, and install apps/frontend dependencies on cache miss'
+
+inputs:
+  node-version:
+    description: 'Node.js version to set up'
+    required: false
+    default: '20.19.0'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up Node
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.node-version }}
+
+    - name: Cache frontend node_modules
+      id: cache-node-modules
+      uses: actions/cache@v4
+      with:
+        path: apps/frontend/node_modules
+        key: frontend-node-modules-${{ runner.os }}-node-${{ inputs.node-version }}-${{ hashFiles('apps/frontend/package-lock.json') }}
+
+    - name: Install frontend dependencies
+      if: steps.cache-node-modules.outputs.cache-hit != 'true'
+      shell: bash
+      run: cd apps/frontend && npm ci

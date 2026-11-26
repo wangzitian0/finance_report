@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import shutil
 import subprocess
+import sys
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
@@ -19,10 +19,12 @@ def _openapi_typescript_cmd(
     frontend_dir: Path, spec_path: Path, out_path: Path
 ) -> list[str]:
     local_bin = frontend_dir / "node_modules" / ".bin" / "openapi-typescript"
-    if local_bin.is_file():
-        return [str(local_bin), str(spec_path), "-o", str(out_path)]
-    npx = shutil.which("npx") or "npx"
-    return [npx, "openapi-typescript", str(spec_path), "-o", str(out_path)]
+    if not local_bin.is_file():
+        raise FileNotFoundError(
+            f"Missing pinned openapi-typescript binary at {local_bin}. "
+            "Run: npm --prefix apps/frontend ci"
+        )
+    return [str(local_bin), str(spec_path), "-o", str(out_path)]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -32,7 +34,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     expected_ops_path = FRONTEND_DIR / "src" / "lib" / "api-operations.ts"
     with tempfile.TemporaryDirectory(prefix="api-types-check-") as tmpdir:
         generated_types = Path(tmpdir) / "api-types.check.ts"
-        cmd = _openapi_typescript_cmd(FRONTEND_DIR, spec_path, generated_types)
+        try:
+            cmd = _openapi_typescript_cmd(FRONTEND_DIR, spec_path, generated_types)
+        except FileNotFoundError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 1
         proc = subprocess.run(
             cmd, cwd=FRONTEND_DIR, capture_output=True, text=True, check=False
         )

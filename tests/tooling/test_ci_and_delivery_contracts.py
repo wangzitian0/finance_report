@@ -278,7 +278,7 @@ def test_AC_testing_preflight_2_openapi_spec_ci_and_route_coverage() -> None:
         "uv run --project apps/backend --frozen python -m common.testing.preflight --only openapi-spec --ci",
     ]
     assert names.index("Set up backend environment") < matching[0]
-    assert names.index("Install frontend dependencies") < matching[0]
+    assert names.index("Set up frontend environment") < matching[0]
     assert "if" not in openapi_step and not openapi_step.get("continue-on-error")
 
     referenced: set[str] = set()
@@ -2188,3 +2188,173 @@ def test_backend_ruff_format_is_enabled_and_non_empty() -> None:
     assert res.returncode == 0, res.stdout + "\n" + res.stderr
     match = re.search(r"(\d+)\s+files?\s+already\s+formatted", res.stdout)
     assert match is not None and int(match.group(1)) > 500, res.stdout
+
+
+def test_frontend_dockerfile_keeps_git_commit_sha_out_of_builder() -> None:
+    """Ensure GIT_COMMIT_SHA does not bust the builder npm run build layer."""
+    dockerfile = (ROOT / "apps/frontend/Dockerfile").read_text(encoding="utf-8")
+    builder_part, runtime_part = dockerfile.split("# Runtime stage", 1)
+    assert "npm run build" in builder_part
+    assert "GIT_COMMIT_SHA" not in builder_part.split("npm run build", 1)[0]
+    assert "ARG GIT_COMMIT_SHA=unknown" in runtime_part
+    assert "ENV GIT_COMMIT_SHA=${GIT_COMMIT_SHA}" in runtime_part
+
+
+def _render_finish_check_script(script: str, values: dict[str, str]) -> str:
+    rendered = script
+    for expr, val in values.items():
+        rendered = rendered.replace("${{ " + expr + " }}", val)
+    return rendered
+
+
+def test_finish_job_gates_main_jobs_outside_pr_required() -> None:
+    """Lightweight main pushes must fail closed when playwright/images/verify fail."""
+    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    check_step = next(
+        s
+        for s in workflow["jobs"]["finish"]["steps"]
+        if isinstance(s, dict) and s.get("name") == "Check job status"
+    )
+    script = str(check_step["run"])
+
+    base_values = {
+        "needs.changes.result": "success",
+        "needs.changes.outputs.pr_required": "false",
+        "needs.changes.outputs.pr_reason": "lightweight-docs-only",
+        "needs.changes.outputs.backend_required": "false",
+        "github.event_name": "push",
+        "needs.lint.result": "success",
+        "needs.tooling.result": "skipped",
+        "needs.schema-migrations.result": "skipped",
+        "needs.backend.result": "skipped",
+        "needs.backend-integration.result": "skipped",
+        "needs.backend-coverage-gate.result": "skipped",
+        "needs.frontend-build.result": "skipped",
+        "needs.frontend-vitest.result": "skipped",
+        "needs.frontend-playwright.result": "success",
+        "needs.container-images.result": "success",
+        "needs.verify-sha-image-published.result": "success",
+    }
+
+    # Lightweight PR where main-only/frontend jobs are skipped passes.
+    pr_values = {
+        **base_values,
+        "github.event_name": "pull_request",
+        "needs.frontend-playwright.result": "skipped",
+        "needs.container-images.result": "skipped",
+        "needs.verify-sha-image-published.result": "skipped",
+    }
+    pr_res = subprocess.run(
+        [BASH, "-e", "-c", _render_finish_check_script(script, pr_values)],
+        capture_output=True,
+        text=True,
+    )
+    assert pr_res.returncode == 0, pr_res.stdout + pr_res.stderr
+
+    # Lightweight main push where any of the three jobs fails must fail finish.
+    for failing_key in (
+        "needs.frontend-playwright.result",
+        "needs.container-images.result",
+        "needs.verify-sha-image-published.result",
+    ):
+        fail_values = {**base_values, failing_key: "failure"}
+        fail_res = subprocess.run(
+            [BASH, "-e", "-c", _render_finish_check_script(script, fail_values)],
+            capture_output=True,
+            text=True,
+        )
+        assert fail_res.returncode == 1, f"{failing_key}=failure should fail finish"
+
+
+def test_frontend_env_action_and_check_api_types_fail_closed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Frontend jobs reuse exact-key node_modules cache and check_api_types has no npx fallback."""
+    from common.platform import check_api_types
+
+    action_path = ROOT / ".github/actions/setup-frontend-env/action.yml"
+    action = yaml.safe_load(action_path.read_text(encoding="utf-8"))
+    steps = action["runs"]["steps"]
+    assert any(s.get("uses") == "actions/setup-node@v6" for s in steps)
+    cache_step = next(s for s in steps if s.get("uses") == "actions/cache@v4")
+    assert cache_step["with"]["path"] == "apps/frontend/node_modules"
+    assert cache_step["with"]["key"].startswith(
+        "frontend-node-modules-${{ runner.os }}-node-"
+    )
+    assert "hashFiles('apps/frontend/package-lock.json')" in cache_step["with"]["key"]
+    assert "restore-keys" not in cache_step["with"]
+    install_step = next(
+        s for s in steps if "npm ci" in str(s.get("run", ""))
+    )
+    assert "cache-hit != 'true'" in str(install_step.get("if", ""))
+
+    workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
+    for job_name in ("lint", "frontend-build", "frontend-vitest", "frontend-playwright"):
+        job_steps = workflow["jobs"][job_name]["steps"]
+        setup_steps = [
+            s
+            for s in job_steps
+            if isinstance(s, dict)
+            and s.get("uses") == "./.github/actions/setup-frontend-env"
+        ]
+        assert len(setup_steps) == 1, f"{job_name} must use setup-frontend-env once"
+        if job_name == "lint":
+            assert "if" not in setup_steps[0]
+
+    with pytest.raises(FileNotFoundError, match="npm --prefix apps/frontend ci"):
+        check_api_types._openapi_typescript_cmd(
+            tmp_path, tmp_path / "openapi.json", tmp_path / "out.ts"
+        )
+
+    assert "npx" not in Path(check_api_types.__file__).read_text(encoding="utf-8")
+    monkeypatch.setattr(check_api_types, "FRONTEND_DIR", tmp_path)
+    assert check_api_types.main() == 1
+    assert "Missing pinned openapi-typescript binary" in capsys.readouterr().err
+
+
+def test_install_infra2_sdk_caches_and_verifies_sha256() -> None:
+    """install-infra2-sdk caches the wheel on tools/sdk_pin.py output and enforces sha256sum."""
+    action_text = (
+        ROOT / ".github/actions/install-infra2-sdk/action.yml"
+    ).read_text(encoding="utf-8")
+    action = yaml.safe_load(action_text)
+    steps = action["runs"]["steps"]
+    cache_step = next(s for s in steps if s.get("uses") == "actions/cache@v4")
+    assert "pin_hash" in cache_step["with"]["key"]
+    assert "tools/sdk_pin.py" in action_text
+    assert "sha256sum --check" in action_text
+    install_step = next(s for s in steps if "pip install" in str(s.get("run", "")))
+    install_run = str(install_step["run"])
+    assert install_run.index("sha256sum --check") < install_run.index("pip install")
+
+
+def test_docs_workflow_uses_path_filtered_push_without_uv() -> None:
+    """docs.yml builds on main docs/board changes, 4h schedule, and dispatch without uv."""
+    raw = (ROOT / ".github/workflows/docs.yml").read_text(encoding="utf-8")
+    docs = yaml.safe_load(raw)
+    on_cfg = docs.get("on", docs.get(True))
+    assert "workflow_run" not in on_cfg
+    assert on_cfg["push"]["branches"] == ["main"]
+    assert on_cfg["push"]["paths"] == [
+        "docs/**",
+        "mkdocs.yml",
+        "common/testing/quality_board.py",
+    ]
+    assert on_cfg["schedule"] == [{"cron": "0 */4 * * *"}]
+    assert "workflow_dispatch" in on_cfg
+    assert "if" not in docs["jobs"]["build"]
+    assert all(
+        "setup-uv" not in str(s.get("uses", ""))
+        for s in docs["jobs"]["build"]["steps"]
+        if isinstance(s, dict)
+    )
+
+
+def test_backend_duration_seed_covers_all_discovered_test_files() -> None:
+    """Every backend test file must be seeded in backend-test-durations.json."""
+    files = discover_test_files(BACKEND)
+    durations = json.loads(SEED.read_text(encoding="utf-8"))
+    per_file = file_durations(durations)
+    missing = sorted(set(files) - set(per_file))
+    assert missing == [], f"Unseeded backend test files: {missing}"
+    assert all(val > 0 for val in durations.values())

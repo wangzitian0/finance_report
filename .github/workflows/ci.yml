@@ -123,21 +123,15 @@ jobs:
       - name: Migration Risk Contract Check
         run: |
           uv run --project apps/backend --frozen python -m common.meta.extension.migration_risk
-      - name: Set up Node
-        uses: actions/setup-node@v6
+      - name: Set up frontend environment
+        uses: ./.github/actions/setup-frontend-env
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: apps/frontend/package-lock.json
       - name: Run Lint
         run: |
           cd apps/backend
           uv run --frozen ruff check src tests
           uv run --frozen ruff format src tests --check
-      - name: Install frontend dependencies
-        if: needs.changes.outputs.frontend_changed == 'true' || github.event_name != 'pull_request'
-        run: npm ci
-        working-directory: apps/frontend
       - name: Audit frontend production dependencies
         if: needs.changes.outputs.frontend_changed == 'true' || github.event_name != 'pull_request'
         env:
@@ -512,12 +506,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Node
-        uses: actions/setup-node@v6
+      - name: Set up frontend environment
+        uses: ./.github/actions/setup-frontend-env
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: apps/frontend/package-lock.json
 
       - name: Cache Next.js
         uses: actions/cache@v5
@@ -527,10 +519,6 @@ jobs:
           restore-keys: |
             nextjs-${{ runner.os }}-${{ hashFiles('apps/frontend/package-lock.json') }}-
             nextjs-${{ runner.os }}-
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: apps/frontend
 
       - name: Run Frontend Type Check
         run: npm run typecheck
@@ -563,16 +551,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Node
-        uses: actions/setup-node@v6
+      - name: Set up frontend environment
+        uses: ./.github/actions/setup-frontend-env
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: apps/frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: apps/frontend
 
       - name: Run Frontend Tests
         env:
@@ -629,16 +611,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Node
-        uses: actions/setup-node@v6
+      - name: Set up frontend environment
+        uses: ./.github/actions/setup-frontend-env
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: apps/frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: apps/frontend
 
       - name: Download Next.js build output
         if: needs.frontend-build.result == 'success'
@@ -1064,6 +1040,25 @@ jobs:
             echo "::error::Tooling tests failed"
             exit 1
           fi
+          # AC-testing.ci-structure.11 / #1689: frontend-playwright (including
+          # telemetry emission) runs on main pushes and workflow_dispatch even
+          # when pr_required=false, and is skipped on PRs with frontend_changed=false.
+          if [[ "${{ needs.frontend-playwright.result }}" != "success" && "${{ needs.frontend-playwright.result }}" != "skipped" ]]; then
+            echo "::error::Frontend Playwright failed"
+            exit 1
+          fi
+          # container-images runs on main pushes and workflow_dispatch even when
+          # pr_required=false, and is skipped on PRs when image_build_required=false.
+          if [[ "${{ needs.container-images.result }}" != "success" && "${{ needs.container-images.result }}" != "skipped" ]]; then
+            echo "::error::Container image validation failed"
+            exit 1
+          fi
+          # verify-sha-image-published runs on main pushes even when pr_required=false,
+          # and is skipped on PRs and non-main pushes.
+          if [[ "${{ needs.verify-sha-image-published.result }}" != "success" && "${{ needs.verify-sha-image-published.result }}" != "skipped" ]]; then
+            echo "::error::Commit image publication verification failed"
+            exit 1
+          fi
           if [[ "${{ needs.changes.outputs.pr_required }}" == "true" ]]; then
             if [[ "${{ github.event_name }}" != "pull_request" || "${{ needs.changes.outputs.backend_required }}" == "true" ]]; then
               if [[ "${{ needs.schema-migrations.result }}" != "success" ]]; then
@@ -1106,25 +1101,6 @@ jobs:
             # #2996: frontend-vitest is skipped when vitest_required=false, a pass.
             if [[ "${{ needs.frontend-vitest.result }}" != "success" && "${{ needs.frontend-vitest.result }}" != "skipped" ]]; then
               echo "::error::Frontend Vitest tests failed"
-              exit 1
-            fi
-            # AC-testing.ci-structure.11 / #1689: frontend-playwright (including
-            # telemetry emission) is right-moved off PRs that touch no
-            # apps/frontend/** path (frontend_changed=false), which is a pass, not a gap.
-            if [[ "${{ needs.frontend-playwright.result }}" != "success" && "${{ needs.frontend-playwright.result }}" != "skipped" ]]; then
-              echo "::error::Frontend Playwright failed"
-              exit 1
-            fi
-            # container-images is right-moved: it is skipped when the build context
-            # did not change (image_build_required=false), which is a pass, not a gap.
-            if [[ "${{ needs.container-images.result }}" != "success" && "${{ needs.container-images.result }}" != "skipped" ]]; then
-              echo "::error::Container image validation failed"
-              exit 1
-            fi
-            # verify-sha-image-published only runs on main push (see its own if:) —
-            # skipped on PRs and non-main pushes, which is a pass, not a gap.
-            if [[ "${{ needs.verify-sha-image-published.result }}" != "success" && "${{ needs.verify-sha-image-published.result }}" != "skipped" ]]; then
-              echo "::error::Commit image publication verification failed"
               exit 1
             fi
           else
