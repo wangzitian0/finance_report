@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
-from typing import TypeVar
+from typing import Any, TypeVar
+from urllib.parse import urlsplit, urlunsplit
 
+import boto3
+from botocore.config import Config as BotocoreConfig
 from botocore.exceptions import BotoCoreError, ClientError
 from infra2_sdk.storage import (
     S3Settings,
@@ -13,7 +16,7 @@ from infra2_sdk.storage import (
     ensure_bucket,
     put_object_bytes,
     read_object_bytes,
-    redact_presigned_url,
+    redact_presigned_url as _sdk_redact_presigned_url,
 )
 
 import src.config
@@ -25,6 +28,56 @@ settings = src.config.settings
 __all__ = ["StorageError", "StorageService", "redact_presigned_url"]
 
 _T = TypeVar("_T")
+
+
+def redact_presigned_url(url: str | None) -> str | None:
+    """Strip presigned query secrets and URL fragments while handling empty or invalid inputs."""
+    if not url:
+        return url
+    try:
+        urlsplit(url)
+    except ValueError:
+        return "<invalid-url>"
+    redacted = _sdk_redact_presigned_url(url)
+    parts = urlsplit(redacted)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, parts.query, ""))
+
+
+def _build_s3_client(
+    *,
+    bucket: str,
+    endpoint_url: str | None,
+    access_key_id: str | None,
+    secret_access_key: str | None,
+    region: str,
+) -> Any:
+    if isinstance(endpoint_url, str) and endpoint_url.strip():
+        return create_s3_client(
+            S3Settings(
+                bucket=bucket,
+                endpoint_url=endpoint_url,
+                access_key_id=access_key_id or "",
+                secret_access_key=secret_access_key or "",
+                region=region,
+                use_path_style=True,
+            )
+        )
+    # Moto-backed tests unset `s3_endpoint` (None) so boto3 routes requests in-process without a live server.
+    cfg = BotocoreConfig(
+        region_name=region,
+        signature_version="s3v4",
+        connect_timeout=5.0,
+        read_timeout=10.0,
+        s3={"addressing_style": "path"},
+    )
+    return boto3.client(
+        "s3",
+        endpoint_url=None,
+        aws_access_key_id=access_key_id,
+        aws_secret_access_key=secret_access_key,
+        region_name=region,
+        config=cfg,
+    )
 
 
 class StorageError(Exception):
@@ -39,27 +92,23 @@ class StorageService:
 
     def __init__(self, bucket: str | None = None) -> None:
         self.bucket = bucket or settings.s3_bucket
-        self._s3_settings = S3Settings(
+        self._region = (settings.s3_region or "").strip() or "us-east-1"
+        self.client = _build_s3_client(
             bucket=self.bucket,
             endpoint_url=settings.s3_endpoint,
             access_key_id=settings.s3_access_key,
             secret_access_key=settings.s3_secret_key,
-            region=settings.s3_region,
-            use_path_style=True,
+            region=self._region,
         )
-        self.client = create_s3_client(self._s3_settings)
         self.public_client = None
         if settings.s3_public_endpoint:
             self.public_bucket = settings.s3_public_bucket or self.bucket
-            self.public_client = create_s3_client(
-                S3Settings(
-                    bucket=self.public_bucket,
-                    endpoint_url=settings.s3_public_endpoint,
-                    access_key_id=settings.s3_public_access_key or settings.s3_access_key,
-                    secret_access_key=settings.s3_public_secret_key or settings.s3_secret_key,
-                    region=settings.s3_region,
-                    use_path_style=True,
-                )
+            self.public_client = _build_s3_client(
+                bucket=self.public_bucket,
+                endpoint_url=settings.s3_public_endpoint,
+                access_key_id=settings.s3_public_access_key or settings.s3_access_key,
+                secret_access_key=settings.s3_public_secret_key or settings.s3_secret_key,
+                region=self._region,
             )
 
     def _ensure_bucket(self) -> None:
@@ -67,7 +116,7 @@ class StorageService:
             if self.bucket in self._checked_buckets:
                 return
             try:
-                ensure_bucket(self.client, self.bucket, region=self._s3_settings.region)
+                ensure_bucket(self.client, self.bucket, region=self._region)
             except (BotoCoreError, ClientError) as exc:
                 op = str(getattr(exc, "operation_name", "") or "").lower()
                 verb = "create" if op in ("create_bucket", "createbucket") else "access"

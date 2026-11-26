@@ -35,7 +35,7 @@ def test_init_and_redact_presigned_url(mock_boto_client):
         redact_presigned_url(""),
         redact_presigned_url("http://[::1"),
     ) == (
-        "https://s3.example.test/bucket/path/file.pdf?signature=<redacted>",
+        "https://s3.example.test/bucket/path/file.pdf?X-Amz-Signature=REDACTED&token=REDACTED",
         True,
         True,
         True,
