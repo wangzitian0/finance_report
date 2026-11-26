@@ -1,7 +1,7 @@
 # Machine-readable Alembic migration risk contract.
 #
 # Owner issue: #815
-# Validated by: tools/check_migration_risk.py
+# Validated by: python -m common.meta.extension.migration_risk
 #
 # Risk is AUTO-CLASSIFIED from each migration's upgrade() body:
 #   - destructive drops (drop_table/drop_column/DROP TABLE/DROP COLUMN/TRUNCATE) -> critical

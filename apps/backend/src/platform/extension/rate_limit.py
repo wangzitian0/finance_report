@@ -1,17 +1,17 @@
-"""``platform.extension.rate_limit`` — the shared in-memory request rate limiter.
+"""``platform.extension.rate_limit`` — shared sliding-window request rate limiter.
 
 Request rate-limiting is cross-cutting runtime middleware: an impure,
 process-global service that throttles inbound requests per key (typically client
 IP). It therefore lives in the ``platform`` package's ``extension`` layer (the
 impure edge), alongside the other runtime middleware adapters.
 
-SECURITY: Protects against brute-force and request-flood attacks. Uses in-memory
-storage with a sliding-window algorithm.
+SECURITY: Protects against brute-force and request-flood attacks. Uses a Redis
+Lua sliding-window limiter when ``REDIS_URL`` is configured, falling back to
+in-memory per-process storage when ``REDIS_URL`` is unset or unreachable.
 
-NOTE: This implementation uses in-memory, per-process storage. In a multi-instance
-deployment (e.g. multiple workers/containers behind a load balancer), each
-instance maintains its own counters, effectively multiplying the allowed requests
-by the number of instances. For single-instance deployment this is sufficient.
+NOTE: When running with the in-memory fallback in a multi-instance deployment
+(e.g. multiple workers/containers behind a load balancer), each instance
+maintains its own counters.
 
 Threading note: We use ``threading.Lock`` rather than ``asyncio.Lock`` because the
 critical section is very short (dict operations only). This is acceptable for
