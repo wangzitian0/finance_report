@@ -1996,6 +1996,7 @@
   "tests/schemas/test_api_response_vectors.py::test_api_response_matches_committed_vector[reporting]": 0.05,
   "tests/schemas/test_api_response_vectors.py::test_base_and_chat_response_schemas": 0.05,
   "tests/schemas/test_audit_schema.py::test_audit_trail_item_alias_created_at_to_timestamp": 0.056,
+  "tests/schemas/test_sdk_schema_gate_driver.py::test_storage_check_schema_has_psycopg_driver_and_reaches_db_url_check": 0.5,
   "tests/schemas/test_user_schema.py::test_user_ai_settings_response_needs_the_choice_and_the_value_in_use[auto_accept_ai_suggestions]": 0.007,
   "tests/schemas/test_user_schema.py::test_user_ai_settings_response_needs_the_choice_and_the_value_in_use[auto_accept_ai_suggestions_active]": 0.007,
   "tests/schemas/test_user_schema.py::test_user_ai_settings_update_partial": 0.005,
