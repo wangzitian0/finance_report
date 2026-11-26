@@ -15,9 +15,6 @@ class ManualValuationComponentType(str, Enum):
     PROPERTY_VALUE = "property_value"
     MORTGAGE_BALANCE = "mortgage_balance"
     CPF_BALANCE = "cpf_balance"
-    RETIREMENT_ACCOUNT = "retirement_account"
-    SOCIAL_SECURITY_PERSONAL_ACCOUNT = "social_security_personal_account"
-    LONG_TERM_BENEFIT_ASSET = "long_term_benefit_asset"
     LONG_TERM_SAVINGS = "long_term_savings"
     TAX_PAYABLE = "tax_payable"
     TAX_REFUND = "tax_refund"
@@ -27,6 +24,11 @@ class ManualValuationComponentType(str, Enum):
     STOCK_OPTIONS = "stock_options"
     OTHER_ASSET = "other_asset"
     OTHER_LIABILITY = "other_liability"
+    # Appended via PostgreSQL ALTER TYPE ... ADD VALUE; keep append order so
+    # infra2_sdk.storage check-schema sees matching enumsortorder across envs.
+    RETIREMENT_ACCOUNT = "retirement_account"
+    SOCIAL_SECURITY_PERSONAL_ACCOUNT = "social_security_personal_account"
+    LONG_TERM_BENEFIT_ASSET = "long_term_benefit_asset"
 
     @classmethod
     def restricted_compensation_types(cls) -> tuple[ManualValuationComponentType, ...]:
