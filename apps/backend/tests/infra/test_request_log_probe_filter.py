@@ -7,10 +7,11 @@ import pytest
 import pytest_asyncio
 from fastapi.routing import iter_route_contexts
 from httpx import ASGITransport, AsyncClient
-from infra2_sdk.telemetry import PROBE_PATHS
 
 from src import main as main_module
 from src.boot import Bootloader, ServiceStatus
+
+PROBE_PATHS = main_module._PROBE_PATHS
 
 pytestmark = pytest.mark.no_db
 

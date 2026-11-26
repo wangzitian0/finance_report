@@ -10,11 +10,10 @@ from enum import Enum
 from typing import Any
 
 from infra2_sdk.config import (
-    EnvironmentConflictError,
     EnvironmentManifest,
     EnvironmentTier,
+    assert_env,
     resolve_tier,
-    validate_env,
 )
 from infra2_sdk.llm import LlmSettings
 from infra2_sdk.service import DependencyStatus
@@ -226,12 +225,17 @@ class Bootloader:
                     effective_environ.pop(candidate, None)
             else:
                 effective_environ.setdefault(field.env, str(val))
-        validation = validate_env(manifest, effective_environ, require_injected=is_protected)
-        if validation.missing:
+        try:
+            assert_env(manifest, environ=effective_environ, require_injected=is_protected)
+        except RuntimeError as exc:
+            _, _, missing_part = str(exc).partition(" variable(s): ")
+            missing = [item.strip() for item in missing_part.split(",") if item.strip()]
+            if not missing:
+                raise
             raise RuntimeError(
-                f"environment lacks {len(validation.missing)} value(s) manifest declares: "
-                f"{', '.join(validation.missing)} -- names only; the deployment must inject them (#759)"
-            )
+                f"environment lacks {len(missing)} value(s) manifest declares: "
+                f"{', '.join(missing)} -- names only; the deployment must inject them (#759)"
+            ) from exc
 
     @staticmethod
     def _check_llm_roles(environment: str) -> bool:
@@ -287,9 +291,6 @@ class Bootloader:
                         logger.error(message, environment=environment)
                         return False
             return True
-        except EnvironmentConflictError as exc:
-            logger.error("Environment variable conflict detected", error=str(exc))
-            return False
         except Exception as exc:
             logger.error("Configuration load failed", error=str(exc))
             return False

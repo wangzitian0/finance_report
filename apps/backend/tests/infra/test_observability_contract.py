@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, Mock
 from uuid import uuid4
 
 import pytest
+from infra2_sdk.telemetry import init_worker
 from pydantic import ValidationError
 
 from src import observability as observability_module
@@ -109,9 +110,7 @@ def test_AC_runtime_guard_proofs_7_and_8_telemetry_tag(monkeypatch, env: str, de
             Settings(_env_file=None)
 
 
-def test_observability_ssot_manifest_and_json_renderer(monkeypatch) -> None:
-    from infra2_sdk.telemetry import JsonLogFormatter
-
+def test_observability_ssot_manifest_and_json_renderer(monkeypatch, capsys) -> None:
     obs_doc, env_ex = _read(REPO_ROOT / "common/observability/observability.md"), _read(REPO_ROOT / ".env.example")
     fields = {
         e["env"]: e for e in json.loads(_read(REPO_ROOT / "common/runtime/required-env.generated.json"))["fields"]
@@ -127,17 +126,23 @@ def test_observability_ssot_manifest_and_json_renderer(monkeypatch) -> None:
 
     monkeypatch.setattr(observability_module.settings, "otel_exporter_otlp_endpoint", None)
     monkeypatch.setattr(telemetry_metrics_module.settings, "otel_exporter_otlp_endpoint", None)
-    observability_module.configure_logging()
-    telemetry_metrics_module.configure_otel_metrics()
-    payload = json.loads(
-        JsonLogFormatter(
-            {"service.name": "backend", "deployment.environment.name": "production", "service.version": "1.0"}
-        ).format(logging.LogRecord("test", logging.INFO, __file__, 1, "startup", (), None))
-    )
-    assert telemetry_metrics_module.is_metrics_export_active() is False and (
-        payload["message"],
-        payload["service.name"],
-    ) == ("startup", "backend")
+    monkeypatch.delenv("OTEL_EXPORTER_OTLP_ENDPOINT", raising=False)
+    monkeypatch.delenv("OTEL_SERVICE_NAME", raising=False)
+    monkeypatch.setenv("ENVIRONMENT", "local_dev")
+    logging.getLogger().handlers.clear()
+    providers = init_worker("backend", set_global=False)
+    try:
+        telemetry_metrics_module.configure_otel_metrics()
+        logging.getLogger("test").info("startup")
+        lines = [line for line in capsys.readouterr().out.splitlines() if line.strip().startswith("{")]
+        payload = json.loads(lines[-1])
+        assert telemetry_metrics_module.is_metrics_export_active() is False and (
+            payload["message"],
+            payload["service.name"],
+        ) == ("startup", "backend")
+    finally:
+        if providers is not None:
+            providers.shutdown()
 
 
 @pytest.mark.parametrize("debug", [True, False])
@@ -263,7 +268,6 @@ def test_AC10_9_and_AC10_11_status_startup_redaction_and_callsites(monkeypatch) 
 async def test_AC10_9_3_and_10_4_health_instrumentation_and_logger_ast(monkeypatch) -> None:
     from fastapi import FastAPI
     from httpx import ASGITransport, AsyncClient
-    from infra2_sdk.telemetry import OtelSettings
     from src import main as main_module
     from src.boot import Bootloader, ServiceStatus
     from src.observability import ErrorIds
@@ -328,10 +332,19 @@ async def test_AC10_9_3_and_10_4_health_instrumentation_and_logger_ast(monkeypat
     assert not offenders, offenders
 
     _set_env(
-        monkeypatch, ENVIRONMENT="production", OTEL_SERVICE_NAME="finance-report-backend", SERVICE_VERSION="abc1234"
+        monkeypatch,
+        ENVIRONMENT="production",
+        OTEL_SERVICE_NAME="finance-report-backend",
+        SERVICE_VERSION="abc1234",
+        OTEL_EXPORTER_OTLP_ENDPOINT="http://collector:4318",
     )
-    attrs = OtelSettings.from_env(strict=True).resolved_resource_attributes()
-    assert (attrs.get("service.version"), attrs.get("service.name")) == ("abc1234", "finance-report-backend")
+    providers = init_worker("finance-report-backend", strict=True, set_global=False)
+    try:
+        attrs = dict(providers.tracer_provider.resource.attributes)
+        assert (attrs.get("service.version"), attrs.get("service.name")) == ("abc1234", "finance-report-backend")
+    finally:
+        if providers is not None:
+            providers.shutdown()
 
     enabled, disabled = (
         FastAPI(telemetry={"tracing": True, "tracer_provider": object()}),

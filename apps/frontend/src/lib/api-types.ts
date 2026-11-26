@@ -810,18 +810,6 @@ export interface components {
     HTTPValidationError: {
       detail?: _S["ValidationError"][];
     };
-    HealthResponse: {
-      checks: {
-        [key: string]: _S["_CheckDetail"];
-      };
-      git_sha: string;
-      reasons: string[];
-      service: string;
-      status: string;
-      version: string;
-    } & {
-      [key: string]: unknown;
-    };
     HoldingResponse: {
       account_id: string;
       account_name?: string | null;
@@ -1468,11 +1456,6 @@ export interface components {
       source: string;
       success: boolean;
     };
-    ProbeResponse: {
-      reasons?: string[] | null;
-      service: string;
-      status: string;
-    };
     ProcessingPendingItem: {
       amount: string;
       currency: string;
@@ -1886,6 +1869,23 @@ export interface components {
       required: boolean;
       status: string;
     };
+    _HealthResponse: {
+      checks: {
+        [key: string]: _S["_CheckDetail"];
+      };
+      git_sha: string;
+      reasons: string[];
+      service: string;
+      status: string;
+      version: string;
+    } & {
+      [key: string]: unknown;
+    };
+    _ProbeResponse: {
+      reasons?: string[] | null;
+      service: string;
+      status: string;
+    };
   };
   responses: never;
   parameters: never;
@@ -1989,8 +1989,8 @@ export interface operations {
     parameters: _NP;
     requestBody?: never;
     responses: {
-      200: _J<_S["HealthResponse"]>;
-      503: _J<_S["HealthResponse"]>;
+      200: _J<_S["_HealthResponse"]>;
+      503: _J<_S["_HealthResponse"]>;
     };
   };
   list_journal_entries_journal_entries_get: {
@@ -2047,7 +2047,7 @@ export interface operations {
     parameters: _NP;
     requestBody?: never;
     responses: {
-      200: _J<_S["ProbeResponse"]>;
+      200: _J<_S["_ProbeResponse"]>;
     };
   };
   get_asset_class_allocation_portfolio_allocation_asset_class_get: {
@@ -2174,8 +2174,8 @@ export interface operations {
     parameters: _NP;
     requestBody?: never;
     responses: {
-      200: _J<_S["ProbeResponse"]>;
-      503: _J<_S["ProbeResponse"]>;
+      200: _J<_S["_ProbeResponse"]>;
+      503: _J<_S["_ProbeResponse"]>;
     };
   };
   post_reconciliation_adjustment_reconciliation_adjustments_post: _Op<_S["ReconciliationAdjustmentResponse"], _NP, _S["ReconciliationAdjustmentRequest"]>;

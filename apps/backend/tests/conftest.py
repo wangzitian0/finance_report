@@ -497,10 +497,10 @@ def vcr_config() -> dict[str, Any]:
 @pytest.fixture
 def vcr_llm(request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch):
     """Allow the model request of a replay test. `LLM_API_KEY` is needed only to record."""
-    from infra2_sdk.llm import LlmSettings, allow_vcr_model_requests
+    from infra2_sdk.llm import LlmSettings
 
     from src.config import settings
-    from tests._support.llm_replay import require_vcr_marker
+    from tests._support.llm_replay import allow_vcr_model_requests, require_vcr_marker
 
     require_vcr_marker(request)
     # A recording holds the request of the default provider and models: a variable of the developer must not change it.

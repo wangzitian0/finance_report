@@ -66,7 +66,7 @@ class CapturingLogExporter:
 
 
 def _fresh_process(monkeypatch) -> None:
-    import infra2_sdk.telemetry as sdk_otel
+    import infra2_sdk._core as sdk_core
     from opentelemetry import _logs as otel_logs, trace as otel_trace
 
     if worker_telemetry._providers is not None:
@@ -74,7 +74,7 @@ def _fresh_process(monkeypatch) -> None:
     for target, attr, value in (
         (worker_telemetry, "_configured", False),
         (worker_telemetry, "_providers", None),
-        (sdk_otel, "_ACTIVE_GLOBAL", None),
+        (sdk_core, "_ACTIVE_GLOBAL", None),
         (otel_metrics._internal, "_METER_PROVIDER", None),
         (otel_metrics._internal._METER_PROVIDER_SET_ONCE, "_done", False),
         (otel_trace, "_TRACER_PROVIDER", None),

@@ -34,9 +34,9 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 
 | Method | Path | Auth | Params | Request | Success responses | Summary |
 |---|---|---|---|---|---|---|
-| `GET` | `/health` | no | - | - | `200` `HealthResponse` | Health |
-| `GET` | `/livez` | no | - | - | `200` `ProbeResponse` | Livez |
-| `GET` | `/readyz` | no | - | - | `200` `ProbeResponse` | Readyz |
+| `GET` | `/health` | no | - | - | `200` `_HealthResponse` | Health |
+| `GET` | `/livez` | no | - | - | `200` `_ProbeResponse` | Livez |
+| `GET` | `/readyz` | no | - | - | `200` `_ProbeResponse` | Readyz |
 
 ### accounts
 
