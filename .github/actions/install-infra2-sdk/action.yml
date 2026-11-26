@@ -7,24 +7,53 @@ description: >-
 runs:
   using: composite
   steps:
+    - name: Resolve infra2-sdk pin
+      id: sdk-pin
+      shell: bash
+      run: |
+        set -euo pipefail
+        sdk_pin="$(python tools/sdk_pin.py)"
+        read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"
+        pin_hash="$(printf '%s' "$sdk_pin" | sha256sum | cut -d' ' -f1)"
+        {
+          echo "url=${sdk_url}"
+          echo "sha256=${sdk_sha256}"
+          echo "filename=${sdk_filename}"
+          echo "pin_hash=${pin_hash}"
+          echo "wheel_dir=${{ runner.temp }}/infra2-sdk-wheel"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Cache infra2-sdk wheel
+      id: cache-wheel
+      uses: actions/cache@v4
+      with:
+        path: ${{ steps.sdk-pin.outputs.wheel_dir }}
+        key: infra2-sdk-wheel-${{ runner.os }}-${{ steps.sdk-pin.outputs.pin_hash }}
+
     - name: Install the pinned infra2-sdk wheel
       shell: bash
       env:
         # Bounded retry for the immutable wheel (timeout/504). The install fails after the last attempt.
         TOOLCHAIN_DOWNLOAD_RETRIES: "3"
         TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS: "10"
+        SDK_URL: ${{ steps.sdk-pin.outputs.url }}
+        SDK_SHA256: ${{ steps.sdk-pin.outputs.sha256 }}
+        SDK_WHEEL: ${{ steps.sdk-pin.outputs.wheel_dir }}/${{ steps.sdk-pin.outputs.filename }}
       run: |
         set -euo pipefail
-        sdk_dir="$(mktemp -d)"
-        sdk_pin="$(python tools/sdk_pin.py)"
-        read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"
-        sdk_wheel="${sdk_dir}/${sdk_filename}"
+        mkdir -p "$(dirname "$SDK_WHEEL")"
+        if [ -f "$SDK_WHEEL" ] && echo "${SDK_SHA256}  ${SDK_WHEEL}" | sha256sum --check --status; then
+          python -m pip install "$SDK_WHEEL" "httpx>=0.27.0"
+          exit 0
+        fi
+        rm -f "$SDK_WHEEL"
         for attempt in $(seq 1 "$TOOLCHAIN_DOWNLOAD_RETRIES"); do
-          if curl --fail --location --silent --show-error "$sdk_url" --output "$sdk_wheel" \
-            && echo "${sdk_sha256}  ${sdk_wheel}" | sha256sum --check --status; then
-            python -m pip install "$sdk_wheel" "httpx>=0.27.0"
+          if curl --fail --location --silent --show-error "$SDK_URL" --output "$SDK_WHEEL" \
+            && echo "${SDK_SHA256}  ${SDK_WHEEL}" | sha256sum --check --status; then
+            python -m pip install "$SDK_WHEEL" "httpx>=0.27.0"
             exit 0
           fi
+          rm -f "$SDK_WHEEL"
           echo "::warning::infra2-sdk wheel download or checksum failed (attempt ${attempt})"
           sleep "$TOOLCHAIN_DOWNLOAD_BACKOFF_SECONDS"
         done
