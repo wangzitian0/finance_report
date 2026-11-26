@@ -15,7 +15,7 @@ round amounts). NEVER copy real financial data into these builders.
 
 Regenerate after an intentional serializer change::
 
-    apps/backend/.venv/bin/python tools/api_response_vectors.py
+    uv run --project apps/backend python -m common.platform.api_response_vectors
 
 then commit the rewritten ``common/<pkg>/conformance/vectors.json`` files
 together with the serializer change (the FE tests tell you what the change
@@ -285,7 +285,7 @@ def build_statement_parsed_vector() -> dict[str, Any]:
 
 _COMMENT = (
     "Backend-owned API response conformance vectors (#1827, pattern from "
-    "#1167). Regenerated ONLY by tools/api_response_vectors.py from fixed "
+    "#1167). Regenerated ONLY by python -m common.platform.api_response_vectors from fixed "
     "sanitized inputs; the backend drift test recomputes and compares, and "
     "the frontend fixture helper (apps/frontend/src/__tests__/fixtures/"
     "apiVectors.ts) loads this exact file as mock data. Hand-editing or "

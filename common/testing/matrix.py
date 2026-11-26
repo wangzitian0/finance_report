@@ -37,7 +37,7 @@ def classify_stage(path: str) -> str | None:
 
 GENERATED_MATRIX_HEADER = (
     "# GENERATED from common/testing/matrix.py — do not hand-edit.\n"
-    "# Regenerate: python tools/test_selection.py --emit-matrix\n"
+    "# Regenerate: python -m common.testing.test_selection --emit-matrix\n"
 )
 
 
@@ -499,11 +499,7 @@ def emit_shell(stage: str, *, corpus: str = "all") -> str:
 
 BACKEND_CI_MARKER = "not slow and not e2e and not integration"
 BACKEND_INTEGRATION_MARKER = "integration"
-BACKEND_TIER1_MARKER = "e2e and not slow and not integration and not perf"
-STAGING_AI_OCR_MARKER = "llm"
 STAGING_AI_OCR_GATE_MARKER = "llm or journey"
-STAGING_VERSION_CHECK_MARKER = "smoke"
-PRODUCTION_READONLY_MARKER = "prod_safe"
 
 
 @dataclass(frozen=True)

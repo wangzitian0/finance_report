@@ -6,7 +6,7 @@
 
 | Env | Trigger | Runtime | DB / Bucket Isolation |
 |---|---|---|---|
-| **Local Dev** | `moon run :dev -- --backend` | Host uvicorn/next + Podman/Docker | `finance_report` / `statements` |
+| **Local Dev** | `make backend` | Host uvicorn/next + Podman/Docker | `finance_report` / `statements` |
 | **GitHub CI** | Push/PR (`ci.yml`) | Ephemeral GitHub services | `finance_report_test` |
 | **Staging** | Manual (`workflow_dispatch` via `infra2`) | GHCR `:vX.Y.Z` image | Dedicated DB/Redis, `finance-report-staging` bucket (`staging`) |
 | **Production** | Manual release, owner-approved (`workflow_dispatch`) | GHCR `:vX.Y.Z` image | Dedicated DB/Redis, `finance-report-production` bucket (`prod`) |

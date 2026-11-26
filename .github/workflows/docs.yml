@@ -1,14 +1,6 @@
 name: Deploy Documentation
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'docs/**'
-      - 'mkdocs.yml'
-      - '.github/workflows/docs.yml'
-      - 'common/testing/quality_board.py'
-      - 'tools/generate_quality_board.py'
   workflow_run:
     workflows: ["CI"]
     types: [completed]
@@ -34,6 +26,7 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -61,7 +54,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           INFRA2_TOKEN: ${{ secrets.INFRA2_PAT }}
         run: |
-          python tools/generate_quality_board.py \
+          python -m common.testing.quality_board \
             --output-dir site/board \
             --finance-repo "${{ github.repository }}" \
             --infra2-repo "wangzitian0/infra2"

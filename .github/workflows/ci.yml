@@ -3,7 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*.*.*', 'v[0-9]+.[0-9]+.[0-9]+']
+    tags: ['v*.*.*']
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -28,6 +28,7 @@ jobs:
     name: Classify Changes
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    if: github.ref_type != 'tag'
     outputs:
       pr_required: ${{ steps.gates.outputs.pr_required }}
       pr_reason: ${{ steps.gates.outputs.pr_reason }}
@@ -64,7 +65,7 @@ jobs:
             git diff --name-only HEAD^ HEAD > changed-files.txt
           fi
 
-          python tools/ci_change_classifier.py \
+          python -m common.testing.change_classifier \
             --changed-files changed-files.txt \
             --github-output "$GITHUB_OUTPUT" \
             --github-summary "$GITHUB_STEP_SUMMARY"
@@ -93,6 +94,8 @@ jobs:
     name: Lint
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    needs: [changes]
+    if: github.ref_type != 'tag'
     permissions:
       contents: read
       # Needed by the PR Review Thread Merge Gate step: `gh api graphql` reads
@@ -105,46 +108,38 @@ jobs:
           fetch-depth: 0
       - name: Secret Scan (gitleaks)
         uses: ./.github/actions/gitleaks-scan
+      - name: Set up backend environment
+        uses: ./.github/actions/setup-backend-env
+        with:
+          uv-version: ${{ env.UV_VERSION }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          # Keep exactly one setup-uv cache writer per CI run. Other jobs restore
+          # the shared cache but do not race to reserve the same save key.
+          save-uv-cache: 'true'
       - name: Toolchain Contract Check
-        run: python tools/check_toolchain_contract.py
+        run: python -m common.runtime.check_toolchain_contract
       - name: Lockfile Registry Check
-        run: python tools/check_lockfile_registry.py
+        run: python -m common.testing.lockfile_registry
+      - name: Migration Risk Contract Check
+        run: |
+          uv run --project apps/backend --frozen python -m common.meta.extension.migration_risk
       - name: Set up Node
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: apps/frontend/package-lock.json
-      - name: Install uv
-        uses: ./.github/actions/setup-uv-retry
-        with:
-          version: ${{ env.UV_VERSION }}
-          enable-cache: true
-          # Keep exactly one setup-uv cache writer per CI run. Other jobs restore
-          # the shared cache but do not race to reserve the same save key.
-          save-cache: true
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      # Fast-fail (left-move): migration risk runs without backend sync / npm.
-      - name: Migration Risk Contract Check
-        run: |
-          uv run --with pyyaml python tools/check_migration_risk.py
-      - name: Set up backend environment
-        uses: ./.github/actions/setup-backend-env
-        with:
-          uv-version: ${{ env.UV_VERSION }}
-          python-version: ${{ env.PYTHON_VERSION }}
       - name: Run Lint
         run: |
           cd apps/backend
           uv run --frozen ruff check src tests
           uv run --frozen ruff format src tests --check
       - name: Install frontend dependencies
+        if: needs.changes.outputs.frontend_changed == 'true' || github.event_name != 'pull_request'
         run: npm ci
         working-directory: apps/frontend
       - name: Audit frontend production dependencies
+        if: needs.changes.outputs.frontend_changed == 'true' || github.event_name != 'pull_request'
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -168,18 +163,17 @@ jobs:
           cd apps/frontend
           npm run audit:prod
       - name: Run Frontend Lint
+        if: needs.changes.outputs.frontend_changed == 'true' || github.event_name != 'pull_request'
         run: npm run lint
         working-directory: apps/frontend
       - name: Generated API Reference Check
         run: |
-          cd apps/backend
-          uv run --frozen python ../../tools/generate_api_reference.py --check
+          uv run --project apps/backend --frozen python -m common.platform.generate_api_reference --check
       - name: Environment Manifest Check (infra2 SDK)
         run: |
           # infra2_sdk.manifests checks the backend manifest from config.py, the
           # hand-written frontend manifest, and the backend block of .env.example.
-          cd apps/backend
-          uv run --frozen python ../../tools/env_manifests.py --check
+          uv run --project apps/backend --frozen python -m common.runtime.env_manifests --check
       - name: Generated OpenAPI Spec and API Types Check
         run: |
           # The committed apps/frontend/openapi.json and src/lib/api-types.ts must
@@ -187,12 +181,11 @@ jobs:
           # `openapi-spec` gate of common/testing/preflight.py, so CI and the
           # local pre-push run share one source. Needs the backend venv and the
           # frontend dependencies installed by the steps above.
-          cd apps/backend
-          uv run --frozen python ../../tools/preflight.py --only openapi-spec --ci
+          uv run --project apps/backend --frozen python -m common.testing.preflight --only openapi-spec --ci
       - name: Structural Boundary & Purity Checks
         run: |
-          python tools/check_app_boundary.py
-          python tools/check_base_purity.py
+          python -m common.meta.extension.check_app_boundary
+          python -m common.meta.extension.check_base_purity
       - name: Tier Import Guard (CODE-ONLY must not import the LLM layer)
         run: |
           # EPIC-026 phase 3: enforce the cross-tier STRUCTURAL MUST rule
@@ -202,7 +195,7 @@ jobs:
           # not import the LLM layer (src.llm) or a raw provider SDK
           # (pydantic_ai/openrouter/anthropic/openai). GREEN on main today; this is a
           # regression guard that keeps the deterministic core pure.
-          python tools/check_tier_imports.py
+          python -m common.meta.extension.check_tier_imports
       - name: PR Review Thread Merge Gate
         # Block merge when unresolved review threads score >= 1.0 under literal
         # severity weights (high=1.0, middle/medium=0.5, low=0.25, unlabelled=0.5).
@@ -213,7 +206,7 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          uv run python tools/check_pr_review_threads.py
+          uv run python -m common.testing.check_pr_review_threads
 
   schema-migrations:
     name: Schema Migration Contract
@@ -354,7 +347,7 @@ jobs:
           PY
           # File-level seeded split (common/testing/backend_shard.py): every
           # tests/**/test_*.py file lands in exactly one shard.
-          python ../../tools/backend_shard_files.py \
+          PYTHONPATH=../.. python -m common.testing.backend_shard \
             --splits ${{ strategy.job-total }} \
             --group ${{ matrix.shard }} \
             --splitting-algorithm=least_duration \
@@ -582,13 +575,19 @@ jobs:
         working-directory: apps/frontend
 
       - name: Run Frontend Tests
+        env:
+          CI_EVENT_NAME: ${{ github.event_name }}
         run: |
           mkdir -p test-results
-          npm run test:coverage -- --reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml
+          if [ "${CI_EVENT_NAME:-pull_request}" = "pull_request" ]; then
+            npm run test -- --reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml
+          else
+            npm run test:coverage -- --reporter=default --reporter=junit --outputFile.junit=test-results/vitest-junit.xml
+          fi
         working-directory: apps/frontend
 
       - name: Upload frontend coverage
-        if: ${{ always() }}
+        if: ${{ always() && github.event_name != 'pull_request' }}
         uses: actions/upload-artifact@v7
         with:
           name: coverage-frontend
@@ -603,9 +602,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: frontend-vitest-test-context
-          path: |
-            apps/frontend/test-results/
-            apps/frontend/coverage/lcov.info
+          path: apps/frontend/test-results/
           overwrite: true
           retention-days: 14
 
@@ -614,76 +611,17 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [changes, frontend-build]
-    # AC-testing.ci-structure.11: right-moved off PRs that touch no
-    # apps/frontend/** path, mirroring frontend-telemetry-e2e's
-    # frontend_changed gate (#1689) -- this job's proof (provider-free
-    # browser E2E) is not coverage-scoped, so narrowing it costs nothing.
-    # Unlike frontend-telemetry-e2e it is not a
-    # production observability canary, so (like backend/frontend-build) it
-    # gates on pr_required uniformly with no always-run-on-push override
-    # (AC-testing.deploy-gates.25).
-    if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true'
-
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: apps/frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: apps/frontend
-
-      - name: Download Next.js build output
-        uses: actions/download-artifact@v8
-        with:
-          name: frontend-next-build
-          path: ${{ runner.temp }}
-
-      - name: Extract Next.js build output
-        run: tar -xzf "$RUNNER_TEMP/frontend-next-build.tar.gz"
-        working-directory: apps/frontend
-
-      - name: Install Frontend Playwright Browser
-        uses: ./.github/actions/install-playwright
-        with:
-          command: npx playwright
-          working-directory: apps/frontend
-
-      - name: Run Frontend Playwright Tests
-        run: npm run test:e2e -- --reporter=line,html
-        working-directory: apps/frontend
-
-      - name: Upload frontend Playwright test context
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: frontend-playwright-test-context
-          path: |
-            apps/frontend/test-results/
-            apps/frontend/playwright-report/
-          overwrite: true
-          retention-days: 14
-
-  frontend-telemetry-e2e:
-    name: Frontend Telemetry E2E
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    needs: [changes, frontend-build]
-    # #1689: right-moved off unrelated PRs (browser install is ~2-3 min). Always
-    # runs on main/release push and manual dispatch (this is the production
-    # observability canary); on a PR it only runs when apps/frontend/** changed,
-    # mirroring container-images' image_build_required pattern above.
+    # Runs both the provider-free UI Playwright suite and the hermetic telemetry
+    # emission E2E on one runner so Node, npm ci, .next, and Chromium setup run once.
+    # On PRs it runs when apps/frontend/** changed; on main push and manual
+    # dispatch it always runs the telemetry canary even on backend-only commits.
     if: >-
       !cancelled()
+      && github.ref_type != 'tag'
       && needs.changes.result == 'success'
       && (needs.frontend-build.result == 'success' || needs.frontend-build.result == 'skipped')
       && (
-        (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')))
+        (github.event_name == 'push' && github.ref == 'refs/heads/main')
         || github.event_name == 'workflow_dispatch'
         || (needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true')
       )
@@ -735,6 +673,11 @@ jobs:
           command: npx playwright
           working-directory: apps/frontend
 
+      - name: Run Frontend Playwright Tests
+        if: needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.frontend_changed == 'true'
+        run: npm run test:e2e -- --reporter=line,html
+        working-directory: apps/frontend
+
       - name: Run Frontend Telemetry-Emission E2E (#1169 / EPIC-024 AC24.2)
         # Real-browser proof that browser OTel spans export to /v1/traces and
         # OpenPanel events dispatch. Runs under its own config because it injects
@@ -743,11 +686,11 @@ jobs:
         run: npm run test:e2e:telemetry
         working-directory: apps/frontend
 
-      - name: Upload frontend telemetry E2E test context
+      - name: Upload frontend Playwright test context
         if: ${{ always() }}
         uses: actions/upload-artifact@v7
         with:
-          name: frontend-telemetry-test-context
+          name: frontend-playwright-test-context
           path: |
             apps/frontend/test-results/
             apps/frontend/playwright-report/
@@ -759,7 +702,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     needs: [changes]
-    # Main/release push (and manual dispatch) ALWAYS build + push the immutable
+    # Main push (and manual dispatch) ALWAYS build + push the immutable
     # per-commit :<sha> image: the Dockerfiles COPY app source into the image, so
     # every commit's image content differs, and promote-not-rebuild (deploy_v2
     # release) requires a :<sha> artifact for any releasable commit. A build-context
@@ -767,7 +710,7 @@ jobs:
     # with no :<sha> image to promote. PR keeps the narrow build-context-only
     # dry-run for speed (no push happens on PRs anyway).
     if: >-
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')))
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
       || github.event_name == 'workflow_dispatch'
       || (needs.changes.outputs.pr_required == 'true' && needs.changes.outputs.image_build_required == 'true')
     strategy:
@@ -795,9 +738,9 @@ jobs:
           source: apps/${{ matrix.component }}
 
       - name: Log in to Container registry
-        # P1a (#879, AC7.12.4): publish :<sha> for main + release-branch commits, and
+        # P1a (#879, AC7.12.4): publish :<sha> for main commits, and
         # on demand via workflow_dispatch (the rare "preview an unmerged sha" escape hatch).
-        if: (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch'
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch'
         uses: docker/login-action@v4
         with:
           registry: ${{ env.REGISTRY }}
@@ -812,7 +755,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ./apps/backend
-          push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}
+          push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
           # Plain single-manifest image: provenance/sbom attestations turn the push
           # into an OCI index that legacy (non-containerd) docker hosts choke on when
           # pulling. Keep images plainly pullable everywhere.
@@ -829,7 +772,7 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ./apps/frontend
-          push: ${{ (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/'))) || github.event_name == 'workflow_dispatch' }}
+          push: ${{ (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'workflow_dispatch' }}
           provenance: false
           sbom: false
           cache-from: type=gha,scope=frontend
@@ -892,7 +835,7 @@ jobs:
       - name: Verify :<sha> images exist in registry
         run: |
           set -euo pipefail
-          python tools/verify_release_images.py \
+          python -m common.runtime.release_images \
             --registry "${{ env.REGISTRY }}" \
             --image-prefix "${{ env.IMAGE_PREFIX }}" \
             --version-ref "${{ steps.get_sha.outputs.short_sha }}"
@@ -902,7 +845,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     needs: [changes]
-    if: needs.changes.outputs.tooling_required == 'true'
+    if: github.ref_type != 'tag' && needs.changes.outputs.tooling_required == 'true'
     steps:
       - uses: actions/checkout@v7
 
@@ -993,8 +936,8 @@ jobs:
       contents: read
       issues: write
       pull-requests: write
-    needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, frontend-telemetry-e2e, tooling, backend-coverage-gate, container-images, verify-sha-image-published, lint]
-    if: ${{ always() }}
+    needs: [changes, schema-migrations, backend, backend-integration, frontend-build, frontend-vitest, frontend-playwright, tooling, backend-coverage-gate, container-images, verify-sha-image-published, lint]
+    if: ${{ always() && github.ref_type != 'tag' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -1019,8 +962,7 @@ jobs:
           | tooling | contributes on non-PR runs (`--no-cov` on PR) | yes (contracts & tools) |
           | frontend-build | not included in coverage | yes (typecheck + production build) |
           | frontend-vitest | reports frontend Vitest coverage metrics | yes |
-          | frontend-playwright | not included in coverage | yes (provider-free browser UI) |
-          | frontend-telemetry-e2e | not included in coverage | yes (browser telemetry emission) |
+          | frontend-playwright | not included in coverage | yes (browser UI + telemetry emission) |
           EOF
 
       - name: Set up Python for the timing summary
@@ -1039,7 +981,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          python tools/github_workflow_timing_summary.py \
+          python -m common.testing.github_workflow_timing_summary \
             --repo "${{ github.repository }}" \
             --run-id "${{ github.run_id }}" \
             --title "CI Timing Summary" \
@@ -1070,7 +1012,7 @@ jobs:
         env:
           NEEDS_JSON: ${{ toJson(needs) }}
         run: |
-          python tools/emit_ci_post_telemetry.py \
+          python -m common.testing.ci_telemetry \
             --timing-json ci-timing-summary.json \
             --backend-coverage-json telemetry-inputs/backend/coverage-backend-summary.json \
             --frontend-coverage-json telemetry-inputs/frontend/coverage-summary.json \
@@ -1105,7 +1047,6 @@ jobs:
           echo "Frontend Build: ${{ needs.frontend-build.result }}"
           echo "Frontend Vitest: ${{ needs.frontend-vitest.result }}"
           echo "Frontend Playwright: ${{ needs.frontend-playwright.result }}"
-          echo "Frontend Telemetry E2E: ${{ needs.frontend-telemetry-e2e.result }}"
           echo "Tooling: ${{ needs.tooling.result }}"
           echo "Backend Coverage Summary: ${{ needs.backend-coverage-gate.result }}"
           echo "Staging Images: ${{ needs.container-images.result }}"
@@ -1156,7 +1097,7 @@ jobs:
             fi
             # AC-testing.ci-structure.11: frontend-build is right-moved off PRs
             # that touch no apps/frontend/** path (frontend_changed=false),
-            # which is a pass, not a gap — mirrors frontend-telemetry-e2e's
+            # which is a pass, not a gap — mirrors frontend-playwright's
             # skip-is-a-pass clause below.
             if [[ "${{ needs.frontend-build.result }}" != "success" && "${{ needs.frontend-build.result }}" != "skipped" ]]; then
               echo "::error::Frontend build/typecheck failed"
@@ -1167,17 +1108,11 @@ jobs:
               echo "::error::Frontend Vitest tests failed"
               exit 1
             fi
-            # AC-testing.ci-structure.11: frontend-playwright is right-moved
-            # the same way as frontend-build above.
+            # AC-testing.ci-structure.11 / #1689: frontend-playwright (including
+            # telemetry emission) is right-moved off PRs that touch no
+            # apps/frontend/** path (frontend_changed=false), which is a pass, not a gap.
             if [[ "${{ needs.frontend-playwright.result }}" != "success" && "${{ needs.frontend-playwright.result }}" != "skipped" ]]; then
               echo "::error::Frontend Playwright failed"
-              exit 1
-            fi
-            # #1689: frontend-telemetry-e2e is right-moved off PRs that touch no
-            # apps/frontend/** path (frontend_changed=false), which is a pass,
-            # not a gap — mirrors container-images' skip-is-a-pass clause below.
-            if [[ "${{ needs.frontend-telemetry-e2e.result }}" != "success" && "${{ needs.frontend-telemetry-e2e.result }}" != "skipped" ]]; then
-              echo "::error::Frontend telemetry E2E failed"
               exit 1
             fi
             # container-images is right-moved: it is skipped when the build context
@@ -1234,7 +1169,7 @@ jobs:
           full_sha=$(git rev-parse HEAD)
           short_sha="${full_sha:0:7}"
           tag_name="${GITHUB_REF_NAME}"
-          python tools/verify_release_images.py \
+          python -m common.runtime.release_images \
             --registry "${{ env.REGISTRY }}" \
             --image-prefix "${{ env.IMAGE_PREFIX }}" \
             --version-ref "$short_sha"
@@ -1243,7 +1178,7 @@ jobs:
             dst_img="${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${component}:${tag_name}"
             docker buildx imagetools create --prefer-index=false --tag "$dst_img" "$src_img"
           done
-          python tools/verify_release_images.py \
+          python -m common.runtime.release_images \
             --registry "${{ env.REGISTRY }}" \
             --image-prefix "${{ env.IMAGE_PREFIX }}" \
             --version-ref "$tag_name"

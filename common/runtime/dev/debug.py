@@ -8,15 +8,15 @@ Automatically detects environment and uses appropriate log viewing method:
 
 Usage:
     # View logs
-    python tools/debug.py logs backend
-    python tools/debug.py logs frontend --tail 100
-    python tools/debug.py logs backend --env staging
+    python -m common.runtime.dev.debug logs backend
+    python -m common.runtime.dev.debug logs frontend --tail 100
+    python -m common.runtime.dev.debug logs backend --env staging
 
     # Service status
-    python tools/debug.py status backend
+    python -m common.runtime.dev.debug status backend
 
     # Container info
-    python tools/debug.py containers --env production
+    python -m common.runtime.dev.debug containers --env production
 """
 
 import argparse

@@ -6,6 +6,6 @@
 | Backend (owner) | `apps/backend/tests/schemas/test_api_response_vectors.py` recomputes each endpoint's serialized response from fixed inputs and compares it to this file | | Frontend | `apps/frontend/src/__tests__/fixtures/apiVectors.ts` loads this exact file as the mock data for the corresponding page tests | A backend serializer change without regeneration reds the backend drift test;
 a regenerated breaking shape reds the frontend tests that consume it. Either way the drift is a red gate, never a silent ship (G-contract-reddens).
 ## Regeneration (never hand-edit)
-```bash apps/backend/.venv/bin/python tools/api_response_vectors.py ``` All values are sanitized placeholders (fixed UUIDs, `Vector *` names). Real financial data is forbidden here.
+```bash uv run --project apps/backend python -m common.platform.api_response_vectors ``` All values are sanitized placeholders (fixed UUIDs, `Vector *` names). Real financial data is forbidden here.
 ## Endpoints vectored
 - `balance_sheet` — `GET /api/reports/balance-sheet` (`BalanceSheetResponse`)

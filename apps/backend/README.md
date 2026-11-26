@@ -7,7 +7,7 @@ FastAPI backend for Finance Report.
 ```bash
 uv sync
 uv run uvicorn src.main:app --reload
-moon run :dev -- --backend
+make backend
 uv run pytest -n0 --no-cov -o addopts= <file>::<test> -x
 ```
 

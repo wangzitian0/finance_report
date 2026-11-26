@@ -17,7 +17,7 @@
 
 ## Governance
 
-Boundary and tier checks run via `tools/check_app_boundary.py`, `tools/check_base_purity.py`, and `tools/check_tier_imports.py`. Accuracy harness (`apps/backend/tests/reconciliation/test_reconciliation_audit.py`) gates `>= 95%` accuracy, `< 0.5%` FP, `< 2%` FN, `< 10s` runtime.
+Boundary and tier checks run via `common.meta.extension.check_app_boundary`, `common.meta.extension.check_base_purity`, and `common.meta.extension.check_tier_imports`. Accuracy harness (`apps/backend/tests/reconciliation/test_reconciliation_audit.py`) gates `>= 95%` accuracy, `< 0.5%` FP, `< 2%` FN, `< 10s` runtime.
 
 ## Scoring, thresholds, and the state machine
 

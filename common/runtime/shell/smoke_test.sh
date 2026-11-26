@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Smoke tests for Finance Report
-# Usage: bash tools/smoke_test.sh [BASE_URL] [MODE]
+# Usage: bash common/runtime/shell/smoke_test.sh [BASE_URL] [MODE]
 #
-# Ownership: invoked via `tools/smoke_test.sh` from `runtime-hooks.manifest.json` (#1535).
+# Ownership: invoked via `common/runtime/shell/smoke_test.sh` from `runtime-hooks.manifest.json` (#1535).
 # Arguments:
 #   BASE_URL: Root URL of the application (default: http://localhost:3000)
 #   MODE:     'prod' (read-only) or 'staging'/'preview'/'dev' (includes safe non-prod POST check).

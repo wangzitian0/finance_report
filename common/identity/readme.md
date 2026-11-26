@@ -9,4 +9,4 @@ Owns the `User` aggregate (`uq_users_email_normalized` via `normalize_email`), `
 
 ### Wire vocabulary ownership
 
-`base/types/` exports pure auth, user, AI-settings, and `AiFeedback*` DTOs (`__all__ == contract.interface`); `base/repository.py` defines the `UserRepository` protocol; `extension/sql.py` implements `SqlUserRepository` and ORM models; `extension/account_purge.py` handles test-account cleanup (`tools/` / `common/runtime/dev/`).
+`base/types/` exports pure auth, user, AI-settings, and `AiFeedback*` DTOs (`__all__ == contract.interface`); `base/repository.py` defines the `UserRepository` protocol; `extension/sql.py` implements `SqlUserRepository` and ORM models; `extension/account_purge.py` handles test-account cleanup (`apps/backend/scripts/purge_test_accounts.py`).

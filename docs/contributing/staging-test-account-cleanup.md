@@ -1,6 +1,6 @@
 # Staging Test-Account Cleanup
 
-QA and E2E runs create disposable accounts on dev and staging databases. `common.runtime.dev.purge_test_accounts` reclaims aged test tenants safely.
+QA and E2E runs create disposable accounts on dev and staging databases. `apps/backend/scripts/purge_test_accounts.py` reclaims aged test tenants safely.
 
 The deletion logic, email predicates, and safety guards live in `apps/backend/src/identity/extension/account_purge.py` (`src.identity`, #1677, #3050) and are covered by backend identity tests.
 
@@ -17,7 +17,6 @@ The deletion logic, email predicates, and safety guards live in `apps/backend/sr
 ```bash
 # 1. Dry run (changes nothing) — works both locally and inside backend container (/app)
 python scripts/purge_test_accounts.py
-python -m common.runtime.dev.purge_test_accounts
 
 # 2. Safe apply (preserves trigger-protected accounts)
 python scripts/purge_test_accounts.py --apply

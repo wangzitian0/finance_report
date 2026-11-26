@@ -29,4 +29,4 @@ implementation detail behind the `CounterRepository` port. A frontend mirror and
 `counter_tally(user_id, key, count)` with a composite primary key `(user_id, key)` (which is also the unique constraint and the upsert conflict target) and a `count >= 0` check. `bump` is a single atomic upsert-increment (`INSERT ... ON CONFLICT (user_id, key) DO UPDATE SET count = count + 1`), so concurrent increments cannot lose updates. Migration:
 `apps/backend/migrations/versions/0048_counter_tally.py`.
 ## Governance
-`tools/check_app_boundary.py` and `tools/check_base_purity.py` validate layering and boundary conformance against `apps/backend/src/counter`, and backend unit tests verify the tally invariants.
+`python -m common.meta.extension.check_app_boundary` and `python -m common.meta.extension.check_base_purity` validate layering and boundary conformance against `apps/backend/src/counter`, and backend unit tests verify the tally invariants.

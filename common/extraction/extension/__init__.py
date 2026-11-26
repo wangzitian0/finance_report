@@ -1,1 +1,0 @@
-"""Impure extraction governance adapters."""

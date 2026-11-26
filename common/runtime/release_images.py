@@ -127,3 +127,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     _write_github_output(digests)
     return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

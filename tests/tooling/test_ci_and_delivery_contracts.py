@@ -161,8 +161,12 @@ def test_AC_testing_preflight_1_static_selection_and_watch_paths() -> None:
         "backend-format",
         "env-manifests",
         "openapi-spec",
+        "api-reference",
         "toolchain-contract",
         "lockfile-registry",
+        "app-boundary",
+        "base-purity",
+        "tier-imports",
         "frontend-static",
     }
     assert all(c.tier == "static" for c in preflight.CHECKS)
@@ -249,9 +253,12 @@ def test_AC_testing_preflight_2_openapi_spec_ci_and_route_coverage() -> None:
 
     for check in preflight.CHECKS:
         for command in check.commands:
-            for part in command:
-                if part.endswith(".py") and part.startswith("tools/"):
-                    assert (ROOT / part).exists(), f"{check.name}: missing {part}"
+            if len(command) >= 3 and command[0] == preflight.PY and command[1] == "-m":
+                mod = command[2]
+                if mod.startswith(("common.", "tests.")):
+                    rel_mod = f"{mod.replace('.', '/')}.py"
+                    mod_path = ROOT / rel_mod
+                    assert mod_path.exists(), f"{check.name}: missing {mod_path}"
 
     steps = _lint_steps()
     names = [step.get("name", "") for step in steps]
@@ -268,8 +275,7 @@ def test_AC_testing_preflight_2_openapi_spec_ci_and_route_coverage() -> None:
         if line.strip() and not line.strip().startswith("#")
     ]
     assert run_lines == [
-        "cd apps/backend",
-        "uv run --frozen python ../../tools/preflight.py --only openapi-spec --ci",
+        "uv run --project apps/backend --frozen python -m common.testing.preflight --only openapi-spec --ci",
     ]
     assert names.index("Set up backend environment") < matching[0]
     assert names.index("Install frontend dependencies") < matching[0]
@@ -279,7 +285,7 @@ def test_AC_testing_preflight_2_openapi_spec_ci_and_route_coverage() -> None:
     for workflow in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
         referenced.update(
             re.findall(
-                r"preflight\.py[^\n]*?--only[= ]([A-Za-z0-9_-]+)",
+                r"common\.testing\.preflight[^\n]*?--only[= ]([A-Za-z0-9_-]+)",
                 workflow.read_text(encoding="utf-8"),
             )
         )
@@ -296,7 +302,7 @@ def test_AC_testing_toolchain_3_backend_format_and_precommit_parity() -> None:
     )
     precommit = (ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
     assert (
-        "uv run --project apps/backend python tools/env_manifests.py --check"
+        "uv run --project apps/backend python -m common.runtime.env_manifests --check"
         in precommit
     )
     assert "check_env_keys.py" not in precommit
@@ -834,7 +840,7 @@ def test_AC8_13_20_classifier_lightweight_image_build_outputs_and_workflow_gates
     out_path = tmp_path / "github-output.txt"
     sum_path = tmp_path / "github-summary.md"
     mixed = classify_changed_paths(
-        ["docs/ssot/README.md", "tools/ci_change_classifier.py"]
+        ["docs/ssot/README.md", "common/testing/change_classifier.py"]
     )
     classifier.write_github_outputs(mixed, out_path)
     classifier.write_github_summary(mixed, sum_path)
@@ -852,7 +858,7 @@ def test_AC8_13_20_classifier_lightweight_image_build_outputs_and_workflow_gates
         "tooling_required",
     }
     assert out_map["heavy_required"] == "true" and out_map["frontend_changed"] == "true"
-    assert "tools/ci_change_classifier.py" in sum_path.read_text(encoding="utf-8")
+    assert "common/testing/change_classifier.py" in sum_path.read_text(encoding="utf-8")
 
     changed_file = tmp_path / "changed.txt"
     changed_file.write_text(
@@ -949,22 +955,14 @@ def test_cross_layer_routing_skip_sets_and_tooling_lane_coverage() -> None:
     assert classify_changed_paths([]).tooling_required is True
     assert classify_changed_paths(["unlisted/unrelated.txt"]).tooling_required is False
 
-    for e2e_job in ("frontend-playwright", "frontend-telemetry-e2e"):
-        assert "frontend-build" in jobs[e2e_job]["needs"]
-        uses_values = [
-            str(s.get("uses", ""))
-            for s in jobs[e2e_job]["steps"]
-            if isinstance(s, dict)
-        ]
-        with_names = [
-            s.get("with", {}).get("name")
-            for s in jobs[e2e_job]["steps"]
-            if isinstance(s, dict)
-        ]
-        assert (
-            any("download-artifact" in u for u in uses_values)
-            and "frontend-next-build" in with_names
-        )
+    assert "frontend-telemetry-e2e" not in jobs
+    assert "frontend-build" in jobs["frontend-playwright"]["needs"]
+    pw_steps = jobs["frontend-playwright"]["steps"]
+    pw_uses = [str(s.get("uses", "")) for s in pw_steps if isinstance(s, dict)]
+    pw_with = [s.get("with", {}).get("name") for s in pw_steps if isinstance(s, dict)]
+    pw_runs = "\n".join(str(s.get("run", "")) for s in pw_steps if isinstance(s, dict))
+    assert any("download-artifact" in u for u in pw_uses) and "frontend-next-build" in pw_with
+    assert "npm run test:e2e" in pw_runs and "npm run test:e2e:telemetry" in pw_runs
 
     # Ensure Vitest does not read backend paths (cross-layer isolation)
     fe_files = [f for f in (ROOT / "apps/frontend/src").rglob("*") if f.is_file()] + [
@@ -1584,7 +1582,7 @@ def test_AC7_11_migration_risk_contract_classification_and_ci(
     ci = CI_WORKFLOW.read_text(encoding="utf-8")
     assert (
         "Migration Risk Contract Check" in ci
-        and "python tools/check_migration_risk.py" in ci
+        and "python -m common.meta.extension.migration_risk" in ci
     )
 
     assert migration_risk.classify_risk('op.create_table("t")') == "low"
@@ -1922,7 +1920,7 @@ def test_AC_testing_ci_structure_13_backend_shard_and_workflow(
         == 1
     )
 
-    from tools import backend_shard_files
+    from common.testing import backend_shard as backend_shard_files
 
     argv = [
         "--splits",
@@ -1939,16 +1937,18 @@ def test_AC_testing_ci_structure_13_backend_shard_and_workflow(
         backend_shard_files.main(argv) == 0
         and capsys.readouterr().out.split() == groups[0]
     )
-    monkeypatch.setattr(sys, "argv", ["tools/backend_shard_files.py", *argv])
+    monkeypatch.setattr(sys, "argv", ["common.testing.backend_shard", *argv])
     with pytest.raises(SystemExit) as exc:
-        runpy.run_path(str(ROOT / "tools/backend_shard_files.py"), run_name="__main__")
+        runpy.run_path(
+            str(ROOT / "common/testing/backend_shard.py"), run_name="__main__"
+        )
     assert exc.value.code == 0 and capsys.readouterr().out.split() == groups[0]
     isolated = subprocess.run(
         [
             sys.executable,
             "-I",
             "-S",
-            str(ROOT / "tools/backend_shard_files.py"),
+            str(ROOT / "common/testing/backend_shard.py"),
             "--splits",
             str(shard_count),
             "--group",
@@ -1977,7 +1977,7 @@ def test_AC_testing_ci_structure_13_backend_shard_and_workflow(
     )
     (empty_shard_dir / "uv").chmod(0o755)
     (empty_shard_dir / "python").write_text(
-        f'#!/bin/sh\ncase "$1" in *backend_shard_files.py) exit 0;; esac\nexec "{sys.executable}" "$@"\n',
+        f'#!/bin/sh\ncase "$*" in *common.testing.backend_shard*) exit 0;; esac\nexec "{sys.executable}" "$@"\n',
         encoding="utf-8",
     )
     (empty_shard_dir / "python").chmod(0o755)
@@ -2026,43 +2026,17 @@ def test_AC_testing_ci_structure_13_backend_shard_and_workflow(
 
 
 def test_moon_ci_compose_addopts_and_corpus_contracts() -> None:
-    moon_tc = yaml.safe_load((ROOT / ".moon/toolchain.yml").read_text(encoding="utf-8"))
-    workspace = yaml.safe_load(
-        (ROOT / ".moon/workspace.yml").read_text(encoding="utf-8")
-    )
-    root_proj = yaml.safe_load((ROOT / "moon.yml").read_text(encoding="utf-8"))
-    backend_proj = yaml.safe_load(
-        (ROOT / "apps/backend/moon.yml").read_text(encoding="utf-8")
-    )
     ci_workflow = CI_WORKFLOW.read_text(encoding="utf-8")
-
-    assert (
-        moon_tc["node"]["packageManager"],
-        moon_tc["node"]["version"],
-        moon_tc["node"]["npm"]["version"],
-    ) == ("npm", "20.19.0", "10.8.2")
-    assert workspace["projects"] == ["apps/*", "."] and not (ROOT / "infra").exists()
+    for obsolete in (
+        ".moon",
+        "moon.yml",
+        "apps/backend/moon.yml",
+        "apps/frontend/moon.yml",
+        "opencode.json",
+        ".opencode",
+    ):
+        assert not (ROOT / obsolete).exists(), f"Obsolete path still present: {obsolete}"
     assert "moonrepo/setup-toolchain@v0" not in ci_workflow
-    assert (
-        root_proj["tasks"]["dev"]["command"],
-        root_proj["tasks"]["test"]["command"],
-        root_proj["tasks"]["lint"]["command"],
-    ) == (
-        "python3 tools/cli.py dev",
-        "python3 tools/cli.py test",
-        "python3 tools/cli.py lint",
-    )
-    assert (
-        backend_proj["language"],
-        backend_proj["layer"],
-        backend_proj["fileGroups"]["sources"],
-        backend_proj["fileGroups"]["tests"],
-    ) == (
-        "python",
-        "application",
-        ["src/**/*.py"],
-        ["tests/**/*.py"],
-    )
 
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     services = compose.get("services") or {}

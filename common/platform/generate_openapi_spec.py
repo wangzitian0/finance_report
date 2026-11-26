@@ -118,7 +118,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 1
         if current != rendered:
             print(
-                "ERROR: committed openapi.json is stale — run tools/generate_openapi_spec.py",
+                "ERROR: committed openapi.json is stale — run python -m common.platform.generate_openapi_spec",
                 file=sys.stderr,
             )
             try:

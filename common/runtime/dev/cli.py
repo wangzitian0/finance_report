@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Unified CLI implementation for all moon commands.
+Unified CLI for development and background jobs.
 
 Usage:
-    python tools/cli.py <command> [options]
+    python -m common.runtime.dev.cli <command> [options]
 
 Commands:
     setup   - Install dependencies
@@ -74,8 +74,8 @@ def cmd_dev(args):
         run(["npm", "run", "dev"], cwd=FRONTEND_DIR)
     elif not args.infra:
         print("\n🚀 Infrastructure started. Now run in separate terminals:")
-        print("   moon run :dev -- --backend")
-        print("   moon run :dev -- --frontend")
+        print("   make backend")
+        print("   make frontend")
 
 
 def cmd_test(args, extra_args: list[str]):

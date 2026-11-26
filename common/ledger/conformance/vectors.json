@@ -1,5 +1,5 @@
 {
-  "_comment": "Backend-owned API response conformance vectors (#1827, pattern from #1167). Regenerated ONLY by tools/api_response_vectors.py from fixed sanitized inputs; the backend drift test recomputes and compares, and the frontend fixture helper (apps/frontend/src/__tests__/fixtures/apiVectors.ts) loads this exact file as mock data. Hand-editing or committing real financial data here is forbidden.",
+  "_comment": "Backend-owned API response conformance vectors (#1827, pattern from #1167). Regenerated ONLY by python -m common.platform.api_response_vectors from fixed sanitized inputs; the backend drift test recomputes and compares, and the frontend fixture helper (apps/frontend/src/__tests__/fixtures/apiVectors.ts) loads this exact file as mock data. Hand-editing or committing real financial data here is forbidden.",
   "endpoints": {
     "accounts_list": {
       "method": "GET",

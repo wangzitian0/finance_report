@@ -70,7 +70,7 @@ repos:
       - id: env-manifests
         name: Check environment manifests and .env.example
         # Imports config.py / infra2_sdk from the backend lockfile.
-        entry: uv run --project apps/backend python tools/env_manifests.py --check
+        entry: uv run --project apps/backend python -m common.runtime.env_manifests --check
         language: system
         pass_filenames: false
         files: ^(apps/backend/src/config\.py|apps/frontend/required-env\.manifest\.json|common/runtime/env_manifests\.py|runtime-hooks\.manifest\.json|\.env\.example)$
@@ -89,29 +89,14 @@ repos:
   # ---------------------------------------------------------------------------
   # Pre-push drift gates (local==CI parity SSOT).
   #
-  # Delegates to tools/preflight.py --tier=static, which is the single source of
-  # truth for fast, diff-aware pre-push checks (SSOT manifest, workflow contract,
-  # governance exceptions, schema contracts, migration safety, API references, etc.).
+  # Delegates to `python -m common.testing.preflight --tier=static`, which is
+  # the single source of truth for fast, diff-aware pre-push checks.
   - repo: local
     hooks:
       - id: preflight-static
         name: Preflight static gates (CI parity SSOT)
-        entry: uv run --project apps/backend python tools/preflight.py --tier=static
+        entry: uv run --project apps/backend python -m common.testing.preflight --tier=static
         language: system
         pass_filenames: false
         always_run: true
         stages: [pre-push]
-
-ci:
-  autofix_prs: true
-  autofix_commit_msg: "style: auto-fix from pre-commit hooks"
-  autoupdate_schedule: monthly
-  # Local hooks need `uv` and workspace toolchains, which the hosted
-  # pre-commit.ci runner does not provide; the same checks run authoritatively
-  # in the GitHub Actions `lint` job.
-  skip:
-    - ruff-check
-    - ruff-format
-    - env-manifests
-    - frontend-lint
-    - preflight-static

@@ -22,7 +22,7 @@ function loadEndpointResponse(pkg: string, endpoint: string): unknown {
   if (!entry) {
     throw new Error(
       `endpoint '${endpoint}' is missing from common/${pkg}/conformance/vectors.json — ` +
-        "regenerate via tools/api_response_vectors.py",
+        "regenerate via python -m common.platform.api_response_vectors",
     );
   }
   return structuredClone(entry.response);
