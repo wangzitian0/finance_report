@@ -51,6 +51,7 @@ async def test_reconciliation_review_queue_surface(authenticated_page: Page) -> 
 
 
 @pytest.mark.e2e
+@pytest.mark.parse_journey
 async def test_reconciliation_unmatched_interactive_disposition(page: Page) -> None:
     stmt_id = await setup_runner_page(
         page,

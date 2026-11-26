@@ -21,7 +21,7 @@ Domain packages verify invariants through focused backend/frontend tests, while 
 
 ### E2E extension layer
 
-Root specs under `tests/e2e/` are declared per file in `matrix.E2E_ROWS` (`llm_provider`, `market_data`, `deployed_env`, `state_sensitive`, `audited`). Provider-free core journeys form `staging_core_e2e` and `preview_minimum_e2e`; `--run` executes them in `matrix.stage_parallelism()` pytest-xdist workers (#3241); live-LLM checks split between `canary` (`staging.post`) and `audit_replay` (`scheduled_audit`), while `core_journey` runs only the disjoint non-LLM `CORE_JOURNEY_ONLY_FILES` checkpoints (`tests/e2e/journey_checkpoint.py`). Diagnostic hooks capture `e2e_rate_limit.py` 429s, E2E failure bundles, `transport_retry.py` reconnects, and `description_fidelity.py`.
+Root specs under `tests/e2e/` are declared per file in `matrix.E2E_ROWS` (`llm_provider`, `market_data`, `deployed_env`, `state_sensitive`, `audited`). Provider-free core journeys form `staging_core_e2e` and `preview_minimum_e2e`; `--run` executes them in `matrix.stage_parallelism()` pytest-xdist workers, and `tests/e2e/xdist_order.py` starts each `parse_journey` test first on its own worker (#3241); live-LLM checks split between `canary` (`staging.post`) and `audit_replay` (`scheduled_audit`), while `core_journey` runs only the disjoint non-LLM `CORE_JOURNEY_ONLY_FILES` checkpoints (`tests/e2e/journey_checkpoint.py`). Diagnostic hooks capture `e2e_rate_limit.py` 429s, E2E failure bundles, `transport_retry.py` reconnects, and `description_fidelity.py`.
 
 ### Fast interception
 
