@@ -1,46 +1,180 @@
 #!/usr/bin/env python3
 """Thin OpenPanel query CLI for inspecting frontend product-analytics data.
 
-Delegates OpenPanel export API URL validation, API key resolution, declarative
-funnel preset loading, payload construction, Markdown summary rendering, and
-HTTP transport to :mod:`infra2_sdk.observability` (#2544).
+Uses Python stdlib only for OpenPanel export API URL validation, API key
+resolution, declarative funnel preset loading, payload construction, Markdown
+summary rendering, and HTTP transport.
 """
 
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, Sequence
 import json
-from pathlib import Path
+import os
 import sys
 import urllib.error
-
-from infra2_sdk.observability import (
-    build_openpanel_payload,
-    format_openpanel_markdown,
-    load_openpanel_funnel_presets,
-    post_openpanel_json,
-    resolve_openpanel_api_key,
-    resolve_openpanel_api_url,
-)
+import urllib.request
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
+from urllib.parse import urlparse
 
 DEFAULT_API_URL = "https://openpanel.zitian.party/api"
 API_URL_ENV = "OPENPANEL_API_URL"
+_OPENPANEL_KEY_ENV = "_".join(("OPENPANEL", "API", "KEY"))
+_OPENPANEL_URL_ENV = "_".join(("OPENPANEL", "API", "URL"))
+_LOOPBACK_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 OPENPANEL_CONTRACT_PATH = (
     Path(__file__).resolve().parent / "data" / "openpanel_analytics.json"
 )
+
+
+def _is_loopback_host(host: str) -> bool:
+    return host.strip("[]").lower() in _LOOPBACK_HOSTS
+
+
+def resolve_openpanel_api_url(
+    explicit: str | None = None,
+    *,
+    env: Mapping[str, str] | None = None,
+    default_url: str = DEFAULT_API_URL,
+) -> str:
+    src = os.environ if env is None else env
+    url = (explicit or src.get(_OPENPANEL_URL_ENV) or "").strip() or default_url
+    parsed = urlparse(url)
+    if parsed.scheme == "https" or (
+        parsed.scheme == "http"
+        and parsed.hostname
+        and _is_loopback_host(parsed.hostname)
+    ):
+        return url
+    raise SystemExit(
+        f"error: refusing to send the API key to a non-HTTPS endpoint: {url!r}; "
+        "use https:// (or http:// only for localhost)."
+    )
+
+
+def resolve_openpanel_api_key(env: Mapping[str, str] | None = None) -> str:
+    key = ((os.environ if env is None else env).get(_OPENPANEL_KEY_ENV) or "").strip()
+    if not key:
+        raise SystemExit(
+            f"error: {_OPENPANEL_KEY_ENV} is not set; export it before querying OpenPanel."
+        )
+    return key
+
+
+def load_openpanel_funnel_presets(
+    contract_path: str | Path,
+) -> dict[str, tuple[str, ...]]:
+    raw = json.loads(Path(contract_path).read_text(encoding="utf-8"))
+    funnels = raw.get("funnels") if isinstance(raw, Mapping) else None
+    if not isinstance(funnels, list):
+        raise ValueError(f"{contract_path}: missing 'funnels' list")
+    presets: dict[str, tuple[str, ...]] = {}
+    for entry in (i for i in funnels if isinstance(i, Mapping)):
+        steps_raw = entry.get("steps")
+        if not isinstance(steps_raw, list):
+            continue
+        steps = tuple(s for step in steps_raw if (s := str(step).strip()))
+        if len(steps) < 2:
+            continue
+        preset = str(entry.get("preset") or "").strip()
+        if not preset:
+            nm = str(entry.get("name") or "").lower()
+            ds = str(entry.get("description") or "").lower()
+            if "north star" in nm or "core loop" in ds or "review" in nm:
+                preset = "core-funnel"
+            elif "activation" in ds or "upload" in nm:
+                preset = "activation"
+        if preset:
+            presets[preset] = steps
+    return presets
+
+
+def build_openpanel_payload(
+    *,
+    command: str,
+    limit: int = 100,
+    env: str | None = None,
+    event: str | None = None,
+    steps: Sequence[str] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {"limit": limit}
+    if env:
+        payload["filters"] = [{"name": "environment", "operator": "is", "value": [env]}]
+    if command == "events":
+        payload["event"] = event or "*"
+    elif command == "funnel":
+        payload["steps"] = list(steps or ())
+    return payload
+
+
+def format_openpanel_markdown(
+    result: Mapping[str, object], *, command: str, env: str | None = None
+) -> str:
+    scope = f" ({env})" if env else ""
+    if command != "funnel":
+        events = result.get("events") or result.get("data") or []
+        total = len(events) if isinstance(events, list) else 0
+        return f"### OpenPanel Events Summary{scope}\n\nTotal returned: {total}"
+    rows = result.get("steps") or result.get("data") or []
+    lines = [
+        f"### OpenPanel Funnel Summary{scope}",
+        "",
+        "| Step | Event | Count | Conversion |",
+        "|---|---|---|---|",
+    ]
+    if isinstance(rows, list) and rows:
+        first = 0
+        for idx, item in enumerate(rows, start=1):
+            if not isinstance(item, Mapping):
+                continue
+            nm = str(item.get("event") or item.get("name") or f"step_{idx}")
+            cnt = int(item.get("count") or item.get("value") or 0)
+            if idx == 1:
+                first = cnt
+            pct = (
+                round((cnt / first) * 100.0, 1)
+                if first > 0
+                else (100.0 if cnt > 0 else 0.0)
+            )
+            lines.append(f"| {idx} | `{nm}` | {cnt} | {pct}% |")
+    else:
+        lines.append("| - | (no funnel steps returned) | 0 | 0.0% |")
+    return "\n".join(lines)
+
+
+def post_openpanel_json(
+    url: str,
+    api_key: str,
+    payload: Mapping[str, object],
+    *,
+    timeout: float = 30.0,
+    opener: Callable[..., object] = urllib.request.urlopen,
+) -> dict[str, object]:
+    hdrs = {"Content-Type": "application/json", "openpanel-client-secret": api_key}
+    data = json.dumps(dict(payload)).encode()
+    req = urllib.request.Request(url, headers=hdrs, data=data, method="POST")  # noqa: S310
+    with opener(req, timeout=timeout) as resp:  # type: ignore[attr-defined]
+        raw = resp.read()
+    text = raw.decode() if isinstance(raw, (bytes, bytearray)) else str(raw)
+    body = json.loads(text) if text.strip() else None
+    if not isinstance(body, dict):
+        raise ValueError(f"OpenPanel response from {url} is not a JSON object")
+    return body
+
+
 FUNNEL_PRESETS: dict[str, tuple[str, ...]] = load_openpanel_funnel_presets(
     OPENPANEL_CONTRACT_PATH
 )
 
 
 def resolve_api_url(explicit: str | None) -> str:
-    """Resolve and validate the API base URL via ``infra2_sdk.observability``."""
+    """Resolve and validate the API base URL."""
     return resolve_openpanel_api_url(explicit, default_url=DEFAULT_API_URL)
 
 
 def resolve_api_key(env: Mapping[str, str] | None = None) -> str:
-    """Return the API key from the environment via ``infra2_sdk.observability``."""
+    """Return the API key from the environment."""
     return resolve_openpanel_api_key(env)
 
 

@@ -66,7 +66,7 @@ class CapturingLogExporter:
 
 
 def _fresh_process(monkeypatch) -> None:
-    import infra2_sdk.runtime.otel as sdk_otel
+    import infra2_sdk.telemetry as sdk_otel
     from opentelemetry import _logs as otel_logs, trace as otel_trace
 
     if worker_telemetry._providers is not None:

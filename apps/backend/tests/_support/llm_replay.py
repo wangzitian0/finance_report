@@ -40,7 +40,7 @@ def llm_body_matches(recorded: Any, sent: Any) -> None:
 
 
 def llm_vcr_config() -> dict[str, Any]:
-    from infra2_sdk.runtime import vcr_llm_config
+    from infra2_sdk.llm import vcr_llm_config
 
     config = vcr_llm_config()
     config["match_on"] = (*config["match_on"], "llm_body")

@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 import pytest
-from infra2_sdk.runtime.llm import LlmSettings
+from infra2_sdk.llm import LlmSettings
 from pydantic import ValidationError
 
 from src.config import (

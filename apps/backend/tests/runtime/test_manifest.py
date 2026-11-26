@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from infra2_sdk.runtime.environment import EnvironmentTier
-from infra2_sdk.runtime.health import Dependency, DependencyKind, DependencyStatus
+from infra2_sdk.config import EnvironmentTier
+from infra2_sdk.service import Dependency, DependencyKind, DependencyStatus
 
 from src.config import Settings, settings
 from src.runtime import DEPENDENCY_MANIFEST

@@ -14,7 +14,7 @@ from typing import Any
 from uuid import UUID, uuid4
 
 import structlog
-from infra2_sdk.runtime.otel import current_request_id as _sdk_request_id
+from infra2_sdk.telemetry import current_request_id as _sdk_request_id
 
 from src.observability.pii_redaction import detect_pii
 

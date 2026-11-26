@@ -11,7 +11,7 @@ import pickle
 
 import httpx2
 import pytest
-from infra2_sdk.runtime import DecodingSpec, allow_vcr_model_requests
+from infra2_sdk.llm import DecodingSpec, allow_vcr_model_requests
 from pydantic_ai.exceptions import (
     ContentFilterError,
     ModelHTTPError,
@@ -28,7 +28,7 @@ from src.llm import ModelCallFailed, ModelFailureKind
 from src.llm.extension.agent import CallSite, complete_text, stream_text
 
 SITE = CallSite.RECONCILIATION_SEMANTIC_SCORE
-DECODING = DecodingSpec("test.v1", thinking=False, timeout=5.0)
+DECODING = DecodingSpec(decoding_version="test.v1", thinking=False, timeout=5.0)
 CHUNK = {"id": "x", "object": "chat.completion.chunk", "created": 1, "model": "glm-5.3-flash"}
 
 

@@ -557,7 +557,7 @@ class _CsvMixin:
 
         sample_rows = [[row.get(h, "") for h in headers] for row in rows[:5]]
         prompt = build_csv_mapping_prompt(headers, sample_rows)
-        from infra2_sdk.runtime import DecodingSpec
+        from infra2_sdk.llm import DecodingSpec
 
         from src.llm.extension.agent import CallSite, complete_text, model_call_failed
 
@@ -565,7 +565,7 @@ class _CsvMixin:
             CallSite.CSV_COLUMN_MAPPING,
             "small",
             prompt,
-            decoding=DecodingSpec("extraction.csv_mapping.v1", thinking=False, timeout=30.0),
+            decoding=DecodingSpec(decoding_version="extraction.csv_mapping.v1", thinking=False, timeout=30.0),
         )
         try:
             mapping = json.loads(content)

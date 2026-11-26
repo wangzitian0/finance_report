@@ -165,7 +165,7 @@ jobs:
           uv run --project apps/backend --frozen python -m common.platform.generate_api_reference --check
       - name: Environment Manifest Check (infra2 SDK)
         run: |
-          # infra2_sdk.manifests checks the backend manifest from config.py, the
+          # infra2_sdk.config and common.runtime.env_manifests check the backend manifest from config.py, the
           # hand-written frontend manifest, and the backend block of .env.example.
           uv run --project apps/backend --frozen python -m common.runtime.env_manifests --check
       - name: Generated OpenAPI Spec and API Types Check

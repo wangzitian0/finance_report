@@ -9,7 +9,7 @@ import types
 from unittest.mock import patch
 from uuid import UUID
 
-from infra2_sdk.runtime.otel import OtelSettings, _JsonLogFormatter, signal_endpoint
+from infra2_sdk.telemetry import JsonLogFormatter, OtelSettings, signal_endpoint
 from opentelemetry.exporter.otlp.proto.common._internal import _encode_value
 
 from src import observability
@@ -46,7 +46,7 @@ def test_sdk_json_formatter_otel_settings_and_endpoints(monkeypatch) -> None:
             is_valid=valid,
         )
     )
-    fmt = _JsonLogFormatter(
+    fmt = JsonLogFormatter(
         {
             "service.name": "finance-report-backend",
             "deployment.environment.name": "staging",

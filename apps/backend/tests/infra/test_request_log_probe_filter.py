@@ -7,8 +7,7 @@ import pytest
 import pytest_asyncio
 from fastapi.routing import iter_route_contexts
 from httpx import ASGITransport, AsyncClient
-from infra2_sdk.fastapi import _ProbeAccessFilter
-from infra2_sdk.runtime.otel import PROBE_PATHS
+from infra2_sdk.telemetry import PROBE_PATHS
 
 from src import main as main_module
 from src.boot import Bootloader, ServiceStatus
@@ -45,7 +44,7 @@ async def test_AC_observability_19_1_and_2_health_probes(
 
 
 def test_AC_observability_19_1_and_3_probe_access_filter_and_routes() -> None:
-    flt = _ProbeAccessFilter()
+    flt = next(f for f in logging.getLogger("uvicorn.access").filters if getattr(f, "_infra2_probe_filter", False))
     make_rec = lambda p: logging.LogRecord(
         "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', ("127.0.0.1", "GET", p, "1.1", 200), None
     )

@@ -5,7 +5,7 @@ Record again with: `LLM_API_KEY=<key> pytest --record-mode=rewrite tests/llm/tes
 
 import pytest
 
-from infra2_sdk.runtime import DecodingSpec
+from infra2_sdk.llm import DecodingSpec
 from src.llm.extension.agent import CallSite, complete_text
 
 PROMPT = "Write a 400-word essay about the sea."
@@ -19,7 +19,7 @@ async def test_a_token_cap_of_20_stops_the_reply_of_the_provider(vcr_llm) -> Non
         CallSite.RECONCILIATION_SEMANTIC_SCORE,
         "small",
         PROMPT,
-        decoding=DecodingSpec("test.v1", thinking=False, max_tokens=20, timeout=60.0),
+        decoding=DecodingSpec(decoding_version="test.v1", thinking=False, max_tokens=20, timeout=60.0),
         max_attempts=1,
     )
     assert 0 < len(reply) < 200

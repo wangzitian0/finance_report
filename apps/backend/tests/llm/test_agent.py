@@ -3,7 +3,7 @@
 import asyncio
 
 import pytest
-from infra2_sdk.runtime import DecodingSpec
+from infra2_sdk.llm import DecodingSpec
 from pydantic_ai import BinaryContent, ImageUrl
 from pydantic_ai.exceptions import ModelHTTPError
 
@@ -18,7 +18,7 @@ from src.llm.extension.agent import (
     to_user_content,
 )
 
-DECODING = DecodingSpec("test.v1", thinking=False, timeout=5.0)
+DECODING = DecodingSpec(decoding_version="test.v1", thinking=False, timeout=5.0)
 SITE = CallSite.RECONCILIATION_SEMANTIC_SCORE
 
 
@@ -69,7 +69,7 @@ async def test_the_token_cap_is_sent_as_max_tokens_in_the_extra_body(fake_llm) -
         SITE,
         "small",
         "x",
-        decoding=DecodingSpec("test.v1", thinking=False, max_tokens=321, timeout=5.0),
+        decoding=DecodingSpec(decoding_version="test.v1", thinking=False, max_tokens=321, timeout=5.0),
         extra_body={"do_sample": False},
     )
     assert sent.extra_bodies == [{"do_sample": False, "max_tokens": 321}] and sent.decodings[0].max_tokens is None
@@ -144,7 +144,7 @@ async def test_the_body_may_not_carry_thinking_or_a_second_token_cap(fake_llm) -
             SITE,
             "small",
             "x",
-            decoding=DecodingSpec("test.v1", thinking=False, max_tokens=20, timeout=5.0),
+            decoding=DecodingSpec(decoding_version="test.v1", thinking=False, max_tokens=20, timeout=5.0),
             extra_body={"max_tokens": 99},
         )
 
@@ -154,7 +154,7 @@ async def test_the_cap_moves_to_the_body_for_z_ai_only(fake_llm, monkeypatch) ->
     from src.config import settings
 
     sent = fake_llm("ok")
-    spec = DecodingSpec("test.v1", thinking=False, max_tokens=77, timeout=5.0)
+    spec = DecodingSpec(decoding_version="test.v1", thinking=False, max_tokens=77, timeout=5.0)
     await complete_text(SITE, "small", "x", decoding=spec)
     monkeypatch.setattr(settings, "ai_provider", "openai")
     monkeypatch.setattr(settings, "ai_api_key", "a-key")

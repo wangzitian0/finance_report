@@ -11,17 +11,9 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
-from infra2_sdk.runtime import (
-    HttpClientSettings,
-    PostgresSettings,
-    S3Settings,
-    probe_http,
-    probe_orchestrator,
-    probe_s3,
-    redact_postgres_error,
-    s3 as sdk_s3,
-)
-from infra2_sdk.runtime.health import DependencyStatus, ProbeResult
+from infra2_sdk import storage as sdk_storage
+from infra2_sdk.service import DependencyStatus, HttpClientSettings, ProbeResult, probe_http
+from infra2_sdk.storage import S3Settings, probe_s3, redact_postgres_error
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -29,12 +21,17 @@ _HTTP_5S = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
 
 
 def _ok(name: str, detail: str, start: float) -> ProbeResult:
-    return ProbeResult(name, DependencyStatus.PRESENT, detail, (time.perf_counter() - start) * 1000)
+    return ProbeResult(
+        name=name,
+        status=DependencyStatus.PRESENT,
+        detail=detail,
+        duration_ms=(time.perf_counter() - start) * 1000,
+    )
 
 
 def _absent(name: str, detail: str = "Not configured", start: float | None = None) -> ProbeResult:
     elapsed = 0.0 if start is None else (time.perf_counter() - start) * 1000
-    return ProbeResult(name, DependencyStatus.ABSENT, detail, elapsed)
+    return ProbeResult(name=name, status=DependencyStatus.ABSENT, detail=detail, duration_ms=elapsed)
 
 
 class DatabaseCheck:
@@ -54,11 +51,7 @@ class DatabaseCheck:
                 await conn.execute(text("SELECT 1"))
             return _ok(self.name, "Connection successful", start)
         except Exception as exc:  # noqa: BLE001
-            detail = str(exc)
-            try:
-                detail = redact_postgres_error(detail, PostgresSettings(dsn=self._database_url))
-            except Exception:  # noqa: BLE001
-                pass
+            detail = redact_postgres_error(exc, self._database_url)
             return _absent(self.name, detail, start)
         finally:
             if engine is not None:
@@ -75,7 +68,7 @@ def _redact_secrets(text: str, *secrets: str | None) -> str:
 
 def _probe_s3_write_delete(s3_settings: S3Settings) -> None:
     """Write a small health object and always delete it, closing the S3 client afterwards."""
-    client = sdk_s3.create_s3_client(s3_settings)
+    client = sdk_storage.create_s3_client(s3_settings)
     key = f"_health_probe/{uuid4().hex}.txt"
     put_error: Exception | None = None
     try:
@@ -130,16 +123,19 @@ class ObjectStorageCheck:
     async def probe(self) -> ProbeResult:
         start = time.perf_counter()
         secrets = (self._access_key, self._secret_key, self._public_access_key, self._public_secret_key)
+        if not isinstance(self._secret_key, str) or not self._secret_key.strip():
+            return _absent(self.name, "Missing S3 secret key", start)
+        region = self._region.strip() if isinstance(self._region, str) and self._region.strip() else "us-east-1"
         try:
             primary = S3Settings(
                 bucket=self._bucket,
-                endpoint_url=self._endpoint,
-                access_key_id=self._access_key,
+                endpoint_url=self._endpoint or "",
+                access_key_id=self._access_key or "",
                 secret_access_key=self._secret_key,
-                region_name=self._region,
+                region=region,
                 connect_timeout_seconds=3.0,
                 read_timeout_seconds=3.0,
-                addressing_style="path",
+                use_path_style=True,
             )
         except Exception as exc:  # noqa: BLE001
             return _absent(self.name, _redact_secrets(str(exc), *secrets), start)
@@ -159,12 +155,12 @@ class ObjectStorageCheck:
                 public = S3Settings(
                     bucket=(self._public_bucket or "").strip() or self._bucket,
                     endpoint_url=public_ep,
-                    access_key_id=pub_ak or self._access_key,
+                    access_key_id=pub_ak or (self._access_key or ""),
                     secret_access_key=pub_sk or self._secret_key,
-                    region_name=self._region,
+                    region=region,
                     connect_timeout_seconds=3.0,
                     read_timeout_seconds=3.0,
-                    addressing_style="path",
+                    use_path_style=True,
                 )
             except Exception as exc:  # noqa: BLE001
                 return _absent(
@@ -176,18 +172,21 @@ class ObjectStorageCheck:
         try:
             if public is not None:
                 primary_res, pub_res = await asyncio.gather(
-                    asyncio.to_thread(probe_s3, primary),
-                    asyncio.to_thread(probe_s3, public),
+                    asyncio.to_thread(probe_s3, primary, name=self.name),
+                    asyncio.to_thread(probe_s3, public, name=self.name),
                 )
             else:
-                primary_res = await asyncio.to_thread(probe_s3, primary)
+                primary_res = await asyncio.to_thread(probe_s3, primary, name=self.name)
                 pub_res = None
         except Exception as exc:  # noqa: BLE001
             return _absent(self.name, _redact_secrets(str(exc), *secrets), start)
 
         if primary_res.status is not DependencyStatus.PRESENT:
             return ProbeResult(
-                self.name, primary_res.status, _redact_secrets(primary_res.detail, *secrets), primary_res.duration_ms
+                name=self.name,
+                status=primary_res.status,
+                detail=_redact_secrets(primary_res.detail, *secrets),
+                duration_ms=primary_res.duration_ms,
             )
 
         parts = ["bucket accessible"]
@@ -313,7 +312,7 @@ class WorkflowEngineCheck:
     async def probe(self) -> ProbeResult:
         if not self._api_url:
             return _absent(self.name)
-        return await probe_orchestrator(f"{self._api_url.rstrip('/')}/health", name=self.name, settings=_HTTP_5S)
+        return await probe_http(f"{self._api_url.rstrip('/')}/health", name=self.name, settings=_HTTP_5S)
 
 
 class TelemetryCheck:

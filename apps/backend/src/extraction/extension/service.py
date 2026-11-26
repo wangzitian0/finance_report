@@ -10,7 +10,7 @@ from typing import Any
 from uuid import UUID
 
 import structlog
-from infra2_sdk.runtime import DecodingSpec
+from infra2_sdk.llm import DecodingSpec
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1083,7 +1083,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 messages[-1]["content"],
                 model=model,
                 decoding=DecodingSpec(
-                    "extraction.statement.v1",
+                    decoding_version="extraction.statement.v1",
                     thinking=False,
                     temperature=0.0,
                     seed=seed_override if seed_override is not None else settings.ai_json_seed,

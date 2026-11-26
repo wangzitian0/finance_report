@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 import yaml
-from infra2_sdk.manifests import CELL_POLICIES
+from infra2_sdk.delivery import CELL_POLICIES, RuntimeHooksManifest, resolve_check_cells
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND_DIR = ROOT / "apps" / "backend"
@@ -259,22 +259,24 @@ def test_runtime_hooks_manifest_validation_and_cells(tmp_path: Path) -> None:
         for err in gen.runtime_hooks_gate_errors(_write_hooks(tmp_path, payload))
     )
 
-    hooks = gen.load_hooks_manifest(HOOKS_PATH)
+    hooks = RuntimeHooksManifest.from_file(HOOKS_PATH)
     check_ids = [c.id for c in hooks.checks]
     assert "touched_files" not in check_ids
-    assert [c.id for c in hooks.checks_for_cell("preview.post")] == [
-        "preview_minimum_e2e"
-    ]
-    assert [c.id for c in hooks.checks_for_cell("staging.post")] == [
+
+    def checks_for(cell: str) -> list:
+        return [c for c in hooks.checks if cell in resolve_check_cells(c)]
+
+    assert [c.id for c in checks_for("preview.post")] == ["preview_minimum_e2e"]
+    assert [c.id for c in checks_for("staging.post")] == [
         "staging_core_e2e",
         "ai_provider_connectivity",
         "staging_ai_ocr",
     ]
-    assert [c.id for c in hooks.checks_for_cell("prod.post")] == [
+    assert [c.id for c in checks_for("prod.post")] == [
         "smoke",
         "prod_readonly_smoke",
     ]
-    assert [c.id for c in hooks.checks_for_cell("scheduled_audit")] == [
+    assert [c.id for c in checks_for("scheduled_audit")] == [
         "audit_replay",
         "core_journey",
         "pdf_corpus_oracle",
@@ -291,7 +293,7 @@ def test_runtime_hooks_manifest_validation_and_cells(tmp_path: Path) -> None:
         assert "real_llm" not in by_id[non_llm].needs, non_llm
     assert "real_provider" not in by_id["core_journey"].needs
 
-    audit_checks = hooks.checks_for_cell("scheduled_audit")
+    audit_checks = checks_for("scheduled_audit")
     assert (
         sum(c.timeout_seconds for c in audit_checks)
         <= CELL_POLICIES["scheduled_audit"].budget_seconds

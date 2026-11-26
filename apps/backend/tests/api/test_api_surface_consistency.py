@@ -229,7 +229,7 @@ def test_AC_platform_29_8_delivery_helpers_have_one_honest_home() -> None:
     assert req_defs == ["observability/audit.py:current_request_id", "observability/audit.py:ensure_request_id"]
     assert {
         r.path: r.endpoint.__module__ for r in _api_routes() if r.path in {"/livez", "/readyz", "/health"}
-    } == dict.fromkeys(("/livez", "/readyz", "/health"), "infra2_sdk.fastapi")
+    } == dict.fromkeys(("/livez", "/readyz", "/health"), "infra2_sdk.service")
 
 
 def test_AC_platform_29_9_report_wire_shape_and_policy_are_single(openapi_schema: dict[str, Any]) -> None:
@@ -359,7 +359,7 @@ _undocumented = lambda routes: [
     f"{c.route.path} ({c.route.endpoint.__name__})"
     for c in iter_route_contexts(routes)
     if isinstance(c.route, APIRoute)
-    and c.route.endpoint.__module__ != "infra2_sdk.fastapi"
+    and c.route.endpoint.__module__ != "infra2_sdk.service"
     and (
         not (inspect.getdoc(c.route.endpoint) or "").strip()
         or (inspect.getdoc(c.route.endpoint) or "").strip().endswith("..")

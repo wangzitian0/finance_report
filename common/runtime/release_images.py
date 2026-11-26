@@ -5,13 +5,34 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 
 from common.meta.base.gate_util import required_arg
-from infra2_sdk.ci import write_github_output as _write_github_output
+
+_GITHUB_OUTPUT_KEY_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _write_github_output(values: Mapping[str, str]) -> None:
+    resolved_path = os.getenv("GITHUB_OUTPUT")
+    if not resolved_path:
+        return
+    for key in values:
+        if not isinstance(key, str) or not _GITHUB_OUTPUT_KEY_RE.fullmatch(key):
+            raise ValueError(f"invalid GitHub output key: {key!r}")
+    with open(resolved_path, "a", encoding="utf-8") as handle:
+        for key, value in values.items():
+            if "\n" not in value and "\r" not in value:
+                print(f"{key}={value}", file=handle)
+                continue
+            delim = f"FINANCE_REPORT_OUTPUT_{os.urandom(16).hex()}"
+            while delim in value.splitlines():
+                delim = f"FINANCE_REPORT_OUTPUT_{os.urandom(16).hex()}"
+            print(f"{key}<<{delim}\n{value}\n{delim}", file=handle)
+
 
 InspectImage = Callable[[str], tuple[int, str]]
 Sleep = Callable[[float], None]

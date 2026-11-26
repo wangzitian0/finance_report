@@ -27,13 +27,12 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import dataclasses
 from collections.abc import AsyncGenerator, AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from enum import StrEnum
 from typing import Any, Literal
 
-from infra2_sdk.runtime import DecodingSpec, create_llm_agent
+from infra2_sdk.llm import DecodingSpec, create_llm_agent
 from pydantic_ai import BinaryContent, ImageUrl
 from pydantic_ai.exceptions import (
     ModelAPIError,
@@ -228,7 +227,7 @@ def _agent(
         if "max_tokens" in body:
             raise ValueError("Set the cap with DecodingSpec.max_tokens, not in extra_body")
         body["max_tokens"] = decoding.max_tokens
-        decoding = dataclasses.replace(decoding, max_tokens=None)
+        decoding = decoding.model_copy(update={"max_tokens": None})
     try:
         return create_llm_agent(
             settings_for_sdk,

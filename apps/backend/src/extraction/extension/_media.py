@@ -447,6 +447,6 @@ class _MediaMixin:
 
 
 def _redact_presigned_url(url: str) -> str | None:
-    from infra2_sdk.runtime.s3 import redact_presigned_url
+    from infra2_sdk.storage import redact_presigned_url
 
     return redact_presigned_url(url)

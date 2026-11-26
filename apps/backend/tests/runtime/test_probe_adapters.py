@@ -6,9 +6,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
-from infra2_sdk.runtime import health as sdk_health
-from infra2_sdk.runtime.environment import EnvironmentTier
-from infra2_sdk.runtime.health import DependencyStatus
+from infra2_sdk import service as sdk_health
+from infra2_sdk.config import EnvironmentTier
+from infra2_sdk.service import DependencyStatus
 
 import src.runtime as runtime_package
 from src.boot import Bootloader
@@ -225,11 +225,13 @@ async def test_database_and_object_storage_checks() -> None:
         assert (
             ((err := await DatabaseCheck(dsn).probe()).name, err.status) == ("database", DependencyStatus.ABSENT)
             and "super_secret_password" not in err.detail
-            and "<redacted-postgres-dsn>" in err.detail
+            and "postgresql://[REDACTED]" in err.detail
         )
 
     kw = {"endpoint": "http://localhost:9000", "access_key": "minio", "region": "us-east-1", "bucket": "statements"}
-    sdk_res = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.2)
+    sdk_res = sdk_health.ProbeResult(
+        name="object_storage", status=DependencyStatus.PRESENT, detail="bucket accessible", duration_ms=1.2
+    )
     with patch("src.runtime.extension.adapters.probe_s3", return_value=sdk_res) as probe_fn:
         assert await ObjectStorageCheck(secret_key="minio123", **kw).probe() is sdk_res
     assert (probe_fn.call_args.args[0].bucket, probe_fn.call_args.args[0].endpoint_url) == (
@@ -250,9 +252,15 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
         "region": "us-east-1",
         "bucket": "statements",
     }
-    ok_primary = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.0)
-    ok_public = sdk_health.ProbeResult("object_storage", DependencyStatus.PRESENT, "bucket accessible", 1.1)
-    bad_public = sdk_health.ProbeResult("object_storage", DependencyStatus.ABSENT, "DNS error with secret-s3-key", 1.1)
+    ok_primary = sdk_health.ProbeResult(
+        name="object_storage", status=DependencyStatus.PRESENT, detail="bucket accessible", duration_ms=1.0
+    )
+    ok_public = sdk_health.ProbeResult(
+        name="object_storage", status=DependencyStatus.PRESENT, detail="bucket accessible", duration_ms=1.1
+    )
+    bad_public = sdk_health.ProbeResult(
+        name="object_storage", status=DependencyStatus.ABSENT, detail="DNS error with secret-s3-key", duration_ms=1.1
+    )
 
     with patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, bad_public]):
         failed_pub = await ObjectStorageCheck(public_endpoint="https://s3.zitian.party", **kw).probe()
@@ -267,7 +275,7 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     s3_client = MagicMock(put_object=MagicMock(), delete_object=MagicMock(), close=MagicMock())
     with (
         patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, ok_public]) as probe_fn,
-        patch("infra2_sdk.runtime.s3.create_s3_client", return_value=s3_client),
+        patch("infra2_sdk.storage.create_s3_client", return_value=s3_client),
     ):
         ok = await ObjectStorageCheck(
             public_endpoint="https://s3.zitian.party",
@@ -279,7 +287,7 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
         ).probe()
     assert ok.status is DependencyStatus.PRESENT and "write/delete ok" in ok.detail
     assert probe_fn.call_count == 2
-    assert probe_fn.call_args_list[0].args[0].addressing_style == "path"
+    assert probe_fn.call_args_list[0].args[0].use_path_style is True
     assert (probe_fn.call_args_list[1].args[0].bucket, probe_fn.call_args_list[1].args[0].secret_access_key) == (
         "statements",
         "secret-s3-key",
@@ -308,7 +316,7 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     )
     with (
         patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
-        patch("infra2_sdk.runtime.s3.create_s3_client", return_value=failing_put),
+        patch("infra2_sdk.storage.create_s3_client", return_value=failing_put),
     ):
         err = await ObjectStorageCheck(verify_write=True, **kw).probe()
     assert err.status is DependencyStatus.ABSENT and "S3 write/delete probe failed" in err.detail
@@ -321,7 +329,7 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     )
     with (
         patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
-        patch("infra2_sdk.runtime.s3.create_s3_client", return_value=failing_del),
+        patch("infra2_sdk.storage.create_s3_client", return_value=failing_del),
     ):
         err_del = await ObjectStorageCheck(verify_write=True, **kw).probe()
     assert err_del.status is DependencyStatus.ABSENT and "DeleteDenied" in err_del.detail
@@ -338,7 +346,7 @@ def test_every_declared_dependency_has_a_probe_adapter() -> None:
         "DependencyStatus",
         "EnvironmentTier",
         "ProbeResult",
-        "resolve_environment_tier",
+        "resolve_tier",
     }
     sources = sorted(Path(runtime_package.__file__).resolve().parent.rglob("*.py"))
     assert sdk_owned.isdisjoint(runtime_package.__all__) and any(p.name == "adapters.py" for p in sources)
@@ -356,12 +364,14 @@ def test_every_declared_dependency_has_a_probe_adapter() -> None:
         (
             lambda: WorkflowEngineCheck(api_url="http://prefect:4200/api"),
             "workflow_engine",
-            "src.runtime.extension.adapters.probe_orchestrator",
+            "src.runtime.extension.adapters.probe_http",
         ),
         (lambda: MarketDataCheck(timeout_seconds=5), "market_data", "src.runtime.extension.adapters.probe_http"),
     ],
 )
 async def test_http_adapters_return_the_sdk_probe_result_unchanged(make_check, name: str, target: str) -> None:
-    sdk_res = sdk_health.ProbeResult(name, sdk_health.DependencyStatus.PRESENT, "HTTP 200", 1.5)
+    sdk_res = sdk_health.ProbeResult(
+        name=name, status=sdk_health.DependencyStatus.PRESENT, detail="HTTP 200", duration_ms=1.5
+    )
     with patch(target, AsyncMock(return_value=sdk_res)) as probe_fn:
         assert await make_check().probe() is sdk_res and probe_fn.await_args.kwargs["name"] == name

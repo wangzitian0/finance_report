@@ -19,7 +19,7 @@ description: Finance Report Deploy Evidence & Reality Guard. Verifies Staging an
 Finance Report never checks out or runs infra2 source directly. Deployments cross the versioned release train and hook manifest boundary:
 1. `runtime-hooks.manifest.json` (schema version 3) declares checks across `stages.yaml` cells (`preview.operation`, `preview.post`, `staging.operation`, `staging.post`, `prod.operation`, `prod.post`, `scheduled_audit`), executed via `run_cell`.
 2. `common/runtime/deployment.md` documents the release tag coordinate in infra2.
-3. Verify the hook manifest locally with `python -m infra2_sdk.manifests --check-hooks runtime-hooks.manifest.json`.
+3. Verify the hook manifest locally with `python -m infra2_sdk.delivery check-hooks runtime-hooks.manifest.json`.
 
 ### Phase 2: Staging Soak and Observability
 Confirm the release tag triggered staging reconcile and passed soak:

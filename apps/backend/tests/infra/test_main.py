@@ -50,7 +50,7 @@ async def test_health_healthy_and_503_failures(client: AsyncClient, public_clien
 
 
 async def test_statement_routes_smoke_and_contracts(client: AsyncClient, monkeypatch) -> None:
-    from infra2_sdk.runtime.llm import LlmSettings
+    from infra2_sdk.llm import LlmSettings
     from src import main as main_module
     from src.config import Settings
     from src.database import Base, get_db
