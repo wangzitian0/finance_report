@@ -11,7 +11,8 @@ import pickle
 
 import httpx2
 import pytest
-from infra2_sdk.llm import DecodingSpec, allow_vcr_model_requests
+from infra2_sdk.llm import DecodingSpec
+from tests._support.llm_replay import allow_vcr_model_requests
 from pydantic_ai.exceptions import (
     ContentFilterError,
     ModelHTTPError,

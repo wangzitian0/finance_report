@@ -21,7 +21,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from infra2_sdk.config import EnvironmentTier, resolve_tier
 from infra2_sdk.service import DependencyStatus, ProbeResult, init_service
-from infra2_sdk.telemetry import PROBE_PATHS
 from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -177,7 +176,7 @@ def _init_otel_instrumentation() -> None:
         logger.warning("OTEL instrumentation not available", exc_info=True)
 
 
-_PROBE_PATHS = PROBE_PATHS
+_PROBE_PATHS = frozenset({"/health", "/livez", "/readyz"})
 _RATE_LIMIT_EXEMPT_PATHS = _PROBE_PATHS | frozenset({"/docs", "/docs/oauth2-redirect", "/openapi.json", "/redoc"})
 
 

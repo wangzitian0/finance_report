@@ -3,17 +3,22 @@
 from __future__ import annotations
 
 import importlib
+import subprocess
+import sys
 
-from infra2_sdk import storage
+from scripts.check_migrated_enums import code_enum_tuples
 
 
-def test_storage_check_schema_has_psycopg_driver_and_reaches_db_url_check(capsys) -> None:
+def test_storage_check_schema_has_psycopg_driver_and_reaches_db_url_check() -> None:
     """Backend image must install psycopg via infra2-sdk[postgres] instead of failing with RuntimeError."""
     psycopg = importlib.import_module("psycopg")
     assert hasattr(psycopg, "connect")
 
-    exit_code = storage.main(
+    proc = subprocess.run(
         [
+            sys.executable,
+            "-m",
+            "infra2_sdk.storage",
             "check-schema",
             "--metadata",
             "src.database:Base.metadata",
@@ -21,11 +26,13 @@ def test_storage_check_schema_has_psycopg_driver_and_reaches_db_url_check(capsys
             "",
             "--label",
             "finance_report/app",
-        ]
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    captured = capsys.readouterr()
-    assert exit_code == storage.EXIT_NOT_EVALUATED
-    assert "DATABASE_URL is required" in captured.err
+    assert proc.returncode == 3
+    assert "DATABASE_URL is required" in proc.stderr
 
 
 def test_manual_valuation_component_type_enum_matches_pg_append_order() -> None:
@@ -33,7 +40,7 @@ def test_manual_valuation_component_type_enum_matches_pg_append_order() -> None:
     import src.orm_registry  # noqa: F401
     from src.database import Base
 
-    by_name = {spec.name: spec.labels for spec in storage.enums_from_metadata(Base.metadata)}
+    by_name = code_enum_tuples(Base.metadata)
     assert by_name["manual_valuation_component_type_enum"] == (
         "property_value",
         "mortgage_balance",

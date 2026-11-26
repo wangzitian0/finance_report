@@ -20,7 +20,6 @@ from collections.abc import Mapping
 from typing import Any
 
 import psycopg2
-from infra2_sdk.storage import enums_from_metadata
 
 _DB_ENUMS_SQL = (
     "SELECT t.typname, e.enumlabel FROM pg_type t "
@@ -31,9 +30,36 @@ _DB_ENUMS_SQL = (
 )
 
 
+def _iter_enum_types(col_type: Any):
+    item = getattr(col_type, "item_type", None)
+    if item is not None:
+        yield from _iter_enum_types(item)
+    if (
+        getattr(col_type, "native_enum", True)
+        and getattr(col_type, "name", None)
+        and getattr(col_type, "enums", None) is not None
+    ):
+        yield col_type
+
+
+def code_enum_tuples(metadata: Any) -> dict[str, tuple[str, ...]]:
+    """``{enum type name: ordered labels}`` for every native enum column on ``metadata``."""
+    out: dict[str, tuple[str, ...]] = {}
+    for table in metadata.tables.values():
+        for col in table.columns:
+            for enum_t in _iter_enum_types(col.type):
+                labels = tuple(str(v) for v in enum_t.enums)
+                if enum_t.name in out and out[enum_t.name] != labels:
+                    raise ValueError(
+                        f"conflicting enum definitions for {enum_t.name!r}: {out[enum_t.name]!r} != {labels!r}"
+                    )
+                out[enum_t.name] = labels
+    return out
+
+
 def code_enums(metadata: Any) -> dict[str, frozenset[str]]:
     """``{enum type name: labels}`` for every native enum column on ``metadata``."""
-    return {spec.name: frozenset(spec.labels) for spec in enums_from_metadata(metadata)}
+    return {name: frozenset(labels) for name, labels in code_enum_tuples(metadata).items()}
 
 
 def migrated_enums(database_url: str) -> dict[str, frozenset[str]]:

@@ -45,7 +45,7 @@ dependencies = [
     # `infra2_sdk.service.init_service` and `infra2_sdk.telemetry.init_worker`
     # own OTel traces/metrics/logs, JSON logging, /livez, /readyz, and /health.
     # The `llm` extra installs `pydantic-ai-slim[zai]`: `create_llm_agent` is the one model entry point (#3153).
-    "infra2-sdk[telemetry,llm,postgres] @ https://github.com/wangzitian0/infra2-sdk/releases/download/v4.11.2/infra2_sdk-4.11.2-py3-none-any.whl",
+    "infra2-sdk[telemetry,llm,postgres] @ https://github.com/wangzitian0/infra2-sdk/releases/download/v4.12.0/infra2_sdk-4.12.0-py3-none-any.whl",
 ]
 
 [dependency-groups]

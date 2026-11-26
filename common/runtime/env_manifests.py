@@ -21,7 +21,7 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from infra2_sdk.config import EnvironmentManifest, validate_env
+from infra2_sdk.config import EnvironmentManifest
 from infra2_sdk.delivery import RuntimeHooksManifest, resolve_check_cells
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -167,9 +167,7 @@ def collect_backend_fields() -> list[dict]:
             {
                 "field": name,
                 "key": entry.env,
-                "value": str(extra["example"])
-                if "example" in extra
-                else _render_value(field.default),
+                "value": str(extra["example"]) if "example" in extra else _render_value(field.default),
                 "description": (field.description or "").strip(),
                 "group": str(extra["group"]),
                 "vault": bool(extra.get("injected", False)),
@@ -179,11 +177,7 @@ def collect_backend_fields() -> list[dict]:
 
 
 def _group_sort_key(group: str) -> tuple[int, str]:
-    return (
-        (GROUP_ORDER.index(group), "")
-        if group in GROUP_ORDER
-        else (len(GROUP_ORDER), group)
-    )
+    return (GROUP_ORDER.index(group), "") if group in GROUP_ORDER else (len(GROUP_ORDER), group)
 
 
 def render_backend_block(fields: list[dict]) -> str:
@@ -209,9 +203,7 @@ def render_backend_block(fields: list[dict]) -> str:
 def env_example_documented_keys(text: str) -> set[str]:
     keys: set[str] = set()
     for line in text.splitlines():
-        pattern = (
-            _COMMENTED_KEY_RE if line.lstrip().startswith("#") else _ASSIGNED_KEY_RE
-        )
+        pattern = _COMMENTED_KEY_RE if line.lstrip().startswith("#") else _ASSIGNED_KEY_RE
         if match := pattern.match(line):
             keys.add(match.group(1))
     return keys
@@ -225,9 +217,7 @@ def render_env_example(existing: str | None, fields: list[dict]) -> str:
         return f"{head}{managed}{tail}"
     if existing:
         lines = existing.splitlines()
-        start = next(
-            (i for i, line in enumerate(lines) if FRONTEND_HEADER in line), None
-        )
+        start = next((i for i, line in enumerate(lines) if FRONTEND_HEADER in line), None)
         if start is not None:
             while start > 0 and lines[start - 1].lstrip().startswith("#"):
                 start -= 1
@@ -246,14 +236,10 @@ def runtime_hooks_gate_errors(hooks_manifest_path: Path | None = None) -> list[s
 
     errors: list[str] = []
     if hooks.service != "finance_report/app":
-        errors.append(
-            f"runtime-hooks.manifest.json: expected service 'finance_report/app', got {hooks.service!r}"
-        )
+        errors.append(f"runtime-hooks.manifest.json: expected service 'finance_report/app', got {hooks.service!r}")
     for cell_id in REQUIRED_HOOK_CELLS:
         if not any(cell_id in resolve_check_cells(c) for c in hooks.checks):
-            errors.append(
-                f"runtime-hooks.manifest.json: no check runs in cell {cell_id!r}"
-            )
+            errors.append(f"runtime-hooks.manifest.json: no check runs in cell {cell_id!r}")
 
     manifests = _all_manifests()
     known = set(HOOK_ONLY_ENV_KEYS)
@@ -281,11 +267,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
-    existing_env = (
-        ENV_EXAMPLE_PATH.read_text(encoding="utf-8")
-        if ENV_EXAMPLE_PATH.exists()
-        else None
-    )
+    existing_env = ENV_EXAMPLE_PATH.read_text(encoding="utf-8") if ENV_EXAMPLE_PATH.exists() else None
     new_env = render_env_example(existing_env, collect_backend_fields())
 
     if not args.check:
@@ -301,11 +283,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     problems = _check_manifests(HAND_WRITTEN)
     for problem in problems:
         print(problem)
-    print(
-        "env manifests: ok"
-        if not problems
-        else f"env manifests: {len(problems)} problem(s)"
-    )
+    print("env manifests: ok" if not problems else f"env manifests: {len(problems)} problem(s)")
     failed = bool(problems)
     if existing_env != new_env:
         failed = True
@@ -353,7 +331,6 @@ __all__ = [
     "runtime_hooks_gate_errors",
     "settings_module",
     "specs",
-    "validate_env",
 ]
 
 

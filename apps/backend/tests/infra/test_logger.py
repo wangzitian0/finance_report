@@ -4,78 +4,38 @@ import datetime
 import io
 import json
 import logging
-import sys
-import types
 from unittest.mock import patch
 from uuid import UUID
 
-from infra2_sdk.telemetry import JsonLogFormatter, OtelSettings, signal_endpoint
+from infra2_sdk.telemetry import TelemetryProviders, bind_log_context, current_request_id, init_worker
 from opentelemetry.exporter.otlp.proto.common._internal import _encode_value
 
 from src import observability
 from src.observability import configure_logging, detect_pii, get_logger
 
 
-def test_sdk_json_formatter_otel_settings_and_endpoints(monkeypatch) -> None:
-    for raw, signal in (
-        ("http://collector:4318", "logs"),
-        ("http://collector:4318/", "logs"),
-        ("http://collector:4318/v1/logs", "logs"),
-        ("http://collector:4318/", "traces"),
-    ):
-        assert signal_endpoint(raw, signal) == f"http://collector:4318/v1/{signal}"
+def test_sdk_init_worker_json_formatter_and_log_context(monkeypatch, capsys) -> None:
     for k, v in (
-        ("ENVIRONMENT", "production"),
-        ("OTEL_SERVICE_NAME", "my-service"),
-        ("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=production,team=finance"),
-        ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318"),
+        ("ENVIRONMENT", "local_dev"),
+        ("SERVICE_VERSION", "abc1234"),
+        ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318"),
     ):
         monkeypatch.setenv(k, v)
-    s = OtelSettings.from_env(strict=True)
-    assert (s.service_name, s.deployment_environment, s.resource_attributes["team"], s.enabled) == (
-        "my-service",
-        "production",
-        "finance",
-        True,
-    )
-
-    span = lambda valid: types.SimpleNamespace(
-        get_span_context=lambda: types.SimpleNamespace(
-            trace_id=0x1234567890ABCDEF1234567890ABCDEF if valid else 0,
-            span_id=0xFEDCBA0987654321 if valid else 0,
-            is_valid=valid,
-        )
-    )
-    fmt = JsonLogFormatter(
-        {
-            "service.name": "finance-report-backend",
-            "deployment.environment.name": "staging",
-            "service.version": "abc1234",
-        }
-    )
-    rec = logging.LogRecord("test.logger", logging.INFO, __file__, 1, "Account S1234567A failed", (), None)
-    rec.audit_event = "statement.parse"
-    with patch("opentelemetry.trace.get_current_span", return_value=span(True)):
-        p = json.loads(fmt.format(rec))
-    assert (
-        p["service.name"],
-        p["deployment.environment.name"],
-        p["service.version"],
-        p["trace_id"],
-        p["span_id"],
-        p["audit_event"],
-    ) == (
-        "finance-report-backend",
-        "staging",
-        "abc1234",
-        "1234567890abcdef1234567890abcdef",
-        "fedcba0987654321",
-        "statement.parse",
-    )
-    with patch("opentelemetry.trace.get_current_span", return_value=span(False)):
-        assert (json.loads(fmt.format(rec))["trace_id"], json.loads(fmt.format(rec))["span_id"]) == (None, None)
-    monkeypatch.delitem(sys.modules, "opentelemetry.trace", raising=False)
-    assert json.loads(fmt.format(rec))["trace_id"] is None
+    providers = init_worker("finance-report-backend", set_global=False)
+    assert isinstance(providers, TelemetryProviders)
+    try:
+        assert current_request_id() is None
+        with bind_log_context(audit_event="statement.parse", request_id="req-42"):
+            logging.getLogger("test.logger").info("Account S1234567A failed")
+        lines = [line for line in capsys.readouterr().out.splitlines() if line.strip().startswith("{")]
+        payload = json.loads(lines[-1])
+        assert payload["service.name"] == "finance-report-backend"
+        assert payload["deployment.environment.name"] == "local_dev"
+        assert payload["service.version"] == "abc1234"
+        assert payload["audit_event"] == "statement.parse"
+        assert payload["request_id"] == "req-42"
+    finally:
+        providers.shutdown()
 
 
 def test_configure_logging_sanitization_and_contextvars(monkeypatch) -> None:
