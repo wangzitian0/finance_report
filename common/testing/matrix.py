@@ -281,6 +281,7 @@ E2E_ROWS: tuple[E2ERow, ...] = (
 STAGING_CORE_E2E_STAGE = "staging_core_e2e"
 STAGING_CORE_E2E_MARKER = "(smoke or e2e) and not llm"
 STAGING_CORE_E2E_PARALLELISM = 4
+"""pytest-xdist worker count of the core E2E stages; journeys share no data, and each worker has its own session user (#3241)."""
 
 PREVIEW_MINIMUM_E2E_STAGE = "preview_minimum_e2e"
 PREVIEW_MINIMUM_E2E_MARKER = STAGING_CORE_E2E_MARKER
@@ -296,6 +297,17 @@ STAGE_ENV: dict[str, dict[str, str]] = {
     STAGING_CORE_E2E_STAGE: _CORE_E2E_ENV,
     STAGING_AI_OCR_STAGE: {},
 }
+
+
+STAGE_PARALLELISM: dict[str, int] = {
+    PREVIEW_MINIMUM_E2E_STAGE: STAGING_CORE_E2E_PARALLELISM,
+    STAGING_CORE_E2E_STAGE: STAGING_CORE_E2E_PARALLELISM,
+}
+
+
+def stage_parallelism(stage: str) -> int:
+    """Return the pytest-xdist worker count of a stage; 1 means one process."""
+    return STAGE_PARALLELISM.get(stage, 1)
 
 
 def stage_env(stage: str) -> dict[str, str]:
