@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from botocore.exceptions import BotoCoreError, ClientError
 from fastapi.concurrency import run_in_threadpool
-from infra2_sdk.runtime.environment import EnvironmentTier, resolve_environment_tier
+from infra2_sdk.config import EnvironmentTier, resolve_tier
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 import src.config
@@ -49,10 +49,11 @@ def _list_storage_keys(storage: StorageService) -> list[tuple[str, datetime]]:
 
 
 def _is_preview() -> bool:
-    return (
-        resolve_environment_tier(str(getattr(settings, "environment", "")), unknown="production")
-        is EnvironmentTier.PREVIEW
-    )
+    try:
+        tier = resolve_tier(str(getattr(settings, "environment", "")))
+    except ValueError:
+        tier = EnvironmentTier.PRODUCTION
+    return tier is EnvironmentTier.PREVIEW
 
 
 async def sweep_orphaned_storage_objects(

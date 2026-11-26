@@ -17,7 +17,7 @@ from typing import Any
 
 import pytest
 import yaml
-from infra2_sdk.manifests import load_hooks_manifest
+from infra2_sdk.delivery import RuntimeHooksManifest
 
 ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "apps" / "backend"
@@ -961,7 +961,10 @@ def test_cross_layer_routing_skip_sets_and_tooling_lane_coverage() -> None:
     pw_uses = [str(s.get("uses", "")) for s in pw_steps if isinstance(s, dict)]
     pw_with = [s.get("with", {}).get("name") for s in pw_steps if isinstance(s, dict)]
     pw_runs = "\n".join(str(s.get("run", "")) for s in pw_steps if isinstance(s, dict))
-    assert any("download-artifact" in u for u in pw_uses) and "frontend-next-build" in pw_with
+    assert (
+        any("download-artifact" in u for u in pw_uses)
+        and "frontend-next-build" in pw_with
+    )
     assert "npm run test:e2e" in pw_runs and "npm run test:e2e:telemetry" in pw_runs
 
     # Ensure Vitest does not read backend paths (cross-layer isolation)
@@ -1061,7 +1064,7 @@ def test_AC_testing_deploy_gates_37_corpus_disjointness_and_junit_emission(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """AC-testing.deploy-gates.37"""
-    manifest = load_hooks_manifest(ROOT / "runtime-hooks.manifest.json")
+    manifest = RuntimeHooksManifest.from_file(ROOT / "runtime-hooks.manifest.json")
     for cell, corpus in (
         ("staging.post", "canary"),
         ("scheduled_audit", "audit_replay"),
@@ -2035,7 +2038,9 @@ def test_moon_ci_compose_addopts_and_corpus_contracts() -> None:
         "opencode.json",
         ".opencode",
     ):
-        assert not (ROOT / obsolete).exists(), f"Obsolete path still present: {obsolete}"
+        assert not (ROOT / obsolete).exists(), (
+            f"Obsolete path still present: {obsolete}"
+        )
     assert "moonrepo/setup-toolchain@v0" not in ci_workflow
 
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
@@ -2283,13 +2288,16 @@ def test_frontend_env_action_and_check_api_types_fail_closed(
     )
     assert "hashFiles('apps/frontend/package-lock.json')" in cache_step["with"]["key"]
     assert "restore-keys" not in cache_step["with"]
-    install_step = next(
-        s for s in steps if "npm ci" in str(s.get("run", ""))
-    )
+    install_step = next(s for s in steps if "npm ci" in str(s.get("run", "")))
     assert "cache-hit != 'true'" in str(install_step.get("if", ""))
 
     workflow = yaml.safe_load(CI_WORKFLOW.read_text(encoding="utf-8"))
-    for job_name in ("lint", "frontend-build", "frontend-vitest", "frontend-playwright"):
+    for job_name in (
+        "lint",
+        "frontend-build",
+        "frontend-vitest",
+        "frontend-playwright",
+    ):
         job_steps = workflow["jobs"][job_name]["steps"]
         setup_steps = [
             s
@@ -2314,9 +2322,9 @@ def test_frontend_env_action_and_check_api_types_fail_closed(
 
 def test_install_infra2_sdk_caches_and_verifies_sha256() -> None:
     """install-infra2-sdk caches the wheel on tools/sdk_pin.py output and enforces sha256sum."""
-    action_text = (
-        ROOT / ".github/actions/install-infra2-sdk/action.yml"
-    ).read_text(encoding="utf-8")
+    action_text = (ROOT / ".github/actions/install-infra2-sdk/action.yml").read_text(
+        encoding="utf-8"
+    )
     action = yaml.safe_load(action_text)
     steps = action["runs"]["steps"]
     cache_step = next(s for s in steps if s.get("uses") == "actions/cache@v4")

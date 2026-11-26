@@ -8,7 +8,7 @@ does not acknowledge it, so a catch of ``BaseException`` does not hide it either
 from unittest.mock import MagicMock
 
 import pytest
-from infra2_sdk.runtime import DecodingSpec
+from infra2_sdk.llm import DecodingSpec
 from sqlalchemy import text
 
 from src.database import get_session_maker
@@ -22,7 +22,7 @@ from tests._support.guards import (
 )
 
 _GUARD_MESSAGE = "External I/O attempted while an application AsyncSession transaction is open"
-_DECODING = DecodingSpec("test.v1", thinking=False, timeout=5.0)
+_DECODING = DecodingSpec(decoding_version="test.v1", thinking=False, timeout=5.0)
 
 
 def test_the_guard_error_is_not_an_exception() -> None:

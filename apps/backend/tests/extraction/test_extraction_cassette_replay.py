@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
-from infra2_sdk.runtime import DecodingSpec
+from infra2_sdk.llm import DecodingSpec
 from sqlalchemy import select
 
 from src.config import settings
@@ -56,7 +56,11 @@ async def test_AC23_6_extraction_text_happy_path_via_replay(
             "multimodal",
             _TEXT_PROMPT + "\n\n" + statement,
             decoding=DecodingSpec(
-                "extraction.statement.v1", thinking=False, temperature=0.0, max_tokens=512, timeout=120.0
+                decoding_version="extraction.statement.v1",
+                thinking=False,
+                temperature=0.0,
+                max_tokens=512,
+                timeout=120.0,
             ),
             max_attempts=1,
         )

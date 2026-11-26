@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import TypeVar
 
 from botocore.exceptions import BotoCoreError, ClientError
-from infra2_sdk.runtime.s3 import (
+from infra2_sdk.storage import (
     S3Settings,
     create_s3_client,
     ensure_bucket,
@@ -44,8 +44,8 @@ class StorageService:
             endpoint_url=settings.s3_endpoint,
             access_key_id=settings.s3_access_key,
             secret_access_key=settings.s3_secret_key,
-            region_name=settings.s3_region,
-            addressing_style="path",
+            region=settings.s3_region,
+            use_path_style=True,
         )
         self.client = create_s3_client(self._s3_settings)
         self.public_client = None
@@ -57,8 +57,8 @@ class StorageService:
                     endpoint_url=settings.s3_public_endpoint,
                     access_key_id=settings.s3_public_access_key or settings.s3_access_key,
                     secret_access_key=settings.s3_public_secret_key or settings.s3_secret_key,
-                    region_name=settings.s3_region,
-                    addressing_style="path",
+                    region=settings.s3_region,
+                    use_path_style=True,
                 )
             )
 
@@ -67,7 +67,7 @@ class StorageService:
             if self.bucket in self._checked_buckets:
                 return
             try:
-                ensure_bucket(self._s3_settings, client=self.client, allow_create=True)
+                ensure_bucket(self.client, self.bucket, region=self._s3_settings.region)
             except (BotoCoreError, ClientError) as exc:
                 op = str(getattr(exc, "operation_name", "") or "").lower()
                 verb = "create" if op in ("create_bucket", "createbucket") else "access"

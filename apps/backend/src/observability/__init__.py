@@ -11,7 +11,7 @@ publishes the cohesive surfaces:
 * :mod:`src.observability.pii_redaction` — the Singapore-pattern PII detector
   (``detect_pii``) the audit helpers and extraction's CSV path share (was the
   flat ``src.services.pii_redaction``, #1677);
-* :mod:`infra2_sdk.runtime.otel` — SDK-owned JSON stdout logging and OTLP export;
+* :mod:`infra2_sdk.telemetry` — SDK-owned JSON stdout logging and OTLP export;
 * :mod:`src.observability.telemetry_metrics` — the OTEL metric instruments and
   ``record_*`` helpers (was the flat ``src.telemetry_metrics``);
 * :mod:`src.observability.analytics` — the OpenPanel product-analytics ``track``
@@ -147,7 +147,7 @@ def get_logger(name: str | None = None) -> _StructuredLogger:
 
 def configure_logging(*, take_over_root: bool = False) -> None:
     """Configure stdlib JSON logging via public infra2-sdk init_worker without bespoke structlog setup."""
-    from infra2_sdk.runtime.otel import init_worker
+    from infra2_sdk.telemetry import init_worker
 
     cfg = src.config.settings
     if take_over_root:

@@ -13,7 +13,7 @@ PROVIDER_CONNECTIVITY_TIMEOUT_MS = int(
 
 
 def _sdk_large_model() -> str:
-    from infra2_sdk.runtime.llm import LlmSettings
+    from infra2_sdk.llm import LlmSettings
 
     return LlmSettings().role_model("large")
 

@@ -8,7 +8,7 @@ import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from infra2_sdk.runtime.llm import LlmSettings
+from infra2_sdk.llm import LlmSettings
 
 from src.boot import Bootloader, BootMode, ServiceStatus
 from src.config import Settings
@@ -154,7 +154,7 @@ async def test_check_s3(mock_settings, error_msg: str | None) -> None:
     client = MagicMock()
     if error_msg:
         client.head_bucket.side_effect = Exception(error_msg)
-    with patch("infra2_sdk.runtime.s3.create_s3_client", return_value=client):
+    with patch("infra2_sdk.storage.create_s3_client", return_value=client):
         st = await Bootloader._check_s3()
     if error_msg:
         assert st.status == "error" and error_msg in str(st.message)
@@ -167,7 +167,7 @@ async def test_check_s3(mock_settings, error_msg: str | None) -> None:
 async def test_check_s3_staging_write_delete_and_prod_readonly(mock_settings) -> None:
     staging_client = MagicMock()
     mock_settings.environment = "staging"
-    with patch("infra2_sdk.runtime.s3.create_s3_client", return_value=staging_client):
+    with patch("infra2_sdk.storage.create_s3_client", return_value=staging_client):
         st_staging = await Bootloader._check_s3()
     assert (st_staging.status, st_staging.service) == ("ok", "minio")
     staging_client.put_object.assert_called_once()
@@ -176,7 +176,7 @@ async def test_check_s3_staging_write_delete_and_prod_readonly(mock_settings) ->
     for readonly_env in ("production", "prod", "preview", "prod-eu"):
         ro_client = MagicMock()
         mock_settings.environment = readonly_env
-        with patch("infra2_sdk.runtime.s3.create_s3_client", return_value=ro_client):
+        with patch("infra2_sdk.storage.create_s3_client", return_value=ro_client):
             st_ro = await Bootloader._check_s3()
         assert (st_ro.status, st_ro.service) == ("ok", "minio"), readonly_env
         ro_client.put_object.assert_not_called()
@@ -441,7 +441,7 @@ def test_static_config_fails_closed_when_required_injected_setting_missing_in_pr
 
 
 def test_static_config_injected_scope_and_manifest_tiers(mock_settings, boot_mocks, monkeypatch) -> None:
-    from infra2_sdk.runtime.environment import EnvironmentTier
+    from infra2_sdk.config import EnvironmentTier
 
     import src.boot as boot_module
     from src.runtime import DEPENDENCY_MANIFEST
@@ -514,7 +514,7 @@ def test_static_config_injected_scope_and_manifest_tiers(mock_settings, boot_moc
 async def test_manifest_driven_full_validate(
     mock_settings, boot_mocks, tier_name: str, cache_status: str, db_status: str, expected: bool
 ) -> None:
-    from infra2_sdk.runtime.environment import EnvironmentTier
+    from infra2_sdk.config import EnvironmentTier
 
     boot_mocks.db.return_value, boot_mocks.s3.return_value, boot_mocks.ai.return_value = (
         ServiceStatus("database", db_status, "DB"),

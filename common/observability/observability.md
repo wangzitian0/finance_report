@@ -4,7 +4,7 @@
 
 ## App-Side Configuration & Runtime Contract
 
-`apps/backend/src/observability/` delegates stdout JSON logging and OTLP logs/traces/metrics to `infra2_sdk.fastapi.init_service`, suppressing probe telemetry (`/livez`, `/readyz`, `/health`). `apps/backend/src/config.py` reads:
+`apps/backend/src/observability/` delegates stdout JSON logging and OTLP logs/traces/metrics to `infra2_sdk.service.init_service`, suppressing probe telemetry (`/livez`, `/readyz`, `/health`). `apps/backend/src/config.py` reads:
 - `OTEL_EXPORTER_OTLP_ENDPOINT`: Optional OTLP HTTP collector URL (unset falls back cleanly to stdout in local dev).
 - `OTEL_SERVICE_NAME`: Service identity (default `finance-report-backend`).
 - `OTEL_RESOURCE_ATTRIBUTES`: Carries infra2-injected `deployment.environment` and `service.version`.

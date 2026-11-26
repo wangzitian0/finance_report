@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from enum import Enum
 
-from infra2_sdk.fastapi import ErrorResponse
+from pydantic import BaseModel
+
+
+class ErrorResponse(BaseModel):
+    error_id: str
+    detail: str
+    request_id: str | None = None
+
 
 __all__ = [
     "COMMON_ERROR_RESPONSES",

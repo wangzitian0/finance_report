@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import psycopg2
-from infra2_sdk.runtime.schema_check import GateNotEvaluated, enums_from_metadata
+from infra2_sdk.storage import enums_from_metadata
 
 _DB_ENUMS_SQL = (
     "SELECT t.typname, e.enumlabel FROM pg_type t "
@@ -33,10 +33,7 @@ _DB_ENUMS_SQL = (
 
 def code_enums(metadata: Any) -> dict[str, frozenset[str]]:
     """``{enum type name: labels}`` for every native enum column on ``metadata``."""
-    try:
-        return {name: frozenset(labels) for name, labels in enums_from_metadata(metadata).items()}
-    except GateNotEvaluated as exc:
-        raise ValueError(str(exc)) from exc
+    return {spec.name: frozenset(spec.labels) for spec in enums_from_metadata(metadata)}
 
 
 def migrated_enums(database_url: str) -> dict[str, frozenset[str]]:

@@ -4,7 +4,7 @@ import os
 from functools import cached_property
 from typing import Any, Literal
 
-from infra2_sdk.runtime.llm import LlmSettings
+from infra2_sdk.llm import LlmSettings
 from pydantic import Field, field_validator, model_validator
 from pydantic.fields import FieldInfo
 from pydantic_settings import (

@@ -5,8 +5,8 @@
 ships the `base` manifest/jobs/env-classification definitions and the `extension`
 probe adapters (`boot.Bootloader` delegates its checks to them). The SDK types
 (`Dependency`, `DependencyCheck`, `DependencyKind`, `DependencyManifest`,
-`DependencyStatus`, `EnvironmentTier`, `ProbeResult`, `resolve_environment_tier`)
-live in `infra2_sdk.runtime.*` and must be imported directly from there.
+`DependencyStatus`, `EnvironmentTier`, `ProbeResult`, `resolve_tier`)
+live in `infra2_sdk.{config,service}` and must be imported directly from there.
 """
 
 from __future__ import annotations

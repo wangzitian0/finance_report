@@ -7,7 +7,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-_TEST_ONLY_MODULES = ("vcr", "pytest_recording", "pydantic_ai.models.test", "pydantic_ai.models.function")
+_TEST_ONLY_MODULES = (
+    "vcr",
+    "pytest_recording",
+    "pydantic_ai.models.test",
+    "pydantic_ai.models.function",
+)
 _TEST_ONLY_NAMES = ("TestModel", "FunctionModel")
 # The entry point of the app is the one caller of these (the guard of the tests against a model call inside an open
 # transaction wraps it).
@@ -18,11 +23,17 @@ _ENTRY_POINT = "apps/backend/src/llm/extension/agent.py"
 
 
 def _is_test_only_module(module: str) -> bool:
-    return any(module == banned or module.startswith(banned + ".") for banned in _TEST_ONLY_MODULES)
+    return any(
+        module == banned or module.startswith(banned + ".")
+        for banned in _TEST_ONLY_MODULES
+    )
 
 
 def _is_provider_sdk_module(module: str) -> bool:
-    return any(module == banned or module.startswith(banned + ".") for banned in _PROVIDER_SDK_MODULES)
+    return any(
+        module == banned or module.startswith(banned + ".")
+        for banned in _PROVIDER_SDK_MODULES
+    )
 
 
 def _dotted(node: object) -> str | None:
@@ -50,9 +61,17 @@ def imports_of_test_doubles_in(source: str, *, entry_point: bool = False) -> lis
     hits: list[str] = []
     for node in ast.walk(ast.parse(source)):
         if isinstance(node, ast.Import):
-            hits.extend(f"import {alias.name}" for alias in node.names if _is_test_only_module(alias.name))
+            hits.extend(
+                f"import {alias.name}"
+                for alias in node.names
+                if _is_test_only_module(alias.name)
+            )
             if not entry_point:
-                hits.extend(f"import {alias.name}" for alias in node.names if _is_provider_sdk_module(alias.name))
+                hits.extend(
+                    f"import {alias.name}"
+                    for alias in node.names
+                    if _is_provider_sdk_module(alias.name)
+                )
         elif isinstance(node, ast.ImportFrom):
             module = node.module or ""
             if _is_test_only_module(module):
@@ -60,7 +79,9 @@ def imports_of_test_doubles_in(source: str, *, entry_point: bool = False) -> lis
             if not entry_point and _is_provider_sdk_module(module):
                 hits.append(f"from {module} import ...")
             for alias in node.names:
-                if alias.name in _TEST_ONLY_NAMES or _is_test_only_module(f"{module}.{alias.name}"):
+                if alias.name in _TEST_ONLY_NAMES or _is_test_only_module(
+                    f"{module}.{alias.name}"
+                ):
                     hits.append(f"from {module} import {alias.name}")
                 if alias.name == "*" and module.startswith("pydantic_ai.models"):
                     hits.append(f"from {module} import *")
@@ -76,7 +97,8 @@ def imports_of_test_doubles_in(source: str, *, entry_point: bool = False) -> lis
                 hits.append(f"attribute {dotted or node.attr}")
         elif isinstance(node, ast.Constant) and isinstance(node.value, str):
             if re.fullmatch(r"[A-Za-z_][\w.]*", node.value) and (
-                _is_test_only_module(node.value) or (not entry_point and _is_provider_sdk_module(node.value))
+                _is_test_only_module(node.value)
+                or (not entry_point and _is_provider_sdk_module(node.value))
             ):
                 hits.append(f"string {node.value!r}")
     return hits
@@ -96,19 +118,29 @@ def test_the_scan_of_test_only_imports_knows_each_import_form() -> None:
         "import pydantic_ai.models\nx = pydantic_ai.models.function.FunctionModel",
         'importlib.import_module("pydantic_ai.models.function")',
         '__import__("vcr")',
-        "from infra2_sdk.runtime import create_llm_agent",
-        "import infra2_sdk.runtime as r\nr.create_llm_model()",
+        "from infra2_sdk.llm import create_llm_agent",
+        "import infra2_sdk.llm as r\nr.create_llm_model()",
         "from pydantic_ai import Agent",
         "import openai",
         "import anthropic.types",
         'importlib.import_module("openai")',
     ]
     assert [form for form in forms if not imports_of_test_doubles_in(form)] == []
-    clean = "import json\nfrom infra2_sdk.runtime import DecodingSpec\nx = 'vcrx'\ny = 'vcr.py cassette'\nz = 'openai-compatible'"
+    clean = "import json\nfrom infra2_sdk.llm import DecodingSpec\nx = 'vcrx'\ny = 'vcr.py cassette'\nz = 'openai-compatible'"
     assert imports_of_test_doubles_in(clean) == []
     # The entry point may call the factory and import the SDK types.
-    assert imports_of_test_doubles_in("from infra2_sdk.runtime import create_llm_agent", entry_point=True) == []
-    assert imports_of_test_doubles_in("from pydantic_ai import BinaryContent, ImageUrl", entry_point=True) == []
+    assert (
+        imports_of_test_doubles_in(
+            "from infra2_sdk.llm import create_llm_agent", entry_point=True
+        )
+        == []
+    )
+    assert (
+        imports_of_test_doubles_in(
+            "from pydantic_ai import BinaryContent, ImageUrl", entry_point=True
+        )
+        == []
+    )
     # A recorder or a fake model stays banned in the entry point too.
     assert imports_of_test_doubles_in("import vcr", entry_point=True) != []
 
@@ -121,7 +153,8 @@ def test_product_code_imports_no_model_test_double_and_no_recorder() -> None:
         f"{path.relative_to(ROOT).as_posix()}: {hit}"
         for path in files
         for hit in imports_of_test_doubles_in(
-            path.read_text(encoding="utf-8"), entry_point=path.relative_to(ROOT).as_posix() == _ENTRY_POINT
+            path.read_text(encoding="utf-8"),
+            entry_point=path.relative_to(ROOT).as_posix() == _ENTRY_POINT,
         )
     ]
     # The scan must read the entry point, or an empty scan would pass.

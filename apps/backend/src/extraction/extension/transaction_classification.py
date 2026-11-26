@@ -389,7 +389,7 @@ async def _propose_batch(
     hints: RunHints | None = None,
     few_shot_examples: Sequence[Mapping[str, object]] = (),
 ) -> list[CategoryProposal | None]:
-    from infra2_sdk.runtime import DecodingSpec
+    from infra2_sdk.llm import DecodingSpec
 
     from src.llm import ModelFailureKind
     from src.llm.extension.agent import CallSite, complete_text, model_call_failed
@@ -403,7 +403,7 @@ async def _propose_batch(
         "small",
         prompt,
         decoding=DecodingSpec(
-            "extraction.classification.v1",
+            decoding_version="extraction.classification.v1",
             thinking=False,
             temperature=0.0,
             max_tokens=JSON_MAX_TOKENS,

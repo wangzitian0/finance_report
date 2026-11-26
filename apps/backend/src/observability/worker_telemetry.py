@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from typing import Any
 from uuid import uuid4
 
-from infra2_sdk.runtime.otel import init_worker
+from infra2_sdk.telemetry import init_worker
 
 import src.config
 from src.observability import telemetry_metrics

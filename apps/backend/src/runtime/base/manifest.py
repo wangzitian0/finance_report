@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from infra2_sdk.runtime.environment import EnvironmentTier
-from infra2_sdk.runtime.health import Dependency, DependencyKind, DependencyManifest
+from infra2_sdk.config import EnvironmentTier
+from infra2_sdk.service import Dependency, DependencyKind, DependencyManifest
 
 __all__ = ["DEPENDENCY_MANIFEST"]
 
@@ -30,7 +30,7 @@ def _dep(
 
 
 DEPENDENCY_MANIFEST = DependencyManifest(
-    (
+    dependencies=(
         _dep(
             "database",
             DependencyKind.CODE_DOMINANT,

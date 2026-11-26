@@ -49,7 +49,7 @@ def test_AC_meta_phase0_21_to_25_orm_enums_ci_and_main(monkeypatch, capsys):
     col = lambda labels, native=True: SimpleNamespace(
         type=SimpleNamespace(name="k_enum", enums=labels, native_enum=native)
     )
-    with pytest.raises(ValueError, match="different labels"):
+    with pytest.raises(ValueError, match="conflicting enum definitions"):
         check.code_enums(
             SimpleNamespace(
                 tables={"a": SimpleNamespace(columns=[col(["x"])]), "b": SimpleNamespace(columns=[col(["y"])])}

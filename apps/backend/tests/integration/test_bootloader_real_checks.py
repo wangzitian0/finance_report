@@ -18,18 +18,17 @@ _real_checks_patched = lambda: patch.multiple(
 
 
 async def _ensure_bucket_exists() -> None:
-    from infra2_sdk.runtime.s3 import S3Settings, ensure_bucket
+    from infra2_sdk.storage import S3Settings, create_s3_client, ensure_bucket
 
-    ensure_bucket(
-        S3Settings(
-            bucket=settings.s3_bucket,
-            endpoint_url=settings.s3_endpoint,
-            access_key_id=settings.s3_access_key,
-            secret_access_key=settings.s3_secret_key,
-            region_name=settings.s3_region,
-        ),
-        allow_create=True,
+    s3_cfg = S3Settings(
+        bucket=settings.s3_bucket,
+        endpoint_url=settings.s3_endpoint,
+        access_key_id=settings.s3_access_key,
+        secret_access_key=settings.s3_secret_key,
+        region=settings.s3_region,
+        use_path_style=True,
     )
+    ensure_bucket(create_s3_client(s3_cfg), settings.s3_bucket, region=settings.s3_region)
 
 
 async def test_real_database_check_passes_against_live_service() -> None:

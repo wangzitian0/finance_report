@@ -25,8 +25,17 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Any
 
-from infra2_sdk.ci import parse_github_time
-from infra2_sdk.manifests import CELL_POLICIES
+from infra2_sdk.delivery import CELL_POLICIES
+
+
+def parse_github_time(value: str | None) -> datetime | None:
+    if value is None or not value.strip():
+        return None
+    parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
 
 # Derived from infra2-sdk's stages.yaml (`CELL_POLICIES`) (#3215 Slice 2B). Docs link
 # `Pipeline time contract` and repeat no number. Each value is an upper bound.
@@ -333,15 +342,36 @@ def post_overrun(repo: str, pr: str | None, run: dict[str, Any], body: str) -> s
 
     Return the number of the target, or "" when the run is already named there.
     """
-    target = pr or _gh(
-        "issue", "list", "--repo", repo, "--label", BUDGET_ISSUE_LABEL,
-        "--state", "open", "--json", "number", "--jq", ".[0].number // empty",
-    ).strip()
+    target = (
+        pr
+        or _gh(
+            "issue",
+            "list",
+            "--repo",
+            repo,
+            "--label",
+            BUDGET_ISSUE_LABEL,
+            "--state",
+            "open",
+            "--json",
+            "number",
+            "--jq",
+            ".[0].number // empty",
+        ).strip()
+    )
     if not target:
         _gh("label", "create", BUDGET_ISSUE_LABEL, "--repo", repo, "--force")
         _gh(
-            "issue", "create", "--repo", repo, "--label", BUDGET_ISSUE_LABEL,
-            "--title", "CI pipeline budget exceeded on main", "--body", body,
+            "issue",
+            "create",
+            "--repo",
+            repo,
+            "--label",
+            BUDGET_ISSUE_LABEL,
+            "--title",
+            "CI pipeline budget exceeded on main",
+            "--body",
+            body,
         )
         return "new"
     if already_commented(repo, target, str(run.get("url", "unknown"))):
@@ -446,9 +476,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     print(f"Wrote workflow timing summary to {args.summary_path}")
     if args.json_out is not None:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
-        payload = build_timing_payload(
-            run, title=args.title, budget_kind=args.budget
-        )
+        payload = build_timing_payload(run, title=args.title, budget_kind=args.budget)
         args.json_out.write_text(
             json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )

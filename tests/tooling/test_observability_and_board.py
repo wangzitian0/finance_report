@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from infra2_sdk.manifests import CELL_POLICIES, load_hooks_manifest
+from infra2_sdk.delivery import CELL_POLICIES, RuntimeHooksManifest, resolve_check_cells
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -632,7 +632,8 @@ def test_quality_board_freshness_security_hardening_and_rendering(
     manifest_path = ROOT / "runtime-hooks.manifest.json"
     sdk_ids = [
         c.id
-        for c in load_hooks_manifest(manifest_path).checks_for_cell("scheduled_audit")
+        for c in RuntimeHooksManifest.from_file(manifest_path).checks
+        if "scheduled_audit" in resolve_check_cells(c)
     ]
     assert list(qb.expected_scheduled_audit_checks(manifest_path)) == sdk_ids
 

@@ -9,14 +9,15 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-from infra2_sdk.runtime.config_schema import (
+from infra2_sdk.config import (
     EnvironmentConflictError,
-    environment_manifest_from_model,
-    validate_environment,
+    EnvironmentManifest,
+    EnvironmentTier,
+    resolve_tier,
+    validate_env,
 )
-from infra2_sdk.runtime.environment import EnvironmentTier, resolve_environment_tier
-from infra2_sdk.runtime.health import DependencyStatus
-from infra2_sdk.runtime.llm import LlmSettings
+from infra2_sdk.llm import LlmSettings
+from infra2_sdk.service import DependencyStatus
 
 from src.config import ENV_SOURCE_CLASSES, PROTECTED_ENVIRONMENTS, Settings, settings
 from src.observability import get_logger
@@ -103,6 +104,13 @@ async def _probe_status(service: str, adapter: Any, *, include_duration: bool = 
     )
 
 
+def _resolve_tier_or_production(environment: str, *, github_actions: bool = False) -> EnvironmentTier:
+    try:
+        return resolve_tier(environment, github_actions=github_actions)
+    except ValueError:
+        return EnvironmentTier.PRODUCTION
+
+
 class Bootloader:
     """Validate runtime configuration and external dependency reachability."""
 
@@ -115,10 +123,9 @@ class Bootloader:
     @staticmethod
     async def validate(mode: BootMode = BootMode.CRITICAL, tier: EnvironmentTier | None = None) -> bool:
         if tier is None:
-            tier = resolve_environment_tier(
+            tier = _resolve_tier_or_production(
                 settings.environment,
                 github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",
-                unknown="production",
             )
         logger.info("Bootloader starting validation", mode=mode.value, tier=tier.value)
 
@@ -195,7 +202,7 @@ class Bootloader:
 
     @staticmethod
     def _assert_sdk_environment(*, is_protected: bool = False) -> None:
-        manifest = environment_manifest_from_model(
+        manifest = EnvironmentManifest.from_model(
             Settings, source="apps/backend/src/config.py::Settings", overrides=ENV_SOURCE_CLASSES
         )
         effective_environ = dict(os.environ)
@@ -219,7 +226,7 @@ class Bootloader:
                     effective_environ.pop(candidate, None)
             else:
                 effective_environ.setdefault(field.env, str(val))
-        validation = validate_environment(manifest, effective_environ, require_injected=is_protected)
+        validation = validate_env(manifest, effective_environ, require_injected=is_protected)
         if validation.missing:
             raise RuntimeError(
                 f"environment lacks {len(validation.missing)} value(s) manifest declares: "
@@ -293,10 +300,9 @@ class Bootloader:
 
     @staticmethod
     async def _check_s3() -> ServiceStatus:
-        tier = resolve_environment_tier(
+        tier = _resolve_tier_or_production(
             settings.environment,
             github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",
-            unknown="production",
         )
         return await _probe_status(
             "minio",

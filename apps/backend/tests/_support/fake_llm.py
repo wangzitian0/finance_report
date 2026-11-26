@@ -7,7 +7,7 @@ from collections.abc import Callable
 from typing import Any
 
 import pytest
-from infra2_sdk.runtime import create_llm_agent as _create_llm_agent
+from infra2_sdk.llm import create_llm_agent as _create_llm_agent
 from pydantic_ai.messages import ModelResponse, TextPart
 from pydantic_ai.models.function import FunctionModel
 

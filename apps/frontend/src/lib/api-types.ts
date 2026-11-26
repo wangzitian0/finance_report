@@ -618,12 +618,6 @@ export interface components {
       structured_suggestions?: _S["AdvisorSuggestion"][];
       suggestions: string[];
     };
-    CheckDetail: {
-      detail: string;
-      duration_ms: number;
-      required: boolean;
-      status: string;
-    };
     CheckStatus: "pending" | "approved" | "rejected" | "flagged";
     CheckType: "duplicate" | "transfer_pair" | "anomaly";
     ConsistencyCheckListResponse: {
@@ -818,7 +812,7 @@ export interface components {
     };
     HealthResponse: {
       checks: {
-        [key: string]: _S["CheckDetail"];
+        [key: string]: _S["_CheckDetail"];
       };
       git_sha: string;
       reasons: string[];
@@ -1885,6 +1879,12 @@ export interface components {
       next_action: _S["WorkflowNextActionResponse"];
       primary_state: _S["WorkflowPrimaryState"];
       report_readiness: _S["WorkflowReportReadinessResponse"];
+    };
+    _CheckDetail: {
+      detail: string;
+      duration_ms: number;
+      required: boolean;
+      status: string;
     };
   };
   responses: never;

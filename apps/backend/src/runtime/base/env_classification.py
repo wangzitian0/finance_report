@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from infra2_sdk.runtime.health import DependencyManifest
+from infra2_sdk.service import DependencyManifest
 from pydantic_settings import BaseSettings
 
 from src.runtime.base.manifest import DEPENDENCY_MANIFEST

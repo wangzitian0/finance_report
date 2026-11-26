@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import json
 
-from infra2_sdk.runtime import DecodingSpec
+from infra2_sdk.llm import DecodingSpec
 
 from src.llm.base.errors import ModelFailureKind
 from src.llm.extension.agent import CallSite, complete_text, model_call_failed
@@ -32,7 +32,7 @@ from src.observability import get_logger
 logger = get_logger(__name__)
 
 # GLM maps ``thinking=False`` to the lowest reasoning effort, which is what the small role used before.
-_DECODING = DecodingSpec("reconciliation.semantic_score.v1", thinking=False, timeout=30.0)
+_DECODING = DecodingSpec(decoding_version="reconciliation.semantic_score.v1", thinking=False, timeout=30.0)
 
 
 async def ai_semantic_score(prompt: str) -> int:

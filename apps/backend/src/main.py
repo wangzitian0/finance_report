@@ -19,10 +19,9 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from infra2_sdk.fastapi import init_service
-from infra2_sdk.runtime.environment import resolve_environment_tier
-from infra2_sdk.runtime.health import DependencyStatus, ProbeResult
-from infra2_sdk.runtime.otel import PROBE_PATHS
+from infra2_sdk.config import EnvironmentTier, resolve_tier
+from infra2_sdk.service import DependencyStatus, ProbeResult, init_service
+from infra2_sdk.telemetry import PROBE_PATHS
 from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -271,7 +270,7 @@ class _BootCheck:
                 check=self.name,
                 error_type=type(exc).__name__,
             )
-            return ProbeResult(self.name, DependencyStatus.ABSENT, str(exc), 0.0)
+            return ProbeResult(name=self.name, status=DependencyStatus.ABSENT, detail=str(exc), duration_ms=0.0)
 
 
 async def _check_database_probe() -> ProbeResult:
@@ -280,30 +279,37 @@ async def _check_database_probe() -> ProbeResult:
         try:
             async for session in gen:
                 await session.execute(text("SELECT 1"))
-                return ProbeResult("database", DependencyStatus.PRESENT, "ok", 0.0)
+                return ProbeResult(name="database", status=DependencyStatus.PRESENT, detail="ok", duration_ms=0.0)
         except Exception as exc:  # noqa: BLE001
-            return ProbeResult("database", DependencyStatus.ABSENT, str(exc), 0.0)
+            return ProbeResult(name="database", status=DependencyStatus.ABSENT, detail=str(exc), duration_ms=0.0)
         finally:
             await gen.aclose()
     if test_maker := get_test_session_maker():
         try:
             async with test_maker() as session:
                 await session.execute(text("SELECT 1"))
-            return ProbeResult("database", DependencyStatus.PRESENT, "ok", 0.0)
+            return ProbeResult(name="database", status=DependencyStatus.PRESENT, detail="ok", duration_ms=0.0)
         except Exception as exc:  # noqa: BLE001
-            return ProbeResult("database", DependencyStatus.ABSENT, str(exc), 0.0)
+            return ProbeResult(name="database", status=DependencyStatus.ABSENT, detail=str(exc), duration_ms=0.0)
     res = await Bootloader._check_database()
     status = DependencyStatus.PRESENT if res.status == "ok" else DependencyStatus.ABSENT
-    return ProbeResult("database", status, res.message, res.duration_ms)
+    return ProbeResult(name="database", status=status, detail=res.message, duration_ms=res.duration_ms)
 
 
 def _boot_method_check(dep_name: str, method_name: str) -> _BootCheck:
     async def _run() -> ProbeResult:
         res = await getattr(Bootloader, method_name)()
         status = DependencyStatus.PRESENT if res.status == "ok" else DependencyStatus.ABSENT
-        return ProbeResult(dep_name, status, res.message, res.duration_ms)
+        return ProbeResult(name=dep_name, status=status, detail=res.message, duration_ms=res.duration_ms)
 
     return _BootCheck(dep_name, _run)
+
+
+def _resolve_tier_or_production(environment: str, *, github_actions: bool = False) -> EnvironmentTier:
+    try:
+        return resolve_tier(environment, github_actions=github_actions)
+    except ValueError:
+        return EnvironmentTier.PRODUCTION
 
 
 def _health_extra() -> dict[str, Any]:
@@ -313,15 +319,13 @@ def _health_extra() -> dict[str, Any]:
         "version": settings.git_commit_sha,
         "git_sha": settings.git_commit_sha,
         "observability": get_observability_status(),
-        "sdk_environment_tier": resolve_environment_tier(
-            settings.environment, github_actions=in_gha, unknown="production"
-        ).value,
+        "sdk_environment_tier": _resolve_tier_or_production(settings.environment, github_actions=in_gha).value,
     }
 
 
 def _build_health_checks() -> list[_BootCheck]:
     in_gha = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
-    tier = resolve_environment_tier(settings.environment, github_actions=in_gha, unknown="production")
+    tier = _resolve_tier_or_production(settings.environment, github_actions=in_gha)
     probed, _ = Bootloader._required_checks(tier)
     checks: list[_BootCheck] = []
     for name in sorted(probed):

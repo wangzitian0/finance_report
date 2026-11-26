@@ -110,7 +110,7 @@ def test_AC_runtime_guard_proofs_7_and_8_telemetry_tag(monkeypatch, env: str, de
 
 
 def test_observability_ssot_manifest_and_json_renderer(monkeypatch) -> None:
-    from infra2_sdk.runtime.otel import _JsonLogFormatter
+    from infra2_sdk.telemetry import JsonLogFormatter
 
     obs_doc, env_ex = _read(REPO_ROOT / "common/observability/observability.md"), _read(REPO_ROOT / ".env.example")
     fields = {
@@ -130,7 +130,7 @@ def test_observability_ssot_manifest_and_json_renderer(monkeypatch) -> None:
     observability_module.configure_logging()
     telemetry_metrics_module.configure_otel_metrics()
     payload = json.loads(
-        _JsonLogFormatter(
+        JsonLogFormatter(
             {"service.name": "backend", "deployment.environment.name": "production", "service.version": "1.0"}
         ).format(logging.LogRecord("test", logging.INFO, __file__, 1, "startup", (), None))
     )
@@ -263,7 +263,7 @@ def test_AC10_9_and_AC10_11_status_startup_redaction_and_callsites(monkeypatch) 
 async def test_AC10_9_3_and_10_4_health_instrumentation_and_logger_ast(monkeypatch) -> None:
     from fastapi import FastAPI
     from httpx import ASGITransport, AsyncClient
-    from infra2_sdk.runtime.otel import OtelSettings, resource_attributes
+    from infra2_sdk.telemetry import OtelSettings
     from src import main as main_module
     from src.boot import Bootloader, ServiceStatus
     from src.observability import ErrorIds
@@ -330,7 +330,7 @@ async def test_AC10_9_3_and_10_4_health_instrumentation_and_logger_ast(monkeypat
     _set_env(
         monkeypatch, ENVIRONMENT="production", OTEL_SERVICE_NAME="finance-report-backend", SERVICE_VERSION="abc1234"
     )
-    attrs = resource_attributes(OtelSettings.from_env(strict=True))
+    attrs = OtelSettings.from_env(strict=True).resolved_resource_attributes()
     assert (attrs.get("service.version"), attrs.get("service.name")) == ("abc1234", "finance-report-backend")
 
     enabled, disabled = (

@@ -16,7 +16,7 @@ from enum import Enum
 from typing import Any, cast
 from uuid import UUID
 
-from infra2_sdk.runtime import DecodingSpec
+from infra2_sdk.llm import DecodingSpec
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -92,9 +92,7 @@ def _advisor_decoding() -> DecodingSpec:
     The SDK sends no ``reasoning_effort`` when ``thinking`` is None (measured on the wire, 2026-11-24): the effort of the
     role is set here, from the one setting of the role.
     """
-    return DecodingSpec(
-        "advisor.chat.v1", thinking=settings.to_llm_settings().role_reasoning_effort("large"), timeout=120.0
-    )
+    return DecodingSpec(decoding_version="advisor.chat.v1", thinking="high", timeout=120.0)
 
 
 def _split_conversation(messages: list[dict[str, str]]) -> tuple[str | None, list[dict[str, str]], str]:

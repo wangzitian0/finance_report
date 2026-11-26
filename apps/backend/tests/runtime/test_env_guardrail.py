@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import pytest
-from infra2_sdk.runtime.environment import EnvironmentTier
-from infra2_sdk.runtime.health import Dependency, DependencyKind, DependencyManifest
+from infra2_sdk.config import EnvironmentTier
+from infra2_sdk.service import Dependency, DependencyKind, DependencyManifest
 
 from src.config import Settings
 from src.runtime import DEPENDENCY_MANIFEST, NON_DEPENDENCY_ENV_FIELDS, check_env_classification
@@ -23,7 +23,7 @@ def test_every_config_env_var_is_classified() -> None:
     assert all(ev in all_keys for dep in DEPENDENCY_MANIFEST for ev in dep.env_vars)
 
     stray = DependencyManifest(
-        (
+        dependencies=(
             Dependency(
                 name="ghost",
                 kind=DependencyKind.CODE_DOMINANT,

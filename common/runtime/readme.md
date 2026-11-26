@@ -1,6 +1,6 @@
 # `runtime` — External Dependency Boundary
 
-Owns dependency declarations (`DependencyManifest` from `infra2_sdk.runtime.health`), fail-closed probes (`DependencyCheck` / `ProbeResult` from `infra2_sdk.runtime.health`), and CD release coordinates/freshness (`sdk_pin.py`). CI test-selection stays in [common/testing/readme.md](../testing/readme.md).
+Owns dependency declarations (`DependencyManifest` from `infra2_sdk.service`), fail-closed probes (`DependencyCheck` / `ProbeResult` from `infra2_sdk.service`), and CD release coordinates/freshness (`sdk_pin.py`). CI test-selection stays in [common/testing/readme.md](../testing/readme.md).
 
 ## Invariants
 

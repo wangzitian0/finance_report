@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from infra2_sdk.runtime import DecodingSpec
+from infra2_sdk.llm import DecodingSpec
 from src.llm.extension.agent import CallSite, complete_text
 from src.llm.extension.semantic_scoring import ai_semantic_score
 from src.reconciliation.base.prompts import build_reconciliation_prompt
@@ -36,7 +36,7 @@ async def test_a_changed_prompt_has_no_recorded_reply(vcr_llm) -> None:
             CallSite.RECONCILIATION_SEMANTIC_SCORE,
             "small",
             changed,
-            decoding=DecodingSpec("reconciliation.semantic_score.v1", thinking=False, timeout=30.0),
+            decoding=DecodingSpec(decoding_version="reconciliation.semantic_score.v1", thinking=False, timeout=30.0),
             max_attempts=1,
         )
     assert (

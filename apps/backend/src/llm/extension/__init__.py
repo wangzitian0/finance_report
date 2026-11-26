@@ -1,6 +1,6 @@
 """``llm.extension`` — the impure edges: the one model entry point (``agent.py``) and the reconciliation score.
 
-``agent.py`` is the only module that calls ``infra2_sdk.runtime.create_llm_agent``.
+``agent.py`` is the only module that calls ``infra2_sdk.llm.create_llm_agent``.
 """
 
 from __future__ import annotations
