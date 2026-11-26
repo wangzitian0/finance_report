@@ -281,7 +281,7 @@ E2E_ROWS: tuple[E2ERow, ...] = (
 STAGING_CORE_E2E_STAGE = "staging_core_e2e"
 STAGING_CORE_E2E_MARKER = "(smoke or e2e) and not llm"
 STAGING_CORE_E2E_PARALLELISM = 4
-"""pytest-xdist worker count of the core E2E stages; each journey registers its own user (#3241)."""
+"""pytest-xdist worker count of the core E2E stages; journeys share no data, and each worker has its own session user (#3241)."""
 
 PREVIEW_MINIMUM_E2E_STAGE = "preview_minimum_e2e"
 PREVIEW_MINIMUM_E2E_MARKER = STAGING_CORE_E2E_MARKER
