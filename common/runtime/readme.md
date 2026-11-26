@@ -8,7 +8,7 @@ Owns dependency declarations (`DependencyManifest` from `infra2_sdk.service`), f
 2. **Absent => fail**: Missing declared dependencies fail `/health` (503) and smoke checks; no `skipped` fallback.
 3. **Prod-required => SLA-bearing**: `DEPENDENCY_MANIFEST.required_for(EnvironmentTier.PRODUCTION)` declares mandatory production probes independently of feature flags.
 4. **One env name per field**: No `Settings` field declares an alias chain, so an empty value cannot shadow another name (`tests/tooling/test_runtime_and_env_contracts.py::test_AC_runtime_guard_proofs_12_to_14_vault_producers_aliases_and_sensitivity`).
-5. **SDK pin stays in this repository**: `install-infra2-sdk` runs `tools/sdk_pin.py` before the SDK is installed, so the reader uses only the standard library (`tests/tooling/test_runtime_and_env_contracts.py::test_AC_runtime_sdk_pin_1_agreement_stdlib_cli_and_errors`). infra2-sdk has no replacement (wangzitian0/infra2-sdk#241 dropped Slice 1). `infra2_sdk.deploy.parse_wheel_version` reads only the version and does not check the lock or the SHA-256.
+5. **SDK pin stays in this repository**: `install-infra2-sdk` runs `tools/sdk_pin.py` before the SDK is installed, so the reader uses only the standard library (`tests/tooling/test_runtime_and_env_contracts.py::test_AC_runtime_sdk_pin_1_agreement_stdlib_cli_and_errors`). infra2-sdk has no replacement (wangzitian0/infra2-sdk#241 dropped Slice 1).
 
 ## Background Jobs Manifest (`BACKGROUND_JOBS`)
 
