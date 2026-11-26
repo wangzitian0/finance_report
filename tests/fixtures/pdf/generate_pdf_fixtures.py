@@ -4,13 +4,13 @@ Generate synthetic PDF bank statements for E2E testing.
 
 Usage:
     # Generate all sources
-    python tools/generate_pdf_fixtures.py --source all
+    python -m tests.fixtures.pdf.generate_pdf_fixtures --source all
 
     # Generate specific source
-    python tools/generate_pdf_fixtures.py --source dbs
+    python -m tests.fixtures.pdf.generate_pdf_fixtures --source dbs
 
     # Custom output directory
-    python tools/generate_pdf_fixtures.py --source dbs --output /path/to/output/
+    python -m tests.fixtures.pdf.generate_pdf_fixtures --source dbs --output /path/to/output/
 
 Requires: reportlab, pyyaml
 """

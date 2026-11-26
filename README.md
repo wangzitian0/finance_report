@@ -20,8 +20,8 @@ vision.md -> bounded-context invariants & tests -> user_cases_ssot.json -> UI / 
 - **Layer 1 — Bounded Contexts & Structural Boundaries** (`common/<pkg>/`,
   `apps/backend/src/<pkg>/`): each package owns its domain rules, verified by
   executable domain tests and structural boundary guards
-  (`tools/check_app_boundary.py`, `tools/check_base_purity.py`,
-  `tools/check_tier_imports.py`).
+  (`common/meta/extension/check_app_boundary.py`, `common/meta/extension/check_base_purity.py`,
+  `common/meta/extension/check_tier_imports.py`).
 - **Layer 2 — Business User Cases** (`common/meta/flows/user_cases_ssot.json`):
   owns the 47 end-to-end business user cases (`UC-01..UC-47` across 8 domains),
   binding UI routes, backend endpoints, and backend/frontend/E2E tests (see
@@ -109,7 +109,7 @@ Host prerequisites:
   infrastructure, and smoke tests
 
 The project bootstrap command installs or verifies the repo-pinned user-space
-toolchain: uv, Python, nvm/Node.js, Moon CLI, backend dependencies, frontend
+toolchain: uv, Python, nvm/Node.js, backend dependencies, frontend
 dependencies, and pre-commit hooks.
 
 ```bash
@@ -117,7 +117,7 @@ git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
 bash tools/bootstrap.sh
-moon run :dev
+make dev
 ```
 
 Windows developers should run project commands inside WSL Ubuntu. Windows
@@ -134,18 +134,18 @@ Open <http://localhost:3000>.
 ## Development Commands
 
 ```bash
-moon run :dev              # Start local development environment
-moon run :dev -- --backend # Backend only
-moon run :dev -- --frontend # Frontend only
+make dev                   # Start local development environment
+make backend               # Backend only
+make frontend              # Frontend only
 
-moon run :lint             # Lint all workspaces
-moon run :lint -- --fix    # Lint and auto-fix where supported
+make lint                  # Lint all workspaces
+make format                # Lint and auto-fix where supported
 
-moon run :test -- <file>::<test> -x  # Focused backend test, single process, no coverage
-moon run :test -- --e2e    # Root deployment E2E tests
+uv run --directory apps/backend pytest -n0 --no-cov -o addopts= <file>::<test> -x  # Focused backend test
+python -m common.runtime.dev.cli test --e2e    # Root deployment E2E tests
 
-moon run :build            # Build frontend
-moon run :clean            # Clean local resources
+python -m common.runtime.dev.cli build         # Build frontend
+make clean                 # Clean local resources
 ```
 
 Local fast feedback is advisory. PR CI is the authoritative merge gate, and
@@ -167,7 +167,7 @@ apps/
 common/          # Bounded-context domain specs (meta, testing, runtime,
                  # ledger, extraction, llm, ...), meta/flows/user_cases_ssot.json,
                  # and shared cross-cutting validators
-tools/           # Command entry points that delegate to common libraries
+tools/           # Bootstrap and SDK-pin entry points
 docs/project/    # Historical EPIC stubs and project audit reports
 ```
 

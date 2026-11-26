@@ -253,3 +253,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         f"Compacted {target}: {len(raw.splitlines())} -> {len(compacted.splitlines())} lines"
     )
     return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

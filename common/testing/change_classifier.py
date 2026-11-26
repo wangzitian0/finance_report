@@ -54,8 +54,6 @@ TOOLING_LANE_PREFIXES: tuple[str, ...] = (
     ".agents/",
     ".claude/",
     ".gemini/",
-    ".moon/",
-    ".opencode/",
     ".ws-publish/",
 )
 TOOLING_LANE_EXACT: frozenset[str] = frozenset(
@@ -63,7 +61,6 @@ TOOLING_LANE_EXACT: frozenset[str] = frozenset(
         "README.md",
         "readme.md",
         "vision.md",
-        "moon.yml",
         "AGENTS.md",
         "GEMINI.md",
         "Makefile",
@@ -74,11 +71,9 @@ TOOLING_LANE_EXACT: frozenset[str] = frozenset(
         "docs/hooks.py",
         "docs/user-guide/reports.md",
         "runtime-hooks.manifest.json",
-        "opencode.json",
         ".env.example",
         ".gitattributes",
         ".gitignore",
-        ".mcp.json",
         ".node-version",
         ".npmrc",
         ".nvmrc",
@@ -92,7 +87,6 @@ CI_DEFINITION_PATHS = frozenset(
     {
         ".github/workflows/ci.yml",
         "common/testing/change_classifier.py",
-        "tools/ci_change_classifier.py",
     }
 )
 

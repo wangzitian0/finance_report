@@ -5,7 +5,7 @@
 ## Ownership Split
 
 - `infra2`: Dokploy rollout, Traefik routing, Vault secret templates, host Docker hygiene, and Alerting/Lark channels ([infra2 observability SSOT](https://github.com/wangzitian0/infra2/blob/main/docs/ssot/ops.observability.md)).
-- `finance_report`: Application health (`tools/smoke_test.sh`, `/api/health` -> `git_sha` / `version`), OTEL emission (`observability.md`), and deploy gates (`common/runtime/ci-cd.md`). Historical delivery metrics: [`docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md`](../../docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md).
+- `finance_report`: Application health (`common/runtime/shell/smoke_test.sh`, `/api/health` -> `git_sha` / `version`), OTEL emission (`observability.md`), and deploy gates (`common/runtime/ci-cd.md`). Historical delivery metrics: [`docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md`](../../docs/project/DELIVERY_ENGINE_RECOMMENDATIONS.md).
 
 ## Triage Sequence
 

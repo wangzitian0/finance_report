@@ -40,7 +40,6 @@ _TOOLCHAIN_INPUTS = (
     ".nvmrc",
     ".tool-versions",
     ".npmrc",
-    ".moon/toolchain.yml",
     "apps/frontend/package.json",
     ".github/workflows/ci.yml",
     ".github/workflows/docs.yml",
@@ -242,6 +241,9 @@ def test_runtime_hooks_manifest_validation_and_cells(tmp_path: Path) -> None:
     ]
 
     payload = _hooks_payload()
+    payload["checks"] = [
+        c for c in payload["checks"] if c["id"] != "prod_readonly_smoke"
+    ]
     payload["checks"][0].pop("cells")
     assert gen.runtime_hooks_gate_errors(_write_hooks(tmp_path, payload)) == [
         "runtime-hooks.manifest.json: no check runs in cell 'prod.post'"
@@ -268,7 +270,10 @@ def test_runtime_hooks_manifest_validation_and_cells(tmp_path: Path) -> None:
         "ai_provider_connectivity",
         "staging_ai_ocr",
     ]
-    assert [c.id for c in hooks.checks_for_cell("prod.post")] == ["smoke"]
+    assert [c.id for c in hooks.checks_for_cell("prod.post")] == [
+        "smoke",
+        "prod_readonly_smoke",
+    ]
     assert [c.id for c in hooks.checks_for_cell("scheduled_audit")] == [
         "audit_replay",
         "core_journey",
@@ -276,7 +281,13 @@ def test_runtime_hooks_manifest_validation_and_cells(tmp_path: Path) -> None:
         "financial_scenario_benchmark",
     ]
     by_id = {c.id: c for c in hooks.checks}
-    for non_llm in ("preview_minimum_e2e", "staging_core_e2e", "core_journey"):
+    assert by_id["prod_readonly_smoke"].writes is False
+    for non_llm in (
+        "preview_minimum_e2e",
+        "staging_core_e2e",
+        "core_journey",
+        "prod_readonly_smoke",
+    ):
         assert "real_llm" not in by_id[non_llm].needs, non_llm
     assert "real_provider" not in by_id["core_journey"].needs
 
@@ -328,10 +339,6 @@ def test_AC8_13_39_toolchain_contract_consistency_and_drift_detection(
         (
             "apps/frontend/package.json",
             lambda s: s.replace('"node": "20.19.0"', '"node": ">=20"'),
-        ),
-        (
-            ".moon/toolchain.yml",
-            lambda s: s.replace("version: '20.19.0'", "version: '25.9.0'"),
         ),
     ]
     for idx, (rel_path, mutator) in enumerate(drift_cases):
@@ -434,8 +441,6 @@ def test_AC_testing_preflight_1_lockfile_registry_and_preflight_wiring(
     for path in (
         "package-lock.json",
         "apps/frontend/package-lock.json",
-        ".opencode/package-lock.json",
-        "tools/check_lockfile_registry.py",
         "common/testing/lockfile_registry.py",
     ):
         names = {c.name for c in preflight.select_checks([path], tier="static")}
@@ -447,7 +452,7 @@ def test_AC_testing_preflight_1_lockfile_registry_and_preflight_wiring(
     lint_commands = "\n".join(
         str(s.get("run", "")) for s in workflow["jobs"]["lint"]["steps"]
     )
-    assert "tools/check_lockfile_registry.py" in lint_commands
+    assert "common.testing.lockfile_registry" in lint_commands
 
     clean_root = tmp_path / "clean"
     lockfile = _write_lockfile(
@@ -641,7 +646,7 @@ def test_background_jobs_dependencies_and_cli() -> None:
 
     py_bin = str(BACKEND_DIR / ".venv/bin/python")
     proc = subprocess.run(
-        [py_bin, "tools/cli.py", "job", "--list"],
+        [py_bin, "-m", "common.runtime.dev.cli", "job", "--list"],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -650,7 +655,7 @@ def test_background_jobs_dependencies_and_cli() -> None:
     for job in BACKGROUND_JOBS:
         assert job.cli_name in proc.stdout and job.concurrency in proc.stdout
     bad_proc = subprocess.run(
-        [py_bin, "tools/cli.py", "job", "--run-once", "missing-job"],
+        [py_bin, "-m", "common.runtime.dev.cli", "job", "--run-once", "missing-job"],
         cwd=ROOT,
         capture_output=True,
         text=True,

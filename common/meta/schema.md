@@ -1,6 +1,6 @@
 # Database Schema SSOT
 
-> **SSOT Key**: `schema` | PostgreSQL layering, enum naming, and migration guardrails. Live DDL inventory: [db-schema.md](../../docs/reference/db-schema.md) (`tools/generate_db_schema_reference.py`). API inventory: [api.md](../../docs/reference/api.md).
+> **SSOT Key**: `schema` | PostgreSQL layering, enum naming, and migration guardrails. Live DDL inventory: [db-schema.md](../../docs/reference/db-schema.md) (`common.meta.extension.generate_db_schema_reference`). API inventory: [api.md](../../docs/reference/api.md).
 
 <a id="data-layering"></a>
 ## 1. Data Layering Model
@@ -14,5 +14,5 @@ Tables belong to one warehouse layer (`DIM` conformed references like `accounts`
 - **Explicit enum names mandatory**: Every `sa.Enum(..., name="...")` requires an explicit name (`test_enums_have_explicit_names`).
 - **PR schema authority**: `cd apps/backend && uv run alembic upgrade head && uv run alembic check`.
 - **Backend test schema fidelity**: Fast unit tests use a **fast fixture schema** built with `Base.metadata.create_all()`, while **production-faithful backend business persistence** runs isolated integration tests directly against Alembic migrations.
-- **Migration risk**: Classified in `common/meta/data/migration-risk.yaml` (`tools/check_migration_risk.py`).
+- **Migration risk**: Classified in `common/meta/data/migration-risk.yaml` (`common.meta.extension.migration_risk`).
 - **Async sessions & Decimal**: Routers own `commit()`/rollback (`get_db`); services call `flush()`. Use `DECIMAL`/`Decimal`, never `float`.

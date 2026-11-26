@@ -6,7 +6,7 @@
 
 - **Manual staging & promote-not-rebuild**: `main` CI pushes immutable `:<sha7>` images; `ci.yml` (`promote-release-images`) copies them to `:vX.Y.Z` on tag push. `infra2` dispatches `deploy_v2` manually (`workflow_dispatch`) and invokes `runtime-hooks.manifest.json` (`preview.post`, `staging.post`, `prod.post`, `scheduled_audit`).
 - **Concurrency & parallel staging**: Manual staging dispatches serialize on `staging-deploy`; bypassing the serial bottleneck via `parallel staging` uses separate staging stacks.
-- **Fail-closed release coordinates**: `infra2-sdk` release coordinates pin exact `version_ref` tags; `tools/verify_release_images.py` checks backend/frontend digests; `boot.py` and `verify_effective_config_hash` prevent stale config deploys.
+- **Fail-closed release coordinates**: `infra2-sdk` release coordinates pin exact `version_ref` tags; `common.runtime.release_images` checks backend/frontend digests; `boot.py` and `verify_effective_config_hash` prevent stale config deploys.
 - **AI/OCR Canary vs Audit Replay**:
   - `AI/OCR Canary` (`corpus: canary` in `staging.post`): runs `tests/e2e/test_brokerage_upload_to_portfolio_value.py` against the deployed VPS (`glm-5.3-flash`) after `Staging Provider Gate` passes (4xx fails hard; 5xx/timeout degrades).
   - `Audit Replay` (`corpus: audit_replay` / `core_journey` in `scheduled_audit`; `audit-replay.yml` deleted in #2831): `audit_replay` runs all non-canary live-LLM journeys and `core_journey` runs the disjoint non-LLM `CORE_JOURNEY_ONLY_FILES` journeys asynchronously without blocking production promotion.

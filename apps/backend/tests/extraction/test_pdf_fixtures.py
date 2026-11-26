@@ -16,8 +16,6 @@ import pytest_asyncio
 from pydantic import BaseModel, Field
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-BACKEND_DIR = REPO_ROOT / "apps/backend"
-SCRIPT_PATH = REPO_ROOT / "tools/generate_test_pdfs.py"
 OUTPUT_DIR = REPO_ROOT / "tests/fixtures/pdf/generated"
 EXPECTED = {
     "DBS": (OUTPUT_DIR / "dbs_statement_fixture.pdf", OUTPUT_DIR / "dbs_statement_fixture_expected.json"),
@@ -77,7 +75,11 @@ def _run_generator() -> None:
     OUTPUT_DIR.parent.mkdir(parents=True, exist_ok=True)
     with (OUTPUT_DIR.parent / ".generate_test_pdfs.lock").open("w", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        subprocess.run([sys.executable, str(SCRIPT_PATH)], cwd=BACKEND_DIR, check=True)
+        subprocess.run(
+            [sys.executable, "-m", "tests.fixtures.generate_test_pdfs"],
+            cwd=REPO_ROOT,
+            check=True,
+        )
 
 
 def _hashes() -> dict[str, str]:

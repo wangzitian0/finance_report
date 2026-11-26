@@ -107,3 +107,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     for path in split_files(files, durations, args.splits)[args.group - 1]:
         print(path)
     return 0
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

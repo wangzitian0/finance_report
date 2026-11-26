@@ -123,7 +123,7 @@ def main(
             print(
                 "ERROR: common/testing/data/test-execution-matrix.yaml drifted from "
                 "common/testing/matrix.py.\n"
-                "  Regenerate: python tools/test_selection.py --emit-matrix",
+                "  Regenerate: python -m common.testing.test_selection --emit-matrix",
                 file=sys.stderr,
             )
             return 1

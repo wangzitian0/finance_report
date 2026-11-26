@@ -7,13 +7,13 @@ FX gain/loss calculations for multi-currency accounts.
 
 Usage:
     # Local development
-    python tools/seed_fx_rates.py --env local
+    python -m common.pricing.seed_fx_rates --env local
 
     # Staging (requires DATABASE_URL env var)
-    DATABASE_URL=... python tools/seed_fx_rates.py --env staging
+    DATABASE_URL=... python -m common.pricing.seed_fx_rates --env staging
 
     # Production (requires DATABASE_URL env var)
-    DATABASE_URL=... python tools/seed_fx_rates.py --env production
+    DATABASE_URL=... python -m common.pricing.seed_fx_rates --env production
 """
 
 import argparse

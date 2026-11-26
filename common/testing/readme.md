@@ -6,7 +6,7 @@
 
 ### Execution matrix
 
-[`matrix.py`](./matrix.py) is the SSOT for path -> stage routing (`common/testing/data/test-execution-matrix.yaml`), staging/preview/audit corpora (`common.testing.test_selection --stage ... --run|--shell`), and sharding (`backend_shard.py` / `tools/backend_shard_files.py` over `apps/backend/ci/backend-test-durations.json`). `WORKFLOW_PYTEST_CONTRACTS` binds JUnit-producing workflow invocations.
+[`matrix.py`](./matrix.py) is the SSOT for path -> stage routing (`common/testing/data/test-execution-matrix.yaml`), staging/preview/audit corpora (`common.testing.test_selection --stage ... --run|--shell`), and sharding (`python -m common.testing.backend_shard` over `apps/backend/ci/backend-test-durations.json`). `WORKFLOW_PYTEST_CONTRACTS` binds JUnit-producing workflow invocations.
 
 ### Package declaration protocol
 
@@ -49,7 +49,7 @@ Generates synthetic statements under `tests/fixtures/pdf/` while keeping real st
 ### Generate Test PDFs
 
 ```bash
-python tools/generate_pdf_fixtures.py --source dbs
+python -m tests.fixtures.pdf.generate_pdf_fixtures --source dbs
 ```
 
 Supported `--source` values: `dbs`, `cmb`, `mari`, `moomoo`, `futu`, `pingan`, `all` (templates in `templates/*.yaml`, synthetic rows in `data/fake_data.py`).

@@ -3,7 +3,7 @@
  *
  * `api-types.ts` is generated from the backend OpenAPI schema
  * (`apps/frontend/openapi.json`, staleness-gated by
- * `tools/generate_openapi_spec.py --check`). This module re-exports its schema
+ * `python -m common.platform.generate_openapi_spec --check`). This module re-exports its schema
  * objects under ergonomic aliases so call sites can type requests/responses
  * against the generated contract — e.g. `apiOperation(...)` + `Schemas["ReconciliationMatchBatchResponse"]`
  * — giving compile-time FE↔BE drift detection instead of hand-written shapes.

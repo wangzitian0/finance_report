@@ -15,4 +15,4 @@ Production/staging use `vault-agent` sidecar (`VAULT_ROLE_ID` / `VAULT_SECRET_ID
 
 - **Staging**: Manual dispatch only (`workflow_dispatch` in `infra2`) consuming `:vX.Y.Z` images promoted from `main` CI `:<sha7>` via `ci.yml` (`promote-release-images`).
 - **Production**: Manual `workflow_dispatch` (`deploy_v2`, `type=prod`) after staging passes, requiring owner approval and presence, verifying image digests and pre/post `/api/health.git_sha` and `CONFIGURATION_SHA256`.
-- **Migrations**: Run `python tools/check_migration_risk.py` against `common/meta/data/migration-risk.yaml`. Incident triage: [runtime-incident-response.md](./runtime-incident-response.md).
+- **Migrations**: Run `python -m common.meta.extension.migration_risk` against `common/meta/data/migration-risk.yaml`. Incident triage: [runtime-incident-response.md](./runtime-incident-response.md).

@@ -26,6 +26,47 @@
       }
     },
     {
+      "id": "prod_readonly_smoke",
+      "argv": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/e2e/test_production_readonly_smoke.py",
+        "-v",
+        "--tb=short",
+        "-o",
+        "addopts="
+      ],
+      "needs": [
+        "code",
+        "running_service"
+      ],
+      "writes": false,
+      "accepts_scale": false,
+      "timeout_seconds": 120,
+      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "optional_env": [
+        "PROD_SMOKE_EMAIL",
+        "PROD_SMOKE_PASSWORD"
+      ],
+      "cells": {
+        "remove": {
+          "preview.post": {
+            "reason": "prod read-only smoke runs in prod.post only",
+            "issue": "wangzitian0/infra2#1877"
+          },
+          "staging.post": {
+            "reason": "prod read-only smoke runs in prod.post only",
+            "issue": "wangzitian0/infra2#1877"
+          },
+          "scheduled_audit": {
+            "reason": "prod read-only smoke runs in prod.post only",
+            "issue": "wangzitian0/infra2#1877"
+          }
+        }
+      }
+    },
+    {
       "id": "preview_minimum_e2e",
       "argv": [
         "python",

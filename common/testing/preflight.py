@@ -39,7 +39,7 @@ class Check:
 def _py_check(
     name: str,
     globs: tuple[str, ...],
-    script: str,
+    module: str,
     *args: str,
     why: str,
     cwd: str = ".",
@@ -48,7 +48,7 @@ def _py_check(
     return Check(
         name=name,
         globs=globs,
-        commands=((PY, script, *args),),
+        commands=((PY, "-m", module, *args),),
         why=why,
         cwd=cwd,
         tier=tier,
@@ -66,7 +66,7 @@ CHECKS: tuple[Check, ...] = (
     _py_check(
         "migration-risk",
         ("apps/backend/migrations/*",),
-        "tools/check_migration_risk.py",
+        "common.meta.extension.migration_risk",
         why="Alembic migration changed: classify migration risk",
     ),
     Check(
@@ -90,7 +90,7 @@ CHECKS: tuple[Check, ...] = (
             ".env",
             ".env.*",
         ),
-        "tools/env_manifests.py",
+        "common.runtime.env_manifests",
         "--check",
         why="config.py, env files, or a manifest changed: the infra2 SDK manifest check and the .env.example block must pass",
     ),
@@ -98,10 +98,21 @@ CHECKS: tuple[Check, ...] = (
         name="openapi-spec",
         globs=OPENAPI_INPUT_GLOBS,
         commands=(
-            (PY, "tools/generate_openapi_spec.py", "--check"),
-            (PY, "tools/check_api_types.py"),
+            (PY, "-m", "common.platform.generate_openapi_spec", "--check"),
+            (PY, "-m", "common.platform.check_api_types"),
         ),
         why="router/schema changed: openapi.json and frontend api-types must remain in sync (#1004, #2134)",
+    ),
+    _py_check(
+        "api-reference",
+        (
+            *OPENAPI_INPUT_GLOBS,
+            "docs/reference/api.md",
+            "common/platform/generate_api_reference.py",
+        ),
+        "common.platform.generate_api_reference",
+        "--check",
+        why="router/schema or api.md changed: generated API reference must remain in sync",
     ),
     _py_check(
         "toolchain-contract",
@@ -110,16 +121,14 @@ CHECKS: tuple[Check, ...] = (
             ".python-version",
             ".node-version",
             ".tool-versions",
-            ".moon/toolchain.yml",
             "apps/frontend/package.json",
-            "tools/check_toolchain_contract.py",
             "common/runtime/check_toolchain_contract.py",
             ".github/workflows/*.yml",
             ".github/actions/**/*.yml",
             "docker-compose*.yml",
             "apps/*/Dockerfile",
         ),
-        "tools/check_toolchain_contract.py",
+        "common.runtime.check_toolchain_contract",
         why="toolchain contracts and version declarations must not drift",
     ),
     _py_check(
@@ -128,11 +137,41 @@ CHECKS: tuple[Check, ...] = (
             "package-lock.json",
             "*package-lock.json",
             "apps/frontend/package.json",
-            "tools/check_lockfile_registry.py",
             "common/testing/lockfile_registry.py",
         ),
-        "tools/check_lockfile_registry.py",
+        "common.testing.lockfile_registry",
         why="lockfile or registry gate changed: every resolved package URL must use https://registry.npmjs.org/ (#2668)",
+    ),
+    _py_check(
+        "app-boundary",
+        (
+            "apps/backend/src/*.py",
+            "common/meta/extension/check_app_boundary.py",
+            "common/meta/extension/app_boundary.py",
+            "common/meta/base/layering.py",
+            "common/*/readme.md",
+        ),
+        "common.meta.extension.check_app_boundary",
+        why="backend or package boundary changed: zero cross-boundary and L4 deep imports",
+    ),
+    _py_check(
+        "base-purity",
+        (
+            "apps/backend/src/*.py",
+            "common/meta/extension/check_base_purity.py",
+            "common/meta/extension/base_purity.py",
+        ),
+        "common.meta.extension.check_base_purity",
+        why="backend source or purity gate changed: package base layers must stay pure",
+    ),
+    _py_check(
+        "tier-imports",
+        (
+            "apps/backend/src/*.py",
+            "common/meta/extension/check_tier_imports.py",
+        ),
+        "common.meta.extension.check_tier_imports",
+        why="backend source or tier gate changed: CODE-ONLY modules must not import LLM layer",
     ),
     Check(
         name="frontend-static",
@@ -690,3 +729,7 @@ def run(
 
 def main(argv: Sequence[str] | None = None) -> int:
     return run(argv)
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

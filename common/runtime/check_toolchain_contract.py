@@ -292,17 +292,6 @@ def check_frontend_package(repo_root: Path, toolchain: dict, errors: list[str]) 
         )
 
 
-def check_moon_toolchain(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
-    runtime = toolchain["runtime"]
-    moon_toolchain = read_text(repo_root, ".moon/toolchain.yml")
-    for needle in (
-        "packageManager: npm",
-        f"version: '{runtime['node']}'",
-        f"version: '{runtime['npm']}'",
-    ):
-        expect_contains(errors, ".moon/toolchain.yml", moon_toolchain, needle)
-
-
 def check_workflows(repo_root: Path, toolchain: dict, errors: list[str]) -> None:
     for rel_path, (projector, is_required) in PROJECTORS.items():
         file_path = repo_root / rel_path
@@ -339,7 +328,6 @@ def run_contract(repo_root: Path) -> int:
     toolchain = load_toolchain(repo_root)
     check_tool_files(repo_root, toolchain, errors)
     check_frontend_package(repo_root, toolchain, errors)
-    check_moon_toolchain(repo_root, toolchain, errors)
     check_workflows(repo_root, toolchain, errors)
     if errors:
         for error in errors:

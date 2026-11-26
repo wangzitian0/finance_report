@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -13,8 +14,15 @@ def on_config(config, **kwargs):
     """Generate code-owned reference pages before MkDocs resolves nav files."""
     try:
         subprocess.run(
-            ["uv", "run", "python", "../../tools/generate_db_schema_reference.py"],
+            [
+                "uv",
+                "run",
+                "python",
+                "-m",
+                "common.meta.extension.generate_db_schema_reference",
+            ],
             cwd=BACKEND_ROOT,
+            env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
             check=True,
         )
     except FileNotFoundError as exc:

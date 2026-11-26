@@ -148,7 +148,7 @@ ensure_python() {
     return
   fi
 
-  warn "Not replacing existing ${LOCAL_BIN}/python. Moon tasks use python3; backend venv is pinned with uv."
+  warn "Not replacing existing ${LOCAL_BIN}/python. CLI tasks use python3; backend venv is pinned with uv."
 }
 
 load_nvm() {
@@ -183,20 +183,9 @@ ensure_node() {
   export PATH="${NVM_DIR}/versions/node/v${NODE_VERSION}/bin:${PATH}"
 }
 
-ensure_moon() {
-  local moon_bin="${NVM_DIR}/versions/node/v${NODE_VERSION}/bin/moon"
-  if [ -x "$moon_bin" ]; then
-    log "Moon CLI already available for Node ${NODE_VERSION}"
-    return
-  fi
-
-  log "Installing Moon CLI for Node ${NODE_VERSION}"
-  npm install -g @moonrepo/cli
-}
-
 install_project_dependencies() {
-  log "Installing project dependencies through Moon"
-  moon run :setup
+  log "Installing project dependencies"
+  python3 -m common.runtime.dev.cli setup
 }
 
 retire_legacy_pre_push_hook() {
@@ -292,12 +281,11 @@ main() {
   ensure_uv
   ensure_python
   ensure_node
-  ensure_moon
   install_project_dependencies
   install_pre_commit
   check_container_runtime
 
-  log "Done. Next command: moon run :dev"
+  log "Done. Next command: make dev"
 }
 
 main "$@"

@@ -36,4 +36,4 @@ The **headline** is the port/adapter split (dependency inversion, mechanism B): 
 ## Storage
 `outbox(id bigserial pk, occurred_at timestamptz, event_type text, source_pkg text, aggregate_id text null, payload jsonb, status text default 'pending', published_at timestamptz null, attempt_count integer not null default 0, last_error text null)` with an index on `(status, id)` backing the relay's "oldest pending, in order" drain. `status` is plain text (not a `sa.Enum`) so a future lifecycle state needs no enum migration. Migrations: `0049_add_outbox.py` and `0078_outbox_dead_letter.py`.
 ## Governance
-Atomicity and post-commit dispatch are proven by DB-backed platform tests; `tools/check_app_boundary.py` and `tools/check_base_purity.py` enforce layering and purity boundaries.
+Atomicity and post-commit dispatch are proven by DB-backed platform tests; `common.meta.extension.check_app_boundary` and `common.meta.extension.check_base_purity` enforce layering and purity boundaries.

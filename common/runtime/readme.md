@@ -15,7 +15,7 @@ Owns dependency declarations (`DependencyManifest` from `infra2_sdk.runtime.heal
 `apps/backend/src/runtime/base/jobs.py` defines `BACKGROUND_JOBS` as the single registry for background loops and CLI triggers.
 - Each `BackgroundJobSpec` declares `name`, `cli_name`, `concurrency`, `failure_metric`, and `summary`.
 - `apps/backend/src/main.py` starts every registered loop in `lifespan` and exposes `run_background_job_once(cli_name)`.
-- `python tools/cli.py job --list` lists registered jobs and `python tools/cli.py job --run-once <cli_name>` executes one pass.
+- `python -m common.runtime.dev.cli job --list` lists registered jobs and `python -m common.runtime.dev.cli job --run-once <cli_name>` executes one pass.
 - `RedisCheck.probe()` uses authenticated `redis.asyncio.from_url(...).ping()` with secret redaction on failures.
 - `ObjectStorageCheck.probe()` checks primary S3, `S3_PUBLIC_*` when set, and an ephemeral put/delete check on `EnvironmentTier.STAGING` only.
 - `LlmCheck.probe()` verifies provider HTTP reachability and Bearer auth on `/models` (or `/chat/completions` when `/models` returns 404/405).
@@ -28,4 +28,4 @@ Owns dependency declarations (`DependencyManifest` from `infra2_sdk.runtime.heal
 `apps/backend/src/boot.py` runs one engine across three modes:
 1. **Static (`dry-run`)**: Config/manifest integrity in CI/build.
 2. **Startup (`critical`)**: DB connectivity, schema check, and protected-runtime secret validation on app boot (`sys.exit(1)` on failure).
-3. **Health (`full`)**: Full dependency probes (`Redis`, `S3`, `LLM`) via `/health` and external `tools/smoke_test.sh`. Triage: [runtime-incident-response.md](./runtime-incident-response.md).
+3. **Health (`full`)**: Full dependency probes (`Redis`, `S3`, `LLM`) via `/health` and external `common/runtime/shell/smoke_test.sh`. Triage: [runtime-incident-response.md](./runtime-incident-response.md).

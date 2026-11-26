@@ -1,5 +1,5 @@
 # GENERATED from common/testing/matrix.py — do not hand-edit.
-# Regenerate: python tools/test_selection.py --emit-matrix
+# Regenerate: python -m common.testing.test_selection --emit-matrix
 version: 1
 rules:
   - path: apps/backend/tests/integration/
