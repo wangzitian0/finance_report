@@ -50,14 +50,18 @@ def run_pytest(
     *,
     stage_env: Mapping[str, str],
     junit_path: Path | None = None,
+    workers: int = 1,
     runner: Callable[..., subprocess.CompletedProcess] = subprocess.run,
 ) -> int:
     """Run ``python -m pytest`` in the repository root; return its exit code.
 
     Child env: stage env defaults, overridden by the parent env, plus the forced
     ``STRICT_E2E_GATES=1``: without it a rejected AI/OCR statement is a skip (#2914).
+    ``workers > 1`` runs the nodes in that many pytest-xdist processes (#3241).
     """
     flags = ["-v", "--tb=short", "-o", "addopts=", "-m", marker]
+    if workers > 1:
+        flags.extend(("--numprocesses", str(workers)))
     if junit_path is not None:
         resolved_junit = junit_path if junit_path.is_absolute() else ROOT_DIR / junit_path
         resolved_junit.parent.mkdir(parents=True, exist_ok=True)
@@ -187,7 +191,12 @@ def main(
             corpus=args.corpus if args.stage == matrix.STAGING_AI_OCR_STAGE else None,
         )
         return run_pytest(
-            nodes, marker, stage_env=env, junit_path=junit_path, runner=runner
+            nodes,
+            marker,
+            stage_env=env,
+            junit_path=junit_path,
+            workers=matrix.stage_parallelism(args.stage),
+            runner=runner,
         )
 
     if args.shell:

@@ -1198,6 +1198,38 @@ def test_AC_testing_deploy_gates_37_corpus_disjointness_and_junit_emission(
     assert f"--junitxml={artifacts_dir / 'touched_files.junit.xml'}" in calls[-1]
 
 
+def test_core_e2e_stages_run_in_xdist_workers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """#3241: the core E2E stages run in parallel; the node set stays the same."""
+    monkeypatch.delenv("HOOK_ARTIFACTS_DIR", raising=False)
+    calls: list[list[str]] = []
+
+    def _fake_run(argv: list[str], **_kw):
+        calls.append(argv)
+        return SimpleNamespace(returncode=0)
+
+    workers_flag = "--numprocesses"
+    for stage in (matrix.STAGING_CORE_E2E_STAGE, matrix.PREVIEW_MINIMUM_E2E_STAGE):
+        assert test_selection.main(["--stage", stage, "--run"], runner=_fake_run) == 0
+        argv = calls[-1]
+        assert argv[argv.index(workers_flag) + 1] == str(
+            matrix.STAGING_CORE_E2E_PARALLELISM
+        )
+        assert matrix.STAGING_CORE_E2E_PARALLELISM > 1
+        nodes = tuple(argv[argv.index("pytest") + 1 : argv.index("-v")])
+        assert nodes == matrix.staging_core_e2e_selection()
+
+    assert (
+        test_selection.main(
+            ["--stage", "staging_ai_ocr", "--corpus", "canary", "--run"],
+            runner=_fake_run,
+        )
+        == 0
+    )
+    assert workers_flag not in calls[-1]
+
+
 def test_AC8_13_109_ai_ocr_gate_e2e_hygiene() -> None:
     """AC-testing.deploy-gates.23 AC8.13.109"""
     shared_user_fixtures = {"authenticated_page", "shared_auth_state"}
