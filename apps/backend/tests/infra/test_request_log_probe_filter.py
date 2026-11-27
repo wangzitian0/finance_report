@@ -49,10 +49,10 @@ def test_AC_observability_19_1_and_3_probe_access_filter_and_routes() -> None:
     make_rec = lambda p: logging.LogRecord(
         "uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d', ("127.0.0.1", "GET", p, "1.1", 200), None
     )
-    assert all(flt.filter(make_rec(p)) is False for p in PROBE_PATHS)
+    assert all(flt.filter(make_rec(p)) is False for p in PROBE_PATHS | {"/api/health"})
     assert all(
         flt.filter(make_rec(p)) is True
-        for p in ("/openapi.json", "/healthz", "/health/", "/api/health", "/healthcheck", "/ping")
+        for p in ("/openapi.json", "/healthz", "/health/", "/api/users", "/healthcheck", "/ping")
     )
     served = {getattr(ctx.route, "path", None) for ctx in iter_route_contexts(main_module.app.routes)}
     assert (
