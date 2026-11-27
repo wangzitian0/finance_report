@@ -43,7 +43,6 @@ from src.extraction import (
     RunKind,
     RunTrigger,
     StatementPostingOutcome,
-    StatementPostingStatus,
     StatementRunRecord,
     StatementSummary,
     active_run_kinds,
@@ -63,6 +62,7 @@ from src.extraction import (
     get_account_statement_coverage,
     get_current_statement_extraction_result,
     list_runs,
+    posting_count_or_conflict,
     list_runs_page,
     load_evidence_lineage,
     pending_stage1_review_filter,
@@ -193,9 +193,7 @@ async def _count_classification_suggestions(db: AsyncSession, scope_filter: Any,
 
 
 def _posting_count_or_conflict(outcome: StatementPostingOutcome) -> int:
-    if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
-        raise ConflictError(f"Economic review required: {', '.join(outcome.review_reasons)}")
-    return outcome.created_count
+    return posting_count_or_conflict(outcome)
 
 
 async def _resolve_uploaded_documents(
@@ -913,14 +911,22 @@ async def get_statement_for_review(statement_id: UUID, ctx: ReadCtx) -> Statemen
 
     suggestions = await classification_suggestions(db, [t.id for t in transactions])
     base_response = compose_statement_response(statement, uploaded_document, transactions, suggestions=suggestions)
+    source_missing_facts = list(source_result.missing_required_facts) if source_result is not None else []
+    merged_issue_codes = list(base_response.issue_codes)
+    if source_missing_facts:
+        from src.extraction import classify_statement_issue_codes
+
+        for code in classify_statement_issue_codes(missing_facts=source_missing_facts):
+            if code not in merged_issue_codes:
+                merged_issue_codes.append(code)
 
     return StatementReviewResponse(
-        **base_response.model_dump(),
+        **{**base_response.model_dump(), "issue_codes": merged_issue_codes},
         stage1_status=statement.stage1_status,
         stage1_reviewed_at=statement.stage1_reviewed_at,
         manual_opening_balance=statement.manual_opening_balance,
         source_result_digest=source_result_digest,
-        source_missing_facts=list(source_result.missing_required_facts) if source_result is not None else [],
+        source_missing_facts=source_missing_facts,
         source_envelope_reviewable=supports_reviewed_statement_envelope(source_result)
         if source_result is not None
         else False,

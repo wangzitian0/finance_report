@@ -58,6 +58,7 @@ RUN_FIELDS = {
     "started_at",
     "finished_at",
     "outcome",
+    "diagnostics",
 }
 
 
@@ -528,3 +529,75 @@ async def test_statement_list_returns_the_kind_of_the_active_run(client, db, tes
     # The detail route returns the same field.
     assert (await client.get(f"/statements/{active.id}")).json()["active_run_kind"] == "classify"
     assert (await client.get(f"/statements/{idle.id}")).json()["active_run_kind"] is None
+
+
+async def test_statement_api_exposes_issue_codes_and_typed_approval_error_ids(client, db, test_user) -> None:
+    """GET statement/review/runs expose issue_codes & diagnostics; approval blockers emit typed error_id."""
+    from datetime import date
+    from decimal import Decimal
+    from src.extraction.base.source_vocabulary import Stage1Status
+
+    stmt = await _statement(db, test_user, status=BankStatementStatus.PARSED)
+    stmt.institution = None
+    stmt.currency = None
+    stmt.balance_validated = False
+    stmt.stage1_status = Stage1Status.PENDING_REVIEW
+    stmt.validation_error = "Economic review required: intent_missing"
+    await db.commit()
+
+    listed = (await client.get("/statements")).json()["items"][0]
+    detail = (await client.get(f"/statements/{stmt.id}")).json()
+    review = (await client.get(f"/statements/{stmt.id}/review")).json()
+
+    for payload in (listed, detail, review):
+        assert "BALANCE_CHAIN_MISMATCH" in payload["issue_codes"]
+        assert "CUSTODY_ACCOUNT_REQUIRED" in payload["issue_codes"]
+        assert "ECONOMIC_DISPOSITION_REQUIRED" in payload["issue_codes"]
+        assert "MISSING_INSTITUTION" in payload["issue_codes"]
+        assert "MISSING_STATEMENT_CURRENCY" in payload["issue_codes"]
+
+    # Approval missing account/currency returns typed custody/currency error_id rather than generic bad_request
+    approve_resp = await client.post(
+        f"/statements/{stmt.id}/approvals",
+        json={"create_account_if_missing": True},
+    )
+    assert approve_resp.status_code == 400
+    assert approve_resp.json()["error_id"] in {"custody_account_required", "missing_statement_currency"}
+
+    # Finished run with diagnostics surfaces structured metrics via GET /runs
+    diag = {
+        "modality": "pdf_text",
+        "page_count": 3,
+        "batch_count": 1,
+        "pass_durations_ms": [950],
+        "expected_closing": "1000.00",
+        "calculated_closing": "950.00",
+        "balance_gap": "50.00",
+        "suspect_row_indices": [2],
+        "rows_not_in_text_indices": [],
+        "issue_codes": ["BALANCE_CHAIN_MISMATCH"],
+        "failure_code": None,
+    }
+    await _finished_run(
+        db,
+        test_user,
+        stmt.id,
+        RunKind.EXTRACT,
+        {"auto_approve_candidate": False, "diagnostics": diag},
+    )
+    runs_items = (await client.get(f"/statements/{stmt.id}/runs")).json()["items"]
+    assert runs_items[0]["diagnostics"] == diag
+
+    # Economic review conflict uses error_id == "economic_disposition_required"
+    from src.extraction import StatementPostingOutcome, StatementPostingStatus, posting_count_or_conflict
+    from src.platform import ConflictError
+
+    with pytest.raises(ConflictError) as conflict_exc:
+        posting_count_or_conflict(
+            StatementPostingOutcome(
+                status=StatementPostingStatus.REVIEW_REQUIRED,
+                created_count=0,
+                review_reasons=("intent_missing",),
+            )
+        )
+    assert conflict_exc.value.error_id == "economic_disposition_required"

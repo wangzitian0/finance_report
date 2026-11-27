@@ -2111,13 +2111,14 @@ export function revMocks(api: ApiMock) {
         },
       };
     },
-    econ409: (ApiErr: new (m: string, s: number) => Error) => {
+    econ409: (ApiErr: new (m: string, s: number, errorId?: string | null) => Error) => {
       let econ = false,
         body: unknown = null;
       mockStmtApi(api, {
         stmt: REV.stmt,
         rev: () => ({
           ...REV.stmt,
+          issue_codes: econ ? ["ECONOMIC_DISPOSITION_REQUIRED"] : [],
           validation_error: econ
             ? "Economic review required: intent_missing"
             : null,
@@ -2129,7 +2130,11 @@ export function revMocks(api: ApiMock) {
                 Promise.resolve({ journal_entries_created: 2 }))
               : ((econ = true),
                 Promise.reject(
-                  new ApiErr("Economic review required: intent_missing", 409),
+                  new ApiErr(
+                    "Economic review required: intent_missing",
+                    409,
+                    "economic_disposition_required",
+                  ),
                 ))
             : undefined,
       });

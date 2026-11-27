@@ -109,3 +109,9 @@
 ## Account Coverage Contract
 
 - `GET /api/statements/coverage` checks adjacent approved statements per account/currency against `BALANCE_TOLERANCE` (`0.001`) and `CROSS_PERIOD_GAP_PLUG_TOLERANCE` (`0.10`), surfacing `GAP`, `OVERLAP`, or `DUPLICATE` issues while exempting zero-change gaps (`|delta| <= 0.10`) and daily broker snapshots.
+
+## Typed Issue Codes, Failure Codes, and Diagnostics
+
+- `base/issue_codes.py` defines `StatementIssueCode` (returned on `issue_codes` of statement list/detail/review responses), `RunFailureCode` (stored lowercase on `StatementRun.error_code`), and `RunDiagnosticsSnapshot` (stored redacted under `StatementRun.result_summary["diagnostics"]`).
+- `RunDiagnosticsSnapshot` records modality (`pdf_text`, `pdf_vision`, `image`, `csv`), page count, batch count, per-pass durations in ms, closing/calculated/gap amounts, 1-based suspect/missing row numbers, issue codes, and failure code without merchant text or account PII.
+- Statement approval and posting blockers raise typed HTTP `error_id`s: `economic_disposition_required` (`409`), `envelope_confirmation_required` (`400`), `missing_statement_currency` (`400`), `custody_account_required` (`400`), and `balance_chain_mismatch` (`400`).

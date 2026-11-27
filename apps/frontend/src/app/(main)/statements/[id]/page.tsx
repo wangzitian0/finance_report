@@ -334,7 +334,7 @@ export default function StatementDetailPage() {
     },
     onError: (err) => {
       refetchAfterConflict(err);
-      if (err instanceof ApiError && err.status === 409 && err.message.startsWith("Economic review required:")) {
+      if (err instanceof ApiError && err.status === 409 && err.errorId === "economic_disposition_required") {
         setEconomicReviewRequired(true);
         setApproveDialogOpen(false);
         showToast("Economic classification needs review before entries can be posted.", "error");
@@ -631,7 +631,7 @@ export default function StatementDetailPage() {
           <ReviewActionBar onApprove={() => setApproveDialogOpen(true)} onReject={() => setRejectDialogOpen(true)} actionLoading={approveMutation.isPending || rejectMutation.isPending} balanceValid={balanceValid} statementStatus={statement.status} approvalBlockedReason={approvalBlockedReason} onResolveConflicts={hasUnresolvedConflicts ? () => setConflictDialogOpen(true) : undefined} onReparse={() => void runAgain("extract", { keywords: [], note: null })} reparsePending={runAgainMutation.isPending} />
         </div>
       )}
-      {(economicReviewRequired || hasUnclassifiedPendingTxns || statement.validation_error?.startsWith("Economic review required:")) && isParsed && (
+      {(economicReviewRequired || hasUnclassifiedPendingTxns || (statement.issue_codes ?? []).includes("ECONOMIC_DISPOSITION_REQUIRED")) && isParsed && (
         <section className="mb-4 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-muted)] p-4">
           <h2 className="font-semibold text-[var(--foreground)]">Transaction classifications need review</h2>
           <p className="mt-1 text-sm text-muted">These transactions need your confirmation before they can be posted into the journal. Auto-fill accepts the AI suggestion for each row and uses a general category for rows without one. A transfer or a card repayment is posted to the Processing account until the other side of the movement arrives. A loan payment goes to Loans Payable and a trade to Investments. A row in a foreign currency stays here for you. You can also review every row manually.</p>

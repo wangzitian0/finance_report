@@ -66,4 +66,29 @@ describe("Classify again on statement page", () => {
     clk(RA); await F.wFor(() => txtIs(alrt(), R.invalidMsg));
     F.isNull(screen.queryByText(/SECRET-NOTE-TEXT/, { selector: "[role=alert]" }));
   });
+
+  it("renders collapsible debug diagnostics summary when run diagnostics exist", async () => {
+    const diagRun = mkUserRun({
+      seq: 1,
+      diagnostics: {
+        modality: "pdf_text",
+        page_count: 6,
+        batch_count: 1,
+        pass_durations_ms: [1450],
+        expected_closing: "15271.23",
+        calculated_closing: "15000.00",
+        balance_gap: "271.23",
+        suspect_row_indices: [3, 8],
+        rows_not_in_text_indices: [8],
+        issue_codes: ["BALANCE_CHAIN_MISMATCH"],
+        failure_code: null,
+      },
+    } as Partial<Parameters<typeof mkUserRun>[0]>);
+    m({ runs: () => [diagRun] });
+    const toggle = await screen.findByRole("button", { name: /Debug summary/i });
+    fireEvent.click(toggle);
+    await see(/pdf_text/i);
+    await see(/271\.23/);
+    await see(/3, 8/);
+  });
 });

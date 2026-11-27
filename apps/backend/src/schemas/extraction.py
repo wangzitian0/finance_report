@@ -15,9 +15,11 @@ from src.extraction import (
     BankStatementStatus,
     RunHints,
     Stage1Status,
+    StatementIssueCode,
     StatementRunRecord,
     TransactionCategory,
     brokerage_import_failure_reason,
+    classify_statement_issue_codes,
 )
 from src.schemas.base import BaseResponse, CurrencyCode, ListResponse, MoneyAmount, default_list
 
@@ -141,6 +143,10 @@ class BankStatementListItemResponse(BaseModel):
         default=None,
         description="The kind of the requested or running run of the statement. Only the list routes fill it.",
     )
+    issue_codes: list[StatementIssueCode] = Field(
+        default_factory=list,
+        description="Typed review, balance, and confirmation blockers derived from persisted statement state.",
+    )
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
@@ -150,6 +156,35 @@ class BankStatementResponse(BankStatementListItemResponse):
     transactions: list[AtomicTransactionResponse] = default_list()
 
 
+def _statement_issue_codes_from_summary(summary: StatementSummary, *, is_brokerage: bool) -> list[StatementIssueCode]:
+    if summary.status not in (
+        BankStatementStatus.PARSED,
+        BankStatementStatus.REJECTED,
+        BankStatementStatus.APPROVED,
+    ):
+        return []
+    missing_facts: list[str] = []
+    if not (summary.institution or "").strip():
+        missing_facts.append("institution")
+    if not (summary.currency or "").strip() and not summary.currency_balances:
+        missing_facts.append("statement_currency")
+    if summary.period_start is None or summary.period_end is None:
+        missing_facts.append("period")
+    if (
+        not is_brokerage
+        and summary.opening_balance is None
+        and summary.closing_balance is None
+        and not summary.currency_balances
+    ):
+        missing_facts.append("balances")
+    return classify_statement_issue_codes(
+        missing_facts=missing_facts,
+        balance_validated=summary.balance_validated,
+        has_account=summary.account_id is not None,
+        validation_error=summary.validation_error,
+    )
+
+
 def compose_statement_list_item_response(
     summary: StatementSummary,
     uploaded_document: UploadedDocument | None,
@@ -157,6 +192,10 @@ def compose_statement_list_item_response(
     file_path = uploaded_document.file_path if uploaded_document else ""
     original_filename = uploaded_document.original_filename if uploaded_document else ""
     failure_reason = brokerage_import_failure_reason(summary)
+    extraction_result_meta = (getattr(summary, "extraction_metadata", None) or {}).get("statement_extraction_result")
+    is_brokerage = failure_reason is not None or (
+        isinstance(extraction_result_meta, dict) and extraction_result_meta.get("is_brokerage") is True
+    )
     return BankStatementListItemResponse(
         id=summary.id,
         user_id=summary.user_id,
@@ -176,6 +215,7 @@ def compose_statement_list_item_response(
         validation_error=summary.validation_error,
         brokerage_import_failed=failure_reason is not None,
         brokerage_import_failure_reason=failure_reason,
+        issue_codes=_statement_issue_codes_from_summary(summary, is_brokerage=is_brokerage),
         created_at=summary.created_at,
         updated_at=summary.updated_at,
     )

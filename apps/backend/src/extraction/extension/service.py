@@ -17,6 +17,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import src.config
 from src.audit.money.currency import normalize_currency_code
 from src.extraction.base.decoding import EXTRACTION_TIMEOUT_SECONDS, JSON_MAX_TOKENS
+from src.extraction.base.issue_codes import (
+    build_redacted_diagnostics,
+    classify_run_failure_code,
+    classify_statement_issue_codes,
+)
 from src.extraction.base.findings import (
     Finding,
     PassScore,
@@ -140,6 +145,12 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         self.small_model = settings.small_model
         self.multimodal_model = settings.multimodal_model
         self.deduplication_service = DeduplicationService()
+        self.last_run_diagnostics: dict[str, Any] | None = None
+        self.last_slice_diagnostics: list[dict[str, Any]] = []
+        self._active_modality: str | None = None
+        self._active_page_count: int | None = None
+        self._active_batch_count: int | None = None
+        self._active_pass_durations_ms: list[int] = []
 
     async def _extract_csv_source(self, source: DocumentSource, *, institution: str | None) -> dict[str, Any]:
         if not source.content:
@@ -204,6 +215,16 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             raise TypeError("parse_documents requires a DocumentSource")
 
         model = self.multimodal_model
+        self.last_run_diagnostics = None
+        self.last_slice_diagnostics = []
+        self._active_modality = (
+            file_type
+            if file_type == "csv"
+            else ("image" if file_type in {"png", "jpg", "jpeg", "image"} else "pdf_text")
+        )
+        self._active_page_count = None
+        self._active_batch_count = None
+        self._active_pass_durations_ms = []
         logger.info(
             "Parsing document",
             institution=institution or "(auto-detect)",
@@ -226,6 +247,13 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 )
             raise ExtractionError(f"Unsupported file type: {file_type}")
         except Exception as e:
+            self.last_run_diagnostics = build_redacted_diagnostics(
+                modality=self._active_modality,
+                page_count=self._active_page_count,
+                batch_count=self._active_batch_count,
+                pass_durations_ms=self._active_pass_durations_ms,
+                failure_code=classify_run_failure_code(error_type=type(e).__name__, message=str(e)),
+            )
             if not isinstance(e, ExtractionError):
                 logger.exception("Failed to parse document")
                 raise ExtractionError(f"Failed to parse document: {e}") from e
@@ -248,6 +276,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         original_filename = source.filename
         display_filename = original_filename or (file_path.name if file_path else None)
         model = self.multimodal_model
+        self.last_slice_diagnostics = []
         try:
             results: list[StatementExtractionResult] = []
             for idx, slice_obj in enumerate(slices):
@@ -266,6 +295,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                         db=db,
                     )
                 )
+            if self.last_slice_diagnostics:
+                self.last_run_diagnostics = self.last_slice_diagnostics[0]
             return results
         except Exception as e:
             if not isinstance(e, ExtractionError):
@@ -495,6 +526,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             )
 
             source_verified: bool | None = None
+            rows_not_in_text: list[int] | None = None
             rows_not_in_text_reason: str | None = None
             closing_not_in_source = False
             opening_not_in_source = False
@@ -696,6 +728,47 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 raise ExtractionError(f"Incomplete statement extraction result: {exc}") from exc
             result_metadata: dict[str, Any] = {"statement_extraction_result": extraction_result.to_payload()}
             statement.extraction_metadata = result_metadata
+            diag_gap = balance_result.get("difference")
+            suspect_row_indices: list[int] = []
+            if not is_valid and diag_gap is not None:
+                try:
+                    gap_dec = Decimal(str(diag_gap))
+                    if gap_dec != Decimal("0"):
+                        suspect_row_indices = [
+                            i + 1 for i in balance_gap_suspect_rows([t.amount for t in transactions], gap_dec)
+                        ]
+                except (InvalidOperation, ValueError, TypeError):
+                    suspect_row_indices = []
+            slice_issue_codes = classify_statement_issue_codes(
+                missing_facts=source_fact_gaps,
+                balance_validated=statement.balance_validated,
+                has_account=statement.account_id is not None,
+                validation_error=statement.validation_error,
+                rows_not_in_text=rows_not_in_text or (),
+                closing_not_in_text=closing_not_in_source,
+                opening_not_in_text=opening_not_in_source,
+                unverifiable_text_layer=bool(
+                    source_verified is False
+                    and not closing_not_in_source
+                    and not opening_not_in_source
+                    and not rows_not_in_text
+                ),
+            )
+            self.last_slice_diagnostics.append(
+                build_redacted_diagnostics(
+                    modality=self._active_modality or file_type,
+                    page_count=self._active_page_count,
+                    batch_count=self._active_batch_count,
+                    pass_durations_ms=self._active_pass_durations_ms,
+                    expected_closing=statement.closing_balance,
+                    calculated_closing=balance_result.get("actual_closing"),
+                    balance_gap=diag_gap,
+                    suspect_row_indices=suspect_row_indices,
+                    rows_not_in_text_indices=rows_not_in_text or (),
+                    issue_codes=slice_issue_codes,
+                    failure_code=None,
+                )
+            )
 
             logger.info(
                 "Parsing validation completed",
@@ -1258,6 +1331,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             else None
         )
         if text_batches is not None:
+            self._active_modality = "pdf_text"
             from_text, text_split_agreed = await self._extract_json_from_media_batches(
                 media_batches=text_batches,
                 model=model,
@@ -1285,6 +1359,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         media_batches = await asyncio.to_thread(
             self._build_vision_media_payload_batches, file_content, file_url, file_type, mime_type
         )
+        self._active_modality = "pdf_vision" if file_type == "pdf" else "image"
         del file_content
         return await self._extract_json_from_media_batches(
             media_batches=media_batches,
@@ -1321,19 +1396,26 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             return list(media_batches[batch_index])
 
         part_count = len(media_batches)
+        self._active_batch_count = part_count
+        total_pages_attr = getattr(media_batches, "total_pages", None)
+        self._active_page_count = (
+            int(total_pages_attr) if isinstance(total_pages_attr, int) else sum(len(batch) for batch in media_batches)
+        )
 
         async def _call(messages: list[dict[str, Any]], *, batch_index: int, pages: int) -> dict[str, Any]:
             started = time.perf_counter()
             part = await self._extract_json_with_model(
                 messages=messages, model=model, seed_override=seed_override, user_id=user_id
             )
+            duration_ms = round((time.perf_counter() - started) * 1000)
+            self._active_pass_durations_ms.append(duration_ms)
             logger.info(
                 "statement.extraction.call_completed",
                 batch_index=batch_index,
                 batch_count=part_count,
                 pages=pages,
                 rows=len(part.get("transactions") or []),
-                duration_ms=round((time.perf_counter() - started) * 1000),
+                duration_ms=duration_ms,
             )
             return part
 

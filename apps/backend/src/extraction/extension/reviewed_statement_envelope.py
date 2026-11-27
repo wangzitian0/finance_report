@@ -248,7 +248,10 @@ async def require_current_statement_envelope_trust(db: AsyncSession, *, statemen
     if not source_result.requires_review and envelope is None:
         _require_projection_matches_source(statement, source_result)
         if supports_reviewed_statement_envelope(source_result):
-            raise ValidationFailedError("Current source requires explicit human confirmation before posting")
+            raise ValidationFailedError(
+                "Current source requires explicit human confirmation before posting",
+                error_id="envelope_confirmation_required",
+            )
         return
     if not supports_reviewed_statement_envelope(source_result):
         raise ValidationFailedError(
@@ -258,7 +261,8 @@ async def require_current_statement_envelope_trust(db: AsyncSession, *, statemen
     if envelope is None:
         raise ValidationFailedError(
             "Current source facts require an explicit reviewed envelope before posting: "
-            + ", ".join(source_result.missing_required_facts)
+            + ", ".join(source_result.missing_required_facts),
+            error_id="envelope_confirmation_required",
         )
     if statement.manual_opening_balance is not None:
         raise ValidationFailedError("Manual opening-balance override cannot replace a reviewed statement envelope")

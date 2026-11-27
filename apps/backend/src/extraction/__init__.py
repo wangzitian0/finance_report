@@ -4,6 +4,14 @@ from __future__ import annotations
 
 from src.extraction.base import validation
 from src.extraction.base.contribution import ResolvedStatementContribution
+from src.extraction.base.issue_codes import (
+    RunDiagnosticsSnapshot,
+    RunFailureCode,
+    StatementIssueCode,
+    build_redacted_diagnostics,
+    classify_run_failure_code,
+    classify_statement_issue_codes,
+)
 from src.extraction.base.disposition import (
     DispositionCommand,
     DispositionContext,
@@ -173,6 +181,7 @@ from src.extraction.extension.statement_posting import (
     applied_rows_the_policy_accepts,
     auto_create_posted_entries_for_statement,
     create_statement_account_from_confirmation,
+    posting_count_or_conflict,
     resolve_statement_posting_account,
 )
 from src.extraction.extension.statement_runs import (
@@ -307,7 +316,13 @@ __all__ = [
     "ResolvedStatementContribution",
     "RuleType",
     "RunActorKind",
+    "RunDiagnosticsSnapshot",
+    "RunFailureCode",
     "RunHints",
+    "StatementIssueCode",
+    "build_redacted_diagnostics",
+    "classify_run_failure_code",
+    "classify_statement_issue_codes",
     "RunKind",
     "RunState",
     "RunTrigger",
@@ -412,6 +427,7 @@ __all__ = [
     "parse_brokerage_positions",
     "pending_stage1_review_filter",
     "persist_statement_extraction_result",
+    "posting_count_or_conflict",
     "reap_stale_runs",
     "record_classification_feedback",
     "record_correction",

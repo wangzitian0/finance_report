@@ -41,6 +41,7 @@ from src.audit import (
     canonical_json_digest,
     text_digest,
 )
+from src.extraction.base.issue_codes import RunDiagnosticsSnapshot
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.base.run_vocabulary import (
     ACTIVE_RUN_STATES,
@@ -311,14 +312,20 @@ class StatementRunRecord:
     finished_at: datetime | None
     #: How the run ended, from the `outcome` of its result summary. Only a classify run writes one (#3029).
     outcome: str | None = None
+    #: Redacted PII-free run diagnostics stored in `result_summary['diagnostics']` (L4).
+    diagnostics: RunDiagnosticsSnapshot | None = None
 
 
 def _to_run_record(run: StatementRun) -> StatementRunRecord:
-    names = [field.name for field in fields(StatementRunRecord) if field.name not in {"hints", "outcome"}]
-    outcome = (run.result_summary or {}).get("outcome")
+    names = [
+        field.name for field in fields(StatementRunRecord) if field.name not in {"hints", "outcome", "diagnostics"}
+    ]
+    summary = run.result_summary or {}
+    outcome = summary.get("outcome")
     return StatementRunRecord(
         **{name: getattr(run, name) for name in names},
         outcome=outcome if isinstance(outcome, str) else None,
+        diagnostics=RunDiagnosticsSnapshot.from_dict(summary.get("diagnostics")),
         # A stored row that the current rules reject must not break the audit list: no validation here.
         hints=RunHints.model_construct(keywords=list(run.hints.get("keywords", [])), note=run.hints.get("note")),
     )
@@ -557,6 +564,7 @@ async def fail_run(
     *,
     error_code: str,
     error_message: str,
+    result_summary: dict | None = None,
 ) -> StatementRun:
     """Move a requested or running run to failed.
 
@@ -566,6 +574,9 @@ async def fail_run(
         raise ValueError("error_code is 1 to 64 characters: a lowercase letter, then lowercase letters, digits or _")
     if len(error_message) > ERROR_MESSAGE_MAX_LENGTH:
         raise ValueError(f"error_message has at most {ERROR_MESSAGE_MAX_LENGTH} characters")
+    extra_fields: dict[str, object] = {}
+    if result_summary is not None:
+        extra_fields["result_summary"] = result_summary
     runs = await _transition(
         db,
         StatementRun.id == run_id,
@@ -574,6 +585,7 @@ async def fail_run(
         finished_at=_now(),
         error_code=error_code,
         error_message=error_message,
+        **extra_fields,
     )
     return _only(runs, run_id, RunState.FAILED)
 

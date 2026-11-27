@@ -76,6 +76,9 @@ export function runStateKey(run: StatementRun): string {
 
 export function ParsingAttempts({ runs }: { runs: readonly StatementRun[] }) {
   const newestFirst = [...runs].sort((a, b) => b.seq - a.seq);
+  const [expandedRunIds, setExpandedRunIds] = useState<Record<string, boolean>>({});
+  const toggleDebugSummary = (runId: string) =>
+    setExpandedRunIds((prev) => ({ ...prev, [runId]: !prev[runId] }));
   return (
     <section aria-labelledby="parsing-attempts-heading" data-testid="parsing-attempts" className="card p-4">
       <h2 id="parsing-attempts-heading" className="font-semibold text-[var(--foreground)]">Parsing attempts</h2>
@@ -87,6 +90,8 @@ export function ParsingAttempts({ runs }: { runs: readonly StatementRun[] }) {
             const keywords = run.hints.keywords ?? [];
             const note = run.hints.note ?? "";
             const stateKey = runStateKey(run);
+            const diagnostics = run.diagnostics;
+            const isExpanded = Boolean(expandedRunIds[run.id]);
             return (
               <li key={run.id} data-testid={`parsing-attempt-${run.seq}`} className="border-t border-[var(--border)] pt-3 text-sm first:border-t-0 first:pt-0">
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -106,6 +111,49 @@ export function ParsingAttempts({ runs }: { runs: readonly StatementRun[] }) {
                 {note && <p className="mt-1.5 whitespace-pre-wrap break-words text-muted">Note: {note}</p>}
                 {keywords.length === 0 && !note && <p className="mt-1 text-xs text-muted">No hints</p>}
                 {run.error_code && <p className="mt-1 text-xs text-[var(--error)]">Error: {run.error_code}</p>}
+                {diagnostics && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      onClick={() => toggleDebugSummary(run.id)}
+                      className="text-xs font-medium text-muted underline underline-offset-2 hover:text-[var(--foreground)]"
+                    >
+                      Debug summary
+                    </button>
+                    {isExpanded && (
+                      <dl className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 rounded border border-[var(--border)] bg-[var(--background-muted)] p-2 text-xs text-muted sm:grid-cols-3">
+                        {diagnostics.modality && (
+                          <div><dt className="font-medium text-[var(--foreground)]">Modality</dt><dd>{diagnostics.modality}</dd></div>
+                        )}
+                        {diagnostics.page_count != null && (
+                          <div><dt className="font-medium text-[var(--foreground)]">Pages</dt><dd>{diagnostics.page_count}</dd></div>
+                        )}
+                        {diagnostics.batch_count != null && (
+                          <div><dt className="font-medium text-[var(--foreground)]">Batches</dt><dd>{diagnostics.batch_count}</dd></div>
+                        )}
+                        {(diagnostics.pass_durations_ms?.length ?? 0) > 0 && (
+                          <div><dt className="font-medium text-[var(--foreground)]">Pass ms</dt><dd>{diagnostics.pass_durations_ms?.join(", ")}</dd></div>
+                        )}
+                        {diagnostics.balance_gap && (
+                          <div><dt className="font-medium text-[var(--foreground)]">Balance gap</dt><dd>{diagnostics.balance_gap}</dd></div>
+                        )}
+                        {(diagnostics.suspect_row_indices?.length ?? 0) > 0 && (
+                          <div><dt className="font-medium text-[var(--foreground)]">Suspect rows</dt><dd>{diagnostics.suspect_row_indices?.join(", ")}</dd></div>
+                        )}
+                        {(diagnostics.rows_not_in_text_indices?.length ?? 0) > 0 && (
+                          <div><dt className="font-medium text-[var(--foreground)]">Rows missing from text</dt><dd>{diagnostics.rows_not_in_text_indices?.join(", ")}</dd></div>
+                        )}
+                        {diagnostics.failure_code && (
+                          <div><dt className="font-medium text-[var(--foreground)]">Failure code</dt><dd>{diagnostics.failure_code}</dd></div>
+                        )}
+                        {(diagnostics.issue_codes?.length ?? 0) > 0 && (
+                          <div className="col-span-full"><dt className="font-medium text-[var(--foreground)]">Issue codes</dt><dd>{diagnostics.issue_codes?.join(", ")}</dd></div>
+                        )}
+                      </dl>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}

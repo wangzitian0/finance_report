@@ -1,7 +1,6 @@
 """Background task functions for statement parsing."""
 
 import asyncio
-import re
 import time
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
@@ -18,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.audit import TraceEmitter
 from src.config import settings
+from src.extraction.base.issue_codes import build_redacted_diagnostics, classify_run_failure_code
 from src.extraction.base.validation import AccountExtractionSlice
 from src.extraction.base.result import SCHEMA_VERSION, StatementExtractionResult
 from src.extraction.base.run_vocabulary import ERROR_MESSAGE_MAX_LENGTH, RunActorKind, RunKind, RunTrigger
@@ -162,8 +162,13 @@ class StatementIngestionUseCase:
                 failed = await fail_run(
                     session,
                     job.run_id,
-                    error_code=_run_error_code(type(error).__name__),
+                    error_code=_run_error_code(type(error).__name__, str(error)),
                     error_message=_run_error_message(str(error)),
+                    result_summary={
+                        "diagnostics": build_redacted_diagnostics(
+                            failure_code=_run_error_code(type(error).__name__, str(error)),
+                        )
+                    },
                 )
             except StaleRun:
                 await session.rollback()
@@ -220,10 +225,21 @@ def _run_error_message(message: str | None) -> str:
     return (_redacted(message) or "")[:ERROR_MESSAGE_MAX_LENGTH]
 
 
-def _run_error_code(error_type: str | None) -> str:
-    """Turn an error class name such as `ExtractionError` into the run code `extraction_error`."""
-    code = re.sub(r"[^a-z0-9_]", "", re.sub(r"(?<!^)(?=[A-Z])", "_", error_type or "").lower()).lstrip("0123456789_")
-    return code[:64] or "parse_failed"
+def _run_error_code(error_type: str | None, message: str | None = None) -> str:
+    """Turn an exception type and redacted message into a stable `StatementRun.error_code`."""
+    if error_type == "InvalidHints":
+        return "invalid_hints"
+    return classify_run_failure_code(error_type=error_type, message=message).value
+
+
+def _service_diagnostics(service_instance: Any, *, slice_index: int = 0) -> dict[str, Any] | None:
+    slices_diag = getattr(service_instance, "last_slice_diagnostics", None)
+    if isinstance(slices_diag, list) and 0 <= slice_index < len(slices_diag):
+        item = slices_diag[slice_index]
+        if isinstance(item, dict):
+            return item
+    diag = getattr(service_instance, "last_run_diagnostics", None)
+    return diag if isinstance(diag, dict) else None
 
 
 def _count_brokerage_positions(payload: dict[str, Any] | None) -> int | None:
@@ -421,6 +437,7 @@ async def handle_parse_failure(
     phase: str = "unknown",
     progress: int | None = None,
     error_type: str | None = None,
+    diagnostics: dict[str, Any] | None = None,
 ) -> None:
     """Roll back failed parse session, fail the run of the job, and persist REJECTED or PENDING_REVIEW state.
 
@@ -464,12 +481,15 @@ async def handle_parse_failure(
             )
             return
         if job is not None:
+            resolved_error_code = _run_error_code(error_type, message)
+            fail_diagnostics = diagnostics or build_redacted_diagnostics(failure_code=resolved_error_code)
             try:
                 await fail_run(
                     db,
                     job.run_id,
-                    error_code=_run_error_code(error_type),
+                    error_code=resolved_error_code,
                     error_message=_run_error_message(message),
+                    result_summary={"diagnostics": fail_diagnostics},
                 )
             except StaleRun:
                 await db.rollback()
@@ -674,6 +694,7 @@ async def _persist_statement_ingestion_phase(
                 phase="extraction_started",
                 progress=None,
                 error_type=type(exc).__name__,
+                diagnostics=_service_diagnostics(service_instance),
             )
             return StatementIngestionOutcome(statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED)
         except Exception as exc:
@@ -730,11 +751,15 @@ async def _persist_statement_ingestion_phase(
             if candidate:
                 statement.status = BankStatementStatus.PARSED
                 statement.stage1_status = Stage1Status.PENDING_REVIEW
+            primary_summary: dict[str, Any] = {AUTO_APPROVE_CANDIDATE: candidate}
+            primary_diag = _service_diagnostics(service_instance, slice_index=0)
+            if primary_diag is not None:
+                primary_summary["diagnostics"] = primary_diag
             await finish_run(
                 session,
                 job.run_id,
                 extraction_result_id=statement.current_extraction_result_id,
-                result_summary={AUTO_APPROVE_CANDIDATE: candidate},
+                result_summary=primary_summary,
             )
             checkpoint("statement_persisted")
             await brokerage_router(
@@ -829,11 +854,15 @@ async def _persist_statement_ingestion_phase(
                         parent_run_id=job.run_id,
                     )
                     await claim_run(session, sib_extract_run.id)
+                    sib_summary: dict[str, Any] = {AUTO_APPROVE_CANDIDATE: sib_candidate}
+                    sib_diag = _service_diagnostics(service_instance, slice_index=1 + sib_idx)
+                    if sib_diag is not None:
+                        sib_summary["diagnostics"] = sib_diag
                     await finish_run(
                         session,
                         sib_extract_run.id,
                         extraction_result_id=sibling.current_extraction_result_id,
-                        result_summary={AUTO_APPROVE_CANDIDATE: sib_candidate},
+                        result_summary=sib_summary,
                     )
                     await brokerage_router(
                         summary=sibling,
@@ -996,6 +1025,7 @@ async def _execute_statement_ingestion(
                                 phase=current_phase,
                                 progress=None,
                                 error_type=type(exc).__name__,
+                                diagnostics=_service_diagnostics(service_instance),
                             )
                     return StatementIngestionOutcome(
                         statement_id=statement_id, status=StatementIngestionStatus.SOURCE_REJECTED

@@ -384,3 +384,113 @@ def test_AC_extraction_2983_migration_sub_account_key_upgrade_and_downgrade():
         with admin.connect() as connection:
             connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
+
+
+@pytest.mark.no_db
+def test_issue_codes_contract_and_redacted_diagnostics_snapshot() -> None:
+    """L3/L4 pure contract: typed enums, lowercase error codes, and PII-free diagnostics."""
+    import re
+    from decimal import Decimal
+
+    from src.extraction.base.issue_codes import (
+        RunFailureCode,
+        StatementIssueCode,
+        build_redacted_diagnostics,
+        classify_run_failure_code,
+        classify_statement_issue_codes,
+    )
+
+    for code in RunFailureCode:
+        assert re.fullmatch(r"^[a-z][a-z0-9_]{0,63}$", code.value), code
+
+    assert (
+        classify_run_failure_code(error_type="TimeoutError", message="wall_clock timeout")
+        is RunFailureCode.PARSE_WALL_CLOCK_TIMEOUT
+    )
+    assert classify_run_failure_code(error_type="TimeoutError", message="timed out") is RunFailureCode.PROVIDER_TIMEOUT
+    assert (
+        classify_run_failure_code(
+            error_type="ExtractionError",
+            message="Extraction failed (rate_limit): Model rate limited",
+        )
+        is RunFailureCode.PROVIDER_RATE_LIMITED
+    )
+    assert (
+        classify_run_failure_code(
+            error_type="ExtractionError",
+            message="Extraction failed (json_parse): invalid JSON",
+        )
+        is RunFailureCode.INVALID_JSON_PAYLOAD
+    )
+
+    codes = classify_statement_issue_codes(
+        missing_facts=["institution", "transaction_currency", "balances"],
+        balance_validated=False,
+        has_account=False,
+        validation_error="Economic review required: intent_missing; Closing balance 100.00 is not in the document text",
+        rows_not_in_text=[2, 5],
+        closing_not_in_text=True,
+    )
+    assert StatementIssueCode.MISSING_INSTITUTION in codes
+    assert StatementIssueCode.MISSING_TRANSACTION_CURRENCY in codes
+    assert StatementIssueCode.MISSING_BALANCES in codes
+    assert StatementIssueCode.BALANCE_CHAIN_MISMATCH in codes
+    assert StatementIssueCode.CUSTODY_ACCOUNT_REQUIRED in codes
+    assert StatementIssueCode.ECONOMIC_DISPOSITION_REQUIRED in codes
+    assert StatementIssueCode.CLOSING_NOT_IN_SOURCE_TEXT in codes
+    assert StatementIssueCode.ROWS_NOT_IN_TEXT in codes
+
+    diag = build_redacted_diagnostics(
+        modality="pdf_text",
+        page_count=6,
+        batch_count=2,
+        pass_durations_ms=[1240, 810],
+        expected_closing=Decimal("15271.23"),
+        calculated_closing=Decimal("15000.00"),
+        balance_gap=Decimal("271.23"),
+        suspect_row_indices=[3, 7],
+        rows_not_in_text_indices=[7],
+        issue_codes=codes,
+        failure_code=None,
+    )
+    assert diag["modality"] == "pdf_text"
+    assert diag["page_count"] == 6 and diag["batch_count"] == 2
+    assert diag["pass_durations_ms"] == [1240, 810]
+    assert diag["balance_gap"] == "271.23"
+    assert diag["suspect_row_indices"] == [3, 7]
+    assert diag["rows_not_in_text_indices"] == [7]
+
+
+async def test_statement_run_record_exposes_persisted_diagnostics(db, test_user) -> None:
+    """StatementRunRecord reads redacted result_summary['diagnostics'] without leaking PII into TraceRecord."""
+    from src.extraction import list_runs
+    from src.extraction.base.issue_codes import RunFailureCode, StatementIssueCode, build_redacted_diagnostics
+
+    statement = await make_run_statement(db, test_user)
+    diag = build_redacted_diagnostics(
+        modality="pdf_vision",
+        page_count=4,
+        batch_count=1,
+        pass_durations_ms=[2100],
+        balance_gap=None,
+        suspect_row_indices=[],
+        rows_not_in_text_indices=[],
+        issue_codes=[StatementIssueCode.UNVERIFIABLE_TEXT_LAYER],
+        failure_code=RunFailureCode.PROVIDER_RATE_LIMITED,
+    )
+    run = await claim_test_run(db, statement)
+    await fail_run(
+        db,
+        run.id,
+        error_code=RunFailureCode.PROVIDER_RATE_LIMITED.value,
+        error_message="Provider rate limited.",
+        result_summary={"diagnostics": diag},
+    )
+    await db.commit()
+
+    records = await list_runs(db, statement.id, test_user.id)
+    assert len(records) == 1
+    assert records[0].diagnostics is not None
+    assert records[0].diagnostics.modality == "pdf_vision"
+    assert records[0].diagnostics.failure_code == "provider_rate_limited"
+    assert records[0].error_code == "provider_rate_limited"

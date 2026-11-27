@@ -216,7 +216,14 @@ class ScenarioBenchmarkRunner:
                 return data
             if status in ("rejected", "failed"):
                 err = str(data.get("validation_error") or "Unknown validation error")
-                if "RateLimitError" in err and retries_used < max_rate_limit_retries:
+                runs_resp = client.get(f"/api/statements/{statement_id}/runs")
+                latest_error_code = None
+                if runs_resp.status_code == 200:
+                    run_items = runs_resp.json().get("items") or []
+                    if run_items:
+                        latest_error_code = run_items[-1].get("error_code")
+                is_rate_limited = latest_error_code == "provider_rate_limited" or "RateLimitError" in err
+                if is_rate_limited and retries_used < max_rate_limit_retries:
                     retries_used += 1
                     time.sleep(retry_backoff_seconds)
                     _check_resp(
@@ -351,9 +358,11 @@ class ScenarioBenchmarkRunner:
         wait_for_statement_runs_sync(client, f"/api/statements/{statement_id}/runs")
         url = f"/api/statements/{statement_id}/approvals"
         resp = client.post(url, json=self._approval_body(client, statement_id, {"create_account_if_missing": True}))
-        if resp.status_code == 400 and "requires explicit human confirmation before posting" in resp.text:
-            self.confirm_review_envelope(client, statement_id)
-            resp = client.post(url, json=self._approval_body(client, statement_id, {"create_account_if_missing": True}))
+        if resp.status_code == 400:
+            err_id = resp.json().get("error_id") if resp.headers.get("content-type", "").startswith("application/json") else None
+            if err_id == "envelope_confirmation_required" or "requires explicit human confirmation before posting" in resp.text:
+                self.confirm_review_envelope(client, statement_id)
+                resp = client.post(url, json=self._approval_body(client, statement_id, {"create_account_if_missing": True}))
         return _check_resp(resp, f"Approval failed for statement {statement_id}").json()
 
     def reject_statement(
