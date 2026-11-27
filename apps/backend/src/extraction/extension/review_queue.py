@@ -46,7 +46,10 @@ logger = get_logger(__name__)
 async def _resolve_statement_summary(
     db: AsyncSession, txn: AtomicTransaction, *, user_id: UUID
 ) -> StatementSummary | None:
-    doc_ids = extract_source_document_ids(txn.source_documents, doc_type=DocumentType.BANK_STATEMENT.value)
+    doc_ids = [
+        *extract_source_document_ids(txn.source_documents, doc_type=DocumentType.BANK_STATEMENT.value),
+        *extract_source_document_ids(txn.source_documents, doc_type=DocumentType.BROKERAGE_STATEMENT.value),
+    ]
     if not doc_ids:
         return None
     result = await db.execute(

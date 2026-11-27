@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +13,7 @@ from src.extraction import (
     StatementSourceType,
     create_statement_account_from_confirmation,
     is_bank_custody_source,
+    resolve_cash_flow_custody_ids,
     resolve_statement_posting_account,
 )
 from src.extraction.extension.custody_binding import resolve_bank_custody
@@ -295,3 +297,134 @@ async def test_credit_card_statement_allocates_liability_custody_and_validates_e
         ],
     )
     assert re_parsed.account_id == account.id
+
+
+async def test_resolve_cash_flow_custody_ids_distinguishes_empty_liability_and_brokerage_cash(db, test_user):
+    """Zero statements returns None; card-only returns empty set; brokerage ledger includes non-system ASSET."""
+    from datetime import UTC, datetime
+    from decimal import Decimal
+    from hashlib import sha256
+    from uuid import uuid4
+
+    from src.extraction.orm.reviewed_statement_envelope import StatementExtractionResultRecord
+    from tests.factories import UserFactory
+
+    assert await resolve_cash_flow_custody_ids(db, user_id=test_user.id, as_of=date(2026, 3, 31)) is None
+
+    card_stmt = await parse(
+        db,
+        test_user.id,
+        institution="Card Bank",
+        account_last4="9911",
+        currency="SGD",
+        opening_balance="-100.00",
+        closing_balance="-120.00",
+        transactions=[
+            {
+                "date": "2026-01-10",
+                "description": "Spend",
+                "amount": "20.00",
+                "direction": "OUT",
+                "currency": "SGD",
+                "balance_after": "-120.00",
+            }
+        ],
+    )
+    card_stmt.status = BankStatementStatus.APPROVED
+    await db.flush()
+    assert await resolve_cash_flow_custody_ids(db, user_id=test_user.id, as_of=date(2026, 3, 31)) == frozenset()
+
+    pos_user = await UserFactory.create_async(db)
+    pos_acct = await make_account(db, pos_user.id, name="Broker Positions")
+    pos_doc = UploadedDocument(
+        user_id=pos_user.id,
+        file_path="pos.pdf",
+        file_hash=f"pos-{pos_user.id.hex}",
+        original_filename="pos.pdf",
+        document_type=DocumentType.BROKERAGE_STATEMENT,
+    )
+    db.add(pos_doc)
+    await db.flush()
+    pos_stmt = StatementSummary(
+        user_id=pos_user.id,
+        uploaded_document_id=pos_doc.id,
+        file_hash=pos_doc.file_hash,
+        institution="IBKR",
+        account_id=pos_acct.id,
+        currency="SGD",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("1000.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(pos_stmt)
+    await db.flush()
+    pos_rec = StatementExtractionResultRecord(
+        user_id=pos_user.id,
+        statement_id=pos_stmt.id,
+        content_digest=sha256(f"pos:{pos_stmt.id}".encode()).hexdigest(),
+        source_content_digest=sha256(f"pos-src:{pos_stmt.id}".encode()).hexdigest(),
+        schema_version="2",
+        producer_version="test",
+        payload={
+            "source_type": StatementSourceType.BROKERAGE.value,
+            "evidence_type": StatementEvidenceType.POSITION_SNAPSHOT.value,
+            "period_start": "2026-01-01",
+        },
+        source_trace_record_id=uuid4(),
+        created_at=datetime.now(UTC),
+    )
+    db.add(pos_rec)
+    await db.flush()
+    pos_stmt.current_extraction_result_id = pos_rec.id
+    await db.flush()
+    assert await resolve_cash_flow_custody_ids(db, user_id=pos_user.id, as_of=date(2026, 3, 31)) == frozenset()
+
+    cash_acct = await make_account(db, pos_user.id, name="IBKR Cash")
+    cash_doc = UploadedDocument(
+        user_id=pos_user.id,
+        file_path="cash.pdf",
+        file_hash=f"cash-{pos_user.id.hex}",
+        original_filename="cash.pdf",
+        document_type=DocumentType.BROKERAGE_STATEMENT,
+    )
+    db.add(cash_doc)
+    await db.flush()
+    cash_stmt = StatementSummary(
+        user_id=pos_user.id,
+        uploaded_document_id=cash_doc.id,
+        file_hash=cash_doc.file_hash,
+        institution="IBKR",
+        account_id=cash_acct.id,
+        currency="SGD",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        opening_balance=Decimal("100.00"),
+        closing_balance=Decimal("200.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(cash_stmt)
+    await db.flush()
+    cash_rec = StatementExtractionResultRecord(
+        user_id=pos_user.id,
+        statement_id=cash_stmt.id,
+        content_digest=sha256(f"cash:{cash_stmt.id}".encode()).hexdigest(),
+        source_content_digest=sha256(f"cash-src:{cash_stmt.id}".encode()).hexdigest(),
+        schema_version="2",
+        producer_version="test",
+        payload={
+            "source_type": StatementSourceType.BROKERAGE.value,
+            "evidence_type": StatementEvidenceType.TRANSACTION_LEDGER.value,
+            "period_start": "2026-01-01",
+        },
+        source_trace_record_id=uuid4(),
+        created_at=datetime.now(UTC),
+    )
+    db.add(cash_rec)
+    await db.flush()
+    cash_stmt.current_extraction_result_id = cash_rec.id
+    await db.flush()
+    assert await resolve_cash_flow_custody_ids(db, user_id=pos_user.id, as_of=date(2026, 3, 31)) == frozenset(
+        {cash_acct.id}
+    )

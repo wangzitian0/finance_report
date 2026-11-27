@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
 from src.deps import Ctx, Pagination, ReadCtx, RequestContext
-from src.extraction import coverage_bank_custody_account_ids
+from src.extraction import resolve_cash_flow_custody_ids
 from src.ledger import AccountType
 from src.observability import get_logger, track as _track_analytics
 from src.platform import ResourceNotFoundError, ValidationFailedError
@@ -542,7 +542,7 @@ async def cash_flow(
     start, end = cash_flow_period(start_date, end_date)
 
     async def _build(tc: str, _bc: str):
-        custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
+        custody = await resolve_cash_flow_custody_ids(db, user_id=user_id, as_of=end)
         return await generate_cash_flow(
             db, user_id, start_date=start, end_date=end, currency=tc, cash_account_ids=custody
         )
@@ -566,7 +566,7 @@ async def list_cash_flow_line_events(
     start, end = cash_flow_period(start_date, end_date)
 
     async def _build(tc: str, _bc: str):
-        custody = (await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end)) or None
+        custody = await resolve_cash_flow_custody_ids(db, user_id=user_id, as_of=end)
         return await cash_flow_line_events_page(
             db,
             user_id,
@@ -708,7 +708,7 @@ async def export_report(
     elif report_type == ExportReportType.CASH_FLOW:
         if not start_date or not end_date:
             raise ValidationFailedError("start_date and end_date are required for cash flow export")
-        custody_ids = await coverage_bank_custody_account_ids(db, user_id=user_id, as_of=end_date)
+        custody_ids = await resolve_cash_flow_custody_ids(db, user_id=user_id, as_of=end_date)
         cf = cast(
             dict[str, Any],
             await generate_cash_flow(
@@ -717,7 +717,7 @@ async def export_report(
                 start_date=start_date,
                 end_date=end_date,
                 currency=target_currency,
-                cash_account_ids=custody_ids or None,
+                cash_account_ids=custody_ids,
             ),
         )
         csv_text, filename = render_cash_flow_csv(cf), f"cash-flow-{start_date}-to-{end_date}.csv"

@@ -148,10 +148,14 @@ async def coverage_bank_custody_account_ids(
         StatementExtractionResultRecord.payload["source_type"].astext == StatementSourceType.BANK.value,
         StatementExtractionResultRecord.payload["evidence_type"].astext
         == StatementEvidenceType.TRANSACTION_LEDGER.value,
+        and_(
+            StatementExtractionResultRecord.id.is_(None),
+            StatementSummary.status == BankStatementStatus.APPROVED,
+        ),
     )
     primary_accounts = (
         select(StatementSummary.account_id.label("account_id"))
-        .join(
+        .outerjoin(
             StatementExtractionResultRecord,
             StatementExtractionResultRecord.id == StatementSummary.current_extraction_result_id,
         )
@@ -162,6 +166,7 @@ async def coverage_bank_custody_account_ids(
             period_start <= as_of,
             is_bank_source,
             Account.type == AccountType.ASSET,
+            Account.is_system.is_(False),
             Account.is_active.is_(True),
         )
     )
@@ -175,7 +180,7 @@ async def coverage_bank_custody_account_ids(
                 StatementSummary.account_last4 == BankCustodyBinding.account_last4,
             ),
         )
-        .join(
+        .outerjoin(
             StatementExtractionResultRecord,
             StatementExtractionResultRecord.id == StatementSummary.current_extraction_result_id,
         )
@@ -186,6 +191,7 @@ async def coverage_bank_custody_account_ids(
             period_start <= as_of,
             is_bank_source,
             Account.type == AccountType.ASSET,
+            Account.is_system.is_(False),
             Account.is_active.is_(True),
         )
     )
@@ -211,6 +217,27 @@ async def coverage_bank_custody_account_ids(
         out_latest_approved_end.clear()
         out_latest_approved_end.append(rows[0][1] if rows else None)
     return frozenset(account_id for account_id, _ in rows if account_id is not None)
+
+
+async def resolve_cash_flow_custody_ids(
+    db: AsyncSession,
+    *,
+    user_id: UUID,
+    as_of: date,
+) -> frozenset[UUID] | None:
+    """Return cash custody account IDs, empty set for non-cash statements, or None when none exist."""
+    latest_approved_end: list[date | None] = []
+    custody_ids = await coverage_bank_custody_account_ids(
+        db,
+        user_id=user_id,
+        as_of=as_of,
+        out_latest_approved_end=latest_approved_end,
+    )
+    if custody_ids:
+        return custody_ids
+    if latest_approved_end and latest_approved_end[0] is not None:
+        return frozenset()
+    return None
 
 
 async def validate_custody_account(

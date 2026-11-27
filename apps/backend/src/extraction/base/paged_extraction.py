@@ -171,10 +171,28 @@ class MultipleAccountsError(ValueError):
         self.parts_by_account = parts_by_account
 
 
-def text_page_batches(pages: list[str], pages_per_call: int) -> list[list[dict[str, Any]]]:
-    """Return PDF page texts as batches of text parts, one part per page, labelled with its page number."""
-    parts = [{"type": "text", "text": f"[Page {number}]\n{text}"} for number, text in enumerate(pages, start=1)]
-    return [parts[start : start + pages_per_call] for start in range(0, len(parts), pages_per_call)]
+def text_page_batches(
+    pages: list[str],
+    pages_per_call: int,
+    *,
+    max_chars_per_call: int = 32_000,
+) -> list[list[dict[str, Any]]]:
+    """Return PDF page texts as batches bounded by page count and character budget."""
+    batches: list[list[dict[str, Any]]] = []
+    current: list[dict[str, Any]] = []
+    current_chars = 0
+    for number, text in enumerate(pages, start=1):
+        part_text = f"[Page {number}]\n{text}"
+        part_chars = len(part_text)
+        if current and (len(current) >= pages_per_call or current_chars + part_chars > max_chars_per_call):
+            batches.append(current)
+            current = []
+            current_chars = 0
+        current.append({"type": "text", "text": part_text})
+        current_chars += part_chars
+    if current:
+        batches.append(current)
+    return batches
 
 
 def merge_paged_extractions(
