@@ -563,7 +563,7 @@
       "aliases": [],
       "ci": "forbidden",
       "composed_from": "",
-      "description": "EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed).",
+      "description": "EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed).",
       "empty_ok": false,
       "env": "PREFECT_API_URL",
       "field": "prefect_api_url",
