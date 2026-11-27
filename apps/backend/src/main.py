@@ -224,7 +224,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
     stop_event = asyncio.Event()
     tasks: list[asyncio.Task[None]] = [
-        asyncio.create_task(BACKGROUND_JOB_LOOPS[job.name](stop_event)) for job in BACKGROUND_JOBS
+        asyncio.create_task(BACKGROUND_JOB_LOOPS[job.name](stop_event))
+        for job in BACKGROUND_JOBS
+        if job.scheduler == "in_process"
     ]
     log_observability_startup(logger)
     logger.info("Application started", version=APP_VERSION)

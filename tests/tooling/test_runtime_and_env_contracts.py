@@ -614,7 +614,17 @@ def test_background_jobs_dependencies_and_cli() -> None:
     cli_names = [job.cli_name for job in BACKGROUND_JOBS]
     assert len(job_names) == len(set(job_names)) >= 4
     assert len(cli_names) == len(set(cli_names))
-    assert set(main_module.BACKGROUND_JOB_LOOPS) == set(job_names)
+    in_process_names = {
+        job.name for job in BACKGROUND_JOBS if job.scheduler == "in_process"
+    }
+    prefect_names = {job.name for job in BACKGROUND_JOBS if job.scheduler == "prefect"}
+    assert in_process_names == {"outbox_relay"}
+    assert prefect_names == {
+        "parsing_supervisor",
+        "market_data_scheduler",
+        "storage_sweep",
+    }
+    assert set(main_module.BACKGROUND_JOB_LOOPS) == in_process_names
     assert set(main_module.BACKGROUND_JOB_ONCE) == set(job_names)
 
     registered_metrics = {

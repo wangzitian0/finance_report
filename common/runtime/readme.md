@@ -13,8 +13,8 @@ Owns dependency declarations (`DependencyManifest` from `infra2_sdk.service`), f
 ## Background Jobs Manifest (`BACKGROUND_JOBS`)
 
 `apps/backend/src/runtime/base/jobs.py` defines `BACKGROUND_JOBS` as the single registry for background loops and CLI triggers.
-- Each `BackgroundJobSpec` declares `name`, `cli_name`, `concurrency`, `failure_metric`, and `summary`.
-- `apps/backend/src/main.py` starts every registered loop in `lifespan` and exposes `run_background_job_once(cli_name)`.
+- Each `BackgroundJobSpec` declares `name`, `cli_name`, `concurrency`, `failure_metric`, `summary`, and `scheduler` (`"prefect"` or `"in_process"`).
+- `apps/backend/src/main.py` starts every `scheduler="in_process"` loop in `lifespan` (`outbox_relay`; durable batch jobs run on Prefect pool `finance-report`) and exposes `run_background_job_once(cli_name)` for manual CLI replay of all registered jobs.
 - `python -m common.runtime.dev.cli job --list` lists registered jobs and `python -m common.runtime.dev.cli job --run-once <cli_name>` executes one pass.
 - `RedisCheck.probe()` uses authenticated `redis.asyncio.from_url(...).ping()` with secret redaction on failures.
 - `ObjectStorageCheck.probe()` checks primary S3, `S3_PUBLIC_*` when set, and an ephemeral put/delete check on `EnvironmentTier.STAGING` only.

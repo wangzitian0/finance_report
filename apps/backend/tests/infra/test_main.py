@@ -124,20 +124,21 @@ async def test_lifespan_starts_and_stops_all_background_jobs_and_run_once(monkey
 
         return _loop
 
+    in_process_jobs = [job for job in BACKGROUND_JOBS if job.scheduler == "in_process"]
     monkeypatch.setattr(Bootloader, "validate", AsyncMock())
     monkeypatch.setattr(Bootloader, "print_config", lambda: None)
     monkeypatch.setattr(main_module, "init_db", AsyncMock())
     monkeypatch.setattr(
         main_module,
         "BACKGROUND_JOB_LOOPS",
-        {job.name: _make_fake_loop(job.name) for job in BACKGROUND_JOBS},
+        {job.name: _make_fake_loop(job.name) for job in in_process_jobs},
     )
 
     async with main_module.lifespan(main_module.app):
         await asyncio.sleep(0.01)
-        assert sorted(started) == sorted(job.name for job in BACKGROUND_JOBS)
+        assert sorted(started) == sorted(job.name for job in in_process_jobs)
 
-    assert sorted(cancelled) == sorted(job.name for job in BACKGROUND_JOBS)
+    assert sorted(cancelled) == sorted(job.name for job in in_process_jobs)
 
     once_calls: list[str] = []
 
