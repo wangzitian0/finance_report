@@ -864,6 +864,8 @@ def evaluate_scenario_ratchet(
         details = r.details if isinstance(r.details, Mapping) else {}
         if details.get("is_balanced") is False:
             hard_failures.append(f"{r.case_id}:is_balanced=False")
+        if r.status not in ("PASS", "SKIPPED") and _classify_case_error(r) == "EQUATION_INVARIANT_FAILED":
+            hard_failures.append(f"{r.case_id}:EQUATION_INVARIANT_FAILED")
         for key in ("equation_delta", "equation_delta_sgd", "equation_delta_usd"):
             raw = details.get(key)
             if raw is None or isinstance(raw, bool):
@@ -876,9 +878,17 @@ def evaluate_scenario_ratchet(
                 hard_failures.append(f"{r.case_id}:{key}={val}")
 
     passed = sum(1 for r in results if r.status == "PASS")
-    total_expected = int((policy or {}).get("total_expected") or len(results))
+    total_expected = (
+        int(policy["total_expected"])
+        if policy and policy.get("total_expected") is not None
+        else len(results)
+    )
     enforced = bool(policy and len(results) >= total_expected > 0)
-    floor_passed = int((policy or {}).get("floor_passed") or len(results))
+    floor_passed = (
+        int(policy["floor_passed"])
+        if policy and policy.get("floor_passed") is not None
+        else len(results)
+    )
     hard_invariant_ok = not hard_failures
     all_passed = all(r.status in ("PASS", "SKIPPED") for r in results) and passed >= 1
     gate_passed = hard_invariant_ok and (passed >= floor_passed if enforced else all_passed)
@@ -901,12 +911,14 @@ def _build_report_data(
 ) -> dict[str, Any]:
     durations = [float(r.duration_seconds) for r in results]
     error_counts = dict(Counter(_classify_case_error(r) for r in results if r.status not in ("PASS", "SKIPPED")))
+    effective_success = bool(ratchet["gate_passed"]) if (ratchet and ratchet.get("enforced")) else all_passed
     summary: dict[str, Any] = {
         "total": len(results),
         "passed": sum(1 for r in results if r.status == "PASS"),
         "skipped": sum(1 for r in results if r.status == "SKIPPED"),
         "failed": sum(1 for r in results if r.status not in ("PASS", "SKIPPED")),
-        "success": all_passed,
+        "all_passed": all_passed,
+        "success": effective_success,
         "p50_seconds": _percentile_seconds(durations, 0.50),
         "p95_seconds": _percentile_seconds(durations, 0.95),
         "error_code_counts": error_counts,
@@ -997,7 +1009,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("Error: No valid benchmark cases selected.", file=sys.stderr)
         return 2
     all_passed = _run_succeeded(results, args.allow_skip)
-    is_full_suite = args.case in (None, "all") and not args.domain and not args.flow
+    core_case_ids = {f"case_{i}" for i in range(1, 7)}
+    is_full_suite = (
+        not args.domain
+        and not args.flow
+        and core_case_ids.issubset({r.case_id for r in results})
+    )
     ratchet_policy = _load_scenario_ratchet_policy() if is_full_suite else None
     ratchet = evaluate_scenario_ratchet(results, ratchet_policy)
     report_data = _build_report_data(args, results, all_passed, ratchet=ratchet)

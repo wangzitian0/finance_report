@@ -1141,9 +1141,22 @@ def _build_oracle_report_data(
                 ):
                     hard_invariant_failures.append(f"{r.get('fixture_id')}:{inv.get('invariant_id')}")
 
-    total_expected = int((ratchet_policy or {}).get("total_expected") or total)
+    total_expected = (
+        int(ratchet_policy["total_expected"])
+        if ratchet_policy and ratchet_policy.get("total_expected") is not None
+        else total
+    )
     enforced = bool(ratchet_policy and app_url and total >= total_expected > 0)
-    floor_passed = int((ratchet_policy or {}).get("floor_passed") or total)
+    floor_passed = (
+        int(ratchet_policy["floor_passed"])
+        if ratchet_policy and ratchet_policy.get("floor_passed") is not None
+        else total
+    )
+    for r in results:
+        if r.get("status") != "PASS" and not isinstance(r.get("comparison"), Mapping):
+            err_blob = f"{r.get('error_message') or ''} {' '.join(str(f) for f in (r.get('failures') or ()))}"
+            if "equation" in err_blob.lower():
+                hard_invariant_failures.append(f"{r.get('fixture_id')}:fundamental_accounting_equation")
     hard_invariant_ok = not hard_invariant_failures
     all_passed = total > 0 and failed == 0
     gate_passed = hard_invariant_ok and (passed >= floor_passed if enforced else all_passed)

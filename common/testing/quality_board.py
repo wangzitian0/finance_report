@@ -812,6 +812,7 @@ def _extract_benchmark_ratchet(
             "floor_passed": int(
                 (pdf_sum.get("ratchet") or {}).get("floor_passed", pdf_pol.get("floor_passed", 0)) or 0
             ),
+            "hard_invariant_ok": bool((pdf_sum.get("ratchet") or {}).get("hard_invariant_ok", True)),
             "p50_seconds": pdf_sum.get("p50_seconds"),
             "p95_seconds": pdf_sum.get("p95_seconds"),
             "error_code_counts": dict(pdf_sum.get("error_code_counts") or {}),
@@ -822,6 +823,7 @@ def _extract_benchmark_ratchet(
             "floor_passed": int(
                 (scen_sum.get("ratchet") or {}).get("floor_passed", scen_pol.get("floor_passed", 0)) or 0
             ),
+            "hard_invariant_ok": bool((scen_sum.get("ratchet") or {}).get("hard_invariant_ok", True)),
             "p50_seconds": scen_sum.get("p50_seconds"),
             "p95_seconds": scen_sum.get("p95_seconds"),
             "error_code_counts": dict(scen_sum.get("error_code_counts") or {}),
@@ -1034,7 +1036,8 @@ def render_html(data: Mapping[str, Any]) -> str:
         passed_n = int(entry.get("passed") or 0)
         total_n = int(entry.get("total") or 0)
         floor_n = int(entry.get("floor_passed") or 0)
-        kind = "ok" if (total_n > 0 and passed_n >= floor_n) else "warn"
+        hard_ok = bool(entry.get("hard_invariant_ok", True))
+        kind = "bad" if not hard_ok else ("ok" if (total_n > 0 and passed_n >= floor_n) else "warn")
         p50 = entry.get("p50_seconds")
         p95 = entry.get("p95_seconds")
         lat_line = (

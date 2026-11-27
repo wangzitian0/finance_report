@@ -471,6 +471,43 @@ def test_pdf_corpus_oracle_and_scenario_ratchet_policy(
     scen_ratchet = evaluate_scenario_ratchet(case_results, policy["financial_scenario_benchmark"])
     assert scen_ratchet["gate_passed"] is True and scen_ratchet["hard_invariant_ok"] is True
 
+    # Equation exception raised before details population still triggers hard-invariant fail
+    eq_break_cases = [
+        *case_results[:5],
+        CaseResult(
+            case_id="case_6",
+            case_name="Case 6",
+            status="FAIL",
+            duration_seconds=1.0,
+            details={},
+            error_message="AssertionError: Balance Sheet not balanced: equation_delta=1.00",
+        ),
+    ]
+    eq_ratchet = evaluate_scenario_ratchet(eq_break_cases, policy["financial_scenario_benchmark"])
+    assert eq_ratchet["hard_invariant_ok"] is False and eq_ratchet["gate_passed"] is False
+
+    # End-to-end main(["--case", "1,2,3,4,5,6", ...]) activates ratchet & emits summary PASS at 4/6
+    from tests.benchmarks import run_financial_scenario_benchmark as scen_mod
+
+    scen_json = tmp_path / "scen.json"
+    scen_sum = tmp_path / "scen_summary.json"
+    with monkeypatch.context() as mp:
+        mp.setattr(scen_mod, "_dispatch_cases", lambda *_a, **_kw: case_results)
+        mp.setattr(scen_mod, "_load_scenario_ratchet_policy", lambda *_a: policy["financial_scenario_benchmark"])
+        rc_scen = scen_mod.main(
+            [
+                "--case",
+                "1,2,3,4,5,6",
+                "--json-report",
+                str(scen_json),
+                "--output-summary",
+                str(scen_sum),
+            ]
+        )
+    assert rc_scen == 0
+    assert json.loads(scen_sum.read_text(encoding="utf-8"))["status"] == "PASS"
+    assert json.loads(scen_sum.read_text(encoding="utf-8"))["ratchet"]["floor_passed"] == 3
+
     # Runner distinguishes retire_statement (DELETE 204) vs reject_statement (POST /rejections -> parsing)
     seen_calls: list[tuple[str, str]] = []
 

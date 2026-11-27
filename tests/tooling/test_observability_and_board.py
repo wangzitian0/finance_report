@@ -1225,3 +1225,32 @@ def test_quality_board_decouples_freshness_from_capability_pass_and_renders_ratc
     assert "Benchmark Capability &amp; Ratchet Gate" in rendered
     assert "12 / 20" in rendered and "Floor: 12" in rendered
     assert "THREE_STATEMENT_MISMATCH: 4" in rendered
+
+    bad_rendered = qb.render_html(
+        {
+            "generated_at_utc": "2026-11-25T12:00:00Z",
+            "generated_at_utc8": "2026-11-25 20:00:00 UTC+8",
+            "freshness": verdict,
+            "runtime_health": healthy_pair,
+            "scheduled_audit": {"completeness": {"completed": 4, "expected": 4}, "runs": []},
+            "ci_post": {"runs": []},
+            "user_cases": {"total": 47, "domains": []},
+            "benchmark_ratchet": {
+                "pdf_corpus_oracle": {
+                    "passed": 12,
+                    "total": 20,
+                    "floor_passed": 12,
+                    "hard_invariant_ok": False,
+                    "error_code_counts": {},
+                },
+                "financial_scenario_benchmark": {
+                    "passed": 3,
+                    "total": 6,
+                    "floor_passed": 3,
+                    "hard_invariant_ok": True,
+                    "error_code_counts": {},
+                },
+            },
+        }
+    )
+    assert '<span class="badge badge-bad">12 / 20</span>' in bad_rendered

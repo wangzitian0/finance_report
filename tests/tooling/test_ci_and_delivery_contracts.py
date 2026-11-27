@@ -2336,8 +2336,8 @@ def test_install_infra2_sdk_caches_and_verifies_sha256() -> None:
     assert install_run.index("sha256sum --check") < install_run.index("pip install")
 
 
-def test_docs_workflow_uses_path_filtered_push_without_uv() -> None:
-    """docs.yml builds on main docs/board changes, 4h schedule, and dispatch without uv."""
+def test_docs_workflow_uses_path_filtered_push_and_setup_backend_env() -> None:
+    """docs.yml builds on main docs/board/workflow changes, 4h schedule, and dispatch with backend env."""
     raw = (ROOT / ".github/workflows/docs.yml").read_text(encoding="utf-8")
     docs = yaml.safe_load(raw)
     on_cfg = docs.get("on", docs.get(True))
@@ -2347,12 +2347,13 @@ def test_docs_workflow_uses_path_filtered_push_without_uv() -> None:
         "docs/**",
         "mkdocs.yml",
         "common/testing/quality_board.py",
+        ".github/workflows/docs.yml",
     ]
     assert on_cfg["schedule"] == [{"cron": "0 */4 * * *"}]
     assert "workflow_dispatch" in on_cfg
     assert "if" not in docs["jobs"]["build"]
-    assert all(
-        "setup-uv" not in str(s.get("uses", ""))
+    assert any(
+        s.get("uses") == "./.github/actions/setup-backend-env"
         for s in docs["jobs"]["build"]["steps"]
         if isinstance(s, dict)
     )
