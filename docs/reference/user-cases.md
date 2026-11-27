@@ -40,15 +40,15 @@ Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`).
 | **D3: Fact Review & Human-in-the-Loop** | 8 | 1 | 2 | 3 | 1 | 1 | 0 |
 | **D4: Economic Intent & Categorization** | 5 | 1 | 0 | 3 | 0 | 1 | 0 |
 | **D5: Cross-Source Reconciliation & Transfers** | 5 | 0 | 1 | 3 | 0 | 1 | 0 |
-| **D6: Investments & Multi-Asset Valuation** | 8 | 2 | 0 | 2 | 1 | 3 | 0 |
+| **D6: Investments & Multi-Asset Valuation** | 8 | 2 | 0 | 2 | 2 | 2 | 0 |
 | **D7: Financial Reporting & Accounting Equation Governance** | 7 | 2 | 1 | 4 | 0 | 0 | 0 |
 | **D8: Anomaly Monitoring & Explainable AI Financial Advisor** | 2 | 1 | 0 | 1 | 0 | 0 | 0 |
-| **Total** | **47** | **9** | **5** | **16** | **4** | **13** | **0** |
+| **Total** | **47** | **9** | **5** | **16** | **5** | **12** | **0** |
 
 ### Incremental Proof Upgrade Queue
 
-- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-11 (#3029), UC-14 (#3112), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923)
-- **Surface-only (`L2_SURFACE` — add E2E or benchmark)**: UC-10, UC-12, UC-18, UC-37
+- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-11 (#3029), UC-14 (#3112), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-38 (#2923)
+- **Surface-only (`L2_SURFACE` — add E2E or benchmark)**: UC-10, UC-12, UC-18, UC-32, UC-37
 - **Bench without E2E (`L3_BENCH` -> `L4_FULL`)**: UC-15, UC-16, UC-17, UC-22, UC-23, UC-25, UC-28, UC-29, UC-30, UC-33, UC-35, UC-40, UC-41, UC-42, UC-44, UC-46
 - **E2E without Bench (`L3_E2E` -> `L4_FULL`)**: UC-05, UC-19, UC-20, UC-27, UC-43
 
@@ -138,7 +138,7 @@ Governs brokerage holdings, equity trade lot accounting, dividend tax withholdin
 | UC ID | User Case (EN / 中文) | UI Surface | Frontend Component | Backend Endpoint | Invariant / Accounting Rule | Proof Tier | Test Reference |
 |---|---|---|---|---|---|---|---|
 | **UC-31** | Brokerage Monthly Statement Position Sync<br>*(券商月结单持仓更新)* | `/portfolio` | `HoldingsTable` | `POST /statements` | `Position quantity * average_cost == Book cost; synced across statement boundaries` | `L1_PARTIAL (#2920)` | [`apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py`](../../apps/backend/tests/extraction/test_brokerage_position_extraction_wiring.py) |
-| **UC-32** | Stock/Fund Trade Lots & Cost-Basis Accounting (FIFO/LIFO/AvgCost)<br>*(股票基金买卖交易与成本批次核算)* | `/portfolio` | `HoldingsTable` | `POST /portfolio/brokerage-imports` | `Disposals consume InvestmentLot cost basis deterministically per CostBasisMethod and post balanced realized PnL` | `L1_PARTIAL (#2922)` | [`apps/backend/tests/portfolio/test_investment_accounting.py`](../../apps/backend/tests/portfolio/test_investment_accounting.py) |
+| **UC-32** | Stock/Fund Trade Lots & Cost-Basis Accounting (FIFO/LIFO/AvgCost)<br>*(股票基金买卖交易与成本批次核算)* | `/portfolio` | `HoldingsTable` | `POST /portfolio/trades` | `Disposals consume InvestmentLot cost basis deterministically per CostBasisMethod and post balanced realized PnL` | `L2_SURFACE` | [`apps/backend/tests/portfolio/test_investment_accounting.py`](../../apps/backend/tests/portfolio/test_investment_accounting.py) |
 | **UC-33** | Dividend Gross-to-Net & Withholding Tax Split<br>*(股票分红预扣税拆分)* | `/reconciliation?tab=unmatched` | `UnmatchedBoard` | `POST /journal-entries` | `Gross Dividend Income == Net Cash Received + Withholding Tax Expense` | `L3_BENCH` | [`apps/backend/tests/reporting/test_bench_articulation_matrix.py`](../../apps/backend/tests/reporting/test_bench_articulation_matrix.py) |
 | **UC-34** | Real-Time Market Price Refresh & Unrealized PnL<br>*(实时市价刷新与重估)* | `/portfolio?panel=prices` | `PriceUpdateForm` | `POST /pricing/price-overrides` | `Market value == Quantity * Latest Price; Unrealized PnL == Market value - Cost` | `L4_FULL` | [`apps/backend/tests/pricing/test_valuation_lines.py`](../../apps/backend/tests/pricing/test_valuation_lines.py) |
 | **UC-35** | Physical Receipt & Screenshot Mobile Capture<br>*(纸质小票/手机银行截图拍照识别)* | `/portfolio?panel=evidence` | `GuidedEvidenceForm` | `POST /pricing/manual-valuations` | `Evidence file anchored to transaction or asset with SHA-256 digest` | `L3_BENCH` | [`apps/backend/tests/pricing/test_manual_valuations_api.py`](../../apps/backend/tests/pricing/test_manual_valuations_api.py) |

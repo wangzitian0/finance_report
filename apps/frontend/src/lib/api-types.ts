@@ -60,6 +60,7 @@ export interface paths {
   "/portfolio/holdings": _P<{ get: _O["get_holdings_portfolio_holdings_get"] }>;
   "/portfolio/performance/report-schedule": _P<{ get: _O["get_investment_performance_report_schedule_portfolio_performance_report_schedule_get"] }>;
   "/portfolio/summary": _P<{ get: _O["get_portfolio_summary_portfolio_summary_get"] }>;
+  "/portfolio/trades": _P<{ post: _O["record_portfolio_trade_portfolio_trades_post"] }>;
   "/portfolio/{ticker}": _P<{ patch: _O["update_holding_cost_basis_method_portfolio__ticker__patch"] }>;
   "/portfolio/{ticker}/dividends": _P<{ get: _O["get_holding_dividends_portfolio__ticker__dividends_get"]; post: _O["create_holding_dividend_portfolio__ticker__dividends_post"] }>;
   "/portfolio/{ticker}/realized": _P<{ get: _O["get_holding_realized_lots_portfolio__ticker__realized_get"] }>;
@@ -1803,6 +1804,35 @@ export interface components {
       hints?: _S["RunHints"];
       kind: "extract" | "classify";
     };
+    TradeCreateRequest: {
+      asset_identifier: string;
+      cash_account_id?: string | null;
+      cost_basis_method: _S["CostBasisMethod"];
+      currency: string;
+      fees: number | string;
+      investment_account_id?: string | null;
+      quantity: number | string;
+      realized_pnl_account_id?: string | null;
+      side: "BUY" | "SELL";
+      transaction_date: string;
+      unit_price: number | string;
+    };
+    TradeRecordResponse: {
+      asset_identifier: string;
+      cost_basis: string;
+      currency: string;
+      fees: string;
+      gross_amount: string;
+      journal_entry_id: string;
+      position_cost_basis?: string | null;
+      position_id: string;
+      position_quantity: string;
+      quantity: string;
+      realized_pnl: string;
+      side: "BUY" | "SELL";
+      transaction_id: string;
+      unit_price: string;
+    };
     TransactionCategory: "SALARY" | "INTEREST" | "INVESTMENT_INCOME" | "REFUND" | "OTHER_INCOME" | "DINING" | "GROCERIES" | "TRANSPORT" | "HOUSING" | "UTILITIES" | "SHOPPING" | "HEALTHCARE" | "ENTERTAINMENT" | "TRAVEL" | "EDUCATION" | "INSURANCE" | "FEES" | "OTHER_EXPENSE" | "TRANSFER" | "CARD_REPAYMENT" | "LOAN_PRINCIPAL" | "INVESTMENT_TRADE";
     UserAiSettingsResponse: {
       auto_accept_ai_suggestions: boolean;
@@ -2134,6 +2164,7 @@ export interface operations {
     requestBody?: never;
     responses: _R<_S["PortfolioSummaryDashboardResponse"]>;
   };
+  record_portfolio_trade_portfolio_trades_post: _Op<_S["TradeRecordResponse"], _NP, _S["TradeCreateRequest"], 201>;
   update_holding_cost_basis_method_portfolio__ticker__patch: {
     parameters: _PP<{
         ticker: string;

@@ -6,8 +6,8 @@
 
 - API title: `Finance Report API`
 - API version: `contract`
-- Endpoint count: `105`
-- Schema count: `252`
+- Endpoint count: `106`
+- Schema count: `254`
 
 Paths below are backend OpenAPI paths. The production reverse proxy exposes them under `/api`.
 
@@ -20,7 +20,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `auth` | 4 |
 | `chat` | 4 |
 | `journal-entries` | 7 |
-| `portfolio` | 11 |
+| `portfolio` | 12 |
 | `pricing` | 7 |
 | `reconciliation` | 16 |
 | `reports` | 20 |
@@ -90,6 +90,7 @@ Paths below are backend OpenAPI paths. The production reverse proxy exposes them
 | `GET` | `/portfolio/holdings` | yes | `as_of_date` (query), `include_disposed` (query), `limit` (query), `offset` (query) | - | `200` `HoldingsListResponse` | Get Holdings |
 | `GET` | `/portfolio/performance/report-schedule` | yes | `period_start` (query), `period_end` (query), `as_of_date` (query), `currency` (query) | - | `200` `InvestmentPerformanceReportScheduleResponse` | Get Investment Performance Report Schedule |
 | `GET` | `/portfolio/summary` | yes | `as_of_date` (query) | - | `200` `PortfolioSummaryDashboardResponse` | Get Portfolio Summary |
+| `POST` | `/portfolio/trades` | yes | - | `TradeCreateRequest` | `201` `TradeRecordResponse` | Record Portfolio Trade |
 | `PATCH` | `/portfolio/{ticker}` | yes | `ticker`* (path) | `CostBasisMethodUpdateRequest` | `200` `CostBasisMethodUpdateResponse` | Update Holding Cost Basis Method |
 | `GET` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path), `limit` (query), `offset` (query) | - | `200` array[`DividendEventResponse`] | Get Holding Dividends |
 | `POST` | `/portfolio/{ticker}/dividends` | yes | `ticker`* (path) | `DividendCreateRequest` | `201` `DividendEventResponse` | Create Holding Dividend |

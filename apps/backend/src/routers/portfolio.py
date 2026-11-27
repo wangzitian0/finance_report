@@ -37,6 +37,8 @@ from src.schemas.portfolio import (
     InvestmentPerformanceReportScheduleResponse,
     PortfolioSummaryDashboardResponse,
     RealizedLotResponse,
+    TradeCreateRequest,
+    TradeRecordResponse,
 )
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -190,6 +192,47 @@ async def create_holding_dividend(
     return _dividend_response(dividend, journal_entry_id=entry_id)
 
 
+@router.post("/trades", response_model=TradeRecordResponse, status_code=status.HTTP_201_CREATED)
+async def record_portfolio_trade(request: TradeCreateRequest, ctx: Ctx) -> TradeRecordResponse:
+    """Record a buy or sell trade with lot tracking and balanced ledger posting."""
+    db, user_id = ctx.db, ctx.user_id
+    result = await _investment_accounting_service.record_trade(
+        db,
+        user_id=user_id,
+        side=request.side,
+        transaction_date=request.transaction_date,
+        asset_identifier=request.asset_identifier,
+        quantity=request.quantity,
+        unit_price=request.unit_price,
+        currency=request.currency,
+        fees=request.fees,
+        cost_basis_method=request.cost_basis_method.value,
+        cash_account_id=request.cash_account_id,
+        investment_account_id=request.investment_account_id,
+        realized_pnl_account_id=request.realized_pnl_account_id,
+        base_currency=await ctx.get_base_currency(),
+    )
+    await db.flush()
+    await db.refresh(result.transaction)
+    await db.refresh(result.position)
+    return TradeRecordResponse(
+        transaction_id=result.transaction.id,
+        position_id=result.position.id,
+        journal_entry_id=result.journal_entry.id,
+        side=request.side,
+        asset_identifier=result.transaction.asset_identifier,
+        quantity=result.transaction.quantity,
+        unit_price=result.transaction.unit_price,
+        gross_amount=to_money(result.transaction.gross_amount),
+        fees=to_money(result.transaction.fees),
+        cost_basis=to_money(result.transaction.cost_basis),
+        realized_pnl=to_money(result.transaction.realized_pnl),
+        currency=result.transaction.currency,
+        position_quantity=result.position.quantity,
+        position_cost_basis=(to_money(result.position.cost_basis) if result.position.cost_basis is not None else None),
+    )
+
+
 @router.get("/{ticker}/realized", response_model=list[RealizedLotResponse])
 async def get_holding_realized_lots(
     ticker: str,
@@ -251,10 +294,6 @@ async def get_investment_performance_report_schedule(
     if as_of_date < period_end:
         raise PreconditionFailedError("as_of_date must be >= period_end")
     currency = currency.strip().upper()
-    if currency != "SGD":
-        raise PreconditionFailedError(
-            "Investment performance report schedule currently supports SGD presentation currency"
-        )
     return await build_investment_performance_report_schedule(
         db,
         user_id,

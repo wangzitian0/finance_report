@@ -101,8 +101,9 @@ def test_ssot_registry_completeness_and_doc_sync() -> None:
     assert "Stage2ReviewQueue" in by_id["UC-23"]["component"]
     assert "Accounting Equation" in by_id["UC-40"]["name"]
     assert by_id["UC-44"]["backend_endpoint"] == "GET /reports/package/snapshots/{snapshot_id}/exports"
-    assert by_id["UC-32"]["gap_issue"] == "#2922" and by_id["UC-32"]["gap_kind"] == "partial"
-    assert derive_proof_tier(by_id["UC-32"]) == ProofTier.L1_PARTIAL
+    assert by_id["UC-32"]["backend_endpoint"] == "POST /portfolio/trades"
+    assert by_id["UC-32"]["gap_issue"] is None and not by_id["UC-32"].get("gap_kind")
+    assert derive_proof_tier(by_id["UC-32"]) != ProofTier.L1_PARTIAL
     assert by_id["UC-38"]["gap_issue"] == "#2923" and by_id["UC-38"]["gap_kind"] == "partial"
     assert derive_proof_tier(by_id["UC-38"]) == ProofTier.L1_PARTIAL
 

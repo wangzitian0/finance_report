@@ -16,6 +16,7 @@ import { LoadingState } from "@/components/ui";
 import { Sheet } from "@/components/ui/Overlay";
 import { HoldingDetail, HoldingsTable } from "@/components/portfolio/Holdings";
 import { PriceUpdateForm } from "@/components/pricing/PriceUpdateForm";
+import { RecordTradeForm } from "@/components/portfolio/RecordTradeForm";
 import { InvestmentPerformanceSchedule } from "@/components/portfolio/InvestmentPerformanceSchedule";
 import { AccountLineageDrawer, ExcludedHoldingsNote, type AccountLineageTarget } from "@/components/reports/AccountLineageDrawer";
 import { DEFAULT_INCLUDE_RESTRICTED } from "@/hooks/useReportFilters";
@@ -75,12 +76,12 @@ export default function PortfolioPage() {
   const [includeRestrictedAllocation, setIncludeRestrictedAllocation] = useState(DEFAULT_INCLUDE_RESTRICTED);
   const [lineageTarget, setLineageTarget] = useState<AccountLineageTarget | null>(null);
 
-  // The URL opens one drawer: `?ticker=` a holding, `?panel=prices` the price update, `?panel=evidence` the evidence form.
+  // The URL opens one drawer: `?ticker=` a holding, `?panel=prices` the price update, `?panel=evidence` the evidence form, `?panel=trade` the trade form.
   const router = useRouter();
   const searchParams = useSearchParams();
   const ticker = searchParams?.get("ticker")?.trim() || null;
   const panel = searchParams?.get("panel");
-  const drawer = ticker ? "holding" : panel === "prices" || panel === "evidence" ? panel : null;
+  const drawer = ticker ? "holding" : panel === "prices" || panel === "evidence" || panel === "trade" ? panel : null;
   const rawSourceClass = searchParams?.get("source_class");
   const evidenceSourceClass = SOURCE_CLASS_CONFIGS.some((c) => c.value === rawSourceClass) ? (rawSourceClass as EvidenceSourceClass) : undefined;
   const closeDrawer = () => router.replace(APP_ROUTES.PORTFOLIO, { scroll: false });
@@ -129,6 +130,9 @@ export default function PortfolioPage() {
           <p className="page-description">Track your investment holdings, performance, and allocation</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Link href={APP_ROUTES.PORTFOLIO_TRADE} scroll={false} className="btn-secondary">
+            Record trade
+          </Link>
           <Link href={APP_ROUTES.PORTFOLIO_EVIDENCE} scroll={false} className="btn-secondary">
             Add evidence
           </Link>
@@ -156,6 +160,16 @@ export default function PortfolioPage() {
           Record ESOP/RSU, property, and liability evidence with a structured valuation basis and source anchor. Manually entered values are clearly labelled manual-trusted across reports and the traceability appendix.
         </p>
         <GuidedEvidenceForm initialSourceClass={evidenceSourceClass} />
+      </Sheet>
+      <Sheet isOpen={drawer === "trade"} onClose={closeDrawer} title="Record trade" width="max-w-2xl">
+        <p className="mb-4 text-sm text-muted">
+          Record a buy or sell trade to create or consume cost-basis lots and post balanced settlement entries.
+        </p>
+        <RecordTradeForm
+          knownTickers={Array.from(new Set(activeHoldings.map((h) => h.asset_identifier))).sort()}
+          defaultCurrency={reportCurrency}
+          onSuccess={() => { closeDrawer(); void invalidatePortfolioQueries(queryClient); }}
+        />
       </Sheet>
 
       {!isLoading && !error && activeHoldings.length > 0 && (

@@ -94,6 +94,7 @@ export const API_OPERATIONS = {
   "preview_personal_report_package_reports_package_get": { method: "GET", path: "/api/reports/package" },
   "readyz_readyz_get": { method: "GET", path: "/api/readyz" },
   "reconciliation_stats_reconciliation_stats_get": { method: "GET", path: "/api/reconciliation/stats" },
+  "record_portfolio_trade_portfolio_trades_post": { method: "POST", path: "/api/portfolio/trades" },
   "register_auth_register_post": { method: "POST", path: "/api/auth/register" },
   "reject_statement_stage1_statements__statement_id__rejections_post": { method: "POST", path: "/api/statements/{statement_id}/rejections" },
   "report_coverage_reports_coverage_get": { method: "GET", path: "/api/reports/coverage" },

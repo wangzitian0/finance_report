@@ -423,3 +423,121 @@ def test_migration_0079_clears_the_cost_of_positions_without_a_buy_and_keeps_the
         with admin.connect() as connection:
             connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
         admin.dispose()
+
+
+async def test_partial_purchase_coverage_returns_no_cost_until_covered(db: AsyncSession, test_user) -> None:
+    """#2922: Partial BUY quantity must not label snapshot quantity with partial cost basis."""
+    accounting = InvestmentAccountingService()
+    cash = Account(user_id=test_user.id, name="Broker Cash", type=AccountType.ASSET, currency="SGD")
+    inv = Account(user_id=test_user.id, name="Moomoo", type=AccountType.ASSET, currency="SGD")
+    db.add_all([cash, inv])
+    await db.flush()
+
+    await accounting.post_buy(
+        db,
+        user_id=test_user.id,
+        order=TradeOrder.create(
+            transaction_date=JUNE,
+            asset_identifier="SPY",
+            quantity=Decimal("40"),
+            unit_price=Decimal("100.00"),
+            currency="SGD",
+        ),
+        accounts=TradeAccounts(cash=cash.id, investment=inv.id),
+    )
+    snap = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=SEPTEMBER,
+        asset_identifier="SPY",
+        broker="Moomoo",
+        quantity=Decimal("100"),
+        market_value=Decimal("12000.00"),
+        currency="SGD",
+        dedup_hash="spy_partial_2922",
+        source_documents={},
+    )
+    db.add(snap)
+    await db.flush()
+    await PositionService().reconcile_positions(db, test_user.id)
+
+    holdings = await PortfolioService().get_holdings(db, test_user.id, base_currency="SGD")
+    spy = next(h for h in holdings if h.asset_identifier == "SPY")
+    assert (spy.quantity, spy.cost_basis, spy.unrealized_pnl) == (Decimal("100"), None, None)
+
+    await accounting.post_buy(
+        db,
+        user_id=test_user.id,
+        order=TradeOrder.create(
+            transaction_date=JUNE,
+            asset_identifier="SPY",
+            quantity=Decimal("60"),
+            unit_price=Decimal("100.00"),
+            currency="SGD",
+        ),
+        accounts=TradeAccounts(cash=cash.id, investment=inv.id),
+    )
+    position = (await db.execute(select(ManagedPosition).where(ManagedPosition.user_id == test_user.id))).scalar_one()
+    position.quantity = Decimal("100")
+    await db.flush()
+
+    covered = await PortfolioService().get_holdings(db, test_user.id, base_currency="SGD")
+    spy_covered = next(h for h in covered if h.asset_identifier == "SPY")
+    assert (spy_covered.quantity, spy_covered.cost_basis, spy_covered.unrealized_pnl) == (
+        Decimal("100"),
+        Decimal("10000.00"),
+        Decimal("2000.00"),
+    )
+
+
+async def test_snapshot_currency_change_converts_purchase_cost_without_relabeling(db: AsyncSession, test_user) -> None:
+    """#2922: Snapshot currency switch must convert original purchase FX rather than relabeling."""
+    from src.pricing.orm.market_data import FxRate
+
+    cash = Account(user_id=test_user.id, name="USD Cash", type=AccountType.ASSET, currency="USD")
+    inv = Account(user_id=test_user.id, name="BrokerX", type=AccountType.ASSET, currency="USD")
+    db.add_all([cash, inv])
+    await db.flush()
+
+    await InvestmentAccountingService().post_buy(
+        db,
+        user_id=test_user.id,
+        order=TradeOrder.create(
+            transaction_date=JUNE,
+            asset_identifier="QQQ",
+            quantity=Decimal("10"),
+            unit_price=Decimal("100.00"),
+            currency="USD",
+        ),
+        accounts=TradeAccounts(cash=cash.id, investment=inv.id),
+    )
+    snap = AtomicPosition(
+        user_id=test_user.id,
+        snapshot_date=SEPTEMBER,
+        asset_identifier="QQQ",
+        broker="BrokerX",
+        quantity=Decimal("10"),
+        market_value=Decimal("1500.00"),
+        currency="SGD",
+        dedup_hash="qqq_fx_relabel_2922",
+        source_documents={},
+    )
+    db.add_all(
+        [
+            snap,
+            FxRate(base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=JUNE, source="test"),
+            FxRate(
+                base_currency="USD", quote_currency="SGD", rate=Decimal("1.350000"), rate_date=SEPTEMBER, source="test"
+            ),
+        ]
+    )
+    await db.flush()
+    await PositionService().reconcile_positions(db, test_user.id)
+
+    holdings = await PortfolioService().get_holdings(db, test_user.id, base_currency="SGD")
+    qqq = next(h for h in holdings if h.asset_identifier == "QQQ")
+    assert (qqq.cost_basis, qqq.native_cost_basis, qqq.native_currency, qqq.unrealized_pnl) == (
+        Decimal("1350.00"),
+        Decimal("1000.00"),
+        "USD",
+        Decimal("150.00"),
+    )

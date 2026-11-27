@@ -161,9 +161,9 @@ export function InvestmentPerformanceSchedule({
                 ).report_section ?? "investment_performance",
               )}
             </span>
-            <span className="hidden" aria-hidden="true">
+            <code className="ml-2 rounded bg-[var(--background-muted)] px-1.5 py-0.5 text-[11px] font-mono text-muted">
               investment_performance
-            </span>
+            </code>
           </p>
         </div>
         <div className="text-xs text-muted md:text-right">
