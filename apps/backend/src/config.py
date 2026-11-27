@@ -70,7 +70,7 @@ ai_base_url|ai|al:LLM_BASE_URL|AI provider base URL (provider-neutral; default t
 large_model|ai|al:LLM_LARGE_MODEL|Large-role AI model id for user-facing answers (advisor chat). Unset: the infra2 SDK default; set it only to customize production.
 small_model|ai|al:LLM_SMALL_MODEL|Small-role AI model id for text work: JSON extraction, statement summaries and transaction classification. Unset: the infra2 SDK default; set it only to customize production.
 multimodal_model|ai|al:LLM_MULTIMODAL_MODEL|Multimodal-role AI model id for vision and OCR (image, PDF and file input). Unset: the infra2 SDK default; set it only to customize production.
-prefect_api_url|ai||EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod and per-PR ephemeral Prefect). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed).
+prefect_api_url|ai||EPIC-019: set to the Prefect API URL to run upload->report parsing as durable Prefect flow runs (staging/prod). Leave unset for CI/local/preview -> in-process asyncio fallback (no Prefect needed).
 ai_json_seed|ai||Fixed decoding seed for reproducible extraction; off by default (only set for seed-supporting models).
 ai_extract_max_attempts|ai||Max extraction passes for one bank statement; a later pass gets the failed checks (1 disables retry).
 s3_region|s3|na|S3 region.
@@ -204,7 +204,7 @@ class Settings(BaseSettings):
     database_url: str = _f(
         "database_url",
         "postgresql+asyncpg://postgres:postgres@127.0.0.1:55432/finance_report",
-        ex="postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report",
+        ex="postgresql+asyncpg://postgres:postgres@127.0.0.1:55432/finance_report",
     )
     db_pool_size: int = _f("db_pool_size", 5, ge=1)
     db_pool_max_overflow: int = _f("db_pool_max_overflow", 10, ge=0)

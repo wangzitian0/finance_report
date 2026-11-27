@@ -29,4 +29,4 @@ A VCR recording (`tests/**/cassettes/<test>/<name>.yaml`, by `pytest-recording`)
 
 ## <a id="readings-corpus"></a>Statement corpus fixtures
 
-`tests/fixtures/readings/<fingerprint>.json` and `tests/fixtures/readings/ground_truth/<fingerprint>.truth.json` store the 10 PII-redacted statement fixtures replayed through the product extraction pipeline by `apps/backend/tests/integration/test_statement_corpus_journeys.py`. Live provider accuracy on unseen PDFs stays verified on Staging through `staging_gate` and `scheduled_audit` (`tests/benchmarks/pdf_corpus_oracle.py`).
+`tests/fixtures/readings/<fingerprint>.json` and `tests/fixtures/readings/ground_truth/<fingerprint>.truth.json` store the 10 PII-redacted statement fixtures replayed through the product extraction pipeline by `apps/backend/tests/integration/test_statement_corpus_journeys.py`. Live provider accuracy on unseen PDFs stays verified on Staging through `staging.post` and `scheduled_audit` (`tests/benchmarks/pdf_corpus_oracle.py`).

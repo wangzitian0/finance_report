@@ -1,14 +1,15 @@
-# Unified Docker Compose Configuration
+# Local & CI Docker Compose Configuration
 #
-# Controls all 5 environments via Profiles and Environment Variables.
+# Local/CI dependency stack (Staging and Production are owned by `infra2`).
 #
 # Profiles:
-#   - infra: Starts Postgres, MinIO (Local Dev, PR)
-#   - app:   Starts Backend, Frontend (PR, Prod, Staging)
+#   - infra: Starts Postgres, MinIO (Local Dev, CI)
+#   - app:   Starts Backend, Frontend (Local Dev)
 #
 # Variables:
 #   - DB_PORTS: Port mapping for DB (Default: 127.0.0.1:${POSTGRES_PORT:-55432}:5432 for Local)
 #   - ENV_SUFFIX: Isolation suffix (Default: empty)
+#   - DOCKER_LOG_MAX_SIZE / DOCKER_LOG_MAX_FILE: default 10m x 3 = 30MB per container
 
 x-json-logging: &json-logging
   driver: json-file

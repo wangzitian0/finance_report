@@ -26,8 +26,8 @@ Vault path convention: `secret/data/{project}/{environment}/{component}`
 
 | Credential | Purpose | Scope | Storage |
 |------------|---------|-------|---------|
-| `VAULT_TOKEN` (iac-runner only) | Deploy-time secret supply: copies `human` values from 1Password into Vault, generates `runtime` ones, restarts agent + app when a value changed | Bounded, short-TTL, minted in-container by AppRole login; handed to `invoke *.sync` | iac-runner process env only — never in Finance Report CI, `.envrc`, a local `.env`, or 1Password |
-| `VAULT_ROLE_ID` + `VAULT_SECRET_ID` | Runtime AppRole login → secret reading | Read-only, per-project/env/service | Dokploy ENV per service (injected by infra2's `invoke vault.setup-approle`) |
+| `VAULT_TOKEN` (iac-runner only) | Deploy-time secret supply: copies `human` values from 1Password into Vault, generates `runtime` ones, restarts agent + app when a value changed | Bounded, short-TTL, minted in-container by AppRole login; used by `infra2` `SyncPipeline` v2 | iac-runner process env only — never in Finance Report CI, `.envrc`, a local `.env`, or 1Password |
+| `VAULT_ROLE_ID` + `VAULT_SECRET_ID` | Runtime AppRole login → secret reading | Read-only, per-project/env/service | Dokploy ENV per service (injected by `infra2` `SyncPipeline` / `common.security.approle`) |
 | `VAULT_ADDR` | vault-agent connect address | Non-secret but **required** (missing → agent hangs / service crash-loops on "Waiting for secrets") | Dokploy project-level ENV |
 | `VAULT_APP_TOKEN` *(legacy)* | Retired for runtime auth; only checked for non-AppRole composes | Unused today | Dokploy ENV — legacy fallback only |
 
@@ -52,13 +52,13 @@ Vault path convention: `secret/data/{project}/{environment}/{component}`
 1. Add to `apps/backend/src/config.py` with type + default
    (`Field(validation_alias=...)`).
 2. Regenerate `.env.example` and `common/runtime/required-env.generated.json`.
-3. Validate: `python common/runtime/env_manifests.py --check` (the CI gate).
+3. Validate: `python -m common.runtime.env_manifests --check` (the CI gate).
 4. Name its producer in `config.ENV_SOURCE_CLASSES` (a side table, so no public
    `Field()` changes): `human` → the operator puts the value in 1Password and the
    deploy copies it into Vault; `runtime` → the deploy generates it; `decision` →
    infra2 states it in the compose env for `finance_report/app` (needs an infra2
    compose PR); unlisted → `code` default, never stored. Regenerate the manifest
-   (`python common/runtime/env_manifests.py`): infra2 renders its vault-agent
+   (`python -m common.runtime.env_manifests`): infra2 renders its vault-agent
    template and policy from it, so there is no hand-written `secrets.ctmpl` to
    edit and no git pointer to update here.
 
@@ -73,23 +73,22 @@ Check the sources in order:
 
 ```bash
 rg -c '^<VAR>=' .env                                      # 1. local file (key presence without echoing value)
-python common/runtime/dev/debug.py status backend --env production      # 2. Dokploy ENV
+python -m common.runtime.dev.debug status backend --env production      # 2. Dokploy ENV
 # 3. Vault (masked; infra2 repo, bounded token — never the root token):
 invoke env.list-all --project=finance_report --service=app
 # 4. Container runtime (via SSH to VPS host):
-ssh <vps-host> docker exec finance-report-backend-production env
+ssh <vps-host> docker exec finance_report-backend env
 ```
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | Variable not found | Wrong/missing source class in `config.ENV_SOURCE_CLASSES` (a `code` default is never rendered; a `decision` value must be in infra2's compose env) | Fix the class, regenerate the manifest; infra2 re-renders the template from it |
-| Vault render failed / "Waiting for secrets" timeout | `ENVIRONMENT` or `VAULT_ADDR`/AppRole creds missing in container | Fix the Dokploy ENV; infra2 re-runs `invoke vault.setup-approle` if creds absent |
+| Vault render failed / "Waiting for secrets" timeout | `ENVIRONMENT` or `VAULT_ADDR`/AppRole creds missing in container | Fix the Dokploy ENV; re-run `infra2` `reconcile-iac-inputs.yml` / `SyncPipeline` v2 if creds absent |
 | `NEXT_PUBLIC_` empty in browser | Not in Dockerfile ARG | Add ARG + ENV, rebuild |
 | CORS error | `CORS_ORIGINS` mismatch — a `decision` value stated in infra2's compose env, not in Vault | Change it in the infra2 compose / `compose_env_overrides` and redeploy |
 | Variable not updating | Vault updated but container not restarted / stale Dokploy ENV | Redeploy the release tag |
 
-Runtime validation: `moon run :dev -- --check` (boot checks DB/S3/Redis/AI
-key); `python -m src.boot --mode critical` in `apps/backend` for the CI flavor.
+Runtime validation: `cd apps/backend && uv run python -m src.boot --mode critical` (boot checks DB/S3/Redis/AI key).
 
 ---
 
@@ -113,7 +112,7 @@ invoke env.set KEY=VALUE --project=finance_report --env=production --service=app
 #    Check prod-queue in infra2 first (must exit 0 before dispatch):
 cd "$WS_PATH/infra2" && uv run --locked python -m tools.harness prod-queue
 gh workflow run reconcile-iac-inputs.yml -R wangzitian0/infra2 -f promote_prod=true -f after=vX.Y.Z
-python common/runtime/dev/debug.py logs backend --env production --tail 20   # verify
+python -m common.runtime.dev.debug logs backend --env production --tail 20   # verify
 ```
 
 ### Rotate the JWT secret
@@ -146,9 +145,9 @@ the compose sets `ENVIRONMENT` plus the `decision` values.
 ## The Proof
 
 ```bash
-python common/runtime/env_manifests.py --check        # layer consistency (CI gate)
-moon run :dev -- --check                     # runtime boot validation
+python -m common.runtime.env_manifests --check   # layer consistency (CI gate)
+cd apps/backend && uv run python -m src.boot --mode critical  # runtime boot check
 # From infra2: verify keys present via masked wrapper (never raw vault kv get):
-cd "$WS_PATH/infra2" && invoke env.list-all --project=finance_report --service=app
+cd "$WS_PATH/infra2-sdk-dev" && invoke env.list-all --project=finance_report --service=app
 cd apps/frontend && npm run build && grep -r "NEXT_PUBLIC_APP_URL" .next/static
 ```

@@ -31,8 +31,8 @@ dependencies = [
     # promote-not-rebuild release model ships ONE image to every environment,
     # and that same image now runs both roles: the API (submits flow runs when
     # PREFECT_API_URL is set) and the durable-parse worker (executes them).
-    # CI/local/preview still run in-process (no PREFECT_API_URL => fail-soft
-    # fallback in statement_pipeline.py), so installing the client there is
+    # CI/local/preview run in-process when PREFECT_API_URL is unset; when
+    # PREFECT_API_URL is set, statement_pipeline.py fails closed on Prefect errors.
     # inert, not wasted: it's the same image either way.
     # Direct runtime import in RateLimiter and RedisCheck (`redis.asyncio`).
     "redis>=5.0.0",

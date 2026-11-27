@@ -30,7 +30,7 @@ def _psql_connection_params(
             parsed.username or "postgres",
             parsed.password or "",
         )
-    return "127.0.0.1", "5432", "postgres", ""
+    return "127.0.0.1", "55432", "postgres", ""
 
 
 def _run_psql(
