@@ -32,6 +32,7 @@ for _p in (str(ROOT), _BACKEND_DIR):
 from common.testing import reap_test_dbs as rtd  # noqa: E402
 from src.identity.base.types.auth import LoginRequest  # noqa: E402
 from tests.benchmarks import pdf_corpus_oracle as oracle_mod  # noqa: E402
+from tests.e2e import pdf_fixture_paths  # noqa: E402
 from tests.e2e import test_version_check as version_check_mod  # noqa: E402
 from tests.e2e.auto_accept_poll import wait_for_auto_approved_statement  # noqa: E402
 from tests.e2e.deployment_pin import expected_version_from_env  # noqa: E402
@@ -1018,3 +1019,15 @@ async def test_seed_fx_rates_urls_seeding_and_cli(
         seed_fx_rates.main()
     mock_seed2.assert_called_once_with("staging")
     mock_run2.assert_called_once()
+
+
+def test_pdf_fixture_generator_runs_module_from_repo_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Invoke the PDF fixture generator as a module from REPO_ROOT."""
+    monkeypatch.setenv("STRICT_E2E_GATES", "1")
+    monkeypatch.chdir(tmp_path)
+    pdf_fixture_paths._run_generator("moomoo", "--output", str(tmp_path))
+    pdfs = list((tmp_path / "moomoo").glob("test_moomoo_*.pdf"))
+    assert len(pdfs) == 1
+    assert pdfs[0].stat().st_size > 0
