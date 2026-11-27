@@ -10,10 +10,10 @@ import pytest
 from tests.e2e.conftest import is_strict_or_ci
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-GENERATED_DIR, OUTPUT_DIR, GENERATE_SCRIPT = (
+GENERATED_DIR, OUTPUT_DIR, GENERATE_MODULE = (
     REPO_ROOT / "tests" / "fixtures" / "pdf" / "generated",
     REPO_ROOT / "tests" / "fixtures" / "pdf" / "output",
-    REPO_ROOT / "tools" / "generate_pdf_fixtures.py",
+    "tests.fixtures.pdf.generate_pdf_fixtures",
 )
 
 
@@ -25,7 +25,8 @@ def committed_fixture_pdf(name: str) -> Path:
 
 def _run_generator(source: str, *extra_args: str) -> None:
     result = subprocess.run(
-        [sys.executable, str(GENERATE_SCRIPT), "--source", source, *extra_args],
+        [sys.executable, "-m", GENERATE_MODULE, "--source", source, *extra_args],
+        cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
     )
