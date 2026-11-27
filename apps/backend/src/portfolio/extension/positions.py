@@ -159,6 +159,7 @@ class PositionService:
                 snapshot_changed = (position.position_metadata or {}).get(
                     "latest_snapshot_date"
                 ) != snapshot_date or position.currency != snapshot_currency.code
+                snapshot_currency_changed = position.currency != snapshot_currency.code
                 if quantity_changed or snapshot_changed:
                     logger.info(
                         "Updating managed position from latest atomic snapshot",
@@ -167,6 +168,8 @@ class PositionService:
                         new_qty=str(quantity),
                     )
                     position.quantity = quantity
+                    if snapshot_currency_changed:
+                        position.cost_basis = None
                     position.currency = snapshot_currency.code
                     position.position_metadata = {
                         **(position.position_metadata or {}),

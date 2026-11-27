@@ -20,5 +20,6 @@ describe("InvestmentPerformanceSchedule", () => {
     rerender(<InvestmentPerformanceSchedule schedule={IPS_CURR as never} />);
     expect(screen.getAllByText("0.00%").length).toBeGreaterThanOrEqual(2);
     has(IPS_CURR_TEXTS); noTxt(/Stale holdings:/);
+    expect(screen.getByText("investment_performance")).not.toHaveClass("hidden");
   });
 });

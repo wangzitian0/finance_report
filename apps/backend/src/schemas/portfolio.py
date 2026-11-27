@@ -2,7 +2,7 @@
 
 from datetime import date
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
@@ -223,3 +223,34 @@ class DividendCreateRequest(BaseModel):
         description="Tax withheld at source in the dividend currency.",
     )
     withholding_tax_account_id: UUID | None = None
+
+
+class TradeCreateRequest(BaseModel):
+    side: Literal["BUY", "SELL"]
+    transaction_date: date
+    asset_identifier: str = Field(min_length=1, max_length=32)
+    quantity: Decimal = Field(gt=0)
+    unit_price: Decimal = Field(ge=0)
+    currency: CurrencyCode
+    fees: Decimal = Field(default=Decimal("0.00"), ge=0)
+    cost_basis_method: CostBasisMethod = CostBasisMethod.FIFO
+    cash_account_id: UUID | None = None
+    investment_account_id: UUID | None = None
+    realized_pnl_account_id: UUID | None = None
+
+
+class TradeRecordResponse(BaseModel):
+    transaction_id: UUID
+    position_id: UUID
+    journal_entry_id: UUID
+    side: Literal["BUY", "SELL"]
+    asset_identifier: str
+    quantity: Quantity
+    unit_price: Decimal
+    gross_amount: MoneyAmount
+    fees: MoneyAmount
+    cost_basis: MoneyAmount
+    realized_pnl: MoneyAmount
+    currency: CurrencyCode
+    position_quantity: Quantity
+    position_cost_basis: MoneyAmount | None = None

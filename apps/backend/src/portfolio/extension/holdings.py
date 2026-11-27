@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import case, func, select
+from sqlalchemy import and_, case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import (
@@ -255,38 +256,98 @@ async def _batch_latest_atomic_positions(
     return {ap.asset_identifier: ap for ap in rows}
 
 
-async def _batch_recorded_cost_as_of(
+@dataclass(frozen=True, slots=True)
+class _RecordedPositionCost:
+    """Aggregated recorded BUY/SELL cost and open quantity for a managed position."""
+
+    net_cost: Decimal
+    net_quantity: Decimal
+    currency: str | None
+    distinct_currencies: int
+
+
+async def _batch_recorded_positions_summary(
     db: AsyncSession,
     user_id: UUID,
     position_ids: set[UUID],
-    as_of_date: date,
-) -> dict[UUID, Decimal]:
-    """Return the cost of the purchases recorded on or before as_of_date, less the cost of the sales.
-
-    A position without a BUY row on or before as_of_date has no key: its cost is unknown (#2920).
-    """
+    *,
+    as_of_date: date | None = None,
+) -> dict[UUID, _RecordedPositionCost]:
+    """Return recorded net BUY-less-SELL cost, net open quantity, and trade currency per position."""
     if not position_ids:
         return {}
     signed_cost = case(
         (InvestmentTransaction.transaction_type == InvestmentTransactionType.BUY, InvestmentTransaction.cost_basis),
         else_=-InvestmentTransaction.cost_basis,
     )
+    signed_qty = case(
+        (InvestmentTransaction.transaction_type == InvestmentTransactionType.BUY, InvestmentTransaction.quantity),
+        else_=-InvestmentTransaction.quantity,
+    )
+    filters = [
+        InvestmentTransaction.user_id == user_id,
+        InvestmentTransaction.position_id.in_(position_ids),
+        InvestmentTransaction.transaction_type.in_((InvestmentTransactionType.BUY, InvestmentTransactionType.SELL)),
+    ]
+    if as_of_date is not None:
+        filters.append(InvestmentTransaction.transaction_date <= as_of_date)
+
     rows = (
         await db.execute(
-            select(InvestmentTransaction.position_id, func.sum(signed_cost))
-            .where(
-                InvestmentTransaction.user_id == user_id,
-                InvestmentTransaction.position_id.in_(position_ids),
-                InvestmentTransaction.transaction_date <= as_of_date,
-                InvestmentTransaction.transaction_type.in_(
-                    (InvestmentTransactionType.BUY, InvestmentTransactionType.SELL)
-                ),
+            select(
+                InvestmentTransaction.position_id,
+                func.sum(signed_cost),
+                func.sum(signed_qty),
+                func.min(InvestmentTransaction.currency),
+                func.count(func.distinct(InvestmentTransaction.currency)),
             )
+            .where(*filters)
             .group_by(InvestmentTransaction.position_id)
             .having(func.count().filter(InvestmentTransaction.transaction_type == InvestmentTransactionType.BUY) > 0)
         )
     ).all()
-    return {position_id: to_money(total) for position_id, total in rows}
+    return {
+        position_id: _RecordedPositionCost(
+            net_cost=to_money(total_cost),
+            net_quantity=Quantity(total_qty or Decimal("0"), PORTFOLIO_QUANTITY_UNIT).quantize().value,
+            currency=tx_currency,
+            distinct_currencies=int(distinct_ccy or 0),
+        )
+        for position_id, total_cost, total_qty, tx_currency, distinct_ccy in rows
+        if position_id is not None
+    }
+
+
+def _resolve_position_cost_money(
+    position: ManagedPosition,
+    target_quantity: Quantity,
+    recorded_summary: dict[UUID, _RecordedPositionCost],
+    *,
+    fallback_to_position: bool,
+) -> Money | None:
+    """Resolve authoritative purchase cost only when open recorded quantity covers position quantity (#2922)."""
+    recorded = recorded_summary.get(position.id)
+    if recorded is None:
+        return position.cost_basis_money if fallback_to_position else None
+    if recorded.distinct_currencies != 1 or not recorded.currency:
+        return None
+    if (
+        not target_quantity.is_zero()
+        and Quantity(recorded.net_quantity, PORTFOLIO_QUANTITY_UNIT).quantize() < target_quantity
+    ):
+        return None
+    return Money(recorded.net_cost, Currency.of(recorded.currency))
+
+
+async def _batch_recorded_cost_as_of(
+    db: AsyncSession,
+    user_id: UUID,
+    position_ids: set[UUID],
+    as_of_date: date,
+) -> dict[UUID, Decimal]:
+    """Return the cost of the purchases recorded on or before as_of_date, less the cost of the sales."""
+    summary = await _batch_recorded_positions_summary(db, user_id, position_ids, as_of_date=as_of_date)
+    return {position_id: item.net_cost for position_id, item in summary.items()}
 
 
 async def _batch_managed_positions_by_asset(
@@ -360,7 +421,9 @@ def _build_holding_response(
         unrealized_pnl_percent=unrealized_pnl_ratio.to_percent() if unrealized_pnl_ratio is not None else None,
         currency=converted_value.currency.code,
         native_cost_basis=cost_money.amount if cost_money is not None else None,
-        native_currency=normalize_currency_code(position.currency),
+        native_currency=cost_money.currency.code
+        if cost_money is not None
+        else normalize_currency_code(position.currency),
         acquisition_date=position.acquisition_date,
         disposal_date=disposal_date,
         status=status,
@@ -405,14 +468,27 @@ class PortfolioService:
             )
 
         eval_date = await self._default_holdings_eval_date(db, user_id)
-        positions_query = self._current_positions_query(user_id, include_disposed=include_disposed).order_by(
-            ManagedPosition.asset_identifier, ManagedPosition.id
+        positions_query = (
+            select(ManagedPosition, Account.name)
+            .outerjoin(Account, and_(Account.id == ManagedPosition.account_id, Account.user_id == user_id))
+            .where(
+                ManagedPosition.user_id == user_id,
+                *(() if include_disposed else (ManagedPosition.status == PositionStatus.ACTIVE,)),
+            )
+            .order_by(ManagedPosition.asset_identifier, ManagedPosition.id)
         )
-        positions = (await db.scalars(positions_query)).all()
-        if not positions:
+        rows = (await db.execute(positions_query)).all()
+        if not rows:
             raise PortfolioNotFoundError(f"No holdings found for user {user_id}")
+        positions = [position for position, _ in rows]
+        account_names = {position.account_id: name for position, name in rows if name is not None}
         return await self._materialize_current_holdings(
-            db, user_id, positions, eval_date=eval_date, base_currency=base_currency
+            db,
+            user_id,
+            positions,
+            eval_date=eval_date,
+            base_currency=base_currency,
+            account_names=account_names,
         )
 
     async def get_holdings_page(
@@ -468,8 +544,10 @@ class PortfolioService:
         *,
         eval_date: date,
         base_currency: str | None,
+        account_names: dict[UUID, str] | None = None,
     ) -> list[HoldingResponse]:
-        account_names = await _account_names_by_id(db, user_id, {p.account_id for p in positions})
+        if account_names is None:
+            account_names = await _account_names_by_id(db, user_id, {p.account_id for p in positions})
         resolved_base = require_base_currency(base_currency)
         asset_identifiers = {p.asset_identifier for p in positions}
 
@@ -478,7 +556,9 @@ class PortfolioService:
         latest_atomics = await _batch_latest_atomic_positions(
             db, user_id, asset_identifiers, max_snapshot_date=eval_date
         )
+        recorded_summary = await _batch_recorded_positions_summary(db, user_id, {p.id for p in positions})
 
+        cost_by_position: dict[UUID, Money | None] = {}
         fx_pairs: list[tuple[str, str, date, date | None, date | None]] = []
         for position in positions:
             asset = position.asset_identifier
@@ -492,7 +572,13 @@ class PortfolioService:
                 fx_pairs.append((synced_price.currency, position.currency, eval_date, None, None))
             if normalize_currency_code(position.currency) != resolved_base:
                 fx_pairs.append((position.currency, resolved_base, eval_date, None, None))
-            cost_money = position.cost_basis_money
+            cost_money = _resolve_position_cost_money(
+                position,
+                position.quantity_qty.quantize(),
+                recorded_summary,
+                fallback_to_position=True,
+            )
+            cost_by_position[position.id] = cost_money
             if cost_money is not None and cost_money.currency.code != resolved_base:
                 fx_pairs.append((cost_money.currency.code, resolved_base, position.acquisition_date, None, None))
 
@@ -525,7 +611,7 @@ class PortfolioService:
             market_value = (
                 UnitPrice(latest_price, Currency(position.currency), PORTFOLIO_QUANTITY_UNIT) * position_quantity
             )
-            cost_money = position.cost_basis_money
+            cost_money = cost_by_position[position.id]
             converted_value, converted_cost, unrealized_pnl, unrealized_pnl_ratio = _convert_pnl_with_prefetched(
                 value=market_value,
                 value_rate_date=eval_date,
@@ -648,8 +734,8 @@ class PortfolioService:
             as_of_date,
         )
 
-        recorded_costs = await _batch_recorded_cost_as_of(
-            db, user_id, {position.id for _, _, _, position in reconciled}, as_of_date
+        recorded_summary = await _batch_recorded_positions_summary(
+            db, user_id, {position.id for _, _, _, position in reconciled}, as_of_date=as_of_date
         )
 
         valued: list[tuple[AtomicPosition, PositionStatus, ManagedPosition, Money, Money | None, date]] = []
@@ -663,9 +749,13 @@ class PortfolioService:
                 )
             else:
                 market_money = Money(snapshot.market_value, Currency(snapshot.currency))
-            # The position row holds the cost of today. A past date takes the cost from the trades up to that date.
-            recorded_cost = recorded_costs.get(position.id)
-            cost_money = Money(recorded_cost, Currency(position.currency)) if recorded_cost is not None else None
+            # A past date takes cost from BUY/SELL rows up to that date only when open qty covers position/snapshot qty (#2922).
+            cost_money = _resolve_position_cost_money(
+                position,
+                min(snapshot_quantity, position.quantity_qty.quantize()),
+                recorded_summary,
+                fallback_to_position=False,
+            )
             cost_rate_date = position.acquisition_date
             if market_money.currency.code != resolved_base:
                 fx_pairs.append((market_money.currency.code, resolved_base, as_of_date, None, None))

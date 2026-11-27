@@ -660,14 +660,13 @@
           ],
           "ui_surface": "/portfolio",
           "component": "HoldingsTable",
-          "backend_endpoint": "POST /portfolio/brokerage-imports",
+          "backend_endpoint": "POST /portfolio/trades",
           "invariant": "Disposals consume InvestmentLot cost basis deterministically per CostBasisMethod and post balanced realized PnL",
           "backend_test_ref": "apps/backend/tests/portfolio/test_investment_accounting.py",
           "frontend_test_ref": "apps/frontend/src/__tests__/holdingDetailPage.test.tsx",
           "e2e_test_ref": null,
           "benchmark_cases": [],
-          "gap_kind": "partial",
-          "gap_issue": "#2922"
+          "gap_issue": null
         },
         {
           "id": "UC-33",

@@ -955,3 +955,89 @@ async def test_portfolio_summary_falls_back_to_ledger_dividend_income_ytd(
     await db.commit()
     resp = await client.get("/portfolio/summary")
     assert (resp.status_code, resp.json()["dividend_income_ytd"]) == (200, "200.00")
+
+
+async def test_record_trade_buy_sell_lifecycle_creates_lots_journal_and_realized_route(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    """#2922: POST /portfolio/trades records BUY/SELL lots, balanced entries, and realized lots."""
+    buy_resp = await client.post(
+        "/portfolio/trades",
+        json={
+            "side": "BUY",
+            "transaction_date": "2026-01-10",
+            "asset_identifier": "AAPL",
+            "quantity": "10",
+            "unit_price": "100.00",
+            "currency": "SGD",
+            "fees": "5.00",
+            "cost_basis_method": "FIFO",
+        },
+    )
+    assert buy_resp.status_code == 201
+    buy_data = buy_resp.json()
+    assert (
+        buy_data["side"],
+        buy_data["asset_identifier"],
+        Decimal(buy_data["position_quantity"]),
+        Decimal(buy_data["cost_basis"]),
+    ) == ("BUY", "AAPL", Decimal("10"), Decimal("1005.00"))
+
+    sell_resp = await client.post(
+        "/portfolio/trades",
+        json={
+            "side": "SELL",
+            "transaction_date": "2026-02-15",
+            "asset_identifier": "AAPL",
+            "quantity": "4",
+            "unit_price": "150.00",
+            "currency": "SGD",
+            "fees": "2.00",
+            "cost_basis_method": "FIFO",
+        },
+    )
+    assert sell_resp.status_code == 201
+    sell_data = sell_resp.json()
+    assert (
+        sell_data["side"],
+        Decimal(sell_data["position_quantity"]),
+        Decimal(sell_data["cost_basis"]),
+        Decimal(sell_data["realized_pnl"]),
+    ) == ("SELL", Decimal("6"), Decimal("402.00"), Decimal("196.00"))
+
+    realized_resp = await client.get("/portfolio/AAPL/realized")
+    assert realized_resp.status_code == 200
+    lots = realized_resp.json()
+    assert len(lots) == 1
+    assert (Decimal(lots[0]["quantity"]), Decimal(lots[0]["basis"]), Decimal(lots[0]["gain_loss"])) == (
+        Decimal("4"),
+        Decimal("402.00"),
+        Decimal("196.00"),
+    )
+
+
+async def test_performance_report_schedule_accepts_non_sgd_currency(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    """#2951: GET /portfolio/performance/report-schedule supports non-SGD presentation currencies."""
+    db.add(
+        FxRate(
+            base_currency="USD",
+            quote_currency="SGD",
+            rate=Decimal("1.350000"),
+            rate_date=date(2026, 3, 31),
+            source="test",
+        )
+    )
+    await db.commit()
+    resp = await client.get(
+        "/portfolio/performance/report-schedule",
+        params={
+            "period_start": "2026-01-01",
+            "period_end": "2026-03-31",
+            "as_of_date": "2026-03-31",
+            "currency": "USD",
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["currency"] == "USD"

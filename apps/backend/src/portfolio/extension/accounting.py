@@ -5,11 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.audit import normalize_currency_code
 from src.audit.money import Currency, Money, to_money
 from src.audit.quantity import Quantity, Unit
 from src.audit.unit_price import UnitPrice
@@ -17,7 +19,7 @@ from src.portfolio.orm.portfolio import CostBasisMethod, ManagedPosition, Positi
 from src.ledger import Account, AccountType, Direction, Entry, JournalEntry, Leg, account_service, post_entry
 from src.platform import require_base_currency
 from src.portfolio.base.errors import InvestmentAccountingValidationError, PortfolioNotFoundError
-from src.portfolio.base.types import DividendEvent, TradeAccounts, TradeOrder
+from src.portfolio.base.types import CostBasisMethodValue, DividendEvent, TradeAccounts, TradeOrder
 from src.portfolio.orm.portfolio import (
     DividendIncome,
     DividendType,
@@ -29,6 +31,8 @@ from src.pricing import get_exchange_rate
 
 INVESTMENT_QUANTITY_UNIT = "units"
 DEFAULT_DIVIDEND_INCOME_CODE = "4210"
+DEFAULT_INVESTMENT_ASSET_CODE = "1210"
+DEFAULT_REALIZED_PNL_CODE = "4310"
 DEFAULT_SETTLEMENT_CASH_CODE = "1120"
 
 
@@ -44,6 +48,108 @@ class InvestmentAccountingResult:
 
 class InvestmentAccountingService:
     """Post buy, sell, and dividend transactions into ledger and portfolio state."""
+
+    async def record_trade(
+        self,
+        db: AsyncSession,
+        *,
+        user_id: UUID,
+        side: Literal["BUY", "SELL"],
+        transaction_date: date,
+        asset_identifier: str,
+        quantity: Decimal,
+        unit_price: Decimal,
+        currency: str,
+        fees: Decimal = Decimal("0.00"),
+        cost_basis_method: CostBasisMethodValue = "FIFO",
+        cash_account_id: UUID | None = None,
+        investment_account_id: UUID | None = None,
+        realized_pnl_account_id: UUID | None = None,
+        base_currency: str | None = None,
+    ) -> InvestmentAccountingResult:
+        """Resolve default trade accounts and FX rate, then post a BUY or SELL lot entry."""
+        ticker = asset_identifier.strip().upper()
+        if not ticker:
+            raise InvestmentAccountingValidationError("asset_identifier is required")
+        ccy = normalize_currency_code(currency)
+        resolved_base = require_base_currency(base_currency)
+        fx_rate = (
+            await get_exchange_rate(db, ccy, resolved_base, transaction_date, lazy_load=True)
+            if ccy != resolved_base
+            else None
+        )
+        resolved_cash_id = (
+            cash_account_id
+            or (
+                await self._resolve_default_account(
+                    db,
+                    user_id=user_id,
+                    account_type=AccountType.ASSET,
+                    code=DEFAULT_SETTLEMENT_CASH_CODE,
+                    name=f"Brokerage Cash ({ccy})",
+                    currency=ccy,
+                )
+            ).id
+        )
+        resolved_investment_id = investment_account_id
+        if resolved_investment_id is None:
+            existing_position = await db.scalar(
+                select(ManagedPosition)
+                .where(
+                    ManagedPosition.user_id == user_id,
+                    ManagedPosition.asset_identifier == ticker,
+                    ManagedPosition.currency == ccy,
+                    ManagedPosition.status == PositionStatus.ACTIVE,
+                )
+                .order_by(ManagedPosition.created_at.desc())
+            )
+            if existing_position is not None:
+                resolved_investment_id = existing_position.account_id
+            elif side == "SELL":
+                raise InvestmentAccountingValidationError(f"position {ticker} not found")
+            else:
+                resolved_investment_id = (
+                    await self._resolve_default_account(
+                        db,
+                        user_id=user_id,
+                        account_type=AccountType.ASSET,
+                        code=DEFAULT_INVESTMENT_ASSET_CODE,
+                        name=f"Brokerage Investments ({ccy})",
+                        currency=ccy,
+                    )
+                ).id
+
+        resolved_pnl_id = realized_pnl_account_id
+        if side == "SELL" and resolved_pnl_id is None:
+            resolved_pnl_id = (
+                await self._resolve_default_account(
+                    db,
+                    user_id=user_id,
+                    account_type=AccountType.INCOME,
+                    code=DEFAULT_REALIZED_PNL_CODE,
+                    name=f"Realized Capital Gains ({ccy})",
+                    currency=ccy,
+                )
+            ).id
+
+        order = TradeOrder.create(
+            transaction_date=transaction_date,
+            asset_identifier=ticker,
+            quantity=quantity,
+            unit_price=unit_price,
+            currency=ccy,
+            fees=fees,
+            fx_rate=fx_rate,
+            cost_basis_method=cost_basis_method,
+        )
+        accounts = TradeAccounts(
+            cash=resolved_cash_id,
+            investment=resolved_investment_id,
+            realized_pnl=resolved_pnl_id,
+        )
+        if side == "BUY":
+            return await self.post_buy(db, user_id=user_id, order=order, accounts=accounts)
+        return await self.post_sell(db, user_id=user_id, order=order, accounts=accounts)
 
     def _validate_trade_order(self, order: TradeOrder) -> Quantity:
         self._validate_positive(order.quantity.value, "quantity")
