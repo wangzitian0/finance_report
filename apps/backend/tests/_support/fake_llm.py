@@ -18,7 +18,8 @@ class SentToModel(list):
     """The contents that code sent to the fake model, and the decoding of each call.
 
     ``decodings`` holds the ``DecodingSpec`` that reached the SDK, ``extra_bodies`` the ``extra_body`` of the
-    request and ``models`` the model name that the caller asked for (None: the model of the role).
+    request and ``models`` the model name that the caller asked for (None: the model of the role). For ``zai``,
+    ``max_tokens`` is moved into ``extra_bodies`` so ``ZaiModel`` does not emit ``max_completion_tokens``.
     """
 
     def __init__(self) -> None:

@@ -62,8 +62,8 @@ async def test_stream_text_closes_at_once_when_the_loop_stops_early_or_raises(fa
     )
 
 
-async def test_the_token_cap_reaches_sdk_unchanged_and_zai_maps_it_to_extra_body(fake_llm) -> None:
-    """`DecodingSpec.max_tokens` passes unchanged to `create_llm_agent`, which maps it for Z.AI."""
+async def test_the_token_cap_is_sent_as_max_tokens_in_the_extra_body_for_zai(fake_llm) -> None:
+    """For Z.AI, `agent.py` moves `max_tokens` to `extra_body` and `create_llm_agent` also supports `DecodingSpec.max_tokens`."""
     from infra2_sdk.llm import LlmSettings, create_llm_agent
 
     sent = fake_llm("ok")
@@ -74,7 +74,7 @@ async def test_the_token_cap_reaches_sdk_unchanged_and_zai_maps_it_to_extra_body
         decoding=DecodingSpec(decoding_version="test.v1", thinking=False, max_tokens=321, timeout=5.0),
         extra_body={"do_sample": False},
     )
-    assert sent.extra_bodies == [{"do_sample": False}] and sent.decodings[0].max_tokens == 321
+    assert sent.extra_bodies == [{"do_sample": False, "max_tokens": 321}] and sent.decodings[0].max_tokens is None
 
     sdk_agent = create_llm_agent(
         LlmSettings(provider="zai", api_key="test-key", base_url="https://api.z.ai/api/paas/v4"),
@@ -158,8 +158,8 @@ async def test_the_body_may_not_carry_thinking_or_a_second_token_cap(fake_llm) -
         )
 
 
-async def test_the_token_cap_reaches_sdk_unchanged_across_providers(fake_llm, monkeypatch) -> None:
-    """Both `zai` and other providers forward `DecodingSpec.max_tokens` straight to `create_llm_agent`."""
+async def test_the_cap_moves_to_the_body_for_z_ai_only(fake_llm, monkeypatch) -> None:
+    """Z.AI honours `max_tokens` in the body. Another provider keeps the cap in the field of the SDK."""
     from src.config import settings
 
     sent = fake_llm("ok")
@@ -168,8 +168,8 @@ async def test_the_token_cap_reaches_sdk_unchanged_across_providers(fake_llm, mo
     monkeypatch.setattr(settings, "ai_provider", "openai")
     monkeypatch.setattr(settings, "ai_api_key", "a-key")
     await complete_text(SITE, "small", "x", decoding=spec)
-    assert [d.max_tokens for d in sent.decodings] == [77, 77]
-    assert sent.extra_bodies == [None, None]
+    assert [d.max_tokens for d in sent.decodings] == [None, 77]
+    assert sent.extra_bodies == [{"max_tokens": 77}, None]
 
 
 async def test_the_iterator_of_stream_text_refuses_use_after_the_block(fake_llm) -> None:
