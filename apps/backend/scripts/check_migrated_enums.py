@@ -3,7 +3,7 @@
 Run after `alembic upgrade head` on a fresh database (CI job `schema-migrations`).
 `alembic check` does not compare enum labels, and the unit tests build their schema from the
 ORM with `create_all`, so a migration that creates an enum type with other labels than the ORM
-declares passes both. The infra2 pre-deploy schema gate (infra2#1671, once merged) tolerates an
+declares passes both. The infra2 pre-deploy schema gate (`infra2_sdk.storage check-schema`) tolerates an
 enum type that only new tables use and does not compare its labels; this check is the proof,
 at merge time and by execution.
 
@@ -19,7 +19,7 @@ import sys
 from collections.abc import Mapping
 from typing import Any
 
-import psycopg2
+import psycopg
 
 _DB_ENUMS_SQL = (
     "SELECT t.typname, e.enumlabel FROM pg_type t "
@@ -65,7 +65,7 @@ def code_enums(metadata: Any) -> dict[str, frozenset[str]]:
 def migrated_enums(database_url: str) -> dict[str, frozenset[str]]:
     """``{enum type name: labels}`` that the database holds."""
     enums: dict[str, set[str]] = {}
-    with psycopg2.connect(database_url.replace("+asyncpg", "")) as connection, connection.cursor() as cursor:
+    with psycopg.connect(database_url.replace("+asyncpg", "")) as connection, connection.cursor() as cursor:
         cursor.execute(_DB_ENUMS_SQL)
         for name, label in cursor.fetchall():
             enums.setdefault(name, set()).add(label)
