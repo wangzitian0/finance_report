@@ -6,17 +6,30 @@ import asyncio
 import contextlib
 import re
 import time
-from typing import Any
 from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
 from infra2_sdk import storage as sdk_storage
-from infra2_sdk.service import DependencyStatus, HttpClientSettings, ProbeResult, probe_http
-from infra2_sdk.storage import S3Settings, probe_s3, redact_postgres_error
+from infra2_sdk.service import (
+    DependencyStatus,
+    HttpClientSettings,
+    ProbeResult,
+    create_async_http_client,
+    probe_http,
+)
+from infra2_sdk.storage import (
+    RedisSettings,
+    S3Settings,
+    probe_redis,
+    probe_s3,
+    redact_postgres_error,
+    redact_redis_error,
+)
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
+_HTTP_3S = HttpClientSettings(timeout_seconds=3.0, connect_timeout_seconds=3.0)
 _HTTP_5S = HttpClientSettings(timeout_seconds=5.0, connect_timeout_seconds=5.0)
 
 
@@ -266,39 +279,29 @@ class LlmCheck:
 
 
 class RedisCheck:
-    """Redis reachability via authenticated ``redis.asyncio`` ``PING``."""
+    """Redis reachability via SDK ``RedisSettings`` + ``probe_redis``."""
 
     name = "cache"
 
     def __init__(self, *, url: str | None) -> None:
         self._url = url
 
-    @staticmethod
-    def _redact_url_secret(message: str, url: str) -> str:
-        parsed = urlparse(url)
-        return _redact_secrets(message, parsed.password)
-
     async def probe(self) -> ProbeResult:
         if not self._url:
             return _absent(self.name)
-        import redis.asyncio
-
         start = time.perf_counter()
-        client: Any = None
         try:
-            client = redis.asyncio.from_url(self._url, socket_timeout=5.0, socket_connect_timeout=5.0)
-            pong = await asyncio.wait_for(client.ping(), timeout=5.0)
-            if pong:
-                return _ok(self.name, "PING answered", start)
-            return _absent(self.name, "Unexpected PING response", start)
+            cfg = RedisSettings(url=self._url)
         except Exception as exc:  # noqa: BLE001
-            return _absent(self.name, self._redact_url_secret(str(exc), self._url), start)
-        finally:
-            if client is not None:
-                try:
-                    await client.aclose()
-                except Exception:  # noqa: BLE001
-                    pass
+            return _absent(self.name, redact_redis_error(exc, self._url), start)
+        return await asyncio.to_thread(
+            probe_redis,
+            cfg.url,
+            connect_timeout=cfg.connect_timeout_seconds,
+            tls_verify=cfg.tls_verify,
+            write_probe=False,
+            name=self.name,
+        )
 
 
 class WorkflowEngineCheck:
@@ -333,7 +336,7 @@ class TelemetryCheck:
             url = endpoint.rstrip("/")
             traces_url = url if url.endswith("/v1/traces") else f"{url}/v1/traces"
             try:
-                async with httpx.AsyncClient(timeout=3.0) as client:
+                async with create_async_http_client(_HTTP_3S, propagate_trace=False) as client:
                     resp = await client.post(traces_url, json={"resourceSpans": []})
                 code = int(resp.status_code)
                 if 200 <= code < 300 or code in {400, 415}:
@@ -373,7 +376,7 @@ class AnalyticsCheck:
 
         health_url = api_url if api_url.endswith("/healthcheck") else f"{api_url}/healthcheck"
         try:
-            async with httpx.AsyncClient(timeout=3.0) as client:
+            async with create_async_http_client(_HTTP_3S, propagate_trace=False) as client:
                 resp = await client.get(health_url)
             code = int(resp.status_code)
             if code != 200:

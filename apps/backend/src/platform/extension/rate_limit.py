@@ -37,6 +37,7 @@ from dataclasses import dataclass, field
 from threading import Lock
 from typing import Any
 
+from infra2_sdk.storage import RedisSettings, redact_redis_error
 from starlette.requests import Request
 
 logger = logging.getLogger(__name__)
@@ -118,7 +119,7 @@ class RateLimiter:
     ) -> None:
         self.config = config or RateLimitConfig()
         self._namespace = namespace
-        self._redis_url = redis_url or None
+        self._redis_url = RedisSettings(url=redis_url).url if redis_url else None
         self._max_keys = max(1, max_keys)
         self._local_state: dict[str, RateLimitState] = {}
         self._lock = Lock()
@@ -214,7 +215,7 @@ class RateLimiter:
             logger.warning(
                 "RateLimiter Redis backend unavailable for namespace=%s error=%s; falling back to local memory",
                 self._namespace,
-                type(exc).__name__,
+                redact_redis_error(exc, self._redis_url),
             )
             return self.is_allowed(key)
 
@@ -237,7 +238,7 @@ class RateLimiter:
             logger.warning(
                 "RateLimiter Redis reset failed for namespace=%s error=%s",
                 self._namespace,
-                type(exc).__name__,
+                redact_redis_error(exc, self._redis_url),
             )
 
     def clear(self) -> None:
@@ -260,7 +261,7 @@ class RateLimiter:
             logger.warning(
                 "RateLimiter Redis clear failed for namespace=%s error=%s",
                 self._namespace,
-                type(exc).__name__,
+                redact_redis_error(exc, self._redis_url),
             )
         finally:
             for client in list(self._redis_clients.values()):

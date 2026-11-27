@@ -6,11 +6,14 @@ import logging
 import threading
 from typing import Any
 
+from infra2_sdk.service import HttpClientSettings, create_http_client
+
 import src.config
 
 settings = src.config.settings
 logger = logging.getLogger(__name__)
 _TIMEOUT_SECONDS = 5.0
+_HTTP_SETTINGS = HttpClientSettings(timeout_seconds=_TIMEOUT_SECONDS, connect_timeout_seconds=_TIMEOUT_SECONDS)
 
 
 def is_configured() -> bool:
@@ -35,9 +38,7 @@ def build_payload(event: str, properties: dict[str, Any] | None) -> dict[str, An
 
 def _post(payload: dict[str, Any], client_id: str, endpoint: str) -> None:
     try:
-        import httpx
-
-        with httpx.Client(timeout=_TIMEOUT_SECONDS) as client:
+        with create_http_client(_HTTP_SETTINGS, propagate_trace=False) as client:
             client.post(endpoint, json=payload, headers={"openpanel-client-id": client_id}).raise_for_status()
     except Exception as exc:  # noqa: BLE001
         logger.debug("OpenPanel backend track failed for %r: %s", payload.get("payload", {}).get("name"), exc)

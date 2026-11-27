@@ -179,16 +179,18 @@ async def test_flow_run_failure_missing_endpoint_and_flush(worker_env, monkeypat
     await statement_flow.parse_statement_flow.fn(job=_job(), use_case_factory=_fake_use_case_factory())
     assert CapturingMetricExporter.instances == [] and telemetry_metrics.is_metrics_export_active() is False
 
+    from infra2_sdk.telemetry import TelemetryProviders
+
     calls: list[str] = []
-    prov = lambda name: types.SimpleNamespace(force_flush=lambda _t: calls.append(name))
+    prov = lambda name: types.SimpleNamespace(force_flush=lambda _t: (calls.append(name), True)[1])
     monkeypatch.setattr(otel_metrics, "get_meter_provider", lambda: prov("metrics"))
     monkeypatch.setattr(
         worker_telemetry,
         "_providers",
-        types.SimpleNamespace(logger_provider=prov("logs"), tracer_provider=prov("traces")),
+        TelemetryProviders(logger_provider=prov("logs"), tracer_provider=prov("traces")),
     )
     worker_telemetry.flush_worker_telemetry()
-    assert calls == ["metrics", "logs", "traces"]
+    assert calls == ["metrics", "traces", "logs"]
 
 
 def _prom_increase(exporters, metric: str, **labels: str) -> float:

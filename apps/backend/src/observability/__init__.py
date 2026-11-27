@@ -145,23 +145,6 @@ def get_logger(name: str | None = None) -> _StructuredLogger:
     return _StructuredLogger(name)
 
 
-def configure_logging(*, take_over_root: bool = False) -> None:
-    """Configure stdlib JSON logging via public infra2-sdk init_worker without bespoke structlog setup."""
-    from infra2_sdk.telemetry import init_worker
-
-    cfg = src.config.settings
-    if take_over_root:
-        logging.getLogger().handlers.clear()
-    level = logging.DEBUG if cfg.debug else logging.INFO
-    init_worker(
-        cfg.otel_service_name,
-        strict=False,
-        log_level=level,
-        set_global=False,
-        environ={"ENVIRONMENT": cfg.environment, "OTEL_SDK_DISABLED": "true"},
-    )
-
-
 from src.observability.telemetry_metrics import (
     INVARIANT_VIOLATION_KINDS,
     configure_database_pool_metrics,
@@ -190,7 +173,6 @@ __all__ = [
     "INVARIANT_VIOLATION_KINDS",
     "ErrorIds",
     "configure_database_pool_metrics",
-    "configure_logging",
     "configure_otel_metrics",
     "current_request_id",
     "ensure_request_id",
