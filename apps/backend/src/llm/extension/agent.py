@@ -15,10 +15,11 @@ A ``thinking`` key or a ``max_tokens`` key in ``extra_body`` is refused: the SDK
 one place (``DecodingSpec.max_tokens``). The SDK retries a model error before the first byte of the answer: a
 stream that fails after output has started is not retried.
 
-Wire facts that this module fixes (each one was measured against Z.AI on 2026-11-23, see ``tests/llm``):
+Wire facts for Z.AI (measured on 2026-11-23, see ``tests/llm``):
 
-- The SDK sends ``DecodingSpec.max_tokens`` as ``max_completion_tokens``, and Z.AI ignores that field: a cap of 20
-  produced 504 tokens. This module sends the cap as ``max_tokens`` in ``extra_body``, which Z.AI honours.
+- ``ZaiModel`` maps ``ModelSettings.max_tokens`` to ``max_completion_tokens``, which Z.AI ignores; for provider
+  ``zai``, this module moves ``DecodingSpec.max_tokens`` to ``extra_body["max_tokens"]`` so ``max_completion_tokens``
+  is omitted from the request body.
 - ``DecodingSpec.timeout`` is the timeout of the HTTP client for each read. A streamed call keeps the meaning that
   the earlier code had: the longest wait for the next chunk, not a limit on the whole answer.
 """
@@ -221,16 +222,15 @@ def _agent(
     if "thinking" in body:
         # The SDK replaces a ``thinking`` key of the body: the effort is set by ``DecodingSpec.thinking``.
         raise ValueError("Set thinking with DecodingSpec.thinking, not in extra_body")
+    if "max_tokens" in body:
+        raise ValueError("Set the cap with DecodingSpec.max_tokens, not in extra_body")
     try:
         settings_for_sdk = src.config.settings.to_llm_settings()
     except ValueError as exc:
         # An empty provider, model or base URL: the same fault as a missing key.
         raise model_call_failed(call_site, ModelFailureKind.NOT_CONFIGURED, str(exc)) from exc
     if decoding.max_tokens is not None and str(settings_for_sdk.provider).strip().lower() == "zai":
-        # See the module docstring: Z.AI honours ``max_tokens`` and ignores ``max_completion_tokens``. The other
-        # providers keep the cap in the SDK field.
-        if "max_tokens" in body:
-            raise ValueError("Set the cap with DecodingSpec.max_tokens, not in extra_body")
+        # ZaiModel maps ModelSettings.max_tokens to max_completion_tokens, so strip it for Z.AI cassettes and wire parity.
         body["max_tokens"] = decoding.max_tokens
         decoding = decoding.model_copy(update={"max_tokens": None})
     try:

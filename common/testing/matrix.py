@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import shlex
-from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -88,17 +87,6 @@ class E2ERow:
             and NEEDS_LLM_PROVIDER not in self.needs
             and self.file not in CORE_JOURNEY_ONLY_FILES
         )
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "file": self.file,
-            "needs": list(self.needs),
-            "audited": self.audited,
-            "reason": self.reason,
-            "nodes": list(self.nodes),
-            "frontend_paths": list(self.frontend_paths),
-            "staging_core_e2e": self.staging_core_e2e,
-        }
 
 
 def _e2e(
@@ -330,58 +318,6 @@ def preview_minimum_e2e_selection() -> tuple[str, ...]:
     return staging_core_e2e_selection()
 
 
-def _matches_frontend_path(changed_path: str, rule_path: str) -> bool:
-    norm_rule = rule_path.rstrip("/")
-    return changed_path == norm_rule or changed_path.startswith(f"{norm_rule}/")
-
-
-def select_touched_e2e(changed_files: Sequence[str]) -> list[str]:
-    """Map changed repo-relative paths to affected non-LLM staging_core_e2e journeys (#2670)."""
-    eligible_rows = [row for row in E2E_ROWS if row.staging_core_e2e]
-    eligible_by_file = {row.file: row for row in eligible_rows}
-    all_e2e_spec_files = {row.file for row in E2E_ROWS}
-
-    selected_files: set[str] = set()
-    for raw_path in changed_files:
-        path = raw_path.strip().replace("\\", "/").lstrip("./")
-        if not path:
-            continue
-        if path in eligible_by_file:
-            selected_files.add(path)
-        elif path.startswith("tests/e2e/"):
-            if path not in all_e2e_spec_files:
-                return list(staging_core_e2e_selection())
-        else:
-            for row in eligible_rows:
-                if any(_matches_frontend_path(path, fp) for fp in row.frontend_paths):
-                    selected_files.add(row.file)
-
-    return [
-        node
-        for row in eligible_rows
-        if row.file in selected_files
-        for node in (row.nodes or (row.file,))
-    ]
-
-
-def touched_e2e_selection(changed_files: Sequence[str]) -> tuple[tuple[str, ...], str]:
-    """Return (nodes, marker) of the touched non-LLM E2E journeys (#2670)."""
-    return tuple(select_touched_e2e(changed_files)), STAGING_CORE_E2E_MARKER
-
-
-def emit_touched_e2e_shell(changed_files: Sequence[str]) -> str:
-    """Emit bash assignments for touched non-LLM E2E journeys (#2670)."""
-    nodes, marker = touched_e2e_selection(changed_files)
-    tests = " ".join(shlex.quote(node) for node in nodes)
-    return "\n".join(
-        [
-            f"TOUCHED_E2E_TESTS=({tests})",
-            f"TOUCHED_E2E_MARKER={shlex.quote(marker)}",
-            f"TOUCHED_E2E_COUNT={len(nodes)}",
-        ]
-    )
-
-
 SUPPLEMENTAL_LLM_FILES = ["tests/e2e/test_statement_upload_e2e.py"]
 CANARY_FILES = ["tests/e2e/test_brokerage_upload_to_portfolio_value.py"]
 CORE_JOURNEY_MAP_PATH = REPO_ROOT / "common/testing/data/core-journey-checkpoints.json"
@@ -491,87 +427,10 @@ def emit_shell(stage: str, *, corpus: str = "all") -> str:
             f"STAGING_CORE_E2E_MARKER={quoted_marker}\n"
             f"STAGING_CORE_E2E_PARALLELISM={STAGING_CORE_E2E_PARALLELISM}"
         )
-    return (
-        f"STAGING_AI_OCR_TESTS=({tests})\n"
-        f"STAGING_AI_OCR_MARKER={quoted_marker}"
-    )
+    return f"STAGING_AI_OCR_TESTS=({tests})\nSTAGING_AI_OCR_MARKER={quoted_marker}"
 
 
-BACKEND_CI_MARKER = "not slow and not e2e and not integration"
-BACKEND_INTEGRATION_MARKER = "integration"
 STAGING_AI_OCR_GATE_MARKER = "llm or journey"
-
-
-@dataclass(frozen=True)
-class WorkflowPytestContract:
-    """One expected pytest invocation inside a GitHub workflow."""
-
-    stage: str
-    workflow: str
-    marker: str | None
-    paths: tuple[str, ...] = ()
-    anchor: str = ""
-    precondition: str = ""
-
-
-WORKFLOW_PYTEST_CONTRACTS: tuple[WorkflowPytestContract, ...] = (
-    WorkflowPytestContract(
-        stage="backend_ci",
-        workflow=".github/workflows/ci.yml",
-        marker=BACKEND_CI_MARKER,
-        paths=('"${BACKEND_SHARD_TESTS[@]}"',),
-        anchor="--junit-xml=test-results/backend-shard-${{ matrix.shard }}.xml",
-    ),
-    WorkflowPytestContract(
-        stage="backend_integration",
-        workflow=".github/workflows/ci.yml",
-        marker=BACKEND_INTEGRATION_MARKER,
-        anchor="--junit-xml=test-results/backend-integration.xml",
-    ),
-    WorkflowPytestContract(
-        stage="preview_minimum_e2e",
-        workflow="runtime-hooks.manifest.json",
-        marker=PREVIEW_MINIMUM_E2E_MARKER,
-        paths=("--stage preview_minimum_e2e",),
-        anchor="common.testing.test_selection --stage preview_minimum_e2e --run",
-    ),
-    WorkflowPytestContract(
-        stage="staging_core_e2e",
-        workflow="runtime-hooks.manifest.json",
-        marker=STAGING_CORE_E2E_MARKER,
-        paths=("--stage staging_core_e2e",),
-        anchor="common.testing.test_selection --stage staging_core_e2e --run",
-        precondition="common/runtime/shell/smoke_test.sh",
-    ),
-    WorkflowPytestContract(
-        stage="staging_provider_connectivity",
-        workflow="runtime-hooks.manifest.json",
-        marker=None,
-        paths=("tests/e2e/test_ai_provider_connectivity.py",),
-        anchor="tests/e2e/test_ai_provider_connectivity.py",
-    ),
-    WorkflowPytestContract(
-        stage="staging_ai_ocr_gate",
-        workflow="runtime-hooks.manifest.json",
-        marker=STAGING_AI_OCR_GATE_MARKER,
-        paths=("--stage staging_ai_ocr", "--corpus canary"),
-        anchor="common.testing.test_selection --stage staging_ai_ocr --corpus canary --run",
-    ),
-    WorkflowPytestContract(
-        stage="scheduled_audit_ocr_gate",
-        workflow="runtime-hooks.manifest.json",
-        marker=STAGING_AI_OCR_GATE_MARKER,
-        paths=("--stage staging_ai_ocr", "--corpus audit_replay"),
-        anchor="common.testing.test_selection --stage staging_ai_ocr --corpus audit_replay --run",
-    ),
-    WorkflowPytestContract(
-        stage="scheduled_audit_core_journey_gate",
-        workflow="runtime-hooks.manifest.json",
-        marker=STAGING_AI_OCR_GATE_MARKER,
-        paths=("--stage staging_ai_ocr", "--corpus core_journey"),
-        anchor="common.testing.test_selection --stage staging_ai_ocr --corpus core_journey --run",
-    ),
-)
 
 PR_EVIDENCE_STAGES: frozenset[str] = frozenset(
     {"backend_ci", "backend_integration", "frontend_vitest"}

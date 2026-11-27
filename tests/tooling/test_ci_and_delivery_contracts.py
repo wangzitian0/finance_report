@@ -1185,18 +1185,6 @@ def test_AC_testing_deploy_gates_37_corpus_disjointness_and_junit_emission(
         == 0
     )
     assert f"--junitxml={artifacts_dir / 'staging_ai_ocr.junit.xml'}" in calls[-1]
-    assert (
-        test_selection.main(
-            [
-                "--touched-files",
-                "apps/frontend/src/components/journal/EntryForm.tsx",
-                "--run",
-            ],
-            runner=_fake_run,
-        )
-        == 0
-    )
-    assert f"--junitxml={artifacts_dir / 'touched_files.junit.xml'}" in calls[-1]
 
 
 def test_core_e2e_stages_run_in_xdist_workers(
@@ -2321,7 +2309,7 @@ def test_frontend_env_action_and_check_api_types_fail_closed(
 
 
 def test_install_infra2_sdk_caches_and_verifies_sha256() -> None:
-    """install-infra2-sdk caches the wheel on tools/sdk_pin.py output and enforces sha256sum."""
+    """install-infra2-sdk caches the wheel on common/runtime/sdk_pin.py output and enforces sha256sum."""
     action_text = (ROOT / ".github/actions/install-infra2-sdk/action.yml").read_text(
         encoding="utf-8"
     )
@@ -2329,7 +2317,7 @@ def test_install_infra2_sdk_caches_and_verifies_sha256() -> None:
     steps = action["runs"]["steps"]
     cache_step = next(s for s in steps if s.get("uses") == "actions/cache@v4")
     assert "pin_hash" in cache_step["with"]["key"]
-    assert "tools/sdk_pin.py" in action_text
+    assert "common/runtime/sdk_pin.py" in action_text
     assert "sha256sum --check" in action_text
     install_step = next(s for s in steps if "pip install" in str(s.get("run", "")))
     install_run = str(install_step["run"])

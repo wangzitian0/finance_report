@@ -62,8 +62,10 @@ async def test_stream_text_closes_at_once_when_the_loop_stops_early_or_raises(fa
     )
 
 
-async def test_the_token_cap_is_sent_as_max_tokens_in_the_extra_body(fake_llm) -> None:
-    """Z.AI ignores `max_completion_tokens`, which is what the SDK sends for `DecodingSpec.max_tokens`."""
+async def test_the_token_cap_is_sent_as_max_tokens_in_the_extra_body_for_zai(fake_llm) -> None:
+    """For Z.AI, `agent.py` moves `max_tokens` to `extra_body` and `create_llm_agent` also supports `DecodingSpec.max_tokens`."""
+    from infra2_sdk.llm import LlmSettings, create_llm_agent
+
     sent = fake_llm("ok")
     await complete_text(
         SITE,
@@ -73,6 +75,13 @@ async def test_the_token_cap_is_sent_as_max_tokens_in_the_extra_body(fake_llm) -
         extra_body={"do_sample": False},
     )
     assert sent.extra_bodies == [{"do_sample": False, "max_tokens": 321}] and sent.decodings[0].max_tokens is None
+
+    sdk_agent = create_llm_agent(
+        LlmSettings(provider="zai", api_key="test-key", base_url="https://api.z.ai/api/paas/v4"),
+        role="small",
+        decoding=DecodingSpec(decoding_version="test.v1", thinking=False, max_tokens=321, timeout=5.0),
+    )
+    assert sdk_agent.model.wrapped.settings["extra_body"]["max_tokens"] == 321
 
 
 def test_to_user_content_maps_a_file_part_to_binary_content() -> None:

@@ -52,13 +52,13 @@ Vault path convention: `secret/data/{project}/{environment}/{component}`
 1. Add to `apps/backend/src/config.py` with type + default
    (`Field(validation_alias=...)`).
 2. Regenerate `.env.example` and `common/runtime/required-env.generated.json`.
-3. Validate: `python tools/env_manifests.py --check` (the CI gate).
+3. Validate: `python common/runtime/env_manifests.py --check` (the CI gate).
 4. Name its producer in `config.ENV_SOURCE_CLASSES` (a side table, so no public
    `Field()` changes): `human` → the operator puts the value in 1Password and the
    deploy copies it into Vault; `runtime` → the deploy generates it; `decision` →
    infra2 states it in the compose env for `finance_report/app` (needs an infra2
    compose PR); unlisted → `code` default, never stored. Regenerate the manifest
-   (`python tools/env_manifests.py`): infra2 renders its vault-agent
+   (`python common/runtime/env_manifests.py`): infra2 renders its vault-agent
    template and policy from it, so there is no hand-written `secrets.ctmpl` to
    edit and no git pointer to update here.
 
@@ -73,7 +73,7 @@ Check the sources in order:
 
 ```bash
 rg -c '^<VAR>=' .env                                      # 1. local file (key presence without echoing value)
-python tools/debug.py status backend --env production      # 2. Dokploy ENV
+python common/runtime/dev/debug.py status backend --env production      # 2. Dokploy ENV
 # 3. Vault (masked; infra2 repo, bounded token — never the root token):
 invoke env.list-all --project=finance_report --service=app
 # 4. Container runtime (via SSH to VPS host):
@@ -113,7 +113,7 @@ invoke env.set KEY=VALUE --project=finance_report --env=production --service=app
 #    Check prod-queue in infra2 first (must exit 0 before dispatch):
 cd "$WS_PATH/infra2" && uv run --locked python -m tools.harness prod-queue
 gh workflow run reconcile-iac-inputs.yml -R wangzitian0/infra2 -f promote_prod=true -f after=vX.Y.Z
-python tools/debug.py logs backend --env production --tail 20   # verify
+python common/runtime/dev/debug.py logs backend --env production --tail 20   # verify
 ```
 
 ### Rotate the JWT secret
@@ -146,7 +146,7 @@ the compose sets `ENVIRONMENT` plus the `decision` values.
 ## The Proof
 
 ```bash
-python tools/env_manifests.py --check        # layer consistency (CI gate)
+python common/runtime/env_manifests.py --check        # layer consistency (CI gate)
 moon run :dev -- --check                     # runtime boot validation
 # From infra2: verify keys present via masked wrapper (never raw vault kv get):
 cd "$WS_PATH/infra2" && invoke env.list-all --project=finance_report --service=app

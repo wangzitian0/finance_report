@@ -258,8 +258,8 @@ jobs:
             uv run --frozen alembic upgrade head
             echo "[schema-migration] uv run --frozen alembic check"
             uv run --frozen alembic check
-            echo "[schema-migration] uv run --frozen python scripts/check_migrated_enums.py"
-            uv run --frozen python scripts/check_migrated_enums.py
+            echo "[schema-migration] uv run --frozen python -m infra2_sdk.storage check-schema --import src.counter.extension.sql --import src.identity.extension.sql --import src.orm_registry --import src.platform.extension.sql --metadata src.database:Base.metadata --alembic-config alembic.ini"
+            uv run --frozen python -m infra2_sdk.storage check-schema --import src.counter.extension.sql --import src.identity.extension.sql --import src.orm_registry --import src.platform.extension.sql --metadata src.database:Base.metadata --alembic-config alembic.ini
           } 2>&1 | tee test-results/schema-migration.log
 
       - name: Upload schema migration test context

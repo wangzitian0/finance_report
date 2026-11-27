@@ -2,10 +2,20 @@
 
 from __future__ import annotations
 
+from infra2_sdk.config import EnvironmentTier, resolve_tier
 from infra2_sdk.service import DependencyManifest
 from pydantic_settings import BaseSettings
 
 from src.runtime.base.manifest import DEPENDENCY_MANIFEST
+
+
+def resolve_tier_or_production(environment: str, *, github_actions: bool = False) -> EnvironmentTier:
+    """Resolve deployment environment to an ``EnvironmentTier``, failing closed to ``PRODUCTION``."""
+    try:
+        return resolve_tier(environment, github_actions=github_actions)
+    except ValueError:
+        return EnvironmentTier.PRODUCTION
+
 
 NON_DEPENDENCY_CATEGORIES: frozenset[str] = frozenset({"security", "deployment", "domain", "feature", "tuning"})
 

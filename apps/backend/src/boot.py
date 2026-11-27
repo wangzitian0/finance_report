@@ -13,7 +13,6 @@ from infra2_sdk.config import (
     EnvironmentManifest,
     EnvironmentTier,
     assert_env,
-    resolve_tier,
 )
 from infra2_sdk.llm import LlmSettings
 from infra2_sdk.service import DependencyStatus
@@ -30,6 +29,7 @@ from src.runtime import (
     RedisCheck,
     TelemetryCheck,
     WorkflowEngineCheck,
+    resolve_tier_or_production,
 )
 
 logger = get_logger(__name__)
@@ -103,13 +103,6 @@ async def _probe_status(service: str, adapter: Any, *, include_duration: bool = 
     )
 
 
-def _resolve_tier_or_production(environment: str, *, github_actions: bool = False) -> EnvironmentTier:
-    try:
-        return resolve_tier(environment, github_actions=github_actions)
-    except ValueError:
-        return EnvironmentTier.PRODUCTION
-
-
 class Bootloader:
     """Validate runtime configuration and external dependency reachability."""
 
@@ -122,7 +115,7 @@ class Bootloader:
     @staticmethod
     async def validate(mode: BootMode = BootMode.CRITICAL, tier: EnvironmentTier | None = None) -> bool:
         if tier is None:
-            tier = _resolve_tier_or_production(
+            tier = resolve_tier_or_production(
                 settings.environment,
                 github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",
             )
@@ -301,7 +294,7 @@ class Bootloader:
 
     @staticmethod
     async def _check_s3() -> ServiceStatus:
-        tier = _resolve_tier_or_production(
+        tier = resolve_tier_or_production(
             settings.environment,
             github_actions=os.getenv("GITHUB_ACTIONS", "").lower() == "true",
         )

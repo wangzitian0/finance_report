@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import argparse
 import re
 import tomllib
+from collections.abc import Sequence
 from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
 def read_sdk_pin(root: Path) -> tuple[str, str, str]:
@@ -62,3 +66,14 @@ def read_sdk_pin(root: Path) -> tuple[str, str, str]:
     ):
         raise ValueError("infra2-sdk release wheel requires a matching URL and SHA256")
     return url, digest.removeprefix("sha256:"), filename
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """Print validated SDK bootstrap coordinates for workflow acquisition."""
+    argparse.ArgumentParser(description=__doc__).parse_args(argv)
+    print(*read_sdk_pin(ROOT_DIR))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -5,8 +5,34 @@ from __future__ import annotations
 import importlib
 import subprocess
 import sys
+from typing import Any
 
-from scripts.check_migrated_enums import code_enum_tuples
+
+def _iter_enum_types(col_type: Any):
+    item = getattr(col_type, "item_type", None)
+    if item is not None:
+        yield from _iter_enum_types(item)
+    if (
+        getattr(col_type, "native_enum", True)
+        and getattr(col_type, "name", None)
+        and getattr(col_type, "enums", None) is not None
+    ):
+        yield col_type
+
+
+def code_enum_tuples(metadata: Any) -> dict[str, tuple[str, ...]]:
+    """``{enum type name: ordered labels}`` for every native enum column on ``metadata``."""
+    out: dict[str, tuple[str, ...]] = {}
+    for table in metadata.tables.values():
+        for col in table.columns:
+            for enum_t in _iter_enum_types(col.type):
+                labels = tuple(str(v) for v in enum_t.enums)
+                if enum_t.name in out and out[enum_t.name] != labels:
+                    raise ValueError(
+                        f"conflicting enum definitions for {enum_t.name!r}: {out[enum_t.name]!r} != {labels!r}"
+                    )
+                out[enum_t.name] = labels
+    return out
 
 
 def test_storage_check_schema_has_psycopg_driver_and_reaches_db_url_check() -> None:

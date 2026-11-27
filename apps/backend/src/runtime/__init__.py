@@ -14,6 +14,7 @@ from __future__ import annotations
 from src.runtime.base.env_classification import (
     NON_DEPENDENCY_ENV_FIELDS,
     check_env_classification,
+    resolve_tier_or_production,
 )
 from src.runtime.base.jobs import (
     BACKGROUND_JOBS,
@@ -54,6 +55,7 @@ __all__ = [
     "WorkflowEngineCheck",
     "check_env_classification",
     "redact_presigned_url",
+    "resolve_tier_or_production",
     "run_storage_sweep",
     "sweep_orphaned_storage_objects",
 ]

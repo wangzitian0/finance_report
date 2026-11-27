@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# tools/cleanup_dev_resources.sh
+# common/runtime/shell/cleanup_dev_resources.sh
 #
 # Use this script to clean up development resources (containers, processes, locks, data)
 # when "make clean" is not enough or when CI/Tests are stuck.
 #
 # Usage:
-#   ./tools/cleanup_dev_resources.sh           # Clean containers and locks only
-#   ./tools/cleanup_dev_resources.sh --all     # Also clean volumes (data loss!)
-#   ./tools/cleanup_dev_resources.sh --force   # Force kill processes
+#   bash common/runtime/shell/cleanup_dev_resources.sh           # Clean containers and locks only
+#   bash common/runtime/shell/cleanup_dev_resources.sh --all     # Also clean volumes (data loss!)
+#   bash common/runtime/shell/cleanup_dev_resources.sh --force   # Force kill processes
 
 set -u
 

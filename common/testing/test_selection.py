@@ -37,9 +37,7 @@ def _resolve_junit_path(
         else (stage or "selection")
     )
     resolved = (
-        Path(hook_artifacts_dir) / f"{stem}.junit.xml"
-        if explicit is None
-        else explicit
+        Path(hook_artifacts_dir) / f"{stem}.junit.xml" if explicit is None else explicit
     )
     return resolved if resolved.is_absolute() else ROOT_DIR / resolved
 
@@ -63,17 +61,14 @@ def run_pytest(
     if workers > 1:
         flags.extend(("--numprocesses", str(workers)))
     if junit_path is not None:
-        resolved_junit = junit_path if junit_path.is_absolute() else ROOT_DIR / junit_path
+        resolved_junit = (
+            junit_path if junit_path.is_absolute() else ROOT_DIR / junit_path
+        )
         resolved_junit.parent.mkdir(parents=True, exist_ok=True)
         flags.append(f"--junitxml={resolved_junit}")
     argv = [sys.executable, "-m", "pytest", *nodes, *flags]
     env = {**stage_env, **os.environ, "STRICT_E2E_GATES": "1"}
     return runner(argv, check=False, cwd=ROOT_DIR, env=env).returncode
-
-
-def _resolve_touched_files(raw: Sequence[str]) -> list[str]:
-    """Return CLI touched paths, or whitespace-split ``INFRA2_TOUCHED_FILES``."""
-    return list(raw) if raw else os.environ.get("INFRA2_TOUCHED_FILES", "").split()
 
 
 def main(
@@ -110,12 +105,6 @@ def main(
         action="store_true",
         help="Exit 1 if common/testing/data/test-execution-matrix.yaml drifted from the code.",
     )
-    parser.add_argument(
-        "--touched-files",
-        nargs="*",
-        default=None,
-        help="Emit affected non-LLM staging_core_e2e journeys for the given changed repo-relative paths (#2670).",
-    )
     args = parser.parse_args(argv)
     if args.run and args.shell:
         parser.error("--run cannot be combined with --shell")
@@ -139,34 +128,8 @@ def main(
         print(f"wrote {MATRIX_YAML.relative_to(ROOT_DIR)}")
         return 0
 
-    if args.touched_files is not None:
-        touched_files = _resolve_touched_files(args.touched_files)
-        if args.run:
-            nodes, marker = matrix.touched_e2e_selection(touched_files)
-            if not nodes:
-                print("no touched journey: pytest not started")
-                return 0
-            env = matrix.stage_env(matrix.STAGING_CORE_E2E_STAGE)
-            junit_path = _resolve_junit_path(
-                args.junit_path,
-                hook_artifacts_dir=os.environ.get("HOOK_ARTIFACTS_DIR"),
-                stage="touched_files",
-                corpus=None,
-            )
-            return run_pytest(
-                nodes, marker, stage_env=env, junit_path=junit_path, runner=runner
-            )
-        if args.shell:
-            print(matrix.emit_touched_e2e_shell(touched_files))
-            return 0
-        for node in matrix.select_touched_e2e(touched_files):
-            print(node)
-        return 0
-
     if not args.stage:
-        parser.error(
-            "--stage is required unless using --emit-matrix/--check-matrix/--touched-files"
-        )
+        parser.error("--stage is required unless using --emit-matrix/--check-matrix")
 
     selection = matrix.SELECTIONS.get(args.stage)
     if selection is None:

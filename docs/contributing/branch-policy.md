@@ -13,7 +13,7 @@
    A PR that fails a condition is not ready to merge. The agent fixes the cause until every condition holds. Only a production deployment waits for the owner. 5. **One task per branch**: Keep each branch scoped to its requested issue or change set.
 ## 🔧 Pre-commit Hooks (REQUIRED for contributors)
 Before your first commit, install pre-commit hooks to prevent CI failures:
-```bash make install          # Runs tools/bootstrap.sh  # OR manually:  uvx pre-commit install ``` **What hooks do**: 1. **Ruff lint + format** — Auto-fixes Python style issues 2. **Env var consistency** — Validates `config.py` `Settings` ↔ `.env.example` 3. **File hygiene** — Trailing whitespace, merge conflicts, large files 4. **Branch protection** — Prevents direct commits to `main`
+```bash make install          # Runs common/runtime/shell/bootstrap.sh  # OR manually:  uvx pre-commit install ``` **What hooks do**: 1. **Ruff lint + format** — Auto-fixes Python style issues 2. **Env var consistency** — Validates `config.py` `Settings` ↔ `.env.example` 3. **File hygiene** — Trailing whitespace, merge conflicts, large files 4. **Branch protection** — Prevents direct commits to `main`
 ## 🛠️ CLI Commands (Quick Reference)
 | Command | Purpose |
 |---------|---------|

@@ -7,7 +7,7 @@
 # 3. Trailing whitespace / merge conflicts
 # 4. SSOT/contract/generated-doc drift (caught at push, see pre-push block below)
 
-# Wire both git hook types so `pre-commit install` (run by tools/bootstrap.sh)
+# Wire both git hook types so `pre-commit install` (run by common/runtime/shell/bootstrap.sh)
 # also installs the pre-push hook. `default_stages: [pre-commit]` keeps every
 # existing hook commit-only -- adding the pre-push hook type does NOT pull ruff,
 # mypy, gitleaks, etc. into `git push`; only hooks that opt in with

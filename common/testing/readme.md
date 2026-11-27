@@ -6,7 +6,7 @@
 
 ### Execution matrix
 
-[`matrix.py`](./matrix.py) is the SSOT for path -> stage routing (`common/testing/data/test-execution-matrix.yaml`), staging/preview/audit corpora (`common.testing.test_selection --stage ... --run|--shell`), and sharding (`python -m common.testing.backend_shard` over `apps/backend/ci/backend-test-durations.json`). `WORKFLOW_PYTEST_CONTRACTS` binds JUnit-producing workflow invocations.
+[`matrix.py`](./matrix.py) is the SSOT for path -> stage routing (`common/testing/data/test-execution-matrix.yaml`), staging/preview/audit corpora (`common.testing.test_selection --stage ... --run|--shell`), and sharding (`python -m common.testing.backend_shard` over `apps/backend/ci/backend-test-durations.json`).
 
 ### Package declaration protocol
 

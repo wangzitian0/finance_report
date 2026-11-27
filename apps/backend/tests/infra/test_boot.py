@@ -165,12 +165,16 @@ async def test_check_s3(mock_settings, error_msg: str | None) -> None:
 
 
 async def test_check_s3_staging_write_delete_and_prod_readonly(mock_settings) -> None:
+    stored: dict[str, bytes] = {}
     staging_client = MagicMock()
+    staging_client.put_object.side_effect = lambda **kw: stored.__setitem__(kw["Key"], kw["Body"]) or {"ETag": '"e"'}
+    staging_client.get_object.side_effect = lambda **kw: {"Body": MagicMock(read=lambda: stored[kw["Key"]])}
     mock_settings.environment = "staging"
     with patch("infra2_sdk.storage.create_s3_client", return_value=staging_client):
         st_staging = await Bootloader._check_s3()
     assert (st_staging.status, st_staging.service) == ("ok", "minio")
     staging_client.put_object.assert_called_once()
+    staging_client.get_object.assert_called_once()
     staging_client.delete_object.assert_called_once()
 
     for readonly_env in ("production", "prod", "preview", "prod-eu"):
