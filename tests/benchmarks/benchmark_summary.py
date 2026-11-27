@@ -265,12 +265,22 @@ def _summary_disagreement(
         and summary.get(k) is not None
         and _whole_number(summary.get(k)) != derived[k]
     ]
-    if summary.get("success") is True and (
-        derived["total"] == 0 or derived["passed"] == 0 or derived["failed"] > 0
-    ):
-        mismatches.append(
-            f"summary.success=True vs results(passed={derived['passed']}, failed={derived['failed']}, total={derived['total']})"
-        )
+    ratchet = summary.get("ratchet")
+    ratchet_enforced = isinstance(ratchet, dict) and ratchet.get("enforced") is True
+    if summary.get("success") is True:
+        if ratchet_enforced:
+            if (
+                not ratchet.get("gate_passed")
+                or not ratchet.get("hard_invariant_ok")
+                or derived["passed"] < int(ratchet.get("floor_passed", 0))
+            ):
+                mismatches.append(
+                    f"summary.success=True conflicts with ratchet(passed={derived['passed']}, ratchet={ratchet})"
+                )
+        elif derived["total"] == 0 or derived["passed"] == 0 or derived["failed"] > 0:
+            mismatches.append(
+                f"summary.success=True vs results(passed={derived['passed']}, failed={derived['failed']}, total={derived['total']})"
+            )
     return "; ".join(mismatches) if mismatches else None
 
 
@@ -289,11 +299,21 @@ def _report_counts(report_data: Any) -> dict[str, int]:
 def _run_passed(
     report_data: Any, counts: dict[str, int], results: list[dict[str, Any]]
 ) -> bool:
+    summary = _summary_of(report_data)
+    ratchet = summary.get("ratchet")
+    if isinstance(ratchet, dict) and ratchet.get("enforced") is True:
+        return (
+            summary.get("success") is True
+            and _summary_disagreement(report_data, results) is None
+            and ratchet.get("gate_passed") is True
+            and ratchet.get("hard_invariant_ok") is True
+            and counts["passed"] >= int(ratchet.get("floor_passed", 0))
+        )
     failed_res = sum(
         1 for r in results if _effective_case_status(r) not in (PASS, "SKIPPED")
     )
     return (
-        _summary_of(report_data).get("success") is True
+        summary.get("success") is True
         and _summary_disagreement(report_data, results) is None
         and counts["total"] >= 1
         and counts["passed"] >= 1
@@ -321,7 +341,8 @@ def extract_summary_data(report_data: Any) -> dict[str, Any]:
         else (PASS if _run_passed(rd, counts, results) else FAIL)
     )
     max_val, max_ccy = _largest_delta(results)
-    return {
+    summary_raw = _summary_of(rd)
+    out = {
         "version": version,
         "run_at": _text_value(rd.get("run_at")) or "",
         "app_url": _text_value(rd.get("app_url")) or "",
@@ -340,3 +361,7 @@ def extract_summary_data(report_data: Any) -> dict[str, Any]:
         "domains_covered": len(domains),
         "report_url": None if version is None else f"{version}/report.html",
     }
+    for extra_key in ("p50_seconds", "p95_seconds", "error_code_counts", "ratchet"):
+        if extra_key in summary_raw and summary_raw[extra_key] is not None:
+            out[extra_key] = summary_raw[extra_key]
+    return out

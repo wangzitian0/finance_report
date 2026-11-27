@@ -157,11 +157,7 @@ def _verify_flow_7_and_24_mismatch_and_diagnostics(
         raise RuntimeError(
             f"Expected review_pending_statements in data-quality action_items while statement {bad_id} is pending, got: {dq_pending}"
         )
-    runner.reject_statement(
-        client,
-        bad_id,
-        notes="Tampered closing balance rejected by Flow 7 Stage-1 defense",
-    )
+    runner.retire_statement(client, bad_id)
     return True, True
 
 

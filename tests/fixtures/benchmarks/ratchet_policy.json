@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "pdf_corpus_oracle": {
+    "floor_passed": 12,
+    "total_expected": 20,
+    "hard_invariants": [
+      "fundamental_accounting_equation",
+      "statement_retirement_cleanup"
+    ]
+  },
+  "financial_scenario_benchmark": {
+    "floor_passed": 3,
+    "total_expected": 6,
+    "max_equation_delta": "0.00"
+  }
+}

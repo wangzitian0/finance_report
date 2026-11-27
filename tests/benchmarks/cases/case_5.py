@@ -68,11 +68,7 @@ def _import_brokerage_and_update_prices(
         filename="ibkr_positions_20250430.json",
         source_document_id=stmt_id,
     )
-    runner.reject_statement(
-        client,
-        stmt_id,
-        notes="Undated brokerage CSV superseded by dated position snapshot",
-    )
+    runner.retire_statement(client, stmt_id)
     assert (
         import_resp.get("created_atomic_positions", 0) >= 2
         or import_resp.get("parsed_positions", 0) >= 2

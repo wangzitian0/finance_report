@@ -67,8 +67,11 @@ def _project_ci_workflow(content: str, toolchain: dict) -> str:
 
 
 def _project_docs_workflow(content: str, toolchain: dict) -> str:
+    runtime = toolchain["runtime"]
     return _project_env_header(
-        content, python_version=toolchain["runtime"].get("python")
+        content,
+        python_version=runtime.get("python"),
+        uv_version=runtime.get("uv"),
     )
 
 

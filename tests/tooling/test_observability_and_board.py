@@ -1164,3 +1164,93 @@ def test_AC23_1_4_openpanel_query_cli_payloads_security_and_output(
     assert "(no funnel steps returned)" in op_cli.format_markdown_summary(
         {"steps": []}, command="funnel"
     )
+
+
+def test_quality_board_decouples_freshness_from_capability_pass_and_renders_ratchet() -> None:
+    """Freshness reflects timely completeness even when benchmark capability pass < 100%."""
+    healthy_pair = {
+        "staging": {"reachable": True, "status": "healthy"},
+        "production": {"reachable": True, "status": "healthy"},
+    }
+    fresh_ci = {
+        "artifacts_count": 1,
+        "latest_at_utc": qb.format_utc(BOARD_NOW - timedelta(hours=2)),
+    }
+    fresh_but_capability_gap = {
+        "artifacts_count": 1,
+        "latest_at_utc": qb.format_utc(BOARD_NOW - timedelta(hours=4)),
+        "completeness": {"completed": 4, "expected": 4},
+        "latest": {"status": "fail"},
+    }
+    verdict = qb.compute_freshness(
+        now=BOARD_NOW,
+        ci_post=fresh_ci,
+        scheduled_audit=fresh_but_capability_gap,
+        runtime_health=healthy_pair,
+    )
+    assert verdict["status"] == "FRESH"
+
+    rendered = qb.render_html(
+        {
+            "generated_at_utc": "2026-11-25T12:00:00Z",
+            "generated_at_utc8": "2026-11-25 20:00:00 UTC+8",
+            "freshness": verdict,
+            "runtime_health": healthy_pair,
+            "scheduled_audit": {
+                "completeness": {"completed": 4, "expected": 4},
+                "runs": [],
+            },
+            "ci_post": {"runs": []},
+            "user_cases": {"total": 47, "domains": []},
+            "benchmark_ratchet": {
+                "pdf_corpus_oracle": {
+                    "passed": 12,
+                    "total": 20,
+                    "floor_passed": 12,
+                    "p50_seconds": 18.4,
+                    "p95_seconds": 95.2,
+                    "error_code_counts": {"THREE_STATEMENT_MISMATCH": 4},
+                },
+                "financial_scenario_benchmark": {
+                    "passed": 3,
+                    "total": 6,
+                    "floor_passed": 3,
+                    "p50_seconds": 6.1,
+                    "p95_seconds": 21.0,
+                    "error_code_counts": {"ENVELOPE_CONFIRMATION_FAILED": 2},
+                },
+            },
+        }
+    )
+    assert "Benchmark Capability &amp; Ratchet Gate" in rendered
+    assert "12 / 20" in rendered and "Floor: 12" in rendered
+    assert "THREE_STATEMENT_MISMATCH: 4" in rendered
+
+    bad_rendered = qb.render_html(
+        {
+            "generated_at_utc": "2026-11-25T12:00:00Z",
+            "generated_at_utc8": "2026-11-25 20:00:00 UTC+8",
+            "freshness": verdict,
+            "runtime_health": healthy_pair,
+            "scheduled_audit": {"completeness": {"completed": 4, "expected": 4}, "runs": []},
+            "ci_post": {"runs": []},
+            "user_cases": {"total": 47, "domains": []},
+            "benchmark_ratchet": {
+                "pdf_corpus_oracle": {
+                    "passed": 12,
+                    "total": 20,
+                    "floor_passed": 12,
+                    "hard_invariant_ok": False,
+                    "error_code_counts": {},
+                },
+                "financial_scenario_benchmark": {
+                    "passed": 3,
+                    "total": 6,
+                    "floor_passed": 3,
+                    "hard_invariant_ok": True,
+                    "error_code_counts": {},
+                },
+            },
+        }
+    )
+    assert '<span class="badge badge-bad">12 / 20</span>' in bad_rendered
