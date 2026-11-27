@@ -35,6 +35,7 @@ async def test_accounts_surface_and_balance_display(page: Page) -> None:
 
 
 @pytest.mark.e2e
+@pytest.mark.parse_journey
 async def test_statement_detail_and_review_surface(page: Page) -> None:
     stmt_id = await setup_runner_page(
         page,

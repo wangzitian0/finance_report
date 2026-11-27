@@ -1018,3 +1018,122 @@ async def test_seed_fx_rates_urls_seeding_and_cli(
         seed_fx_rates.main()
     mock_seed2.assert_called_once_with("staging")
     mock_run2.assert_called_once()
+
+
+class _FakeItem:
+    def __init__(
+        self, name: str, *, browser: bool, parse_journey: bool = False
+    ) -> None:
+        self.nodeid = name
+        self.fixturenames = ["page"] if browser else ["config"]
+        self._parse_journey = parse_journey
+
+    def get_closest_marker(self, name: str) -> object | None:
+        from tests.e2e.xdist_order import PARSE_JOURNEY_MARKER
+
+        return (
+            object() if name == PARSE_JOURNEY_MARKER and self._parse_journey else None
+        )
+
+
+class _FakeWorker:
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.gateway = SimpleNamespace(id=name)
+        self.shutting_down = False
+        self.received: list[int] = []
+
+    def send_runtest_some(self, indices: list[int]) -> None:
+        self.received.extend(indices)
+
+    def shutdown(self) -> None:
+        self.shutting_down = True
+
+
+def test_parse_journeys_start_first_on_separate_xdist_workers() -> None:
+    """#3241: each parse journey is the first test of its own xdist worker, and only the order changes."""
+    from xdist.scheduler import LoadScheduling
+
+    from common.testing import matrix
+    from tests.e2e.xdist_order import parse_journeys_first
+
+    # The collected staging_core_e2e stage: 13 browser tests, then 3 API-only tests (pytest-playwright order).
+    journeys = {1, 10, 12}
+    items = [
+        _FakeItem(f"browser_{i}", browser=True, parse_journey=i in journeys)
+        for i in range(13)
+    ] + [_FakeItem(f"api_{i}", browser=False) for i in range(3)]
+    ordered = parse_journeys_first(items)
+    assert sorted(item.nodeid for item in ordered) == sorted(
+        item.nodeid for item in items
+    )
+
+    workers = matrix.STAGING_CORE_E2E_PARALLELISM
+    config = SimpleNamespace(
+        getvalue=lambda name: [f"{workers}*popen"] if name == "tx" else None,
+        getoption=lambda name: None,
+    )
+    sched = LoadScheduling(config)
+    nodes = [_FakeWorker(f"gw{i}") for i in range(workers)]
+    collection = [item.nodeid for item in ordered]
+    for node in nodes:
+        sched.add_node(node)
+        sched.add_node_collection(node, collection)
+    sched.schedule()
+
+    journey_ids = {items[i].nodeid for i in journeys}
+    owners = []
+    for node in nodes:
+        sent = [collection[i] for i in node.received]
+        for position, nodeid in enumerate(sent):
+            if nodeid in journey_ids:
+                assert position == 0, (
+                    f"{nodeid} waits behind {sent[:position]} on {node.name}"
+                )
+                assert sent[1].startswith("api_"), (
+                    f"{nodeid} is followed by {sent[1]}, not an API-only test"
+                )
+                owners.append(node.name)
+    assert len(owners) == len(journey_ids) == len(set(owners))
+
+
+def test_staging_parse_journeys_carry_the_parse_journey_marker() -> None:
+    """#3241: a staging journey that waits for a statement parse has the marker, and only such a journey has it."""
+    import ast
+
+    from common.testing import matrix
+    from tests.e2e.xdist_order import PARSE_JOURNEY_MARKER
+
+    def _uploads_and_parses(func: ast.AsyncFunctionDef | ast.FunctionDef) -> bool:
+        for call in (n for n in ast.walk(func) if isinstance(n, ast.Call)):
+            name = getattr(call.func, "id", getattr(call.func, "attr", ""))
+            if name == "upload_statement_via_ui":
+                return True
+            if name == "setup_runner_page" and any(
+                k.arg == "csv_bytes" for k in call.keywords
+            ):
+                return True
+        return False
+
+    def _marked(func: ast.AsyncFunctionDef | ast.FunctionDef) -> bool:
+        return any(
+            isinstance(d, ast.Attribute) and d.attr == PARSE_JOURNEY_MARKER
+            for d in func.decorator_list
+        )
+
+    files = {node.split("::", 1)[0] for node in matrix.staging_core_e2e_selection()}
+    parsing, marked = set(), set()
+    for rel in sorted(files):
+        tree = ast.parse((ROOT / rel).read_text(encoding="utf-8"))
+        for func in tree.body:
+            if isinstance(
+                func, ast.AsyncFunctionDef | ast.FunctionDef
+            ) and func.name.startswith("test_"):
+                if _uploads_and_parses(func):
+                    parsing.add(f"{rel}::{func.name}")
+                if _marked(func):
+                    marked.add(f"{rel}::{func.name}")
+    assert parsing, (
+        "no staging journey waits for a statement parse: the guard checks nothing"
+    )
+    assert marked == parsing

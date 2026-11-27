@@ -32,6 +32,7 @@ from tests.e2e.e2e_rate_limit import (
     fail_report_for_rate_limits,
     record_rate_limit_response,
 )  # noqa: E402
+from tests.e2e.xdist_order import parse_journeys_first  # noqa: E402
 
 _BENIGN_BROWSER_NOISE = ("cloudflareinsights.com", "static.cloudflareinsights.com")
 
@@ -54,6 +55,13 @@ def _strict_e2e_gates_enabled() -> bool:
 
 def is_strict_or_ci() -> bool:
     return _strict_e2e_gates_enabled() or os.getenv("CI") == "true"
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_collection_modifyitems(config, items) -> None:
+    """In an xdist worker, start each parse journey first on its own worker (#3241). The set of tests stays the same."""
+    if hasattr(config, "workerinput"):
+        items[:] = parse_journeys_first(items)
 
 
 def pytest_sessionstart(session) -> None:

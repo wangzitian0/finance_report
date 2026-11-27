@@ -47,6 +47,8 @@ logger = logging.getLogger(__name__)
 ROOT = Path(__file__).resolve().parents[2]
 APP_URL = os.getenv("APP_URL", "http://localhost:3000").rstrip("/")
 PARSING_TIMEOUT_MS = int(os.getenv("PARSING_TIMEOUT_MS", "480000"))
+PARSE_POLL_SECONDS = 1
+"""Poll interval of `setup_runner_page` while the statement parses; the benchmark default of 3 s can add 3 s to each parse wait (#3241)."""
 PAGE_TEXT_MAX_BYTES = 4096
 _NODEID_UNSAFE_RE = re.compile("[^A-Za-z0-9._-]+")
 
@@ -580,7 +582,9 @@ async def setup_runner_page(
     stmt_id = None
     if csv_bytes is not None:
         stmt_id = runner.upload_statement(client, csv_bytes, "operations.csv")
-        runner.wait_for_statement_parsed(client, stmt_id)
+        runner.wait_for_statement_parsed(
+            client, stmt_id, poll_interval=PARSE_POLL_SECONDS
+        )
     assert runner.last_auth_context is not None
     await BenchUiBridge.inject_runner_session_to_browser(
         page, runner.last_auth_context, base_url

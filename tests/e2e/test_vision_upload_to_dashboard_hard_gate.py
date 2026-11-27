@@ -19,6 +19,7 @@ FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "csv_envelope_hard
 @pytest.mark.e2e
 @pytest.mark.tier3
 @pytest.mark.critical
+@pytest.mark.parse_journey
 async def test_statement_upload_to_dashboard_vision_hard_gate(
     authenticated_page_unique: Page,
 ) -> None:
