@@ -11,7 +11,7 @@ from infra2_sdk.telemetry import TelemetryProviders, bind_log_context, current_r
 from opentelemetry.exporter.otlp.proto.common._internal import _encode_value
 
 from src import observability
-from src.observability import configure_logging, detect_pii, get_logger
+from src.observability import detect_pii, get_logger
 
 
 def test_sdk_init_worker_json_formatter_and_log_context(monkeypatch, capsys) -> None:
@@ -21,6 +21,9 @@ def test_sdk_init_worker_json_formatter_and_log_context(monkeypatch, capsys) -> 
         ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://127.0.0.1:4318"),
     ):
         monkeypatch.setenv(k, v)
+    root = logging.getLogger()
+    saved_handlers = list(root.handlers)
+    root.handlers.clear()
     providers = init_worker("finance-report-backend", set_global=False)
     assert isinstance(providers, TelemetryProviders)
     try:
@@ -36,6 +39,7 @@ def test_sdk_init_worker_json_formatter_and_log_context(monkeypatch, capsys) -> 
         assert payload["request_id"] == "req-42"
     finally:
         providers.shutdown()
+        root.handlers[:] = saved_handlers
 
 
 def test_configure_logging_sanitization_and_contextvars(monkeypatch) -> None:
@@ -92,7 +96,14 @@ def test_configure_logging_sanitization_and_contextvars(monkeypatch) -> None:
         emit = lambda self, r: captured.append(r)
 
     try:
-        configure_logging(take_over_root=True)
+        logging.getLogger().handlers.clear()
+        init_worker(
+            observability.settings.otel_service_name,
+            strict=False,
+            log_level=logging.INFO,
+            set_global=False,
+            environ={"ENVIRONMENT": observability.settings.environment, "OTEL_SDK_DISABLED": "true"},
+        )
         with patch.object(structlog, "is_configured", return_value=False):
             get_logger("test.sdk.logging").info("statement.logged", amount_count=2)
         pl = json.loads(stream.getvalue().strip().splitlines()[-1])

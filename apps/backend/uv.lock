@@ -960,7 +960,7 @@ requires-dist = [
     { name = "email-validator", specifier = ">=2.1.0" },
     { name = "fastapi", specifier = ">=0.162.2" },
     { name = "httpx", specifier = ">=0.27.0" },
-    { name = "infra2-sdk", extras = ["telemetry", "llm", "postgres"], url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.13.2/infra2_sdk-4.13.2-py3-none-any.whl" },
+    { name = "infra2-sdk", extras = ["telemetry", "llm", "postgres"], url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.14.1/infra2_sdk-4.14.1-py3-none-any.whl" },
     { name = "opentelemetry-exporter-otlp-proto-http", specifier = ">=1.24.0" },
     { name = "opentelemetry-instrumentation-httpx", specifier = ">=0.45b0" },
     { name = "opentelemetry-instrumentation-sqlalchemy", specifier = ">=0.45b0" },
@@ -1507,15 +1507,15 @@ wheels = [
 
 [[package]]
 name = "infra2-sdk"
-version = "4.13.2"
-source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.13.2/infra2_sdk-4.13.2-py3-none-any.whl" }
+version = "4.14.1"
+source = { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.14.1/infra2_sdk-4.14.1-py3-none-any.whl" }
 dependencies = [
     { name = "pydantic", version = "2.12.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.15'" },
     { name = "pydantic", version = "2.14.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15'" },
     { name = "pyyaml" },
 ]
 wheels = [
-    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.13.2/infra2_sdk-4.13.2-py3-none-any.whl", hash = "sha256:68764a82b990341e7434d30fdbb678c469c4bb3df59af9dc76ea9b0f01dfc927" },
+    { url = "https://github.com/wangzitian0/infra2-sdk/releases/download/v4.14.1/infra2_sdk-4.14.1-py3-none-any.whl", hash = "sha256:a78ce1702dea1bbdd8a6555e95964e28b4e4a0a24e77c44f3bc7d43591133ab7" },
 ]
 
 [package.optional-dependencies]
@@ -1569,6 +1569,8 @@ requires-dist = [
     { name = "pydantic-ai-slim", extras = ["zai"], marker = "extra == 'all'", specifier = ">=2.71.0,<3" },
     { name = "pydantic-ai-slim", extras = ["zai"], marker = "extra == 'llm'", specifier = ">=2.71.0,<3" },
     { name = "pyyaml", specifier = ">=6.0,<7" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'all'", specifier = ">=0.28,<1" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'fastapi'", specifier = ">=0.28,<1" },
 ]
 provides-extras = ["telemetry", "http", "fastapi", "postgres", "s3", "llm", "all"]
 

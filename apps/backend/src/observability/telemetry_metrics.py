@@ -142,13 +142,17 @@ def configure_otel_metrics() -> None:
         _clear_metrics_state()
         return
     try:
+        from infra2_sdk.telemetry import get_meter
         from opentelemetry import metrics
     except Exception:  # pragma: no cover
         logging.getLogger(__name__).warning("OTEL metrics API not available", exc_info=True)
         _clear_metrics_state()
         return
 
-    _meter = metrics.get_meter("finance-report-backend")
+    if hasattr(metrics, "get_meter_provider"):
+        _meter = get_meter("finance-report-backend", meter_provider=metrics.get_meter_provider())
+    else:
+        _meter = metrics.get_meter("finance-report-backend")
     _create_instruments(_meter)
     mark_metrics_export_active(True)
 

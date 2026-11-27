@@ -159,23 +159,55 @@ async def test_redis_check_uses_redis_ping_and_rejects_auth_errors() -> None:
     absent = await RedisCheck(url=None).probe()
     assert (absent.name, absent.status) == ("cache", DependencyStatus.ABSENT)
 
-    ok_client = AsyncMock(ping=AsyncMock(return_value=True), aclose=AsyncMock())
-    with patch("redis.asyncio.from_url", return_value=ok_client) as from_url:
+    invalid = await RedisCheck(url="http://:secret_pw@cache:6379/0").probe()
+    assert (invalid.name, invalid.status) == ("cache", DependencyStatus.ABSENT)
+    assert "secret_pw" not in invalid.detail
+
+    class _FakeRespSocket:
+        def __init__(self, replies: list[bytes]) -> None:
+            self._replies = b"".join(replies)
+            self._offset = 0
+            self.sent: list[bytes] = []
+            self.closed = False
+
+        def settimeout(self, _timeout: float | None) -> None:
+            return None
+
+        def sendall(self, data: bytes) -> None:
+            self.sent.append(data)
+
+        def recv(self, _bufsize: int) -> bytes:
+            if self._offset >= len(self._replies):
+                return b""
+            chunk = self._replies[self._offset : self._offset + 64]
+            self._offset += len(chunk)
+            return chunk
+
+        def close(self) -> None:
+            self.closed = True
+
+    ok_sock = _FakeRespSocket([b"+OK\r\n", b"+PONG\r\n"])
+    with patch("socket.create_connection", return_value=ok_sock) as conn:
         res = await RedisCheck(url="redis://:secret_pw@cache:6379/0").probe()
     assert (res.name, res.status) == ("cache", DependencyStatus.PRESENT)
-    from_url.assert_called_once()
-    ok_client.aclose.assert_awaited_once()
+    conn.assert_called_once()
+    assert ok_sock.closed is True
+    assert not any(b"SETEX" in frame for frame in ok_sock.sent)
 
-    for exc in (
-        Exception("Authentication required"),
-        ConnectionRefusedError("refused for redis://:secret_pw@cache:6379/0"),
+    auth_sock = _FakeRespSocket([b"-ERR Authentication required\r\n"])
+    with patch("socket.create_connection", return_value=auth_sock):
+        auth_res = await RedisCheck(url="redis://:secret_pw@cache:6379/0").probe()
+    assert (auth_res.name, auth_res.status) == ("cache", DependencyStatus.ABSENT)
+    assert "secret_pw" not in auth_res.detail
+    assert auth_sock.closed is True
+
+    with patch(
+        "socket.create_connection",
+        side_effect=ConnectionRefusedError("refused for redis://:secret_pw@cache:6379/0"),
     ):
-        bad_client = AsyncMock(ping=AsyncMock(side_effect=exc), aclose=AsyncMock())
-        with patch("redis.asyncio.from_url", return_value=bad_client):
-            bad_res = await RedisCheck(url="redis://:secret_pw@cache:6379/0").probe()
-        assert (bad_res.name, bad_res.status) == ("cache", DependencyStatus.ABSENT)
-        assert "secret_pw" not in bad_res.detail
-        bad_client.aclose.assert_awaited_once()
+        refused_res = await RedisCheck(url="redis://:secret_pw@cache:6379/0").probe()
+    assert (refused_res.name, refused_res.status) == ("cache", DependencyStatus.ABSENT)
+    assert "secret_pw" not in refused_res.detail
 
 
 @pytest.mark.parametrize(

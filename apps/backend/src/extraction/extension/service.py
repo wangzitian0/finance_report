@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import Any
 from uuid import UUID
 
-import structlog
 from infra2_sdk.llm import DecodingSpec
+from infra2_sdk.telemetry import bind_log_context
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1025,67 +1025,65 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         for attempt in range(max_attempts):
             seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
-            structlog.contextvars.bind_contextvars(extract_attempt=attempt + 1)
-            try:
-                if extract_overridden:
-                    raw_extracted = await self.extract_financial_data(
-                        file_content=file_content,
-                        institution=institution,
-                        file_type=file_type,
-                        file_url=file_url,
-                        seed_override=seed_override,
-                        filename=filename,
-                        user_id=user_id,
-                        read_text_layer=read_text_layer,
-                        hints=hints,
-                        feedback=feedback,
+            with bind_log_context(extract_attempt=attempt + 1):
+                try:
+                    if extract_overridden:
+                        raw_extracted = await self.extract_financial_data(
+                            file_content=file_content,
+                            institution=institution,
+                            file_type=file_type,
+                            file_url=file_url,
+                            seed_override=seed_override,
+                            filename=filename,
+                            user_id=user_id,
+                            read_text_layer=read_text_layer,
+                            hints=hints,
+                            feedback=feedback,
+                        )
+                        split_meta_agreed: bool | None = None
+                    else:
+                        raw_extracted, split_meta_agreed = await self._extract_financial_data_with_meta(
+                            file_content=file_content,
+                            institution=institution,
+                            file_type=file_type,
+                            file_url=file_url,
+                            seed_override=seed_override,
+                            filename=filename,
+                            user_id=user_id,
+                            read_text_layer=read_text_layer,
+                            split_single_batch=attempt == 0,
+                            hints=hints,
+                            feedback=feedback,
+                        )
+                    slices = split_multi_account_extraction(raw_extracted)
+                    readings = [s.payload for s in slices]
+                    findings = document_findings(readings, source_text=source_text, institution_given=bool(institution))
+                    score = score_pass(readings, findings, source_text=source_text)
+                    is_brokerage = looks_like_brokerage_payload(
+                        readings[0], filename=filename, institution=institution or readings[0].get("institution")
                     )
-                    split_meta_agreed: bool | None = None
-                else:
-                    raw_extracted, split_meta_agreed = await self._extract_financial_data_with_meta(
-                        file_content=file_content,
-                        institution=institution,
-                        file_type=file_type,
-                        file_url=file_url,
-                        seed_override=seed_override,
-                        filename=filename,
-                        user_id=user_id,
-                        read_text_layer=read_text_layer,
-                        split_single_batch=attempt == 0,
-                        hints=hints,
-                        feedback=feedback,
+                except _PASS_FAILURES as exc:
+                    # A later pass that fails this way never discards the kept pass. Without a kept pass, two
+                    # balances in one currency end the loop with a message for the user, and an unknown error is
+                    # raised. An error of another class is a bug: it ends the loop with that error.
+                    if best is None and isinstance(exc, DuplicateCurrencyError):
+                        raise ExtractionError(
+                            f"This statement lists several balances in {exc.currency}, usually several accounts in "
+                            "one PDF. Upload one account per file."
+                        ) from exc
+                    if best is None and not isinstance(exc, (ExtractionError, ValueError, ArithmeticError)):
+                        raise
+                    logger.warning(
+                        "Extraction pass failed",
+                        attempt=attempt + 1,
+                        max_attempts=max_attempts,
+                        error_type=type(exc).__name__,
+                        error=str(exc)[:300],
                     )
-                slices = split_multi_account_extraction(raw_extracted)
-                readings = [s.payload for s in slices]
-                findings = document_findings(readings, source_text=source_text, institution_given=bool(institution))
-                score = score_pass(readings, findings, source_text=source_text)
-                is_brokerage = looks_like_brokerage_payload(
-                    readings[0], filename=filename, institution=institution or readings[0].get("institution")
-                )
-            except _PASS_FAILURES as exc:
-                # A later pass that fails this way never discards the kept pass. Without a kept pass, two
-                # balances in one currency end the loop with a message for the user, and an unknown error is
-                # raised. An error of another class is a bug: it ends the loop with that error.
-                if best is None and isinstance(exc, DuplicateCurrencyError):
-                    raise ExtractionError(
-                        f"This statement lists several balances in {exc.currency}, usually several accounts in "
-                        "one PDF. Upload one account per file."
-                    ) from exc
-                if best is None and not isinstance(exc, (ExtractionError, ValueError, ArithmeticError)):
-                    raise
-                logger.warning(
-                    "Extraction pass failed",
-                    attempt=attempt + 1,
-                    max_attempts=max_attempts,
-                    error_type=type(exc).__name__,
-                    error=str(exc)[:300],
-                )
-                last_error = last_pass_error = exc
-                # A pass that gave no reading has no check result. The next pass reads the pages another way.
-                read_text_layer = False
-                continue
-            finally:
-                structlog.contextvars.unbind_contextvars("extract_attempt")
+                    last_error = last_pass_error = exc
+                    # A pass that gave no reading has no check result. The next pass reads the pages another way.
+                    read_text_layer = False
+                    continue
             current_parse = (slices, split_meta_agreed)
             last_pass_error = None
 
