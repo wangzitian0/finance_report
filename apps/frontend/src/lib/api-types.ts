@@ -401,6 +401,7 @@ export interface components {
       file_path: string;
       id: string;
       institution: string | null;
+      issue_codes?: _S["StatementIssueCode"][];
       opening_balance: string | null;
       original_filename: string;
       period_end: string | null;
@@ -424,6 +425,7 @@ export interface components {
       file_path: string;
       id: string;
       institution: string | null;
+      issue_codes?: _S["StatementIssueCode"][];
       opening_balance: string | null;
       original_filename: string;
       period_end: string | null;
@@ -1654,6 +1656,19 @@ export interface components {
       source_result_digest: string;
     };
     RunActorKind: "user" | "ai" | "system";
+    RunDiagnosticsSnapshot: {
+      balance_gap?: string | null;
+      batch_count?: number | null;
+      calculated_closing?: string | null;
+      expected_closing?: string | null;
+      failure_code?: string | null;
+      issue_codes?: string[];
+      modality?: string | null;
+      page_count?: number | null;
+      pass_durations_ms?: number[];
+      rows_not_in_text_indices?: number[];
+      suspect_row_indices?: number[];
+    };
     RunHints: {
       keywords?: string[];
       note?: string | null;
@@ -1696,6 +1711,7 @@ export interface components {
     StatementDecisionRequest: {
       notes?: string | null;
     };
+    StatementIssueCode: "MISSING_INSTITUTION" | "MISSING_STATEMENT_CURRENCY" | "MISSING_TRANSACTION_CURRENCY" | "MISSING_PERIOD" | "MISSING_BALANCES" | "MISSING_POSITIONS" | "BALANCE_CHAIN_MISMATCH" | "MULTI_ACCOUNT_SUBSECTION" | "CLOSING_NOT_IN_SOURCE_TEXT" | "OPENING_NOT_IN_SOURCE_TEXT" | "ROWS_NOT_IN_TEXT" | "UNVERIFIABLE_TEXT_LAYER" | "ECONOMIC_DISPOSITION_REQUIRED" | "CUSTODY_ACCOUNT_REQUIRED" | "LEDGER_EMPTY_NO_DATA" | "CROSS_PERIOD_GAP_3198";
     StatementReviewResponse: {
       account_id: string | null;
       account_last4: string | null;
@@ -1711,6 +1727,7 @@ export interface components {
       file_path: string;
       id: string;
       institution: string | null;
+      issue_codes?: _S["StatementIssueCode"][];
       manual_opening_balance?: string | null;
       opening_balance: string | null;
       original_filename: string;
@@ -1730,6 +1747,7 @@ export interface components {
     };
     StatementRunRecord: {
       actor_kind: _S["RunActorKind"];
+      diagnostics?: _S["RunDiagnosticsSnapshot"] | null;
       error_code: string | null;
       error_message: string | null;
       finished_at: string | null;

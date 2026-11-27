@@ -70,7 +70,7 @@ from src.extraction.extension.statement_validation import (
     resolve_statement_transactions,
 )
 from src.extraction.extension.statement_runs import ActiveRunExists, lock_statement_for_run
-from src.platform import ValidationFailedError, require_base_currency
+from src.platform import ConflictError, ValidationFailedError, require_base_currency
 from src.extraction.extension.transaction_classification import classification_suggestions
 from src.extraction.extension.transaction_membership import effective_statement_transaction_filter
 from src.extraction.orm.layer1 import UploadedDocument
@@ -569,7 +569,8 @@ async def resolve_statement_posting_account(db: AsyncSession, statement: Stateme
     currency = normalize_currency_code(statement.currency or "")
     if not currency:
         raise ValidationFailedError(
-            "Statement currency required before posting. Confirm the source currency before posting."
+            "Statement currency required before posting. Confirm the source currency before posting.",
+            error_id="missing_statement_currency",
         )
 
     source = await get_current_statement_extraction_result(
@@ -615,9 +616,13 @@ async def resolve_statement_posting_account(db: AsyncSession, statement: Stateme
     if not (statement.institution or "").strip() or not (statement.account_last4 or "").strip():
         raise ValidationFailedError(
             "Account mapping required before posting. Confirm the statement account because institution, "
-            "account_last4, or currency metadata is missing."
+            "account_last4, or currency metadata is missing.",
+            error_id="custody_account_required",
         )
-    raise ValidationFailedError("Account mapping required before posting. Confirm the statement custody identity.")
+    raise ValidationFailedError(
+        "Account mapping required before posting. Confirm the statement custody identity.",
+        error_id="custody_account_required",
+    )
 
 
 async def create_statement_account_from_confirmation(
@@ -660,13 +665,15 @@ async def create_statement_account_from_confirmation(
     currency = (statement.currency or "").strip().upper()
     if not currency:
         raise ValidationFailedError(
-            "Statement currency required before creating an account. Confirm the source currency first."
+            "Statement currency required before creating an account. Confirm the source currency first.",
+            error_id="missing_statement_currency",
         )
     account_name = (statement.institution or "").strip()
     if not account_name:
         # The creation of an account commits at once. No account gets an invented name (#3167).
         raise ValidationFailedError(
-            "Statement institution required before creating an account. Confirm the institution of the statement first."
+            "Statement institution required before creating an account. Confirm the institution of the statement first.",
+            error_id="custody_account_required",
         )
     if statement.account_last4:
         account_name = f"{account_name} *{statement.account_last4.strip()}"
@@ -718,7 +725,8 @@ async def validate_statement_period_unique(
     currency = normalize_currency_code(statement.currency or "")
     if not currency:
         raise ValidationFailedError(
-            "Statement currency required before posting. Confirm the source currency before posting."
+            "Statement currency required before posting. Confirm the source currency before posting.",
+            error_id="missing_statement_currency",
         )
 
     overlapping = (
@@ -1432,3 +1440,13 @@ async def auto_approve_parsed_candidate(
         ignore_run_id=ignore_run_id,
         locked_statement=statement,
     )
+
+
+def posting_count_or_conflict(outcome: StatementPostingOutcome) -> int:
+    """Return created entry count or raise ConflictError when economic review is required."""
+    if outcome.status is StatementPostingStatus.REVIEW_REQUIRED:
+        raise ConflictError(
+            f"Economic review required: {', '.join(outcome.review_reasons)}",
+            error_id="economic_disposition_required",
+        )
+    return outcome.created_count

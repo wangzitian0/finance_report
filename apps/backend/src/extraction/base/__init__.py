@@ -15,6 +15,14 @@ from src.extraction.base.ai_settings import (
     evaluate_reconciliation_enabled,
 )
 from src.extraction.base.contribution import ResolvedStatementContribution
+from src.extraction.base.issue_codes import (
+    RunDiagnosticsSnapshot,
+    RunFailureCode,
+    StatementIssueCode,
+    build_redacted_diagnostics,
+    classify_run_failure_code,
+    classify_statement_issue_codes,
+)
 from src.extraction.base.disposition import (
     DispositionCommand,
     DispositionContext,
@@ -81,6 +89,12 @@ __all__ = [
     "RetryableStatementIngestionError",
     "ResolvedStatementContribution",
     "ReviewedStatementEnvelopeCommand",
+    "RunDiagnosticsSnapshot",
+    "RunFailureCode",
+    "StatementIssueCode",
+    "build_redacted_diagnostics",
+    "classify_run_failure_code",
+    "classify_statement_issue_codes",
     "SourceCapability",
     "SOURCE_CAPABILITIES",
     "SourceCapabilityStatus",

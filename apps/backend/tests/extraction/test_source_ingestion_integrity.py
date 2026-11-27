@@ -585,5 +585,7 @@ async def test_multi_account_sibling_records_extract_run_and_converges_metadata(
     sib_extract = next(r for r in sib_runs if r.kind is RunKind.EXTRACT)
     sib_classify = next(r for r in sib_runs if r.kind is RunKind.CLASSIFY)
     assert sib_extract.state is RunState.SUCCEEDED
-    assert sib_extract.result_summary == {"auto_approve_candidate": True}
+    assert sib_extract.result_summary is not None
+    assert sib_extract.result_summary.get("auto_approve_candidate") is True
+    assert isinstance(sib_extract.result_summary.get("diagnostics"), dict)
     assert sib_classify.parent_run_id == sib_extract.id

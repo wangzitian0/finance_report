@@ -35,6 +35,8 @@ BALANCE_TOLERANCE = STATEMENT_BALANCE_TOLERANCE
 class BalanceChainValidationError(ValidationFailedError):
     """Raise when statement balance-chain validation fails."""
 
+    default_error_id = "balance_chain_mismatch"
+
 
 def pending_stage1_review_filter():
     return or_(
