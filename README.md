@@ -116,7 +116,7 @@ dependencies, and pre-commit hooks.
 git clone https://github.com/wangzitian0/finance_report.git
 cd finance_report
 
-bash tools/bootstrap.sh
+bash common/runtime/shell/bootstrap.sh
 make dev
 ```
 
@@ -126,7 +126,7 @@ not share PATH entries or Python/Node packages with WSL. From PowerShell, enter
 the project through WSL explicitly:
 
 ```powershell
-wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash tools/bootstrap.sh"
+wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc "bash common/runtime/shell/bootstrap.sh"
 ```
 
 Open <http://localhost:3000>.
@@ -167,7 +167,6 @@ apps/
 common/          # Bounded-context domain specs (meta, testing, runtime,
                  # ledger, extraction, llm, ...), meta/flows/user_cases_ssot.json,
                  # and shared cross-cutting validators
-tools/           # Bootstrap and SDK-pin entry points
 docs/project/    # Historical EPIC stubs and project audit reports
 ```
 

@@ -25,9 +25,9 @@ for _path in (ROOT, BACKEND_DIR):
 
 from common.runtime import check_toolchain_contract as toolchain_contract  # noqa: E402
 from common.runtime import env_manifests as gen  # noqa: E402
+from common.runtime import sdk_pin  # noqa: E402
 from common.runtime.sdk_pin import read_sdk_pin  # noqa: E402
 from common.testing import lockfile_registry, preflight  # noqa: E402
-from tools import sdk_pin  # noqa: E402
 
 HOOKS_PATH = gen.ROOT_DIR / "runtime-hooks.manifest.json"
 NEXT_CONFIG = ROOT / "apps" / "frontend" / "next.config.mjs"
@@ -244,7 +244,6 @@ def test_runtime_hooks_manifest_validation_and_cells(tmp_path: Path) -> None:
     payload["checks"] = [
         c for c in payload["checks"] if c["id"] != "prod_readonly_smoke"
     ]
-    payload["checks"][0].pop("cells")
     assert gen.runtime_hooks_gate_errors(_write_hooks(tmp_path, payload)) == [
         "runtime-hooks.manifest.json: no check runs in cell 'prod.post'"
     ]
@@ -272,10 +271,7 @@ def test_runtime_hooks_manifest_validation_and_cells(tmp_path: Path) -> None:
         "ai_provider_connectivity",
         "staging_ai_ocr",
     ]
-    assert [c.id for c in checks_for("prod.post")] == [
-        "smoke",
-        "prod_readonly_smoke",
-    ]
+    assert [c.id for c in checks_for("prod.post")] == ["prod_readonly_smoke"]
     assert [c.id for c in checks_for("scheduled_audit")] == [
         "audit_replay",
         "core_journey",
@@ -546,14 +542,14 @@ def test_AC_runtime_sdk_pin_1_agreement_stdlib_cli_and_errors(
     with pytest.raises(ValueError, match="infra2-sdk"):
         read_sdk_pin(tmp_path)
 
-    monkeypatch.setattr(sys, "argv", ["tools/sdk_pin.py"])
+    monkeypatch.setattr(sys, "argv", ["common/runtime/sdk_pin.py"])
     with pytest.raises(SystemExit) as exc:
-        runpy.run_path(str(ROOT / "tools/sdk_pin.py"), run_name="__main__")
+        runpy.run_path(str(ROOT / "common/runtime/sdk_pin.py"), run_name="__main__")
     assert exc.value.code == 0
     assert capsys.readouterr().out.strip().split() == list(read_sdk_pin(ROOT))
 
     stdlib_proc = subprocess.run(
-        [sys.executable, "-S", str(ROOT / "tools/sdk_pin.py")],
+        [sys.executable, "-S", str(ROOT / "common/runtime/sdk_pin.py")],
         cwd=ROOT,
         capture_output=True,
         text=True,
@@ -723,17 +719,23 @@ def test_AC1_10_4_csp_script_src_allows_external_hosts_and_blocks_unsafe_eval() 
     assert "'unsafe-eval'" not in directive
 
 
-def test_docs_workflow_and_e2e_bootstrap_use_uv_and_active_python(tmp_path: Path) -> None:
+def test_docs_workflow_and_e2e_bootstrap_use_uv_and_active_python(
+    tmp_path: Path,
+) -> None:
     """Docs build must provision uv for hooks, and runtime hooks must install into active Python."""
     toolchain = toolchain_contract.load_toolchain(ROOT)
-    docs_wf = yaml.safe_load((ROOT / ".github/workflows/docs.yml").read_text(encoding="utf-8"))
+    docs_wf = yaml.safe_load(
+        (ROOT / ".github/workflows/docs.yml").read_text(encoding="utf-8")
+    )
     assert docs_wf["env"]["UV_VERSION"] == toolchain["runtime"]["uv"]
 
     build_steps = docs_wf["jobs"]["build"]["steps"]
     assert any(
         step.get("uses") == "./.github/actions/setup-backend-env"
         for step in build_steps
-    ), "docs.yml must invoke ./.github/actions/setup-backend-env so mkdocs hooks can run uv"
+    ), (
+        "docs.yml must invoke ./.github/actions/setup-backend-env so mkdocs hooks can run uv"
+    )
 
     drift_dir = tmp_path / "docs_uv_drift"
     _copy_contract_inputs(drift_dir)
@@ -754,8 +756,19 @@ def test_docs_workflow_and_e2e_bootstrap_use_uv_and_active_python(tmp_path: Path
         for c in hooks["checks"]
         if "bootstrap" in c and "tests/e2e/requirements.txt" in c["bootstrap"]
     ]
-    assert len(bootstraps) >= 8
+    assert len(bootstraps) == 9
     for cid, cmd in bootstraps:
-        assert "--system" not in cmd, f"{cid} bootstrap must target active Python instead of --system"
-        assert '--python "$(command -v python)"' in cmd, f"{cid} missing active-python flag"
-        assert "python -m playwright install chromium" in cmd, f"{cid} missing python -m playwright"
+        assert "--system" not in cmd, (
+            f"{cid} bootstrap must target active Python instead of --system"
+        )
+        assert '--python "$(command -v python)"' in cmd, (
+            f"{cid} missing active-python flag"
+        )
+        if cid == "pdf_corpus_oracle":
+            assert "playwright" not in cmd, (
+                f"{cid} does not use browser; omit playwright install"
+            )
+        else:
+            assert "python -m playwright install chromium" in cmd, (
+                f"{cid} missing python -m playwright"
+            )

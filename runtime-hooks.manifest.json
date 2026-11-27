@@ -15,15 +15,7 @@
       ],
       "writes": false,
       "accepts_scale": false,
-      "timeout_seconds": 120,
-      "cells": {
-        "add": {
-          "prod.post": {
-            "reason": "prod gate runs smoke as before",
-            "issue": "wangzitian0/infra2#1823"
-          }
-        }
-      }
+      "timeout_seconds": 120
     },
     {
       "id": "prod_readonly_smoke",
@@ -297,7 +289,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 900,
-      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt",
       "optional_env": [
         "LLM_PROVIDER",
         "LLM_BASE_URL",

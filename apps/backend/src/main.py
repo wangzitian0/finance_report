@@ -19,7 +19,6 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from infra2_sdk.config import EnvironmentTier, resolve_tier
 from infra2_sdk.service import DependencyStatus, ProbeResult, init_service
 from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -77,6 +76,7 @@ from src.runtime import (
     BACKGROUND_JOBS,
     BACKGROUND_JOBS_BY_CLI,
     DEPENDENCY_MANIFEST,
+    resolve_tier_or_production,
     sweep_orphaned_storage_objects,
 )
 from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, error_code_for_status
@@ -300,13 +300,6 @@ def _boot_method_check(dep_name: str, method_name: str) -> _BootCheck:
     return _BootCheck(dep_name, _run)
 
 
-def _resolve_tier_or_production(environment: str, *, github_actions: bool = False) -> EnvironmentTier:
-    try:
-        return resolve_tier(environment, github_actions=github_actions)
-    except ValueError:
-        return EnvironmentTier.PRODUCTION
-
-
 def _health_extra() -> dict[str, Any]:
     in_gha = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
     return {
@@ -314,13 +307,13 @@ def _health_extra() -> dict[str, Any]:
         "version": settings.git_commit_sha,
         "git_sha": settings.git_commit_sha,
         "observability": get_observability_status(),
-        "sdk_environment_tier": _resolve_tier_or_production(settings.environment, github_actions=in_gha).value,
+        "sdk_environment_tier": resolve_tier_or_production(settings.environment, github_actions=in_gha).value,
     }
 
 
 def _build_health_checks() -> list[_BootCheck]:
     in_gha = os.getenv("GITHUB_ACTIONS", "").lower() == "true"
-    tier = _resolve_tier_or_production(settings.environment, github_actions=in_gha)
+    tier = resolve_tier_or_production(settings.environment, github_actions=in_gha)
     probed, _ = Bootloader._required_checks(tier)
     checks: list[_BootCheck] = []
     for name in sorted(probed):

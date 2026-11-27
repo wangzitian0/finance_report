@@ -304,11 +304,7 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     ).probe()
     assert asym.status is DependencyStatus.ABSENT and "Incomplete public S3 credentials" in asym.detail
 
-    s3_client = MagicMock(put_object=MagicMock(), delete_object=MagicMock(), close=MagicMock())
-    with (
-        patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, ok_public]) as probe_fn,
-        patch("infra2_sdk.storage.create_s3_client", return_value=s3_client),
-    ):
+    with patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, ok_public]) as probe_fn:
         ok = await ObjectStorageCheck(
             public_endpoint="https://s3.zitian.party",
             public_access_key=" ",
@@ -320,10 +316,16 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
     assert ok.status is DependencyStatus.PRESENT and "write/delete ok" in ok.detail
     assert probe_fn.call_count == 2
     assert probe_fn.call_args_list[0].args[0].use_path_style is True
+    assert probe_fn.call_args_list[0].kwargs == {
+        "name": "object_storage",
+        "key_prefix": "_health_probe/",
+        "round_trip": True,
+    }
     assert (probe_fn.call_args_list[1].args[0].bucket, probe_fn.call_args_list[1].args[0].secret_access_key) == (
         "statements",
         "secret-s3-key",
     )
+    assert probe_fn.call_args_list[1].kwargs == {"name": "object_storage"}
     with patch("src.runtime.extension.adapters.probe_s3", side_effect=[ok_primary, ok_public]) as custom_fn:
         custom_ok = await ObjectStorageCheck(
             public_endpoint="https://s3.zitian.party",
@@ -337,35 +339,22 @@ async def test_object_storage_public_and_write_delete_probe() -> None:
         "statements-pub",
         "pub-ak",
     )
-    s3_client.put_object.assert_called_once()
-    s3_client.delete_object.assert_called_once()
-    s3_client.close.assert_called_once()
 
-    failing_put = MagicMock(
-        put_object=MagicMock(side_effect=PermissionError("AccessDenied secret-s3-key")),
-        delete_object=MagicMock(),
-        close=MagicMock(),
+    failing_round_trip = sdk_health.ProbeResult(
+        name="object_storage",
+        status=DependencyStatus.ABSENT,
+        detail="PermissionError: AccessDenied secret-s3-key",
+        duration_ms=1.0,
     )
-    with (
-        patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
-        patch("infra2_sdk.storage.create_s3_client", return_value=failing_put),
-    ):
+    with patch("src.runtime.extension.adapters.probe_s3", return_value=failing_round_trip) as fail_fn:
         err = await ObjectStorageCheck(verify_write=True, **kw).probe()
-    assert err.status is DependencyStatus.ABSENT and "S3 write/delete probe failed" in err.detail
-    assert "secret-s3-key" not in err.detail
-    failing_put.delete_object.assert_called_once()
-    failing_put.close.assert_called_once()
-
-    failing_del = MagicMock(
-        put_object=MagicMock(), delete_object=MagicMock(side_effect=PermissionError("DeleteDenied")), close=MagicMock()
-    )
-    with (
-        patch("src.runtime.extension.adapters.probe_s3", return_value=ok_primary),
-        patch("infra2_sdk.storage.create_s3_client", return_value=failing_del),
-    ):
-        err_del = await ObjectStorageCheck(verify_write=True, **kw).probe()
-    assert err_del.status is DependencyStatus.ABSENT and "DeleteDenied" in err_del.detail
-    failing_del.close.assert_called_once()
+    assert err.status is DependencyStatus.ABSENT and "AccessDenied" in err.detail
+    assert "secret-s3-key" not in err.detail and "***" in err.detail
+    assert fail_fn.call_args.kwargs == {
+        "name": "object_storage",
+        "key_prefix": "_health_probe/",
+        "round_trip": True,
+    }
 
 
 def test_every_declared_dependency_has_a_probe_adapter() -> None:

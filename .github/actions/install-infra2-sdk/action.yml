@@ -12,7 +12,7 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        sdk_pin="$(python tools/sdk_pin.py)"
+        sdk_pin="$(python common/runtime/sdk_pin.py)"
         read -r sdk_url sdk_sha256 sdk_filename <<< "$sdk_pin"
         pin_hash="$(printf '%s' "$sdk_pin" | sha256sum | cut -d' ' -f1)"
         {

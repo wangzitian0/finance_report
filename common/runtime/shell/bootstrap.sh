@@ -101,7 +101,7 @@ configure_host_environment() {
       export PATH="${LOCAL_BIN}:/usr/local/bin:/usr/bin:/bin:${PATH}"
       ;;
     windows-bash)
-      die "This bootstrap must run in WSL Ubuntu, macOS Terminal, or a Linux shell. Windows PowerShell, Git Bash, MSYS, Cygwin, and Scoop paths do not share WSL tools or Python packages. From Windows PowerShell, run: wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc \"bash tools/bootstrap.sh\""
+      die "This bootstrap must run in WSL Ubuntu, macOS Terminal, or a Linux shell. Windows PowerShell, Git Bash, MSYS, Cygwin, and Scoop paths do not share WSL tools or Python packages. From Windows PowerShell, run: wsl.exe -d Ubuntu --cd /home/<user>/workspace/finance_report --exec /bin/bash -lc \"bash common/runtime/shell/bootstrap.sh\""
       ;;
     *)
       warn "Unknown execution environment. Continuing with explicit PATH setup; prefer WSL Ubuntu, macOS Terminal, or a Linux shell."
@@ -120,7 +120,7 @@ ensure_uv() {
     return
   fi
 
-  require_command curl "Install curl, then rerun: bash tools/bootstrap.sh"
+  require_command curl "Install curl, then rerun: bash common/runtime/shell/bootstrap.sh"
   log "Installing uv ${UV_VERSION}"
   local installer
   installer="$(mktemp)"
@@ -164,7 +164,7 @@ ensure_nvm() {
     return
   fi
 
-  require_command curl "Install curl, then rerun: bash tools/bootstrap.sh"
+  require_command curl "Install curl, then rerun: bash common/runtime/shell/bootstrap.sh"
   log "Installing nvm ${NVM_VERSION}"
   local installer
   installer="$(mktemp)"

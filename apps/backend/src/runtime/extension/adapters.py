@@ -3,14 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import re
 import time
 from urllib.parse import urlparse
-from uuid import uuid4
 
 import httpx
-from infra2_sdk import storage as sdk_storage
 from infra2_sdk.service import (
     DependencyStatus,
     HttpClientSettings,
@@ -77,30 +74,6 @@ def _redact_secrets(text: str, *secrets: str | None) -> str:
         if secret:
             redacted = redacted.replace(secret, "***")
     return redacted
-
-
-def _probe_s3_write_delete(s3_settings: S3Settings) -> None:
-    """Write a small health object and always delete it, closing the S3 client afterwards."""
-    client = sdk_storage.create_s3_client(s3_settings)
-    key = f"_health_probe/{uuid4().hex}.txt"
-    put_error: Exception | None = None
-    try:
-        client.put_object(Bucket=s3_settings.bucket, Key=key, Body=b"ok")
-    except Exception as exc:  # noqa: BLE001
-        put_error = exc
-        raise
-    finally:
-        delete_error: Exception | None = None
-        try:
-            client.delete_object(Bucket=s3_settings.bucket, Key=key)
-        except Exception as exc:  # noqa: BLE001
-            delete_error = exc
-        finally:
-            if hasattr(client, "close"):
-                with contextlib.suppress(Exception):
-                    client.close()
-        if put_error is None and delete_error is not None:
-            raise delete_error
 
 
 class ObjectStorageCheck:
@@ -185,11 +158,23 @@ class ObjectStorageCheck:
         try:
             if public is not None:
                 primary_res, pub_res = await asyncio.gather(
-                    asyncio.to_thread(probe_s3, primary, name=self.name),
+                    asyncio.to_thread(
+                        probe_s3,
+                        primary,
+                        name=self.name,
+                        key_prefix="_health_probe/",
+                        round_trip=self._verify_write,
+                    ),
                     asyncio.to_thread(probe_s3, public, name=self.name),
                 )
             else:
-                primary_res = await asyncio.to_thread(probe_s3, primary, name=self.name)
+                primary_res = await asyncio.to_thread(
+                    probe_s3,
+                    primary,
+                    name=self.name,
+                    key_prefix="_health_probe/",
+                    round_trip=self._verify_write,
+                )
                 pub_res = None
         except Exception as exc:  # noqa: BLE001
             return _absent(self.name, _redact_secrets(str(exc), *secrets), start)
@@ -213,14 +198,6 @@ class ObjectStorageCheck:
             parts.append("public endpoint accessible")
 
         if self._verify_write:
-            try:
-                await asyncio.to_thread(_probe_s3_write_delete, primary)
-            except Exception as exc:  # noqa: BLE001
-                return _absent(
-                    self.name,
-                    _redact_secrets(f"S3 write/delete probe failed: {type(exc).__name__}: {exc}", *secrets),
-                    start,
-                )
             parts.append("write/delete ok")
 
         if public is None and not self._verify_write:

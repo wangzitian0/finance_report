@@ -173,7 +173,12 @@ def cmd_clean(args):
     if args.containers or args.db:
         run([*compose_cmd, "--profile", "infra", "down"])
     else:
-        cmd = ["bash", str(REPO_ROOT / "tools" / "cleanup_dev_resources.sh")]
+        cmd = [
+            "bash",
+            str(
+                REPO_ROOT / "common" / "runtime" / "shell" / "cleanup_dev_resources.sh"
+            ),
+        ]
         if args.all:
             cmd.append("--all")
         elif args.force:
