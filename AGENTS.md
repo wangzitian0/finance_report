@@ -2,7 +2,7 @@
 
 > **Rule source**: This repository owns its own `AGENTS.md` directly.
 > **Merge authority**: Deliverable = CI-passing PR merged autonomously when [docs/contributing/branch-policy.md](docs/contributing/branch-policy.md) §4 holds. Gate code, workflows, and release code merge after the independent review required by `Production reservation`.
-> **Production here**: the infra2 workflow `reconcile-iac-inputs.yml` with `promote_prod=true` and the infra2 workflow `deploy.yml` with `type=prod`.
+> **Production here**: the infra2 workflow `reconcile-iac-inputs.yml` with `promote_prod=true`.
 > **Checklist & Language**: Check [docs/agents/orchestration.md](docs/agents/orchestration.md) before finishing. Write code, PRs, commits, issues, and docs in **English**.
 
 ## Production reservation
