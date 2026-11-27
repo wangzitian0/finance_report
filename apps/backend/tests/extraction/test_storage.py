@@ -119,21 +119,18 @@ def test_public_client_and_fallback(mock_boto_client, monkeypatch):
     monkeypatch.setattr(storage_module.settings, "s3_public_endpoint", "https://public.s3")
     monkeypatch.setattr(storage_module.settings, "s3_public_access_key", "pub_key")
     monkeypatch.setattr(storage_module.settings, "s3_public_secret_key", "pub_secret")
+    mock_s3_internal, mock_s3_public = MagicMock(), MagicMock()
+    mock_s3_public.generate_presigned_url.return_value = "https://public.s3/test-bucket/test/key"
+    mock_boto_client.side_effect = [mock_s3_internal, mock_s3_public]
     StorageService._checked_buckets.clear()
-    service = StorageService()
-    assert service.public_client is not None and mock_boto_client.call_count == 2
+    service = StorageService(bucket="test-bucket")
+    assert mock_boto_client.call_count == 1
+    assert service.generate_presigned_url(key="test/key", public=True) == "https://public.s3/test-bucket/test/key"
+    assert mock_boto_client.call_count == 2
     assert (
         mock_boto_client.call_args_list[1][1]["endpoint_url"],
         mock_boto_client.call_args_list[1][1]["aws_access_key_id"],
     ) == ("https://public.s3", "pub_key")
-
-    mock_s3_internal, mock_s3_public = MagicMock(), MagicMock()
-    mock_s3_public.generate_presigned_url.return_value = "https://public.s3/test-bucket/test/key"
-    mock_boto_client.side_effect = [mock_s3_internal, mock_s3_public]
-    assert (
-        StorageService(bucket="test-bucket").generate_presigned_url(key="test/key", public=True)
-        == "https://public.s3/test-bucket/test/key"
-    )
     mock_s3_public.generate_presigned_url.assert_called_once()
     mock_s3_internal.generate_presigned_url.assert_not_called()
 

@@ -185,9 +185,9 @@ def get_test_db_url(worker_id: str) -> str:
     base_db_name = get_test_db_name(namespace)
     base_url = (
         normalize_url(
-            os.environ.get("DATABASE_URL", f"postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}")
+            os.environ.get("DATABASE_URL", f"postgresql+asyncpg://postgres:postgres@127.0.0.1:55432/{base_db_name}")
         )
-        or f"postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/{base_db_name}"
+        or f"postgresql+asyncpg://postgres:postgres@127.0.0.1:55432/{base_db_name}"
     )
     if raw_namespace:
         base_url = make_url(base_url).set(database=base_db_name).render_as_string(hide_password=False)

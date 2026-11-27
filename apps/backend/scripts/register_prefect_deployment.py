@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,18 +57,56 @@ async def _ensure_work_pool_exists(name: str) -> None:
 
 
 def main() -> int:
-    from src.statement_flow import parse_statement_flow
+    import os
+
+    from src.config import settings
+    from src.statement_flow import (
+        classify_statement_flow,
+        market_data_sync_flow,
+        parse_statement_flow,
+        parsing_supervisor_reap_flow,
+        staging_db_hygiene_flow,
+        storage_sweep_flow,
+    )
 
     asyncio.run(_ensure_work_pool_exists(WORK_POOL_NAME))
 
-    parse_statement_flow.from_source(
-        source=str(BACKEND_ROOT),
-        entrypoint="src/statement_flow.py:parse_statement_flow",
-    ).deploy(
-        name=DEPLOYMENT_NAME,
-        work_pool_name=WORK_POOL_NAME,
-    )
-    print(f"Registered deployment '{DEPLOYMENT_NAME}' on work pool '{WORK_POOL_NAME}'.")
+    deployments: list[tuple[Any, str, str, dict[str, Any]]] = [
+        (parse_statement_flow, DEPLOYMENT_NAME, "src/statement_flow.py:parse_statement_flow", {}),
+        (classify_statement_flow, "classify-statement", "src/statement_flow.py:classify_statement_flow", {}),
+        # Daily 22:00 SGT = 14:00 UTC
+        (
+            market_data_sync_flow,
+            "market-data-sync",
+            "src/statement_flow.py:market_data_sync_flow",
+            {"cron": "0 14 * * *"},
+        ),
+        (storage_sweep_flow, "storage-sweep", "src/statement_flow.py:storage_sweep_flow", {"cron": "0 3 * * *"}),
+        (
+            parsing_supervisor_reap_flow,
+            "parsing-supervisor-reap",
+            "src/statement_flow.py:parsing_supervisor_reap_flow",
+            {"interval": 60},
+        ),
+    ]
+    env_name = (os.environ.get("ENVIRONMENT") or settings.environment or "").strip().lower()
+    if env_name == "staging":
+        deployments.append(
+            (
+                staging_db_hygiene_flow,
+                "staging-db-hygiene",
+                "src/statement_flow.py:staging_db_hygiene_flow",
+                {"cron": "47 3 * * *"},
+            )
+        )
+
+    for flow_obj, name, entrypoint, schedule_kw in deployments:
+        flow_obj.from_source(source=str(BACKEND_ROOT), entrypoint=entrypoint).deploy(
+            name=name,
+            work_pool_name=WORK_POOL_NAME,
+            **schedule_kw,
+        )
+        print(f"Registered deployment '{name}' on work pool '{WORK_POOL_NAME}'.")
     return 0
 
 

@@ -490,9 +490,9 @@ async def submit_parse_pipeline(
     )
 
 
-def submit_classify_run(run_id: UUID, *, db: AsyncSession) -> asyncio.Task[int]:
+async def submit_classify_run(run_id: UUID, *, db: AsyncSession) -> asyncio.Task[int] | None:
     """L4 composition wrapper binding session maker and posting dependencies for classification."""
-    return _submit_classify_run(
+    return await _submit_classify_run(
         run_id,
         session_maker=create_session_maker_from_db(db),
         posting_dependencies=compose_statement_posting_dependencies(),

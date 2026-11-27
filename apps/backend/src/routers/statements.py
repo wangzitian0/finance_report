@@ -406,7 +406,9 @@ async def _queue_classify_run(db: AsyncSession, statement_id: UUID, user_id: UUI
     run_id = await start_user_classify_run(db, statement_id=statement_id, user_id=user_id, hints=hints)
     await db.commit()
     try:
-        _track_task(submit_classify_run(run_id, db=db))
+        task = await submit_classify_run(run_id, db=db)
+        if task is not None:
+            _track_task(task)
     except Exception as exc:  # noqa: BLE001 - a run that no task owns would stay requested until the reaper
         await fail_run(db, run_id, error_code="dispatch_failed", error_message="The run could not start.")
         await db.commit()

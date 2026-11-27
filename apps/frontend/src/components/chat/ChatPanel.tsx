@@ -248,19 +248,54 @@ export default function ChatPanel({ initialPrompt }: ChatPanelProps) {
         return;
       }
       const decoder = new TextDecoder();
+      let buffer = "";
       let aggregated = "";
+      let streamError: string | null = null;
+      const consumeFrames = (flush: boolean) => {
+        const normalized = buffer.replace(/\r\n/g, "\n");
+        const parts = normalized.split("\n\n");
+        buffer = flush ? "" : (parts.pop() ?? "");
+        const frames = flush ? parts.concat(normalized.endsWith("\n\n") ? [] : []) : parts;
+        for (const frame of frames) {
+          if (!frame.trim()) continue;
+          let eventType = "message";
+          const dataLines: string[] = [];
+          for (const line of frame.split("\n")) {
+            if (line.startsWith("event:")) {
+              eventType = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trimStart());
+            }
+          }
+          if (dataLines.length === 0) continue;
+          const rawData = dataLines.join("\n");
+          if (eventType === "delta") {
+            const parsed = JSON.parse(rawData) as { text?: string };
+            if (parsed.text) {
+              aggregated += parsed.text;
+              updateMessage(assistantId, aggregated, true, metadata);
+            }
+          } else if (eventType === "error") {
+            const parsed = JSON.parse(rawData) as { error?: string };
+            streamError = parsed.error || "AI stream interrupted — please retry.";
+          }
+        }
+      };
       while (true) {
         const { value, done } = await reader.read();
         if (done) {
           break;
         }
         if (value) {
-          const decodedChunk = decoder.decode(value, { stream: true });
-          aggregated += decodedChunk;
-          updateMessage(assistantId, aggregated, true, metadata);
+          buffer += decoder.decode(value, { stream: true });
+          consumeFrames(false);
         }
       }
-      aggregated += decoder.decode();
+      buffer += decoder.decode();
+      consumeFrames(true);
+      if (streamError) {
+        setError(streamError);
+      }
       updateMessage(assistantId, aggregated, false, metadata);
     },
     [updateMessage],

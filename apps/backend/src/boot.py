@@ -35,7 +35,7 @@ from src.runtime import (
 logger = get_logger(__name__)
 
 DEVELOPMENT_SECRET_KEY = "dev_secret_key_change_in_prod"
-DEVELOPMENT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report"
+DEVELOPMENT_DATABASE_URL = "postgresql+asyncpg://postgres:postgres@127.0.0.1:55432/finance_report"
 DEVELOPMENT_S3_SECRET_KEY = "minio_local_secret"
 LOCAL_ENVIRONMENTS = frozenset({"development", "test", "ci"})
 # Only these environments may set a model role to another value than the SDK default (#2566, #2953).

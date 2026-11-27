@@ -14,6 +14,7 @@ from infra2_sdk.storage import (
     S3Settings,
     create_s3_client,
     ensure_bucket,
+    presign_get_url,
     put_object_bytes,
     read_object_bytes,
     redact_presigned_url as _sdk_redact_presigned_url,
@@ -93,6 +94,7 @@ class StorageService:
     def __init__(self, bucket: str | None = None) -> None:
         self.bucket = bucket or settings.s3_bucket
         self._region = (settings.s3_region or "").strip() or "us-east-1"
+        self.public_bucket = settings.s3_public_bucket or self.bucket
         self.client = _build_s3_client(
             bucket=self.bucket,
             endpoint_url=settings.s3_endpoint,
@@ -100,15 +102,16 @@ class StorageService:
             secret_access_key=settings.s3_secret_key,
             region=self._region,
         )
-        self.public_client = None
-        if settings.s3_public_endpoint:
-            self.public_bucket = settings.s3_public_bucket or self.bucket
-            self.public_client = _build_s3_client(
-                bucket=self.public_bucket,
-                endpoint_url=settings.s3_public_endpoint,
-                access_key_id=settings.s3_public_access_key or settings.s3_access_key,
-                secret_access_key=settings.s3_public_secret_key or settings.s3_secret_key,
+        self._sdk_settings: S3Settings | None = None
+        if isinstance(settings.s3_endpoint, str) and settings.s3_endpoint.strip():
+            self._sdk_settings = S3Settings(
+                bucket=self.bucket,
+                endpoint_url=settings.s3_endpoint,
+                public_endpoint_url=settings.s3_public_endpoint,
+                access_key_id=settings.s3_access_key or "",
+                secret_access_key=settings.s3_secret_key or "",
                 region=self._region,
+                use_path_style=True,
             )
 
     def _ensure_bucket(self) -> None:
@@ -147,23 +150,42 @@ class StorageService:
         )
 
     def generate_presigned_url(self, *, key: str, expires_in: int | None = None, public: bool = False) -> str:
-        use_public = public and self.public_client is not None
-        if public and not use_public:
+        ttl = expires_in or settings.s3_presign_expiry_seconds
+        if public and not settings.s3_public_endpoint:
             logger.error(
                 "Public presigned URL requested but no public S3 client configured", bucket=self.bucket, key=key
             )
             raise StorageError("Public storage client is not configured; cannot generate public presigned URL")
-        client = self.public_client if use_public else self.client
-        bucket = self.public_bucket if use_public else self.bucket
+        if public and self._sdk_settings is not None:
+            public_settings = self._sdk_settings.model_copy(
+                update={
+                    "access_key_id": settings.s3_public_access_key or self._sdk_settings.access_key_id,
+                    "secret_access_key": settings.s3_public_secret_key or self._sdk_settings.secret_access_key,
+                }
+            )
+            return self._run_s3(
+                lambda: presign_get_url(
+                    public_settings,
+                    key,
+                    bucket=self.public_bucket,
+                    expires_in=ttl,
+                    public=True,
+                ),
+                log_msg="Failed to generate presigned URL",
+                err_msg=f"Failed to generate presigned URL for {key}",
+                bucket=self.public_bucket,
+                key=key,
+                public=public,
+            )
         return self._run_s3(
-            lambda: client.generate_presigned_url(
+            lambda: self.client.generate_presigned_url(
                 "get_object",
-                Params={"Bucket": bucket, "Key": key},
-                ExpiresIn=expires_in or settings.s3_presign_expiry_seconds,
+                Params={"Bucket": self.bucket, "Key": key},
+                ExpiresIn=ttl,
             ),
             log_msg="Failed to generate presigned URL",
             err_msg=f"Failed to generate presigned URL for {key}",
-            bucket=bucket,
+            bucket=self.bucket,
             key=key,
             public=public,
         )

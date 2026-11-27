@@ -210,7 +210,9 @@ from src.extraction.extension.statement_validation import (
     resolve_statement_transactions,
     validate_balance_chain,
 )
+from src.extraction.extension.statement_classification_run import execute_classify_run
 from src.extraction.extension.statement_workflow import (
+    analyze_tenant_tables,
     approve_statement_workflow,
     reject_statement_workflow,
 )
@@ -380,6 +382,8 @@ __all__ = [
     "detect_balance_chain_break",
     "dual_write_layer2",
     "emit_disposition_trace_records",
+    "analyze_tenant_tables",
+    "execute_classify_run",
     "extraction_artifact_dependency_digest",
     "extraction_trace_policy_registry",
     "fail_run",

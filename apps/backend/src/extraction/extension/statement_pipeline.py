@@ -21,6 +21,7 @@ logger = get_logger(__name__)
 settings = src.config.settings
 
 PARSE_DEPLOYMENT = "parse-statement/parse-statement"
+CLASSIFY_DEPLOYMENT = "classify-statement/classify-statement"
 PENDING_PARSE_TASKS: set[asyncio.Task] = set()
 
 
@@ -41,13 +42,19 @@ def _consume_background_task_exception(task: asyncio.Task) -> None:
         task.exception()
 
 
-def submit_classify_run(
+async def submit_classify_run(
     run_id: UUID,
     *,
     session_maker: async_sessionmaker[AsyncSession],
     posting_dependencies: StatementPostingDependencies,
-) -> asyncio.Task[int]:
-    """Run a classify run as a task of this process. If the process dies, the run stays `requested` until the reaper."""
+) -> asyncio.Task[int] | None:
+    """Dispatch classification to Prefect when configured; fail closed on Prefect error; run in-process only when unset."""
+    if settings.prefect_api_url:
+        from prefect.deployments import run_deployment
+
+        await run_deployment(name=CLASSIFY_DEPLOYMENT, parameters={"run_id": str(run_id)}, timeout=0)
+        logger.info("statement.classification.submitted_to_prefect", run_id=str(run_id), deployment=CLASSIFY_DEPLOYMENT)
+        return None
     task = asyncio.create_task(
         execute_classify_run(
             session_maker,
@@ -65,7 +72,7 @@ async def submit_parse_pipeline(
     content: bytes,
     use_case_factory: Callable[[], StatementIngestionUseCase],
 ) -> asyncio.Task[None] | None:
-    """Dispatch statement parsing to Prefect when configured, falling back to in-process task."""
+    """Dispatch statement parsing to Prefect when configured; fail closed if PREFECT_API_URL is set."""
 
     def _run_in_process() -> asyncio.Task[None]:
         use_case = use_case_factory()
@@ -80,26 +87,27 @@ async def submit_parse_pipeline(
         return task
 
     if settings.prefect_api_url:
+        import time
+
+        from prefect.deployments import run_deployment
+
+        dispatch_started = time.perf_counter()
         try:
-            import time
-
-            from prefect.deployments import run_deployment
-
-            dispatch_started = time.perf_counter()
             await run_deployment(name=PARSE_DEPLOYMENT, parameters={"job": job.to_prefect_params()}, timeout=0)
-            logger.info(
-                "statement.parse.submitted_to_prefect",
-                statement_id=str(job.statement_id),
-                deployment=PARSE_DEPLOYMENT,
-                request_id=job.request_id,
-                prefect_submit_ms=round((time.perf_counter() - dispatch_started) * 1000, 2),
-            )
-            return None
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "statement.parse.prefect_unavailable_fallback_in_process",
+        except Exception as exc:
+            logger.error(
+                "statement.parse.prefect_dispatch_failed",
                 statement_id=str(job.statement_id),
                 error=str(exc),
                 request_id=job.request_id,
             )
+            raise
+        logger.info(
+            "statement.parse.submitted_to_prefect",
+            statement_id=str(job.statement_id),
+            deployment=PARSE_DEPLOYMENT,
+            request_id=job.request_id,
+            prefect_submit_ms=round((time.perf_counter() - dispatch_started) * 1000, 2),
+        )
+        return None
     return _run_in_process()
