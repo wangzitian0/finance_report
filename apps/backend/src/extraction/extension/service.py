@@ -727,6 +727,19 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             except (TypeError, ValueError) as exc:
                 raise ExtractionError(f"Incomplete statement extraction result: {exc}") from exc
             result_metadata: dict[str, Any] = {"statement_extraction_result": extraction_result.to_payload()}
+            if llm_led_gate.quarantined and transactions:
+                result_metadata["quarantined_transactions"] = [
+                    {
+                        "source_row": idx + 1,
+                        "txn_date": txn.txn_date.isoformat(),
+                        "description": txn.description,
+                        "amount": str(txn.amount),
+                        "direction": txn.direction,
+                        "currency": None if txn.currency_unresolved else txn.currency,
+                        "balance_after": str(txn.balance_after) if txn.balance_after is not None else None,
+                    }
+                    for idx, txn in enumerate(transactions[:500])
+                ]
             statement.extraction_metadata = result_metadata
             diag_gap = balance_result.get("difference")
             suspect_row_indices: list[int] = []
@@ -1025,6 +1038,7 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
 
         for attempt in range(max_attempts):
             seed_override = base_seed + attempt if base_seed is not None and attempt > 0 else None
+            used_text_layer = read_text_layer
             with bind_log_context(extract_attempt=attempt + 1):
                 try:
                     if extract_overridden:
@@ -1104,8 +1118,8 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
                 improved = False
             if not best_findings:
                 return best
-            if not improved and not best_score.balance_fails:
-                # The pass did not improve the kept pass: the document does not print what the checks ask for.
+            if not improved and (not best_score.balance_fails or (not extract_overridden and not used_text_layer)):
+                # The pass did not improve the kept pass: either the document lacks what checks ask for, or a vision pass could not repair the gap.
                 break
             # The next pass gets the check results of the kept pass. The text checks judge the text, so the
             # next pass reads the text again. A balance gap sends the last pass to the page images, and each

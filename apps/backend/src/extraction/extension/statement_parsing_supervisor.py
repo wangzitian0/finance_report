@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
@@ -15,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from src.database import async_session_maker
 from src.extraction.base.run_vocabulary import ACTIVE_RUN_STATES, RunKind, RunState
 from src.extraction.base.source_vocabulary import BankStatementStatus
+from src.extraction.extension._base import ExtractionError
 from src.extraction.extension.statement_runs import (
     CLAIM_TIMEOUT,
     DEFAULT_STALE_AFTER,
@@ -31,8 +33,13 @@ logger = get_logger(__name__)
 
 PARSING_SUPERVISOR_INTERVAL_SECONDS = 60
 PARSING_HEARTBEAT_INTERVAL_SECONDS = 30
+PARSING_MAX_WALL_CLOCK_SECONDS = 240
 PARSING_TIMEOUT_MESSAGE = "Parsing timed out. Please retry."
 PARSING_FAILED_MESSAGE = "Parsing failed. Please retry."
+
+
+class ParseWallClockTimeoutError(ExtractionError):
+    """Raised when a single parse attempt exceeds the wall-clock execution limit."""
 
 
 @asynccontextmanager
@@ -41,23 +48,38 @@ async def parsing_heartbeat(
     sessionmaker: async_sessionmaker[AsyncSession] | None = None,
     *,
     interval_seconds: float | None = None,
+    max_wall_clock_seconds: float | None = None,
 ) -> AsyncIterator[None]:
     """Refresh `heartbeat_at` of a running run while its work (a parse) runs.
 
     The reaper fails a running run whose heartbeat is older than the stale threshold. A long statement
     needs more time than that threshold, so a live parse must show it is alive. A beat that finds the
-    run no longer running cancels the work in the block and raises `StaleRun`, so a worker that the
-    reaper gave up stops paying for model calls.
+    run no longer running or exceeds `max_wall_clock_seconds` cancels the work in the block and raises
+    `StaleRun` or `ParseWallClockTimeoutError`, stopping runaway model calls.
     """
     interval = PARSING_HEARTBEAT_INTERVAL_SECONDS if interval_seconds is None else interval_seconds
+    wall_clock_limit = PARSING_MAX_WALL_CLOCK_SECONDS if max_wall_clock_seconds is None else max_wall_clock_seconds
     session_factory = sessionmaker or async_session_maker
     worker = asyncio.current_task()
     run_lost = False
+    timed_out = False
+    started = time.monotonic()
 
     async def beat() -> None:
-        nonlocal run_lost
+        nonlocal run_lost, timed_out
         while True:
-            await asyncio.sleep(interval)
+            remaining = wall_clock_limit - (time.monotonic() - started) if wall_clock_limit > 0 else interval
+            if wall_clock_limit > 0 and remaining <= 0:
+                timed_out = True
+                if worker is not None:
+                    worker.cancel()
+                return
+            await asyncio.sleep(min(interval, remaining) if wall_clock_limit > 0 else interval)
+            if wall_clock_limit > 0 and (time.monotonic() - started) >= wall_clock_limit:
+                timed_out = True
+                if worker is not None:
+                    worker.cancel()
+                return
             try:
                 async with session_factory() as session:
                     alive = await heartbeat_run(session, run_id)
@@ -74,6 +96,9 @@ async def parsing_heartbeat(
     try:
         yield
     except asyncio.CancelledError:
+        if timed_out and worker is not None:
+            worker.uncancel()
+            raise ParseWallClockTimeoutError("Parse wall_clock timeout exceeded") from None
         if not run_lost or worker is None:
             raise
         worker.uncancel()

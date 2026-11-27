@@ -117,7 +117,9 @@ export function TrustScoreHero({ score, grade, asOfDate, currency, isRefreshing,
                 ? "All book checks verified: Assets = Liabilities + Equity with continuous monthly statements."
                 : score >= 80
                   ? "Core accounting equation balanced; fill monthly statement gaps to complete audit readiness."
-                  : "Accounting discrepancies detected. Follow the action plan below to fix book checks."}
+                  : grade === "D_OUT_OF_BALANCE"
+                    ? "Accounting discrepancies detected. Follow the action plan below to fix book checks."
+                    : "Upload statements or fix discrepancies in the action plan below to complete book verification."}
             </p>
           </div>
         </div>

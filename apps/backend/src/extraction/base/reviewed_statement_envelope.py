@@ -14,7 +14,9 @@ from src.extraction.base.validation import HIGH_CONFIDENCE_AUTO_APPROVE_THRESHOL
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 _MONEY_QUANTUM = Decimal("0.01")
-_ENVELOPE_REVIEWABLE_FACTS = frozenset({"institution", "statement_currency", "period", "balances"})
+_ENVELOPE_REVIEWABLE_FACTS = frozenset(
+    {"institution", "statement_currency", "transaction_currency", "period", "balances"}
+)
 _INSTITUTION_MAX_LENGTH = 100
 
 

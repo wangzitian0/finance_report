@@ -820,8 +820,7 @@
             "4",
             "6"
           ],
-          "gap_kind": "partial",
-          "gap_issue": "#2955"
+          "gap_issue": null
         },
         {
           "id": "UC-40",
@@ -882,8 +881,7 @@
           "benchmark_cases": [
             "1"
           ],
-          "gap_kind": "partial",
-          "gap_issue": "#2977"
+          "gap_issue": null
         },
         {
           "id": "UC-43",

@@ -222,3 +222,8 @@ async def test_AC20_9_pure_gate_observability_and_persistence(tmp_path, db, test
         persisted.status,
         (await db.execute(select(AtomicTransaction).where(AtomicTransaction.user_id == test_user.id))).scalars().all(),
     ) == (BankStatementStatus.REJECTED, [])
+    quarantined_rows = (persisted.extraction_metadata or {}).get("quarantined_transactions")
+    assert isinstance(quarantined_rows, list) and len(quarantined_rows) == 1
+    assert quarantined_rows[0]["source_row"] == 1
+    assert quarantined_rows[0]["description"] == "Salary"
+    assert quarantined_rows[0]["amount"] == "100.00"

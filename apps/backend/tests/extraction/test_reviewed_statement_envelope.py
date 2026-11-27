@@ -190,8 +190,40 @@ async def test_AC_extraction_reviewed_envelope_2_rejects_invalid_or_stale_comman
             ),
         )
 
-    unsup_stmt, unsup_acct, unsup_res, _ = await _seed_statement_source_and_account(
-        db, test_user, source_digest="c" * 64, transaction_currency=None
+    unsup_stmt, unsup_acct, _, _ = await _seed_statement_source_and_account(
+        db, test_user, source_digest="c" * 64, transaction_currency="SGD"
+    )
+    unsup_res = StatementExtractionResult.create(
+        producer_version="brokerage-parser@1",
+        source_content_digest="c" * 64,
+        source_type=StatementSourceType.BROKERAGE,
+        evidence_type=StatementEvidenceType.POSITION_SNAPSHOT,
+        institution="Example Broker",
+        account_last4="9999",
+        period_start=date(2026, 1, 1),
+        period_end=date(2026, 1, 31),
+        balances=(),
+        transactions=(),
+        positions=(),
+        confidence=Decimal("0.90"),
+        balance_validated=None,
+        warnings=(),
+        review_reasons=("positions missing",),
+        provenance=SourceProvenance(
+            intake_mode="pdf", method=ExtractionMethod.LIVE_LLM, provider="openrouter", model="m@1"
+        ),
+        statement_currency="SGD",
+    )
+    emitter = TraceEmitter(SqlTraceRecordRepository(db, extraction_trace_policy_registry()))
+    unsup_traces = build_extraction_trace_records(
+        unsup_res,
+        user_id=test_user.id,
+        execution_id=f"test:{unsup_stmt.id}:result:{unsup_res.result_id}",
+        occurred_at=datetime.now(UTC),
+    )
+    await emitter.emit_many(unsup_traces)
+    await persist_statement_extraction_result(
+        db, statement=unsup_stmt, result=unsup_res, source_trace_record_id=unsup_traces[0].record_id
     )
     with pytest.raises(ValueError, match="cannot be confirmed with a cash statement envelope"):
         await _confirm(
@@ -285,3 +317,54 @@ async def test_AC_extraction_reviewed_envelope_3_5_7_trace_reparse_and_append_on
     with pytest.raises(DBAPIError, match="append-only"):
         async with db.begin_nested():
             await db.execute(delete(ReviewedStatementEnvelope).where(ReviewedStatementEnvelope.id == envelope.id))
+
+
+async def test_reviewed_envelope_resolves_missing_transaction_currency(db, test_user):
+    """#3254: confirm_reviewed_statement_envelope resolves missing transaction_currency onto Layer-2 rows."""
+    from src.extraction.base.source_vocabulary import DocumentStatus, DocumentType, TransactionDirection
+    from src.extraction.orm.layer1 import UploadedDocument
+    from src.extraction.orm.layer2 import AtomicTransaction
+
+    statement, account, result, _ = await _seed_statement_source_and_account(
+        db, test_user, source_digest="e" * 64, transaction_currency=None
+    )
+    assert "transaction_currency" in result.missing_required_facts
+    doc = UploadedDocument(
+        user_id=test_user.id,
+        file_path="statements/icici.pdf",
+        original_filename="icici.pdf",
+        file_hash="e" * 64,
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
+    )
+    db.add(doc)
+    await db.flush()
+    statement.uploaded_document_id = doc.id
+    txn = AtomicTransaction(
+        user_id=test_user.id,
+        txn_date=date(2026, 1, 2),
+        amount=Decimal("10.00"),
+        direction=TransactionDirection.IN,
+        description="Salary",
+        currency="SGD",
+        currency_unresolved=True,
+        dedup_hash="dedup-icici-row-1",
+        source_documents=[{"doc_id": str(doc.id)}],
+    )
+    db.add(txn)
+    await db.flush()
+
+    envelope = await _confirm(
+        db,
+        user_id=test_user.id,
+        statement_id=statement.id,
+        command=_command(account_id=account.id, source_result_digest=result.content_digest),
+    )
+    await db.refresh(statement)
+    await db.refresh(txn)
+    assert envelope.currency == "SGD"
+    assert statement.currency == "SGD"
+    assert txn.currency == "SGD"
+    assert txn.currency_unresolved is False
+    assert txn.currency_resolved_by == test_user.id
+    assert txn.currency_resolved_at is not None

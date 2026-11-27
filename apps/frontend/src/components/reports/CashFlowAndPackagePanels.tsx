@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { infiniteQueryOptions, keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -283,6 +284,7 @@ export function CashFlowPanel({ filters }: { filters: ReportFilters }) {
         const expectedEnding = beginning.plus(net).plus(openingStock);
         const drift = expectedEnding.minus(ending);
         const reconciles = drift.abs().lessThanOrEqualTo("0.01");
+        const hasGapAdjustment = !openingStock.isZero() && !incompleteOpeningCoverage;
         return (
           <div className="card p-5 mb-6" aria-label="Cash reconciliation">
             <p className="text-xs text-muted uppercase mb-3">Cash reconciliation</p>
@@ -298,10 +300,15 @@ export function CashFlowPanel({ filters }: { filters: ReportFilters }) {
               )}
               <span className="text-muted">=</span>
               <span>Ending cash <strong>{formatCurrencyLocale(ending, cur)}</strong></span>
-              <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${reconciles && !unverified ? "bg-[var(--success-muted)] text-[var(--success)]" : "bg-[var(--warning-muted)] text-[var(--warning)]"}`}>
-                {!reconciles ? "⚠ Does not tie" : incompleteOpeningCoverage ? "⚠ Coverage incomplete" : unverified ? "⚠ Not yet verified" : "✓ Reconciles"}
+              <span className={`ml-2 inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${reconciles && !unverified && !hasGapAdjustment ? "bg-[var(--success-muted)] text-[var(--success)]" : "bg-[var(--warning-muted)] text-[var(--warning)]"}`}>
+                {!reconciles ? "⚠ Does not tie" : incompleteOpeningCoverage ? "⚠ Coverage incomplete" : hasGapAdjustment ? "⚠ Opening gap adjustment (3198)" : unverified ? "⚠ Not yet verified" : "✓ Reconciles"}
               </span>
             </div>
+            {hasGapAdjustment && (
+              <p className="mt-2 text-xs text-[var(--warning)]">
+                Includes an inter-statement gap plug (3198). <Link href="/upload" className="underline">Upload missing intermediate statements</Link> to replace this plug with verified cash flows.
+              </p>
+            )}
             {!unclassifiedCash.isZero() && (
               <p className="mt-2 text-xs text-muted">
                 Includes <strong>{formatCurrencyLocale(unclassifiedCash, cur)}</strong> in transfers in transit / unclassified cash movement.

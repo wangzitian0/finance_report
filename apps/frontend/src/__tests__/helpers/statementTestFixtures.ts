@@ -1136,7 +1136,7 @@ const REV_FIX = {
   unsup: {
     ...REV_STMT,
     source_result_digest: "a".repeat(64),
-    source_missing_facts: ["transaction_currency"],
+    source_missing_facts: ["positions"],
     source_envelope_reviewable: false,
     reviewed_envelope: null,
   },
@@ -1536,7 +1536,7 @@ const REV_EXTRA = {
   confMsg:
     /Statement details confirmed and linked to the current extraction result/i,
   unsupMsg:
-    /transaction currency cannot be confirmed by a cash statement check/i,
+    /positions cannot be confirmed by a cash statement check/i,
   dormantMsg: /needs your confirmation before it can be used/i,
   reparseBody: { kind: "extract", hints: { keywords: [], note: null } },
 };

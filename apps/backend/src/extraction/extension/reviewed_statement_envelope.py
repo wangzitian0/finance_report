@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import desc, select
+from sqlalchemy import desc, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +35,7 @@ from src.extraction.base.run_vocabulary import RunKind
 from src.extraction.base.source_vocabulary import BankStatementStatus, Stage1Status
 from src.extraction.extension.custody_binding import resolve_bank_custody_account
 from src.extraction.extension.statement_runs import ActiveRunExists, get_active_run
+from src.extraction.orm.layer2 import AtomicTransaction
 from src.extraction.orm.reviewed_statement_envelope import (
     ReviewedStatementEnvelope,
     StatementExtractionResultRecord,
@@ -330,6 +331,33 @@ def _apply_envelope_to_statement(statement: StatementSummary, envelope: Reviewed
     statement.validation_error = None
 
 
+async def _resolve_statement_transaction_currencies(
+    db: AsyncSession,
+    *,
+    statement: StatementSummary,
+    user_id: UUID,
+    currency: str,
+) -> None:
+    """Propagate confirmed statement currency onto currency-unresolved Layer-2 draft rows (#3254)."""
+    uploaded_doc_id = getattr(statement, "uploaded_document_id", None)
+    if uploaded_doc_id is None:
+        return
+    await db.execute(
+        update(AtomicTransaction)
+        .where(
+            AtomicTransaction.user_id == user_id,
+            AtomicTransaction.currency_unresolved.is_(True),
+            AtomicTransaction.source_documents.contains([{"doc_id": str(uploaded_doc_id)}]),
+        )
+        .values(
+            currency=currency,
+            currency_unresolved=False,
+            currency_resolved_by=user_id,
+            currency_resolved_at=datetime.now(UTC),
+        )
+    )
+
+
 async def confirm_reviewed_statement_envelope(
     db: AsyncSession,
     *,
@@ -406,6 +434,10 @@ async def confirm_reviewed_statement_envelope(
     if existing is not None:
         # The replay of an applied command returns its envelope. The apply step skips a statement whose review ended.
         _apply_envelope_to_statement(statement, existing)
+        if statement.status not in _REVIEW_ENDED_STATUSES:
+            await _resolve_statement_transaction_currencies(
+                db, statement=statement, user_id=user_id, currency=existing.currency
+            )
         await db.flush()
         return existing
     if statement.status in _REVIEW_ENDED_STATUSES:
@@ -458,6 +490,9 @@ async def confirm_reviewed_statement_envelope(
     )
     db.add(envelope)
     _apply_envelope_to_statement(statement, envelope)
+    await _resolve_statement_transaction_currencies(
+        db, statement=statement, user_id=user_id, currency=envelope.currency
+    )
     await db.flush()
     return envelope
 
@@ -491,8 +526,7 @@ def _validate_command_against_source(
     for name, value in declared.items():
         if value is not None and getattr(command, name) != value:
             raise ValidationFailedError(f"Confirmed {name} must match the declared source fact")
-    currencies = {txn.currency for txn in source_result.transactions}
-    if None in currencies or any(c != command.currency for c in currencies):
+    if any(txn.currency is not None and txn.currency != command.currency for txn in source_result.transactions):
         raise ValidationFailedError("Every transaction currency must match the confirmed statement currency")
     net = sum(
         (txn.amount if txn.direction == "IN" else -txn.amount for txn in source_result.transactions),
