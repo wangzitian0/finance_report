@@ -82,7 +82,8 @@ def execute_case_2(runner: ScenarioBenchmarkRunner) -> CaseResult:
         rejected = runner.reject_statement(
             client, bad_id, notes="Corrupted scan discarded during Stage-1 triage"
         )
-        assert rejected.get("status") == "rejected"
+        assert rejected.get("status") in ("parsing", "parsed", "rejected")
+        runner.retire_statement(client, bad_id)
 
         bs = runner.get_balance_sheet(client, as_of_date="2025-04-30")
         inc = runner.get_income_statement(

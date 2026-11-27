@@ -277,3 +277,216 @@ def test_financial_scenario_hook_emits_structured_json_and_summary(
     _save_reports(args, report)
     assert json.loads(json_report.read_text(encoding="utf-8"))["summary"]["passed"] == 1
     assert json.loads(summary_report.read_text(encoding="utf-8"))["status"] == "PASS"
+
+
+def test_ensure_corpus_pdf_fetches_and_verifies_sha256(tmp_path: Path) -> None:
+    """Missing external PDFs fetch from download_url with strict sha256 verification (#3255)."""
+    import hashlib
+    from tests.benchmarks.pdf_corpus_oracle import CorpusStatementSpec, ensure_corpus_pdf
+
+    pdf_bytes = b"%PDF-1.4\n1 0 obj\n<<>>\nendobj\n%%EOF\n"
+    expected_sha = hashlib.sha256(pdf_bytes).hexdigest()
+    spec = CorpusStatementSpec(
+        fixture_id="ext_001",
+        dimension="dimension_1_sg_retail_digital_sgd",
+        source_platform="github",
+        local_path="tests/fixtures/benchmarks/bankstatemently/ext_001.pdf",
+        sha256=expected_sha,
+        institution="TestBank",
+        account_key="TestBank:0001",
+        doc_type="bank_statement",
+        currency="SGD",
+        period_start="2025-01-01",
+        period_end="2025-01-31",
+        opening_balance=Decimal("100.00"),
+        closing_balance=Decimal("100.00"),
+        expected_txn_count=0,
+        expected_inflows=Decimal("0.00"),
+        expected_outflows=Decimal("0.00"),
+        net_movement=Decimal("0.00"),
+        download_url="https://example.invalid/ext_001.pdf",
+    )
+
+    class _FakeResp:
+        def __init__(self, content: bytes) -> None:
+            self.content = content
+
+        def raise_for_status(self) -> None:
+            return None
+
+    fetched_path = ensure_corpus_pdf(
+        spec, root_dir=tmp_path, getter=lambda _url: _FakeResp(pdf_bytes)
+    )
+    assert fetched_path.exists() and fetched_path.read_bytes() == pdf_bytes
+
+    tampered = CorpusStatementSpec(**{**spec.__dict__, "local_path": "bad/ext_002.pdf"})
+    with pytest.raises(ValueError, match="sha256"):
+        ensure_corpus_pdf(
+            tampered, root_dir=tmp_path, getter=lambda _url: _FakeResp(b"%PDF-tampered")
+        )
+    assert not (tmp_path / "bad/ext_002.pdf").exists()
+
+    no_url = CorpusStatementSpec(
+        **{**spec.__dict__, "local_path": "missing/none.pdf", "download_url": None}
+    )
+    with pytest.raises(FileNotFoundError):
+        ensure_corpus_pdf(no_url, root_dir=tmp_path)
+
+
+def test_pdf_corpus_oracle_and_scenario_ratchet_policy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Ratchet gate passes >= floor when hard invariants hold, and hard-fails on equation breaks."""
+    from tests.benchmarks import pdf_corpus_oracle as oracle_mod
+    from tests.benchmarks.case_types import CaseResult
+    from tests.benchmarks.run_financial_scenario_benchmark import (
+        evaluate_scenario_ratchet,
+        ScenarioBenchmarkRunner,
+    )
+
+    policy_file = tmp_path / "ratchet.json"
+    policy_file.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "pdf_corpus_oracle": {
+                    "floor_passed": 2,
+                    "total_expected": 3,
+                    "hard_invariants": ["fundamental_accounting_equation"],
+                },
+                "financial_scenario_benchmark": {
+                    "floor_passed": 3,
+                    "total_expected": 6,
+                    "max_equation_delta": "0.00",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    policy = json.loads(policy_file.read_text(encoding="utf-8"))
+
+    # 2/3 pass with hard invariants intact => ratchet gate passes, with P50/P95 & error_code_counts
+    res_ok_ratchet = [
+        {
+            "fixture_id": "f1",
+            "status": "PASS",
+            "duration_seconds": 1.0,
+            "comparison": {
+                "passed": True,
+                "invariants": [
+                    {"invariant_id": "fundamental_accounting_equation", "passed": True}
+                ],
+                "failures": [],
+            },
+            "failures": [],
+        },
+        {
+            "fixture_id": "f2",
+            "status": "PASS",
+            "duration_seconds": 2.0,
+            "comparison": {
+                "passed": True,
+                "invariants": [
+                    {"invariant_id": "fundamental_accounting_equation", "passed": True}
+                ],
+                "failures": [],
+            },
+            "failures": [],
+        },
+        {
+            "fixture_id": "f3",
+            "status": "FAIL",
+            "duration_seconds": 3.0,
+            "comparison": {
+                "passed": False,
+                "invariants": [
+                    {"invariant_id": "fundamental_accounting_equation", "passed": True},
+                    {"invariant_id": "cash_flow_to_balance_sheet_cash", "passed": False},
+                ],
+                "failures": ["cash_flow_to_balance_sheet_cash: delta"],
+            },
+            "failures": ["cash_flow_to_balance_sheet_cash: delta"],
+        },
+    ]
+    report = oracle_mod._build_oracle_report_data(
+        res_ok_ratchet,
+        manifest_version="2.2",
+        app_url="https://report-staging.zitian.party",
+        ratchet_policy=policy["pdf_corpus_oracle"],
+    )
+    assert report["summary"]["all_passed"] is False
+    assert report["summary"]["success"] is True
+    assert report["summary"]["ratchet"]["gate_passed"] is True
+    assert report["summary"]["ratchet"]["floor_passed"] == 2
+    assert report["summary"]["p50_seconds"] == 2.0
+    assert report["summary"]["p95_seconds"] >= 2.0
+    assert report["summary"]["error_code_counts"]["THREE_STATEMENT_MISMATCH"] == 1
+
+    # Any fundamental_accounting_equation break hard-fails even if floor is met
+    res_hard_break = [
+        res_ok_ratchet[0],
+        res_ok_ratchet[1],
+        {
+            **res_ok_ratchet[2],
+            "comparison": {
+                "passed": False,
+                "invariants": [
+                    {"invariant_id": "fundamental_accounting_equation", "passed": False}
+                ],
+                "failures": ["fundamental_accounting_equation: delta 5.00"],
+            },
+        },
+    ]
+    hard_report = oracle_mod._build_oracle_report_data(
+        res_hard_break,
+        manifest_version="2.2",
+        app_url="https://report-staging.zitian.party",
+        ratchet_policy=policy["pdf_corpus_oracle"],
+    )
+    assert hard_report["summary"]["success"] is False
+    assert hard_report["summary"]["ratchet"]["hard_invariant_ok"] is False
+
+    # Below floor fails ratchet
+    res_below = [res_ok_ratchet[0], res_ok_ratchet[2], res_ok_ratchet[2]]
+    low_report = oracle_mod._build_oracle_report_data(
+        res_below,
+        manifest_version="2.2",
+        app_url="https://report-staging.zitian.party",
+        ratchet_policy=policy["pdf_corpus_oracle"],
+    )
+    assert low_report["summary"]["success"] is False
+
+    # Scenario ratchet: 4/6 pass with 0.00 equation_delta passes floor 3
+    case_results = [
+        CaseResult(
+            case_id=f"case_{i}",
+            case_name=f"Case {i}",
+            status="PASS" if i <= 4 else "FAIL",
+            duration_seconds=float(i),
+            details={"equation_delta": "0.00"} if i <= 4 else {},
+            error_message=None if i <= 4 else "Timeout awaiting parse",
+        )
+        for i in range(1, 7)
+    ]
+    scen_ratchet = evaluate_scenario_ratchet(case_results, policy["financial_scenario_benchmark"])
+    assert scen_ratchet["gate_passed"] is True and scen_ratchet["hard_invariant_ok"] is True
+
+    # Runner distinguishes retire_statement (DELETE 204) vs reject_statement (POST /rejections -> parsing)
+    seen_calls: list[tuple[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen_calls.append((request.method, request.url.path))
+        if request.method == "DELETE":
+            return httpx.Response(204)
+        if request.url.path.endswith("/rejections"):
+            return httpx.Response(200, json={"id": "stmt-9", "status": "parsing"})
+        return httpx.Response(404)
+
+    api = httpx.Client(base_url="http://api.test", transport=httpx.MockTransport(handler))
+    runner = ScenarioBenchmarkRunner("http://api.test")
+    assert runner.reject_statement(api, "stmt-9")["status"] == "parsing"
+    runner.retire_statement(api, "stmt-9")
+    assert seen_calls == [
+        ("POST", "/api/statements/stmt-9/rejections"),
+        ("DELETE", "/api/statements/stmt-9"),
+    ]

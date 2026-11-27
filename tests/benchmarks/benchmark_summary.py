@@ -321,7 +321,8 @@ def extract_summary_data(report_data: Any) -> dict[str, Any]:
         else (PASS if _run_passed(rd, counts, results) else FAIL)
     )
     max_val, max_ccy = _largest_delta(results)
-    return {
+    summary_raw = _summary_of(rd)
+    out = {
         "version": version,
         "run_at": _text_value(rd.get("run_at")) or "",
         "app_url": _text_value(rd.get("app_url")) or "",
@@ -340,3 +341,7 @@ def extract_summary_data(report_data: Any) -> dict[str, Any]:
         "domains_covered": len(domains),
         "report_url": None if version is None else f"{version}/report.html",
     }
+    for extra_key in ("p50_seconds", "p95_seconds", "error_code_counts", "ratchet"):
+        if extra_key in summary_raw and summary_raw[extra_key] is not None:
+            out[extra_key] = summary_raw[extra_key]
+    return out

@@ -6,11 +6,15 @@ from __future__ import annotations
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+import hashlib
 import json
+import math
+import os
 import sys
+import tempfile
 import time
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from decimal import ROUND_HALF_EVEN, Decimal
 from pathlib import Path
@@ -25,6 +29,9 @@ from tests.fixtures.provider_review import wait_for_statement_runs_sync
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_MANIFEST_PATH = (
     REPO_ROOT / "tests" / "fixtures" / "benchmarks" / "manifest.yaml"
+)
+DEFAULT_RATCHET_POLICY_PATH = (
+    REPO_ROOT / "tests" / "fixtures" / "benchmarks" / "ratchet_policy.json"
 )
 PENNY = Decimal("0.01")
 ZERO = Decimal("0.00")
@@ -104,6 +111,7 @@ class CorpusStatementSpec:
     expected_outflows: Decimal
     net_movement: Decimal
     transactions: tuple[CorpusTransaction, ...] = ()
+    download_url: str | None = None
 
     def __post_init__(self) -> None:
         for attr in (
@@ -299,9 +307,47 @@ def load_pdf_benchmark_corpus(
                 expected_outflows=outflows,
                 net_movement=_to_dec(str(gt["net_movement"])),
                 transactions=txns,
+                download_url=str(item["download_url"]) if item.get("download_url") else None,
             )
         )
     return tuple(specs)
+
+
+def ensure_corpus_pdf(
+    spec: CorpusStatementSpec,
+    root_dir: Path = REPO_ROOT,
+    *,
+    getter: Callable[[str], Any] | None = None,
+) -> Path:
+    """Resolve local PDF fixture, fetching from download_url with strict sha256 check when absent."""
+    pdf_path = root_dir / spec.local_path
+    if pdf_path.exists():
+        if not spec.download_url or hashlib.sha256(pdf_path.read_bytes()).hexdigest() == spec.sha256:
+            return pdf_path
+    if not spec.download_url:
+        raise FileNotFoundError(f"Missing PDF file for {spec.fixture_id}: {pdf_path}")
+    if not spec.download_url.startswith(("https://", "http://")):
+        raise ValueError(f"Unsupported download_url scheme for {spec.fixture_id}")
+    fetch = getter or (lambda url: httpx.get(url, follow_redirects=True, timeout=60.0))
+    resp = fetch(spec.download_url)
+    resp.raise_for_status()
+    payload = resp.content
+    actual_sha = hashlib.sha256(payload).hexdigest()
+    if actual_sha != spec.sha256:
+        raise ValueError(
+            f"Downloaded PDF sha256 mismatch for {spec.fixture_id}: expected {spec.sha256}, got {actual_sha}"
+        )
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(dir=str(pdf_path.parent), prefix=f".{pdf_path.name}.", suffix=".tmp")
+    tmp_path = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(payload)
+        os.replace(tmp_path, pdf_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
+    return pdf_path
 
 
 def _convert_currency(
@@ -788,9 +834,7 @@ def run_live_pdf_statement_verification(
     poll_timeout_seconds: Decimal = Decimal("180.00"),
     poll_interval_seconds: Decimal = Decimal("2.00"),
 ) -> dict[str, Any]:
-    pdf_path = root_dir / spec.local_path
-    if not pdf_path.exists():
-        raise FileNotFoundError(f"Missing PDF file for {spec.fixture_id}: {pdf_path}")
+    pdf_path = ensure_corpus_pdf(spec, root_dir=root_dir)
 
     up = client.post(
         "/api/statements",
@@ -1017,16 +1061,92 @@ def _execute_fixtures(
         return list(pool.map(run_one, selected))
 
 
+def _load_ratchet_policy(
+    section: str,
+    policy_path: Path = DEFAULT_RATCHET_POLICY_PATH,
+) -> dict[str, Any] | None:
+    if not policy_path.is_file():
+        return None
+    raw = json.loads(policy_path.read_text(encoding="utf-8"))
+    sec = raw.get(section)
+    return dict(sec) if isinstance(sec, Mapping) else None
+
+
+def _percentile(values: Sequence[float], ratio: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, max(0, math.ceil(ratio * len(ordered)) - 1))
+    return round(ordered[idx], 3)
+
+
+def _classify_oracle_error(result: Mapping[str, Any]) -> str:
+    codes = result.get("issue_codes")
+    if isinstance(codes, Sequence) and not isinstance(codes, (str, bytes)) and codes:
+        return str(codes[0])
+    msg = str(result.get("error_message") or "")
+    failures_text = " ".join(str(f) for f in (result.get("failures") or ()))
+    combined = f"{msg} {failures_text}"
+    if "Timeout" in combined or "Timed out" in combined:
+        return "TIMEOUT"
+    if "FileNotFoundError" in combined or "Missing PDF" in combined or "sha256" in combined:
+        return "MISSING_PDF_FIXTURE"
+    if "Envelope confirmation failed" in combined:
+        return "ENVELOPE_CONFIRMATION_FAILED"
+    if "Approve failed" in combined:
+        return "APPROVAL_BLOCKED"
+    if "Upload failed" in combined:
+        return "UPLOAD_FAILED"
+    if result.get("comparison") is not None or failures_text:
+        return "THREE_STATEMENT_MISMATCH"
+    return "OTHER_ERROR"
+
+
 def _build_oracle_report_data(
     results: list[dict[str, Any]],
     *,
     manifest_version: str,
     app_url: str | None,
+    ratchet_policy: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     total = len(results)
     passed = sum(1 for r in results if r.get("status") == "PASS")
     failed = total - passed
-    total_duration = round(sum(float(r.get("duration_seconds") or 0.0) for r in results), 3)
+    durations = [float(r.get("duration_seconds") or 0.0) for r in results]
+    total_duration = round(sum(durations), 3)
+    p50_seconds = _percentile(durations, 0.50)
+    p95_seconds = _percentile(durations, 0.95)
+    error_code_counts: dict[str, int] = {}
+    for r in results:
+        if r.get("status") != "PASS":
+            code = _classify_oracle_error(r)
+            error_code_counts[code] = error_code_counts.get(code, 0) + 1
+
+    hard_invariants = tuple(
+        str(inv)
+        for inv in (
+            (ratchet_policy or {}).get("hard_invariants")
+            or ("fundamental_accounting_equation", "statement_retirement_cleanup")
+        )
+    )
+    hard_invariant_failures: list[str] = []
+    for r in results:
+        comp = r.get("comparison")
+        if isinstance(comp, Mapping):
+            for inv in comp.get("invariants") or ():
+                if (
+                    isinstance(inv, Mapping)
+                    and inv.get("invariant_id") in hard_invariants
+                    and inv.get("passed") is False
+                ):
+                    hard_invariant_failures.append(f"{r.get('fixture_id')}:{inv.get('invariant_id')}")
+
+    total_expected = int((ratchet_policy or {}).get("total_expected") or total)
+    enforced = bool(ratchet_policy and app_url and total >= total_expected > 0)
+    floor_passed = int((ratchet_policy or {}).get("floor_passed") or total)
+    hard_invariant_ok = not hard_invariant_failures
+    all_passed = total > 0 and failed == 0
+    gate_passed = hard_invariant_ok and (passed >= floor_passed if enforced else all_passed)
     return {
         "suite": "pdf_corpus_oracle",
         "manifest_version": manifest_version,
@@ -1037,8 +1157,20 @@ def _build_oracle_report_data(
             "total": total,
             "passed": passed,
             "failed": failed,
-            "success": total > 0 and failed == 0,
+            "all_passed": all_passed,
+            "success": gate_passed,
             "duration_seconds": total_duration,
+            "p50_seconds": p50_seconds,
+            "p95_seconds": p95_seconds,
+            "error_code_counts": error_code_counts,
+            "ratchet": {
+                "enforced": enforced,
+                "floor_passed": floor_passed if enforced else total,
+                "total_expected": total_expected,
+                "hard_invariant_ok": hard_invariant_ok,
+                "hard_invariant_failures": hard_invariant_failures,
+                "gate_passed": gate_passed,
+            },
         },
         "results": results,
     }
@@ -1051,7 +1183,7 @@ def extract_pdf_oracle_summary(report_data: Mapping[str, Any]) -> dict[str, Any]
     passed = int(summary.get("passed", sum(1 for r in results if r.get("status") == "PASS")))
     failed = int(summary.get("failed", total - passed))
     success = bool(summary.get("success", total > 0 and failed == 0))
-    return {
+    out: dict[str, Any] = {
         "suite": "pdf_corpus_oracle",
         "manifest_version": report_data.get("manifest_version", ""),
         "run_at": report_data.get("run_at", ""),
@@ -1061,13 +1193,20 @@ def extract_pdf_oracle_summary(report_data: Mapping[str, Any]) -> dict[str, Any]
         "fixtures_total": total,
         "fixtures_passed": passed,
         "fixtures_failed": failed,
+        "all_passed": bool(summary.get("all_passed", total > 0 and failed == 0)),
         "duration_seconds": float(summary.get("duration_seconds", 0.0)),
+        "p50_seconds": float(summary.get("p50_seconds", 0.0)),
+        "p95_seconds": float(summary.get("p95_seconds", 0.0)),
+        "error_code_counts": dict(summary.get("error_code_counts") or {}),
         "failures_by_fixture": {
             str(r["fixture_id"]): list(r.get("failures") or [])
             for r in results
             if r.get("status") != "PASS"
         },
     }
+    if isinstance(summary.get("ratchet"), Mapping):
+        out["ratchet"] = dict(summary["ratchet"])
+    return out
 
 
 def _save_oracle_outputs(
@@ -1130,8 +1269,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     results = _execute_fixtures(
         selected, app_url=args.app_url, max_workers=args.max_workers
     )
+    ratchet_policy = (
+        _load_ratchet_policy("pdf_corpus_oracle") if (args.app_url and not args.fixture) else None
+    )
     report_data = _build_oracle_report_data(
-        results, manifest_version=manifest_version, app_url=args.app_url
+        results,
+        manifest_version=manifest_version,
+        app_url=args.app_url,
+        ratchet_policy=ratchet_policy,
     )
     _save_oracle_outputs(
         report_data, json_report=args.json_report, output_summary=args.output_summary

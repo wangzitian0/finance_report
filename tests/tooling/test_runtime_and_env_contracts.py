@@ -721,3 +721,41 @@ def test_AC1_10_4_csp_script_src_allows_external_hosts_and_blocks_unsafe_eval() 
         or f"https://*.{host.split('.', 1)[1]}" in directive
     )
     assert "'unsafe-eval'" not in directive
+
+
+def test_docs_workflow_and_e2e_bootstrap_use_uv_and_active_python(tmp_path: Path) -> None:
+    """Docs build must provision uv for hooks, and runtime hooks must install into active Python."""
+    toolchain = toolchain_contract.load_toolchain(ROOT)
+    docs_wf = yaml.safe_load((ROOT / ".github/workflows/docs.yml").read_text(encoding="utf-8"))
+    assert docs_wf["env"]["UV_VERSION"] == toolchain["runtime"]["uv"]
+
+    build_steps = docs_wf["jobs"]["build"]["steps"]
+    assert any(
+        step.get("uses") == "./.github/actions/setup-backend-env"
+        for step in build_steps
+    ), "docs.yml must invoke ./.github/actions/setup-backend-env so mkdocs hooks can run uv"
+
+    drift_dir = tmp_path / "docs_uv_drift"
+    _copy_contract_inputs(drift_dir)
+    docs_file = drift_dir / ".github/workflows/docs.yml"
+    docs_file.write_text(
+        docs_file.read_text(encoding="utf-8").replace(
+            f'UV_VERSION: "{toolchain["runtime"]["uv"]}"',
+            'UV_VERSION: "0.0.0"',
+            1,
+        ),
+        encoding="utf-8",
+    )
+    assert toolchain_contract.run_contract(drift_dir) == 1
+
+    hooks = _hooks_payload()
+    bootstraps = [
+        (c["id"], c["bootstrap"])
+        for c in hooks["checks"]
+        if "bootstrap" in c and "tests/e2e/requirements.txt" in c["bootstrap"]
+    ]
+    assert len(bootstraps) >= 8
+    for cid, cmd in bootstraps:
+        assert "--system" not in cmd, f"{cid} bootstrap must target active Python instead of --system"
+        assert '--python "$(command -v python)"' in cmd, f"{cid} missing active-python flag"
+        assert "python -m playwright install chromium" in cmd, f"{cid} missing python -m playwright"

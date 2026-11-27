@@ -7,6 +7,7 @@ on:
       - 'docs/**'
       - 'mkdocs.yml'
       - 'common/testing/quality_board.py'
+      - '.github/workflows/docs.yml'
   schedule:
     - cron: '0 */4 * * *'
   workflow_dispatch:
@@ -23,6 +24,7 @@ concurrency:
 
 env:
   PYTHON_VERSION: "3.12.12"
+  UV_VERSION: "0.9.18"
 
 jobs:
   build:
@@ -32,12 +34,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      - name: Setup Backend Environment
+        uses: ./.github/actions/setup-backend-env
         with:
+          uv-version: ${{ env.UV_VERSION }}
           python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip'
-          cache-dependency-path: docs/requirements.txt
 
       - name: Install dependencies
         run: pip install -r docs/requirements.txt

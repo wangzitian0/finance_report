@@ -44,7 +44,7 @@
       "writes": false,
       "accepts_scale": false,
       "timeout_seconds": 120,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "optional_env": [
         "PROD_SMOKE_EMAIL",
         "PROD_SMOKE_PASSWORD"
@@ -83,7 +83,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 240,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "cells": {
         "remove": {
           "staging.post": {
@@ -116,7 +116,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 240,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "optional_env": [
         "TEST_USER_EMAIL",
         "TEST_USER_PASSWORD"
@@ -154,7 +154,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 120,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
         "LLM_BASE_URL",
@@ -192,7 +192,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 240,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
         "LLM_BASE_URL",
@@ -230,7 +230,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 900,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
         "LLM_BASE_URL",
@@ -266,7 +266,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 900,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "optional_env": [
         "TEST_USER_EMAIL",
         "TEST_USER_PASSWORD"
@@ -297,7 +297,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 900,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
         "LLM_BASE_URL",
@@ -330,7 +330,7 @@
       "writes": true,
       "accepts_scale": false,
       "timeout_seconds": 900,
-      "bootstrap": "uv pip install --system -r tests/e2e/requirements.txt && playwright install chromium",
+      "bootstrap": "uv pip install --python \"$(command -v python)\" -r tests/e2e/requirements.txt && python -m playwright install chromium",
       "optional_env": [
         "LLM_PROVIDER",
         "LLM_BASE_URL",

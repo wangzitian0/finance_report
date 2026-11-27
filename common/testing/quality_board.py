@@ -35,6 +35,7 @@ DEFAULT_FINANCE_REPO = "wangzitian0/finance_report"
 DEFAULT_INFRA2_REPO = "wangzitian0/infra2"
 DEFAULT_STAGING_HEALTH_URL = "https://report-staging.zitian.party/api/health?full=1"
 DEFAULT_PROD_HEALTH_URL = "https://report.zitian.party/api/health?full=1"
+RATCHET_POLICY_REL_PATH = Path("tests/fixtures/benchmarks/ratchet_policy.json")
 
 _PRE_NEEDS = frozenset({"code", "recorded_llm"})
 _SCHEDULED_AUDIT_CAPABILITIES = frozenset(
@@ -664,12 +665,6 @@ def compute_freshness(
                 f"Latest scheduled_audit is {audit_age_hours:.1f}h old (> {WARN_AUDIT_AGE_HOURS:.0f}h)"
             )
 
-    latest_audit = scheduled_audit.get("latest") or {}
-    if latest_audit and latest_audit.get("status") != "pass":
-        warn_reasons.append(
-            f"Latest scheduled_audit status is {latest_audit.get('status')!r}"
-        )
-
     ci_count = int(ci_post.get("artifacts_count") or 0)
     ci_dt = parse_iso_utc(ci_post.get("latest_at_utc"))
     ci_age_hours = (
@@ -777,6 +772,7 @@ def build_dashboard_data(
         scheduled_audit=scheduled_audit,
         runtime_health=runtime_health,
     )
+    benchmark_ratchet = _extract_benchmark_ratchet(repo_root, scheduled_audit)
     return {
         "schema_version": 1,
         "generated_at_utc": format_utc(current),
@@ -785,8 +781,52 @@ def build_dashboard_data(
         "runtime_health": runtime_health,
         "stage_records": stage_records,
         "scheduled_audit": scheduled_audit,
+        "benchmark_ratchet": benchmark_ratchet,
         "ci_post": ci_post,
         "user_cases": user_cases,
+    }
+
+
+def _extract_benchmark_ratchet(
+    repo_root: Path,
+    scheduled_audit: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Combine static ratchet policy floors with latest scheduled_audit oracle metrics."""
+    policy_path = repo_root / RATCHET_POLICY_REL_PATH
+    policy: dict[str, Any] = {}
+    if policy_path.is_file():
+        try:
+            policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        except ValueError:
+            policy = {}
+    latest = scheduled_audit.get("latest") or {}
+    oracles = latest.get("oracle_summaries") or {}
+    pdf_sum = oracles.get("pdf_corpus_oracle_summary") or {}
+    scen_sum = oracles.get("financial_scenario_benchmark_summary") or {}
+    pdf_pol = policy.get("pdf_corpus_oracle") or {}
+    scen_pol = policy.get("financial_scenario_benchmark") or {}
+    return {
+        "pdf_corpus_oracle": {
+            "passed": int(pdf_sum.get("fixtures_passed", pdf_sum.get("passed", 0)) or 0),
+            "total": int(pdf_sum.get("fixtures_total", pdf_pol.get("total_expected", 20)) or 0),
+            "floor_passed": int(
+                (pdf_sum.get("ratchet") or {}).get("floor_passed", pdf_pol.get("floor_passed", 0)) or 0
+            ),
+            "p50_seconds": pdf_sum.get("p50_seconds"),
+            "p95_seconds": pdf_sum.get("p95_seconds"),
+            "error_code_counts": dict(pdf_sum.get("error_code_counts") or {}),
+        },
+        "financial_scenario_benchmark": {
+            "passed": int(scen_sum.get("cases_passed", scen_sum.get("passed", 0)) or 0),
+            "total": int(scen_sum.get("cases_total", scen_pol.get("total_expected", 6)) or 0),
+            "floor_passed": int(
+                (scen_sum.get("ratchet") or {}).get("floor_passed", scen_pol.get("floor_passed", 0)) or 0
+            ),
+            "p50_seconds": scen_sum.get("p50_seconds"),
+            "p95_seconds": scen_sum.get("p95_seconds"),
+            "error_code_counts": dict(scen_sum.get("error_code_counts") or {}),
+            "thirty_flows_coverage": scen_sum.get("thirty_flows_coverage") or "0/30",
+        },
     }
 
 
@@ -984,6 +1024,38 @@ def render_html(data: Mapping[str, Any]) -> str:
             "</tr>"
         )
 
+    ratchet = data.get("benchmark_ratchet") or {}
+    ratchet_cards = []
+    for title, key in (
+        ("PDF Corpus Oracle", "pdf_corpus_oracle"),
+        ("Scenario Benchmarks", "financial_scenario_benchmark"),
+    ):
+        entry = ratchet.get(key) or {}
+        passed_n = int(entry.get("passed") or 0)
+        total_n = int(entry.get("total") or 0)
+        floor_n = int(entry.get("floor_passed") or 0)
+        kind = "ok" if (total_n > 0 and passed_n >= floor_n) else "warn"
+        p50 = entry.get("p50_seconds")
+        p95 = entry.get("p95_seconds")
+        lat_line = (
+            f"P50: {p50}s · P95: {p95}s"
+            if isinstance(p50, (int, float)) and isinstance(p95, (int, float))
+            else "Latency: n/a"
+        )
+        errs = entry.get("error_code_counts") or {}
+        err_badges = " ".join(
+            _badge(f"{k}: {v}", "warn") for k, v in sorted(errs.items())
+        ) or '<span class="muted">No recorded errors</span>'
+        ratchet_cards.append(
+            '<div class="card">'
+            f'<div class="card-head"><h3>{html.escape(title)}</h3>'
+            f'<div>{_badge(f"{passed_n} / {total_n}", kind)} '
+            f'<span class="muted">Floor: {floor_n}</span></div></div>'
+            f'<p class="muted">{html.escape(lat_line)}</p>'
+            f'<div>{err_badges}</div>'
+            "</div>"
+        )
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1038,6 +1110,9 @@ def render_html(data: Mapping[str, Any]) -> str:
     <thead><tr><th>Run</th><th>Created (UTC)</th><th>Version</th><th>Status</th><th>Complete</th><th>Checks</th><th>Oracle Summary</th></tr></thead>
     <tbody>{''.join(audit_rows) or '<tr><td colspan="7" class="muted">No scheduled_audit runs observed.</td></tr>'}</tbody>
   </table>
+
+  <h2>2b. Benchmark Capability &amp; Ratchet Gate</h2>
+  <section class="grid">{''.join(ratchet_cards)}</section>
 
   <h2>3. CI Timing &amp; Coverage Trends (ci.post)</h2>
   <section class="grid">

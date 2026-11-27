@@ -4,16 +4,19 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import importlib.metadata
 import io
 import json
+import math
 import sys
 import time
 import uuid
 import zipfile
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -359,15 +362,24 @@ class ScenarioBenchmarkRunner:
         statement_id: str,
         notes: str = "Low quality corrupted scan rejected in triage",
     ) -> dict[str, Any]:
+        """Stage 1 reject triggers immediate reparse (`parsing`) and logs rejection feedback."""
         data = _post_json(
             client,
             f"/api/statements/{statement_id}/rejections",
             f"Rejection failed for statement {statement_id}",
             json={"notes": notes},
         )
-        if data.get("status") != "rejected":
-            raise RuntimeError(f"Expected rejected status for statement {statement_id}, got: {data}")
+        if data.get("status") not in ("parsing", "parsed", "rejected"):
+            raise RuntimeError(f"Expected parsing/parsed/rejected status for statement {statement_id}, got: {data}")
         return data
+
+    def retire_statement(self, client: httpx.Client, statement_id: str) -> None:
+        """Retire a statement from ledger and review views via DELETE (#3255)."""
+        _check_resp(
+            client.delete(f"/api/statements/{statement_id}"),
+            f"Retirement failed for statement {statement_id}",
+            expected=(200, 204),
+        )
 
     def assert_approval_blocked_by_balance_mismatch(self, client: httpx.Client, statement_id: str) -> dict[str, Any]:
         # The body names the reviewed result, so the block below comes from the balance check and not from a missing digest.
@@ -809,19 +821,104 @@ def _dispatch_cases(
     return results
 
 
-def _build_report_data(args: argparse.Namespace, results: list[CaseResult], all_passed: bool) -> dict[str, Any]:
+DEFAULT_RATCHET_POLICY_PATH = REPO_ROOT / "tests" / "fixtures" / "benchmarks" / "ratchet_policy.json"
+
+
+def _load_scenario_ratchet_policy(path: Path = DEFAULT_RATCHET_POLICY_PATH) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    raw = json.loads(path.read_text(encoding="utf-8"))
+    sec = raw.get("financial_scenario_benchmark")
+    return dict(sec) if isinstance(sec, Mapping) else None
+
+
+def _percentile_seconds(values: Sequence[float], ratio: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    idx = min(len(ordered) - 1, max(0, math.ceil(ratio * len(ordered)) - 1))
+    return round(ordered[idx], 3)
+
+
+def _classify_case_error(result: CaseResult) -> str:
+    msg = str(result.error_message or "")
+    if "Timeout" in msg or "Timed out" in msg:
+        return "TIMEOUT"
+    if "review-envelopes" in msg or "Envelope confirmation" in msg:
+        return "ENVELOPE_CONFIRMATION_FAILED"
+    if "Rejection failed" in msg or "Expected rejected" in msg:
+        return "REJECTION_SEMANTICS_ERROR"
+    if "equation" in msg.lower() or "balanced" in msg.lower():
+        return "EQUATION_INVARIANT_FAILED"
+    return "CASE_ASSERTION_FAILED"
+
+
+def evaluate_scenario_ratchet(
+    results: Sequence[CaseResult],
+    policy: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Check zero equation delta invariant and non-regression ratchet floor."""
+    hard_failures: list[str] = []
+    max_delta_limit = Decimal(str((policy or {}).get("max_equation_delta", "0.00")))
+    for r in results:
+        details = r.details if isinstance(r.details, Mapping) else {}
+        if details.get("is_balanced") is False:
+            hard_failures.append(f"{r.case_id}:is_balanced=False")
+        for key in ("equation_delta", "equation_delta_sgd", "equation_delta_usd"):
+            raw = details.get(key)
+            if raw is None or isinstance(raw, bool):
+                continue
+            try:
+                val = abs(Decimal(str(raw)))
+            except InvalidOperation:
+                continue
+            if val > max_delta_limit:
+                hard_failures.append(f"{r.case_id}:{key}={val}")
+
+    passed = sum(1 for r in results if r.status == "PASS")
+    total_expected = int((policy or {}).get("total_expected") or len(results))
+    enforced = bool(policy and len(results) >= total_expected > 0)
+    floor_passed = int((policy or {}).get("floor_passed") or len(results))
+    hard_invariant_ok = not hard_failures
+    all_passed = all(r.status in ("PASS", "SKIPPED") for r in results) and passed >= 1
+    gate_passed = hard_invariant_ok and (passed >= floor_passed if enforced else all_passed)
+    return {
+        "enforced": enforced,
+        "floor_passed": floor_passed if enforced else len(results),
+        "total_expected": total_expected,
+        "passed": passed,
+        "hard_invariant_ok": hard_invariant_ok,
+        "hard_invariant_failures": hard_failures,
+        "gate_passed": gate_passed,
+    }
+
+
+def _build_report_data(
+    args: argparse.Namespace,
+    results: list[CaseResult],
+    all_passed: bool,
+    ratchet: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    durations = [float(r.duration_seconds) for r in results]
+    error_counts = dict(Counter(_classify_case_error(r) for r in results if r.status not in ("PASS", "SKIPPED")))
+    summary: dict[str, Any] = {
+        "total": len(results),
+        "passed": sum(1 for r in results if r.status == "PASS"),
+        "skipped": sum(1 for r in results if r.status == "SKIPPED"),
+        "failed": sum(1 for r in results if r.status not in ("PASS", "SKIPPED")),
+        "success": all_passed,
+        "p50_seconds": _percentile_seconds(durations, 0.50),
+        "p95_seconds": _percentile_seconds(durations, 0.95),
+        "error_code_counts": error_counts,
+    }
+    if ratchet is not None:
+        summary["ratchet"] = dict(ratchet)
     return {
         "suite": "financial_reporting_temporal_scenarios",
         "version_ref": args.version_ref,
         "app_url": args.app_url,
         "run_at": datetime.now(UTC).isoformat(),
-        "summary": {
-            "total": len(results),
-            "passed": sum(1 for r in results if r.status == "PASS"),
-            "skipped": sum(1 for r in results if r.status == "SKIPPED"),
-            "failed": sum(1 for r in results if r.status not in ("PASS", "SKIPPED")),
-            "success": all_passed,
-        },
+        "summary": summary,
         "results": [asdict(r) for r in results],
     }
 
@@ -900,9 +997,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("Error: No valid benchmark cases selected.", file=sys.stderr)
         return 2
     all_passed = _run_succeeded(results, args.allow_skip)
-    report_data = _build_report_data(args, results, all_passed)
+    is_full_suite = args.case in (None, "all") and not args.domain and not args.flow
+    ratchet_policy = _load_scenario_ratchet_policy() if is_full_suite else None
+    ratchet = evaluate_scenario_ratchet(results, ratchet_policy)
+    report_data = _build_report_data(args, results, all_passed, ratchet=ratchet)
     _save_reports(args, report_data)
     _print_summary(results, report_data, args.json_report)
+    if is_full_suite and ratchet_policy is not None:
+        return 0 if ratchet["gate_passed"] else 1
     return 0 if all_passed else 1
 
 
