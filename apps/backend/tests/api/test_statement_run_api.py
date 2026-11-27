@@ -441,10 +441,12 @@ async def test_a_reject_and_a_rerun_at_once_give_one_winner_and_one_409(
 
 
 async def test_classify_run_dispatch_failure_and_rejections_validation(client, db, monkeypatch, test_user):
+    from unittest.mock import AsyncMock
+
     sid = (await _statement(db, test_user)).id
     monkeypatch.setattr(
         "src.routers.statements.submit_classify_run",
-        lambda *_a, **_kw: (_ for _ in ()).throw(RuntimeError("secret dispatch failure")),
+        AsyncMock(side_effect=RuntimeError("secret dispatch failure")),
     )
     assert (
         await client.post(

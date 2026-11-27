@@ -58,7 +58,7 @@ _SDK_ROLES = {
 }
 _GUARD_DEV = {
     "secret_key": "dev_secret_key_change_in_prod",
-    "database_url": "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report",
+    "database_url": "postgresql+asyncpg://postgres:postgres@127.0.0.1:55432/finance_report",
     "s3_secret_key": "minio_local_secret",
 }
 _GUARD_STRONG = {

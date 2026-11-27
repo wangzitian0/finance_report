@@ -9,7 +9,7 @@ from contextlib import contextmanager
 from typing import Any
 from uuid import uuid4
 
-from infra2_sdk.telemetry import init_worker
+from infra2_sdk.telemetry import worker_run
 
 import src.config
 from src.observability import telemetry_metrics
@@ -21,15 +21,7 @@ _configured = False
 _providers: Any | None = None
 
 
-def configure_worker_telemetry() -> bool:
-    """Initialize worker JSON logging and OTel providers via infra2-sdk."""
-    global _configured, _providers
-    if not settings.otel_exporter_otlp_endpoint:
-        return False
-    if _configured:
-        return True
-    # Remove Prefect's root stderr handlers so SDK stdout JSON logging attaches cleanly.
-    logging.getLogger().handlers.clear()
+def _build_worker_env() -> tuple[str, dict[str, str]]:
     service_name = os.environ.get("OTEL_SERVICE_NAME") or DEFAULT_WORKER_SERVICE_NAME
     settings.otel_service_name = service_name
     base_attrs = ",".join(
@@ -41,22 +33,10 @@ def configure_worker_telemetry() -> bool:
     settings.otel_resource_attributes = attrs
     env = dict(os.environ)
     env["OTEL_SERVICE_NAME"] = service_name
-    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = settings.otel_exporter_otlp_endpoint
+    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = settings.otel_exporter_otlp_endpoint or ""
     env["OTEL_RESOURCE_ATTRIBUTES"] = attrs
     env.setdefault("ENVIRONMENT", settings.environment)
-    _providers = init_worker(
-        DEFAULT_WORKER_SERVICE_NAME,
-        strict=False,
-        log_level=logging.DEBUG if settings.debug else logging.INFO,
-        set_global=True,
-        environ=env,
-    )
-    if _providers is None:
-        return False
-    configure_otel_metrics()
-    telemetry_metrics.enable_series_priming()
-    _configured = True
-    return True
+    return service_name, env
 
 
 def flush_worker_telemetry() -> None:
@@ -74,8 +54,35 @@ def flush_worker_telemetry() -> None:
 
 @contextmanager
 def flow_run_telemetry() -> Iterator[None]:
-    configure_worker_telemetry()
-    try:
+    """Run a worker flow inside infra2_sdk.telemetry.worker_run with metrics priming and flush."""
+    global _configured, _providers
+    if not settings.otel_exporter_otlp_endpoint:
         yield
+        return
+    if _configured:
+        try:
+            yield
+        finally:
+            flush_worker_telemetry()
+        return
+
+    service_name, env = _build_worker_env()
+    log_level = logging.DEBUG if settings.debug else logging.INFO
+    try:
+        with worker_run(
+            service_name,
+            environ=env,
+            strict=False,
+            log_level=log_level,
+            set_global=True,
+            clear_root_handlers=True,
+        ) as providers:
+            _providers = providers
+            if providers is not None:
+                configure_otel_metrics()
+                telemetry_metrics.enable_series_priming()
+                _configured = True
+            yield
     finally:
-        flush_worker_telemetry()
+        _configured = False
+        _providers = None

@@ -33,7 +33,6 @@ from src.database import async_session_maker, engine, get_db, get_test_session_m
 from src.extraction import (
     get_known_storage_paths,
     reap_stale_parsing_runs,
-    run_parsing_supervisor,
 )
 from src.identity import auth_router
 from src.observability import (
@@ -60,7 +59,6 @@ from src.platform import (
 )
 from src.pricing import (
     run_daily_market_data_sync,
-    run_market_data_scheduler,
     subscribe_price_ingest,
 )
 from src.routers import (
@@ -79,7 +77,6 @@ from src.runtime import (
     BACKGROUND_JOBS,
     BACKGROUND_JOBS_BY_CLI,
     DEPENDENCY_MANIFEST,
-    run_storage_sweep,
     sweep_orphaned_storage_objects,
 )
 from src.schemas.errors import COMMON_ERROR_RESPONSES, ErrorCode, error_code_for_status
@@ -137,9 +134,6 @@ async def _run_outbox_drain_once() -> dict[str, int]:
 
 
 BACKGROUND_JOB_LOOPS: dict[str, Callable[[asyncio.Event], Coroutine[Any, Any, None]]] = {
-    "parsing_supervisor": run_parsing_supervisor,
-    "market_data_scheduler": lambda stop_event: run_market_data_scheduler(stop_event, market_data_scopes),
-    "storage_sweep": lambda stop_event: run_storage_sweep(stop_event, known_paths_provider=get_known_storage_paths),
     "outbox_relay": run_outbox_relay,
 }
 
@@ -230,7 +224,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     await init_db()
     stop_event = asyncio.Event()
     tasks: list[asyncio.Task[None]] = [
-        asyncio.create_task(BACKGROUND_JOB_LOOPS[job.name](stop_event)) for job in BACKGROUND_JOBS
+        asyncio.create_task(BACKGROUND_JOB_LOOPS[job.name](stop_event))
+        for job in BACKGROUND_JOBS
+        if job.scheduler == "in_process"
     ]
     log_observability_startup(logger)
     logger.info("Application started", version=APP_VERSION)

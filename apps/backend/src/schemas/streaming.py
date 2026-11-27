@@ -19,7 +19,7 @@ _UNSAFE_FILENAME_CHARS = frozenset('\r\n";/\\')
 
 
 class ChatStreamMediaType(str, Enum):
-    TEXT_PLAIN = "text/plain"
+    TEXT_EVENT_STREAM = "text/event-stream"
 
 
 class ExportStreamMediaType(str, Enum):
@@ -32,7 +32,7 @@ class ChatStreamEnvelope(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     session_id: UUID
-    media_type: ChatStreamMediaType = ChatStreamMediaType.TEXT_PLAIN
+    media_type: ChatStreamMediaType = ChatStreamMediaType.TEXT_EVENT_STREAM
     model_name: Annotated[str, Field(max_length=120)] | None = None
     advisor_metadata: ChatResponseMetadata | None = None
 

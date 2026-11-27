@@ -203,7 +203,7 @@ class Settings(BaseSettings):
 
     database_url: str = _f(
         "database_url",
-        "postgresql+asyncpg://postgres:postgres@127.0.0.1:5432/finance_report",
+        "postgresql+asyncpg://postgres:postgres@127.0.0.1:55432/finance_report",
         ex="postgresql+asyncpg://postgres:postgres@localhost:5432/finance_report",
     )
     db_pool_size: int = _f("db_pool_size", 5, ge=1)

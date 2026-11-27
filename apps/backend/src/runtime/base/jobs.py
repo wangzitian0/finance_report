@@ -22,6 +22,7 @@ class BackgroundJobSpec:
     concurrency: ConcurrencyStrategy
     failure_metric: str
     summary: str
+    scheduler: Literal["prefect", "in_process"] = "prefect"
 
 
 BACKGROUND_JOBS: tuple[BackgroundJobSpec, ...] = (
@@ -31,6 +32,7 @@ BACKGROUND_JOBS: tuple[BackgroundJobSpec, ...] = (
         concurrency="skip_locked",
         failure_metric="finance.async_parse.failure",
         summary="Reap stale statement parsing runs after heartbeat or claim timeout.",
+        scheduler="prefect",
     ),
     BackgroundJobSpec(
         name="market_data_scheduler",
@@ -38,6 +40,7 @@ BACKGROUND_JOBS: tuple[BackgroundJobSpec, ...] = (
         concurrency="idempotent_upsert",
         failure_metric="finance.market_data.sync_failure",
         summary="Synchronize daily FX rates and equity prices across tracked scopes.",
+        scheduler="prefect",
     ),
     BackgroundJobSpec(
         name="storage_sweep",
@@ -45,6 +48,7 @@ BACKGROUND_JOBS: tuple[BackgroundJobSpec, ...] = (
         concurrency="stateless_scan",
         failure_metric="finance.storage_sweep.failure",
         summary="Delete orphaned S3 objects older than the configured grace period.",
+        scheduler="prefect",
     ),
     BackgroundJobSpec(
         name="outbox_relay",
@@ -52,6 +56,7 @@ BACKGROUND_JOBS: tuple[BackgroundJobSpec, ...] = (
         concurrency="skip_locked",
         failure_metric="finance.outbox.dead_letter",
         summary="Drain committed transactional outbox rows and quarantine poison pills.",
+        scheduler="in_process",
     ),
 )
 

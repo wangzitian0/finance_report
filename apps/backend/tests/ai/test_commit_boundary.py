@@ -54,7 +54,15 @@ async def test_post_chat_releases_db_session_during_llm_stream(
     resp = await client.post("/chat", json={"message": "What is my balance?"})
 
     assert resp.status_code == 200
-    assert "Checking balance." in resp.text
+    assert resp.headers["content-type"].startswith("text/event-stream")
+    deltas = []
+    for frame in resp.text.strip().split("\n\n"):
+        lines = dict(line.split(": ", 1) for line in frame.splitlines() if ": " in line)
+        if lines.get("event") == "delta":
+            import json
+
+            deltas.append(json.loads(lines["data"])["text"])
+    assert "Checking balance." in "".join(deltas)
     assert observed_open_during_stream == [0, 0]
     msgs = (await db.execute(select(ChatMessage).order_by(ChatMessage.created_at))).scalars().all()
     assert [m.role for m in msgs] == [ChatMessageRole.USER, ChatMessageRole.ASSISTANT]

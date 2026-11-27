@@ -181,7 +181,10 @@ export const makeStreamRes = (text: string, headers?: HeadersInit): Response =>
   new Response(
     new ReadableStream({
       start(c) {
-        c.enqueue(new TextEncoder().encode(text));
+        const enc = new TextEncoder();
+        c.enqueue(enc.encode("event: meta\ndata: {}\n\n"));
+        c.enqueue(enc.encode(`event: delta\ndata: ${JSON.stringify({ text })}\n\n`));
+        c.enqueue(enc.encode("event: done\ndata: {}\n\n"));
         c.close();
       },
     }),

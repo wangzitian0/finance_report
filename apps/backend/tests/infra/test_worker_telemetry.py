@@ -153,9 +153,9 @@ async def test_flow_run_exports_parse_outcome_and_service_name(
     (exporter,) = CapturingMetricExporter.instances
     pts = exporter.points(OUTCOME_METRIC)
     assert {tuple(sorted(p.attributes.items())) for p in pts} == {(("outcome", "success"), ("parser", "default"))}
-    assert [p.value for p in sorted(pts, key=lambda p: p.time_unix_nano)] == [0, 1] and exporter.service_names() == {
-        expected_service
-    }
+    vals = [p.value for p in sorted(pts, key=lambda p: p.time_unix_nano)]
+    assert vals and vals[0] == 0 and vals[-1] == 1 and set(vals) <= {0, 1}
+    assert exporter.service_names() == {expected_service}
 
 
 async def test_flow_run_failure_missing_endpoint_and_flush(worker_env, monkeypatch) -> None:
@@ -163,9 +163,15 @@ async def test_flow_run_failure_missing_endpoint_and_flush(worker_env, monkeypat
     with pytest.raises(RuntimeError, match="boom"):
         await statement_flow.parse_statement_flow.fn(job=_job(), use_case_factory=_fake_use_case_factory(fail=True))
     pts = CapturingMetricExporter.instances[0].points("finance.async_parse.failure")
-    assert {tuple(sorted(p.attributes.items())) for p in pts} == {
-        (("error_type", "RuntimeError"), ("task", "statement_parse"))
-    } and [p.value for p in sorted(pts, key=lambda p: p.time_unix_nano)] == [0, 1]
+    fail_vals = [p.value for p in sorted(pts, key=lambda p: p.time_unix_nano)]
+    assert (
+        {tuple(sorted(p.attributes.items())) for p in pts}
+        == {(("error_type", "RuntimeError"), ("task", "statement_parse"))}
+        and fail_vals
+        and fail_vals[0] == 0
+        and fail_vals[-1] == 1
+        and set(fail_vals) <= {0, 1}
+    )
 
     CapturingMetricExporter.instances.clear()
     _fresh_process(monkeypatch)

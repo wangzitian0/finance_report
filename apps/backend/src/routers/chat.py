@@ -9,10 +9,10 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, status
 from fastapi.responses import StreamingResponse
+from infra2_sdk.service import sse_stream_response
 from sqlalchemy import func, select
 
 from src.advisor import (
-    AIAdvisorError,
     AIAdvisorService,
     ChatMessage,
     ChatSession,
@@ -22,7 +22,6 @@ from src.advisor import (
 from src.config_app import get_effective_base_currency
 from src.database import get_session_maker
 from src.deps import Ctx, CurrentUserId, ReadCtx
-from src.llm import LLMError
 from src.observability import get_logger
 from src.platform import (
     ResourceNotFoundError,
@@ -119,12 +118,9 @@ async def chat_message(payload: ChatRequest, *, user_id: CurrentUserId) -> Strea
 
     async def primed_stream() -> AsyncIterator[str]:
         try:
-            yield first_chunk
+            yield str(first_chunk)
             async for chunk in stream_iter:
-                yield chunk
-        except (AIAdvisorError, LLMError) as exc:
-            logger.warning("Chat stream interrupted after initial chunk", error=str(exc), exc_info=True)
-            yield "\n\n[Stream interrupted — please retry]"
+                yield str(chunk)
         finally:
             if hasattr(stream_iter, "aclose"):
                 await stream_iter.aclose()
@@ -142,7 +138,19 @@ async def chat_message(payload: ChatRequest, *, user_id: CurrentUserId) -> Strea
         model_name=stream.model_name,
         advisor_metadata=advisor_metadata,
     )
-    return StreamingResponse(primed_stream(), media_type=envelope.media_type.value, headers=envelope.to_headers())
+    meta_payload: dict[str, Any] = {"session_id": str(stream.session_id)}
+    if stream.model_name:
+        meta_payload["model_name"] = stream.model_name
+    if advisor_metadata is not None and (advisor_metadata.citations or advisor_metadata.actions):
+        meta_payload["advisor_metadata"] = advisor_metadata.model_dump(mode="json")
+    response: StreamingResponse = await sse_stream_response(
+        primed_stream(),
+        meta=meta_payload,
+        scrub_error=lambda _exc: RuntimeError("AI service temporarily unavailable."),
+    )
+    for key, value in envelope.to_headers().items():
+        response.headers[key] = value
+    return response
 
 
 @router.get("/history", response_model=ChatHistoryResponse)
