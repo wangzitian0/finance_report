@@ -61,6 +61,29 @@ async def test_compute_personal_data_quality_clean_and_defaults_to_base_currency
     from src.config_app import set_base_currency
     from src.routers.reports import get_data_quality_health
 
+    empty_res = await compute_personal_data_quality(db, test_user.id, as_of_date=date(2026, 10, 1), currency="SGD")
+    assert empty_res.score < 80
+    assert empty_res.grade == QualityGrade.C_ATTENTION_NEEDED
+    assert empty_res.temporal_continuity_invariant.is_healthy is False
+    assert empty_res.lineage_anchors_invariant.is_healthy is False
+    assert any(a.action_type == "UPLOAD_STATEMENT" and a.action_url == "/upload" for a in empty_res.action_items)
+
+    [acc] = await seed_accounts(db, test_user.id, ("DBS Checking", AccountType.ASSET))
+    doc = UploadedDocument(
+        user_id=test_user.id,
+        file_path="statements/dbs_2026_09.pdf",
+        original_filename="dbs_2026_09.pdf",
+        file_hash="clean_2026_09",
+        document_type=DocumentType.BANK_STATEMENT,
+        status=DocumentStatus.COMPLETED,
+    )
+    db.add(doc)
+    await db.flush()
+    db.add(
+        _stmt(test_user.id, acc.id, "clean_2026_09", date(2026, 9, 1), date(2026, 9, 30), "1000", "1200", doc_id=doc.id)
+    )
+    await db.flush()
+
     res = await compute_personal_data_quality(db, test_user.id, as_of_date=date(2026, 10, 1), currency="SGD")
     assert (res.score, res.grade, res.currency, res.as_of_date, len(res.timeline), res.action_items) == (
         100,

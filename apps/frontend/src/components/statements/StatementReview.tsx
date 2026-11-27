@@ -61,6 +61,8 @@ export interface CustodyAccount {
 export function BalanceIndicator({ openingBalance, closingBalance, validationResult, currency }: {
   openingBalance: MoneyValue | null; closingBalance: MoneyValue | null; validationResult: BalanceValidationResult | null; currency: string;
 }) {
+  const openingKnown = openingBalance !== null && openingBalance !== undefined;
+  const closingBalancedKnown = closingBalance !== null && closingBalance !== undefined;
   const closingValid = validationResult?.closing_match ?? false;
   const closingKnown = (validationResult?.closing_balance ?? null) !== null;
   const hasCrossPeriodGap =
@@ -69,15 +71,15 @@ export function BalanceIndicator({ openingBalance, closingBalance, validationRes
   return (
     <div className="mb-4 space-y-2">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        <div className="card p-4"><div className="text-xs text-muted mb-1">Opening Balance</div><div className="text-lg font-semibold">{formatCurrencyLocale(openingBalance ?? 0, currency)}</div></div>
-        <div className="card p-4"><div className="text-xs text-muted mb-1">Closing Balance</div><div className="text-lg font-semibold">{formatCurrencyLocale(closingBalance ?? 0, currency)}</div></div>
-        <div className="card p-4"><div className="text-xs text-muted mb-1">Calculated Closing</div><div className="text-lg font-semibold">{formatCurrencyLocale(validationResult ? validationResult.calculated_closing : 0, currency)}</div></div>
+        <div className="card p-4"><div className="text-xs text-muted mb-1">Opening Balance</div><div className="text-lg font-semibold">{openingKnown ? formatCurrencyLocale(openingBalance, currency) : "—"}</div></div>
+        <div className="card p-4"><div className="text-xs text-muted mb-1">Closing Balance</div><div className="text-lg font-semibold">{closingBalancedKnown ? formatCurrencyLocale(closingBalance, currency) : "—"}</div></div>
+        <div className="card p-4"><div className="text-xs text-muted mb-1">Calculated Closing</div><div className="text-lg font-semibold">{validationResult ? formatCurrencyLocale(validationResult.calculated_closing, currency) : "—"}</div></div>
         <div className="card p-4">
           <div className="text-xs text-muted mb-2">Balance Validation</div>
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <span className={`text-sm font-medium ${hasCrossPeriodGap ? "text-[var(--warning)]" : "text-[var(--success)]"}`}>
-                {hasCrossPeriodGap ? "Prior Gap (3198)" : "Opening Anchored"}
+              <span className={`text-sm font-medium ${!openingKnown ? "text-muted" : hasCrossPeriodGap ? "text-[var(--warning)]" : "text-[var(--success)]"}`}>
+                {!openingKnown ? "Opening Unknown" : hasCrossPeriodGap ? "Prior Gap (3198)" : "Opening Anchored"}
               </span>
               <span className="text-xs text-muted">Prior Δ: {priorPeriodDelta}</span>
             </div>

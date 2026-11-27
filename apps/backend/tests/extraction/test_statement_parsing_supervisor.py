@@ -6,7 +6,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import update
+from sqlalchemy import select, update
 
 from src.database import create_session_maker_from_db
 from src.extraction import BankStatementStatus, RunActorKind, RunHints, RunKind, RunTrigger, claim_run, create_run
@@ -86,3 +86,26 @@ async def test_run_parsing_supervisor_stops(monkeypatch):
     monkeypatch.setattr("src.extraction.extension.statement_parsing_supervisor.reap_stale_parsing_runs", fake_reap)
     await run_parsing_supervisor(stop_event)
     assert calls == [1]
+
+
+async def test_parsing_heartbeat_enforces_max_wall_clock_seconds(db, test_user):
+    from src.extraction.base.issue_codes import RunFailureCode, classify_run_failure_code
+    from src.extraction.extension.statement_parsing_supervisor import (
+        ParseWallClockTimeoutError,
+        parsing_heartbeat,
+    )
+
+    statement = await _running_statement(db, test_user, file_hash="wall-clock-hash", heartbeat_age=timedelta(seconds=0))
+    run = (await db.execute(select(StatementRun).where(StatementRun.statement_id == statement.id))).scalar_one()
+    with pytest.raises(ParseWallClockTimeoutError) as exc_info:
+        async with parsing_heartbeat(
+            run.id,
+            create_session_maker_from_db(db),
+            interval_seconds=0.01,
+            max_wall_clock_seconds=0.04,
+        ):
+            await asyncio.sleep(0.3)
+    assert (
+        classify_run_failure_code(error_type=type(exc_info.value).__name__, message=str(exc_info.value))
+        is RunFailureCode.PARSE_WALL_CLOCK_TIMEOUT
+    )

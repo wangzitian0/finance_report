@@ -339,8 +339,9 @@ async def compute_personal_data_quality(
         or 0
     )
     has_unanchored_activity = not raw_statements and (stats.total_transactions > 0 or posted_entry_count > 0)
+    is_empty_ledger = not raw_statements and stats.total_transactions == 0 and posted_entry_count == 0
 
-    temporal_healthy = total_gaps == 0 and not has_unanchored_activity
+    temporal_healthy = total_gaps == 0 and not has_unanchored_activity and not is_empty_ledger
     temporal_delta = total_gaps if not has_unanchored_activity else 1
     gap_code = account_service.UNEXPLAINED_GAP_EQUITY_CODE
     if temporal_healthy:
@@ -362,6 +363,9 @@ async def compute_personal_data_quality(
         else:
             temporal_summary = "Continuous multi-period cash rollforward verified (zero gaps detected)"
             temporal_detail = "All consecutive statements roll forward without missing periods."
+    elif is_empty_ledger:
+        temporal_summary = "No statements uploaded yet"
+        temporal_detail = "Upload your first bank or card statement to establish period rollforward continuity."
     elif has_unanchored_activity:
         temporal_summary = "No uploaded bank statements cover existing ledger activity"
         temporal_detail = "Upload bank statements so transaction history has verified period rollforward."
@@ -423,11 +427,14 @@ async def compute_personal_data_quality(
         for s in raw_statements
         if not s.uploaded_document_id and (not s.file_hash or s.file_hash.startswith("unlinked"))
     )
-    lineage_healthy = unlinked_count == 0 and not has_unanchored_activity
+    lineage_healthy = unlinked_count == 0 and not has_unanchored_activity and not is_empty_ledger
     lineage_delta = unlinked_count if not has_unanchored_activity else max(1, posted_entry_count)
     if lineage_healthy:
         lineage_summary = "Full source-document-to-report lineage verified"
         lineage_detail = "Every report line traces directly to verified statement extraction evidence."
+    elif is_empty_ledger:
+        lineage_summary = "No source statements anchored yet"
+        lineage_detail = "Upload your first statement to anchor report figures to source evidence."
     elif has_unanchored_activity:
         lineage_summary = "Transactions exist without uploaded source statement anchors"
         lineage_detail = "Upload source statements to anchor ledger transactions to immutable evidence."
@@ -445,10 +452,12 @@ async def compute_personal_data_quality(
 
     equation_pts = 40 if equation_healthy else 0
     temporal_pts = (
-        25 if temporal_healthy else (15 if has_unanchored_activity or total_gaps == 1 else max(0, 25 - total_gaps * 10))
+        25
+        if temporal_healthy
+        else (15 if (has_unanchored_activity or is_empty_ledger or total_gaps == 1) else max(0, 25 - total_gaps * 10))
     )
     if stats.total_transactions == 0:
-        recon_pts = 10 if has_unanchored_activity else 20
+        recon_pts = 10 if (has_unanchored_activity or is_empty_ledger) else 20
     else:
         recon_pts = int(round(20 * min(1.0, stats.matched_transactions / max(1, stats.total_transactions))))
         if stats.pending_review > 0:
@@ -516,7 +525,19 @@ async def compute_personal_data_quality(
             )
         )
 
-    if has_unanchored_activity:
+    if is_empty_ledger:
+        action_items.append(
+            _action(
+                "upload_first_statement",
+                "P1",
+                "Upload Your First Bank Statement",
+                "Upload at least one bank or card statement to verify cash continuity and source lineage.",
+                max(0, 100 - total_score),
+                "UPLOAD_STATEMENT",
+                "/upload",
+            )
+        )
+    elif has_unanchored_activity:
         action_items.append(
             _action(
                 "upload_statements_for_ledger",

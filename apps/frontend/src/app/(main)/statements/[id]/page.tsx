@@ -678,7 +678,46 @@ export default function StatementDetailPage() {
           rows grow with the page. On a phone the rows come before the preview (#2647). */}
       <div data-testid="statement-side-by-side-workbench" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {showPreview && <div className={`order-2 lg:order-1 lg:col-span-5 ${hasDocument ? "h-[480px] lg:min-h-[540px] lg:h-[600px]" : ""}`}><PdfPreviewPane statementId={statementId} hasDocument={hasDocument} /></div>}
-        <div className={`order-1 min-w-0 lg:order-2 ${showPreview ? "lg:col-span-7 lg:min-h-[540px] lg:h-[600px]" : "lg:col-span-12"}`}><TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} /></div>
+        <div className={`order-1 min-w-0 lg:order-2 ${showPreview ? "lg:col-span-7 lg:min-h-[540px] lg:h-[600px]" : "lg:col-span-12"}`}>
+          {statement.transactions.length === 0 && (statement.quarantined_transactions?.length ?? 0) > 0 ? (
+            <div className="card overflow-hidden">
+              <div className="border-b border-[var(--border)] bg-[var(--warning-muted)] px-4 py-3 text-sm">
+                <p className="font-medium text-[var(--foreground)]">
+                  Quarantined draft rows ({statement.quarantined_transactions?.length ?? 0})
+                </p>
+                <p className="text-xs text-muted mt-0.5">
+                  These extracted rows are blocked from the ledger because balances or identities did not reconcile. Compare against the PDF and re-run with hints.
+                </p>
+              </div>
+              <div className="overflow-x-auto max-h-[520px]">
+                <table className="w-full text-sm">
+                  <thead className="bg-[var(--background-muted)] text-left text-xs uppercase text-muted">
+                    <tr>
+                      <th className="px-3 py-2">#</th>
+                      <th className="px-3 py-2">Date</th>
+                      <th className="px-3 py-2">Description</th>
+                      <th className="px-3 py-2 text-right">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border)]">
+                    {(statement.quarantined_transactions ?? []).map((row) => (
+                      <tr key={row.source_row}>
+                        <td className="px-3 py-2 text-xs text-muted">{row.source_row}</td>
+                        <td className="px-3 py-2 whitespace-nowrap">{row.txn_date}</td>
+                        <td className="px-3 py-2 break-words">{row.description}</td>
+                        <td className="px-3 py-2 text-right whitespace-nowrap font-medium">
+                          {row.direction === "OUT" ? "-" : "+"}{row.amount} {row.currency ?? statement.currency ?? ""}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <TransactionTable transactions={statement.transactions} currency={statement.currency || "SGD"} onSelectTransaction={setReviewingTxn} statementStatus={statement.status} />
+          )}
+        </div>
       </div>
       <LowConfidenceReviewModal isOpen={reviewingTxn !== null} onClose={() => setReviewingTxn(null)} transaction={reviewingTxn} currency={reviewingTxn?.currency || statement.currency || "SGD"} onSuccess={() => { void refreshAfterReview(); }} />
       <ConflictResolutionDialog isOpen={conflictDialogOpen} onClose={() => setConflictDialogOpen(false)} duplicateCandidates={duplicateCandidates} transferPairCandidates={transferPairCandidates} otherStatementMatches={otherStatementMatches} onResolve={() => resolveConflictsMutation.mutate()} isResolving={resolveConflictsMutation.isPending} />

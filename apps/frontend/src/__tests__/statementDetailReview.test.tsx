@@ -274,4 +274,32 @@ describe("StatementReviewPage", () => {
       within(wb).getByRole("heading", { name: R.pdfH }).closest(".order-2"),
     ).not.toHaveClass("h-[480px]");
   });
+
+  it("renders Opening Unknown, dashes for null balances, and quarantined draft preview", async () => {
+    const quarantinedStmt = {
+      ...stmt,
+      status: "rejected",
+      opening_balance: null,
+      closing_balance: null,
+      balance_validated: false,
+      transactions: [],
+      quarantined_transactions: [
+        {
+          source_row: 1,
+          txn_date: "2024-01-03",
+          description: "Quarantined draft fee",
+          amount: "42.00",
+          direction: "OUT",
+          currency: "SGD",
+          balance_after: null,
+        },
+      ],
+    };
+    renP({
+      stmt: quarantinedStmt,
+      rev: { ...quarantinedStmt, balance_validation_result: null },
+    });
+    await see(/Quarantined draft rows/);
+    await see("Quarantined draft fee");
+  });
 });

@@ -41,15 +41,15 @@ Link each open business bug to its user case in `gap_issue` (`#N` or `#N, #M`).
 | **D4: Economic Intent & Categorization** | 5 | 1 | 0 | 3 | 0 | 1 | 0 |
 | **D5: Cross-Source Reconciliation & Transfers** | 5 | 0 | 1 | 3 | 0 | 1 | 0 |
 | **D6: Investments & Multi-Asset Valuation** | 8 | 2 | 0 | 2 | 1 | 3 | 0 |
-| **D7: Financial Reporting & Accounting Equation Governance** | 7 | 1 | 1 | 3 | 0 | 2 | 0 |
+| **D7: Financial Reporting & Accounting Equation Governance** | 7 | 2 | 1 | 4 | 0 | 0 | 0 |
 | **D8: Anomaly Monitoring & Explainable AI Financial Advisor** | 2 | 1 | 0 | 1 | 0 | 0 | 0 |
-| **Total** | **47** | **7** | **5** | **15** | **4** | **16** | **0** |
+| **Total** | **47** | **8** | **5** | **16** | **4** | **14** | **0** |
 
 ### Incremental Proof Upgrade Queue
 
-- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-11 (#3029), UC-13 (#2984), UC-14 (#3112), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923), UC-39 (#2955), UC-42 (#2977)
+- **Open gaps / partial (`L0_GAP` / `L1_PARTIAL`)**: UC-01 (#2978), UC-02 (#3156), UC-03 (#2953), UC-04 (#2957), UC-06 (#2987, #3039), UC-09 (#2983), UC-11 (#3029), UC-13 (#2984), UC-14 (#3112), UC-21 (#3055), UC-26 (#2928, #2890), UC-31 (#2920), UC-32 (#2922), UC-38 (#2923)
 - **Surface-only (`L2_SURFACE` — add E2E or benchmark)**: UC-10, UC-12, UC-18, UC-37
-- **Bench without E2E (`L3_BENCH` -> `L4_FULL`)**: UC-15, UC-16, UC-17, UC-22, UC-23, UC-25, UC-28, UC-29, UC-30, UC-33, UC-35, UC-40, UC-41, UC-44, UC-46
+- **Bench without E2E (`L3_BENCH` -> `L4_FULL`)**: UC-15, UC-16, UC-17, UC-22, UC-23, UC-25, UC-28, UC-29, UC-30, UC-33, UC-35, UC-40, UC-41, UC-42, UC-44, UC-46
 - **E2E without Bench (`L3_E2E` -> `L4_FULL`)**: UC-05, UC-19, UC-20, UC-27, UC-43
 
 ---
@@ -154,10 +154,10 @@ Governs balance sheet equation validation, out-of-balance triage, income stateme
 
 | UC ID | User Case (EN / 中文) | UI Surface | Frontend Component | Backend Endpoint | Invariant / Accounting Rule | Proof Tier | Test Reference |
 |---|---|---|---|---|---|---|---|
-| **UC-39** | Balance Sheet Accounting Equation Validation<br>*(资产负债表恒等式检验)* | `/reports?tab=balance-sheet` | `BalanceSheetPanel` | `GET /reports/balance-sheet` | `Assets == Liabilities + Equity + RetainedEarnings (Equation Delta == 0.00)` | `L1_PARTIAL (#2955)` | [`apps/backend/tests/ledger/test_accounting_equation.py`](../../apps/backend/tests/ledger/test_accounting_equation.py) |
+| **UC-39** | Balance Sheet Accounting Equation Validation<br>*(资产负债表恒等式检验)* | `/reports?tab=balance-sheet` | `BalanceSheetPanel` | `GET /reports/balance-sheet` | `Assets == Liabilities + Equity + RetainedEarnings (Equation Delta == 0.00)` | `L4_FULL` | [`apps/backend/tests/ledger/test_accounting_equation.py`](../../apps/backend/tests/ledger/test_accounting_equation.py) |
 | **UC-40** | Accounting Equation Out-of-Balance Diagnostic Triage<br>*(会计恒等式失衡智能排错)* | `/reports?tab=balance-sheet` | `BalanceSheetPanel` | `GET /reports/balance-sheet/diagnostics` | `When Equation Delta != 0, returns classified cause: UNPOSTED_DRAFT, FX_ROUNDING_DRIFT, UNKNOWN_DISCREPANCY` | `L3_BENCH` | [`apps/backend/tests/reporting/test_equation_diagnostics.py`](../../apps/backend/tests/reporting/test_equation_diagnostics.py) |
 | **UC-41** | Income Statement Comparative Trend Analysis<br>*(损益表多期环比分析)* | `/reports?tab=income-statement` | `IncomeStatementPanel` | `GET /reports/income-statement` | `Comparative periodic columns display balance variations without silent drop` | `L3_BENCH` | [`apps/backend/tests/reporting/test_reports_router.py`](../../apps/backend/tests/reporting/test_reports_router.py) |
-| **UC-42** | Cash Flow Statement Multi-Activity Invariant Verification<br>*(现金流量表健康度与自洽检验)* | `/reports?tab=cash-flow` | `CashFlowPanel` | `GET /reports/cash-flow` | `Net Cash Change == Operating Cash Flow + Investing Cash Flow + Financing Cash Flow` | `L1_PARTIAL (#2977)` | [`apps/backend/tests/reporting/test_cash_flow_invariants.py`](../../apps/backend/tests/reporting/test_cash_flow_invariants.py) |
+| **UC-42** | Cash Flow Statement Multi-Activity Invariant Verification<br>*(现金流量表健康度与自洽检验)* | `/reports?tab=cash-flow` | `CashFlowPanel` | `GET /reports/cash-flow` | `Net Cash Change == Operating Cash Flow + Investing Cash Flow + Financing Cash Flow` | `L3_BENCH` | [`apps/backend/tests/reporting/test_cash_flow_invariants.py`](../../apps/backend/tests/reporting/test_cash_flow_invariants.py) |
 | **UC-43** | Frozen Personal Financial Report Package Snapshot & Export<br>*(冻结并导出个人财务报告包快照)* | `/reports?tab=package` | `PackagePanel` | `POST /reports/package/snapshots` | `Frozen report package snapshots remain immutable against subsequent ledger postings` | `L3_E2E` | [`apps/backend/tests/reporting/test_personal_report_package_contract.py`](../../apps/backend/tests/reporting/test_personal_report_package_contract.py) |
 | **UC-44** | Annual Tax & Audit Package ZIP Export<br>*(年度报税合规包导出)* | `/reports?tab=package` | `PackagePanel` | `GET /reports/package/snapshots/{snapshot_id}/exports` | `ZIP contains manifest.json with SHA-256 hashes of all schedule CSVs and audit trail` | `L3_BENCH` | [`apps/backend/tests/reporting/test_annual_tax_package.py`](../../apps/backend/tests/reporting/test_annual_tax_package.py) |
 | **UC-45** | Financial Report to PDF Provenance Drilldown<br>*(报表到 PDF 凭证穿透)* | `/reports?tab=balance-sheet` | `ProvenanceBadge` | `GET /reports/account-lineage` | `Report Line drilldown traces to underlying journal entries and source statement metadata` | `L4_FULL` | [`apps/backend/tests/reporting/test_reports_router.py`](../../apps/backend/tests/reporting/test_reports_router.py) |

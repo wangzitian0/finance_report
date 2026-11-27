@@ -152,8 +152,19 @@ class BankStatementListItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class QuarantinedTransactionPreview(BaseModel):
+    source_row: int = Field(ge=1)
+    txn_date: date
+    description: str
+    amount: Decimal
+    direction: str
+    currency: str | None = None
+    balance_after: Decimal | None = None
+
+
 class BankStatementResponse(BankStatementListItemResponse):
     transactions: list[AtomicTransactionResponse] = default_list()
+    quarantined_transactions: list[QuarantinedTransactionPreview] = default_list()
 
 
 def _statement_issue_codes_from_summary(summary: StatementSummary, *, is_brokerage: bool) -> list[StatementIssueCode]:
@@ -228,6 +239,12 @@ def compose_statement_response(
     suggestions: Mapping[UUID, ClassificationSuggestion] | None = None,
 ) -> BankStatementResponse:
     base_item = compose_statement_list_item_response(summary, uploaded_document)
+    raw_quarantined = (getattr(summary, "extraction_metadata", None) or {}).get("quarantined_transactions")
+    quarantined_previews = [
+        QuarantinedTransactionPreview.model_validate(item)
+        for item in (raw_quarantined if isinstance(raw_quarantined, list) else [])
+        if isinstance(item, Mapping)
+    ]
     return BankStatementResponse(
         **base_item.model_dump(),
         transactions=[
@@ -239,6 +256,7 @@ def compose_statement_response(
             )
             for idx, txn in enumerate(atomic_txns)
         ],
+        quarantined_transactions=quarantined_previews,
     )
 
 

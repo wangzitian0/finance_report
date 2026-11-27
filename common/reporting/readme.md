@@ -37,7 +37,8 @@ Balance sheet, income statement, cash flow, and net worth read posted/reconciled
 - Required sections: `balance_sheet`, `income_statement`, `cash_flow`, `investment_performance`, `annualized_income_long_term`, `notes`, `traceability_appendix`.
 - Required notes: `basis-of-preparation`, `reporting-period-and-currency`, `valuation-basis`, `investment-market-data`, `source-confidence-review`, `restricted-asset-treatment`, plus explicit non-compliance disclosure.
 - Package readiness is produced solely by `PackageAssembler` (`assemble` and `evaluate_readiness` share `shared_current_authority` from `#2602`). Workflow and advisor consume `current_package_readiness`; no secondary readiness derivation is allowed.
-- Data quality (`GET /api/reports/data-quality`) grades adjacent statement gaps: zero-change (`|delta| <= 0.10`), tiny (`< 0.1%`, absorbed in `3198`), or material (`>= 0.1%`, `UPLOAD_STATEMENT` action items) plus trailing staleness prompts.
+- Data quality (`GET /api/reports/data-quality`) grades adjacent statement gaps: zero-change (`|delta| <= 0.10`), tiny (`< 0.1%`, absorbed in `3198`), or material (`>= 0.1%`, `UPLOAD_STATEMENT` action items) plus trailing staleness prompts. An empty ledger (`0` statements, `0` entries, `0` transactions) returns `C_ATTENTION_NEEDED` with an `upload_first_statement` (`UPLOAD_STATEMENT`) action item instead of `A_AUDIT_READY`.
+- Cash flow (`CashFlowAndPackagePanels`) displays an amber `"⚠ Opening gap adjustment (3198)"` status and `/upload` prompt instead of `"✓ Reconciles"` whenever a non-zero `opening_stock_adjustment` plug is present.
 
 ### Multi-currency consolidation
 

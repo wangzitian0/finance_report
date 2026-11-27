@@ -70,4 +70,28 @@ describe("CashFlowPage", () => {
       expect(F.txt(msgRegex)).toBeInTheDocument();
     },
   );
+
+  it("renders amber 3198 gap badge instead of green Reconciles when opening_stock_adjustment is non-zero", async () => {
+    api.mockResolvedValue(
+      F.makeCashFlow({
+        start_date: "2026-01-01",
+        end_date: "2026-03-31",
+        summary: {
+          operating_activities: "20",
+          investing_activities: "0",
+          financing_activities: "0",
+          net_cash_flow: "20",
+          beginning_cash: "100",
+          ending_cash: "620",
+        },
+        cash_bridge: { opening_stock_adjustment: "500.00", reconciles: true },
+        proof_state: "proven",
+        proof_reasons: [],
+      }) as never,
+    );
+    render(<ReportsPage />);
+    const rec = await F.fLbl("Cash reconciliation");
+    expect(rec).toHaveTextContent(/Opening gap adjustment \(3198\)/i);
+    expect(rec).not.toHaveTextContent("✓ Reconciles");
+  });
 }); // AC-reporting.fe-ia-reports.10 AC-reporting.fe-ia-reports.12 AC-reporting.fe-report-surfaces.16 AC-reporting.fe-report-surfaces.17 AC-reporting.fe-report-surfaces.18 AC-reporting.report-integrity.3

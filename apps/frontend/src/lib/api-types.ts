@@ -430,6 +430,7 @@ export interface components {
       original_filename: string;
       period_end: string | null;
       period_start: string | null;
+      quarantined_transactions?: _S["QuarantinedTransactionPreview"][];
       status: _S["BankStatementStatus"];
       transactions?: _S["AtomicTransactionResponse"][];
       updated_at: string;
@@ -1518,6 +1519,15 @@ export interface components {
       title: string;
     };
     QualityGrade: "A_AUDIT_READY" | "B_BALANCED_GAPS" | "C_ATTENTION_NEEDED" | "D_OUT_OF_BALANCE";
+    QuarantinedTransactionPreview: {
+      amount: string;
+      balance_after?: string | null;
+      currency?: string | null;
+      description: string;
+      direction: string;
+      source_row: number;
+      txn_date: string;
+    };
     RealizedLotResponse: {
       acquired_date?: string | null;
       basis: string;
@@ -1756,6 +1766,7 @@ export interface components {
       original_filename: string;
       period_end: string | null;
       period_start: string | null;
+      quarantined_transactions?: _S["QuarantinedTransactionPreview"][];
       reviewed_envelope?: _S["ReviewedStatementEnvelopeResponse"] | null;
       source_envelope_reviewable: boolean;
       source_missing_facts?: string[];
