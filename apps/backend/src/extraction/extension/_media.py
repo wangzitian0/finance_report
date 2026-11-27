@@ -142,6 +142,8 @@ class _PdfVisionBatchSequence(Sequence[list[dict[str, Any]]]):
 
 class _MediaMixin:
     PDF_VISION_MAX_PAGES = 5
+    PDF_TEXT_MAX_PAGES = 15
+    PDF_TEXT_MAX_CHARS = 32_000
     PDF_VISION_MAX_TOTAL_PAGES = 30
     PDF_VISION_RENDER_SCALE = 1.6
     PDF_VISION_FALLBACK_RENDER_SCALE = 1.0
@@ -328,7 +330,11 @@ class _MediaMixin:
         pages = read_pdf_text_pages(file_content, max_pages=self.PDF_VISION_MAX_TOTAL_PAGES)
         if not pages or not text_prints_money("\n".join(pages)):
             return None
-        return text_page_batches(pages, self.PDF_VISION_MAX_PAGES)
+        return text_page_batches(
+            pages,
+            self.PDF_TEXT_MAX_PAGES,
+            max_chars_per_call=self.PDF_TEXT_MAX_CHARS,
+        )
 
     def _build_vision_media_payload_batches(
         self,

@@ -676,9 +676,9 @@ export default function StatementDetailPage() {
       <SourceEnvelopeConfirmation requiresEnvelopeConfirmation={requiresEnvelopeConfirmation} requiresOtherSourceReview={requiresOtherSourceReview} sourceMissingFacts={sourceMissingFacts} missingFactLabels={MISSING_FACT_LABELS} envelopeDraft={envelopeDraft} onDraftChange={setEnvelopeDraft} custodyAccounts={custodyAccountsData?.items || []} onConfirm={() => envelopeMutation.mutate()} isPending={envelopeMutation.isPending} reviewedEnvelope={review?.reviewed_envelope} onCreateAccount={(name) => createCustodyAccountMutation.mutate(name)} isCreatingAccount={createCustodyAccountMutation.isPending} defaultAccountName={statement.institution ? `${statement.institution} account` : ""} />
       {/* Only the desktop table beside a preview has a fixed height. Without a preview, and on a phone, the
           rows grow with the page. On a phone the rows come before the preview (#2647). */}
-      <div data-testid="statement-side-by-side-workbench" className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {showPreview && <div className={`order-2 lg:order-1 lg:col-span-5 ${hasDocument ? "h-[480px] lg:min-h-[540px] lg:h-[600px]" : ""}`}><PdfPreviewPane statementId={statementId} hasDocument={hasDocument} /></div>}
-        <div className={`order-1 min-w-0 lg:order-2 ${showPreview ? "lg:col-span-7 lg:min-h-[540px] lg:h-[600px]" : "lg:col-span-12"}`}>
+      <div data-testid="statement-side-by-side-workbench" className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+        {showPreview && <div className={`order-2 xl:order-1 xl:col-span-5 ${hasDocument ? "h-[480px] xl:min-h-[540px] xl:h-[600px]" : ""}`}><PdfPreviewPane statementId={statementId} hasDocument={hasDocument} /></div>}
+        <div className={`order-1 min-w-0 xl:order-2 ${showPreview ? "xl:col-span-7 xl:min-h-[540px] xl:h-[600px]" : "xl:col-span-12"}`}>
           {statement.transactions.length === 0 && (statement.quarantined_transactions?.length ?? 0) > 0 ? (
             <div className="card overflow-hidden">
               <div className="border-b border-[var(--border)] bg-[var(--warning-muted)] px-4 py-3 text-sm">

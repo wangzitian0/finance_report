@@ -1461,8 +1461,21 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
             del single_batch
             return await _call(messages, batch_index=1, pages=pages), None
 
-        pages_per_call = self.PDF_VISION_MAX_PAGES
-        total_pages = getattr(media_batches, "total_pages", None) or sum(len(media) for media in media_batches)
+        pages_per_call = getattr(media_batches, "batch_size", None) or self.PDF_VISION_MAX_PAGES
+        total_pages_attr = getattr(media_batches, "total_pages", None)
+        if isinstance(total_pages_attr, int) and hasattr(media_batches, "batch_size"):
+            total_pages = total_pages_attr
+            page_ranges = [
+                (idx * pages_per_call + 1, min(total_pages, (idx + 1) * pages_per_call)) for idx in range(part_count)
+            ]
+        else:
+            page_ranges = []
+            cursor = 1
+            for batch in media_batches:
+                batch_len = len(batch)
+                page_ranges.append((cursor, cursor + batch_len - 1))
+                cursor += batch_len
+            total_pages = cursor - 1
 
         parts: list[dict[str, Any]] = []
         pop_meta = getattr(media_batches, "pop_head_tail_meta_pages", None)
@@ -1487,31 +1500,43 @@ class ExtractionService(_MediaMixin, _CoerceMixin, _CsvMixin):
         del meta_messages
         parts.append({k: v for k, v in meta_part.items() if k not in ("transactions", "positions")})
 
-        context_page: dict[str, Any] | None = None
-        for part_index in range(1, part_count + 1):
-            media = await _load_batch(part_index - 1)
-            if part_index == 1:
-                context_page = media[0]
-            page_start = (part_index - 1) * pages_per_call + 1
-            page_end = page_start + len(media) - 1
-            has_context_page = part_index > 1
-            part_prompt = build_paged_prompt(
-                prompt,
-                part_index=part_index,
-                part_count=part_count,
-                page_start=page_start,
-                page_end=page_end,
-                total_pages=total_pages,
-                has_context_page=has_context_page,
-                hints_block=hints_block,
-            )
-            part_media = [context_page, *media] if has_context_page and context_page is not None else list(media)
-            messages = _messages(part_prompt, part_media)
-            pages = len(media)
-            del media, part_media
-            part = await _call(messages, batch_index=part_index, pages=pages)
-            del messages
-            parts.append(part)
+        first_media = await _load_batch(0)
+        context_page: dict[str, Any] | None = first_media[0] if first_media else None
+        sem = asyncio.Semaphore(3)
+        load_lock = asyncio.Lock()
+
+        async def _run_part(part_index: int, preloaded: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+            async with sem:
+                if preloaded is not None:
+                    media = preloaded
+                else:
+                    async with load_lock:
+                        media = await _load_batch(part_index - 1)
+                page_start, page_end = page_ranges[part_index - 1]
+                has_context_page = part_index > 1
+                part_prompt = build_paged_prompt(
+                    prompt,
+                    part_index=part_index,
+                    part_count=part_count,
+                    page_start=page_start,
+                    page_end=page_end,
+                    total_pages=total_pages,
+                    has_context_page=has_context_page,
+                    hints_block=hints_block,
+                )
+                part_media = [context_page, *media] if has_context_page and context_page is not None else list(media)
+                messages = _messages(part_prompt, part_media)
+                pages = len(media)
+                del media, part_media, preloaded
+                part = await _call(messages, batch_index=part_index, pages=pages)
+                del messages
+                return part
+
+        part_tasks = [
+            _run_part(part_index, first_media if part_index == 1 else None) for part_index in range(1, part_count + 1)
+        ]
+        del first_media
+        parts.extend(await asyncio.gather(*part_tasks))
 
         meta_agreed: bool | None = (
             True

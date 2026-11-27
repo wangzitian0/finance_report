@@ -415,3 +415,54 @@ async def test_currencies_diagnostics_lineage_and_statement_custody_cash_flow(
         export_resp.status_code == 200
         and "Operating,Bonus Income,1500.00,SGD,Inflow - Bonus Income" in export_resp.text
     )
+
+
+async def test_credit_card_only_user_cash_flow_keeps_empty_custody_set(client, db: AsyncSession, test_user) -> None:
+    """Liability-only approved statement yields empty cash custody set rather than None fallback."""
+    card, dining = await seed_accounts(
+        db, test_user.id, ("Liberty Card", AccountType.LIABILITY), ("Dining Expense", AccountType.EXPENSE)
+    )
+    stmt = StatementSummary(
+        user_id=test_user.id,
+        file_hash=sha256(f"{test_user.id}:{card.id}:2026-02".encode()).hexdigest(),
+        institution="Liberty Card",
+        account_id=card.id,
+        currency="SGD",
+        period_start=date(2026, 2, 1),
+        period_end=date(2026, 2, 28),
+        opening_balance=Decimal("0.00"),
+        closing_balance=Decimal("-200.00"),
+        status=BankStatementStatus.APPROVED,
+    )
+    db.add(stmt)
+    await db.flush()
+    rec = StatementExtractionResultRecord(
+        user_id=test_user.id,
+        statement_id=stmt.id,
+        content_digest=sha256(f"cc-res:{stmt.id}".encode()).hexdigest(),
+        source_content_digest=sha256(f"cc-src:{stmt.id}".encode()).hexdigest(),
+        schema_version="2",
+        producer_version="test-3253",
+        payload={"source_type": StatementSourceType.BANK.value, "period_start": "2026-02-01"},
+        source_trace_record_id=uuid4(),
+        created_at=datetime.now(UTC),
+    )
+    db.add(rec)
+    await db.flush()
+    stmt.current_extraction_result_id = rec.id
+    await post_pair(db, test_user.id, date(2026, 2, 10), "Dining charge", dining, card, "200.00", commit=False)
+    manual_bank, salary = await seed_accounts(
+        db, test_user.id, ("Unbound Cash", AccountType.ASSET), ("Side Income", AccountType.INCOME)
+    )
+    await post_pair(
+        db, test_user.id, date(2026, 2, 12), "Manual cash entry", manual_bank, salary, "500.00", commit=True
+    )
+
+    resp = await client.get(
+        "/reports/cash-flow",
+        params={"start_date": "2026-02-01", "end_date": "2026-02-28", "currency": "SGD"},
+    )
+    assert resp.status_code == 200
+    payload = resp.json()
+    assert payload["summary"]["ending_cash"] == "0.00"
+    assert payload["summary"]["net_cash_flow"] == "0.00"

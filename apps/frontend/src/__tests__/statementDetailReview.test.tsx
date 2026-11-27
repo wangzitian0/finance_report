@@ -257,8 +257,8 @@ describe("StatementReviewPage", () => {
         hasPrev ? 1 : 0,
       );
       const col = within(wb).getByTestId(R.prevCol).closest(".order-1");
-      hasCls(col, hasPrev ? "lg:col-span-7" : "lg:col-span-12");
-      eq(col?.className.includes("lg:h-[600px]"), hasPrev);
+      hasCls(col, hasPrev ? "xl:col-span-7" : "xl:col-span-12");
+      eq(col?.className.includes("xl:h-[600px]"), hasPrev);
     },
   );
 

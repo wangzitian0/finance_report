@@ -9,13 +9,25 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.audit import STATEMENT_BALANCE_TOLERANCE
 from src.extraction.base.source_vocabulary import BankStatementStatus
 from src.extraction.orm.statement_summary import StatementSummary
-from src.ledger import Account, account_service
+from src.ledger import Account, AccountType, account_service
+
+CUSTODY_ACCOUNT_TYPES = (AccountType.ASSET, AccountType.LIABILITY)
+
+
+def is_custody_account_clause():
+    """Return SQL predicate matching active non-system custody accounts."""
+    return and_(
+        Account.type.in_(CUSTODY_ACCOUNT_TYPES),
+        Account.is_system.is_(False),
+        Account.is_active.is_(True),
+    )
+
 
 if TYPE_CHECKING:
     from src.schemas.extraction import (
@@ -201,7 +213,7 @@ async def get_account_statement_coverage(
     account_result = await db.execute(
         select(Account)
         .where(Account.user_id == user_id)
-        .where(Account.is_active.is_(True))
+        .where(is_custody_account_clause())
         .order_by(Account.name, Account.id)
     )
     accounts = list(account_result.scalars().all())

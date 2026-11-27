@@ -15,10 +15,12 @@ from src.audit import JournalEntrySourceType, TraceScope
 from src.composition import compose_statement_posting_dependencies
 from src.config import settings
 from src.extraction import (
+    BankStatementStatus,
     ClassificationStatus,
     DispositionContext,
     DispositionMode,
     DispositionPolicy,
+    DocumentType,
     EconomicIntent,
     IntentProposal,
     IntentProposalOrigin,
@@ -522,3 +524,31 @@ async def test_AC_extraction_statement_memo_1_the_anchor_covers_the_stored_memo_
         base_currency=settings.base_currency.upper(),
         source_identity=f"statement-transaction:{txn.id}",
     )
+
+
+async def test_resolve_statement_summary_supports_brokerage_statement(db, test_user):
+    """Posting resolves brokerage statement custody accounts rather than only bank statements."""
+    broker_cash = await AccountFactory.create_async(db, user_id=test_user.id, name="IBKR Cash")
+    doc = await UploadedDocumentFactory.create_async(
+        db, user_id=test_user.id, document_type=DocumentType.BROKERAGE_STATEMENT
+    )
+    await StatementSummaryFactory.create_async(
+        db,
+        user_id=test_user.id,
+        account_id=broker_cash.id,
+        uploaded_document_id=doc.id,
+        file_hash=doc.file_hash,
+        currency="SGD",
+    )
+    txn = await AtomicTransactionFactory.create_async(
+        db,
+        user_id=test_user.id,
+        source_doc_id=doc.id,
+        amount=Decimal("25.00"),
+        direction=TransactionDirection.OUT,
+        txn_date=date(2026, 2, 1),
+        description="Broker wire fee",
+        currency="SGD",
+    )
+    entry = await _reviewed_entry(db, txn, user_id=test_user.id, auto_post=True)
+    assert broker_cash.id in {line.account_id for line in entry.lines}

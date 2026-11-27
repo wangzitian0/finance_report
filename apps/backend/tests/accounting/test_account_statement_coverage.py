@@ -203,3 +203,25 @@ async def test_account_coverage_defects_and_empty_user(client: AsyncClient, db: 
     assert item2["coverage_complete"] is False and any(
         i["type"] == "gap" and Decimal(str(i["delta"])) == Decimal("350.00") for i in item2["issues"]
     )
+
+
+async def test_account_coverage_excludes_non_custody_and_system_accounts(
+    client: AsyncClient, db: AsyncSession, test_user
+) -> None:
+    """#3253: Statement coverage only reports active non-system ASSET/LIABILITY custody accounts."""
+    from src.ledger import Account, AccountType
+
+    checking = Account(user_id=test_user.id, name="Custody Checking", type=AccountType.ASSET, currency="SGD")
+    card = Account(user_id=test_user.id, name="Custody Card", type=AccountType.LIABILITY, currency="SGD")
+    expense = Account(user_id=test_user.id, name="Groceries Expense", type=AccountType.EXPENSE, currency="SGD")
+    income = Account(user_id=test_user.id, name="Salary Income", type=AccountType.INCOME, currency="SGD")
+    sys_asset = Account(
+        user_id=test_user.id, name="System Suspense", type=AccountType.ASSET, currency="SGD", is_system=True
+    )
+    db.add_all([checking, card, expense, income, sys_asset])
+    await db.commit()
+
+    resp = await client.get("/statements/coverage?as_of=2025-06-01&stale_after_days=45")
+    assert resp.status_code == 200
+    names = {item["account_name"] for item in resp.json()["items"]}
+    assert names == {"Custody Checking", "Custody Card"}

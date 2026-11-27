@@ -137,3 +137,63 @@ def test_AC_extraction_3039_prefect_worker_poll_interval_is_bounded():
     assert "PREFECT_WORKER_QUERY_SECONDS" in script
     assert "--prefetch-seconds" in script
     assert "--limit" in script
+
+
+def test_AC_extraction_text_page_batches_splits_by_pages_and_chars():
+    from src.extraction.base.paged_extraction import text_page_batches
+
+    assert text_page_batches(["p" * 10] * 16, 15, max_chars_per_call=32_000) == [
+        [{"type": "text", "text": f"[Page {n}]\n" + "p" * 10} for n in range(1, 16)],
+        [{"type": "text", "text": "[Page 16]\n" + "p" * 10}],
+    ]
+    dense_batches = text_page_batches(["d" * 14_000] * 3, 15, max_chars_per_call=32_000)
+    assert [len(batch) for batch in dense_batches] == [2, 1]
+
+
+async def test_AC_extraction_media_batches_run_bounded_parallel_with_accurate_page_ranges():
+    import asyncio
+    import re
+
+    service = ExtractionService()
+    batches = [
+        [{"type": "text", "text": f"[Page {i}]\nx"} for i in range(1, 16)],
+        [{"type": "text", "text": "[Page 16]\nx"}],
+        [{"type": "text", "text": "[Page 17]\nx"}],
+        [{"type": "text", "text": "[Page 18]\nx"}],
+        [{"type": "text", "text": "[Page 19]\nx"}],
+    ]
+    in_flight = 0
+    max_in_flight = 0
+    seen_ranges: list[tuple[int, int]] = []
+
+    async def fake_extract(*, messages, model, seed_override, user_id):
+        nonlocal in_flight, max_in_flight
+        prompt_text = messages[0]["content"][0]["text"]
+        if "PARTIAL DOCUMENT" in prompt_text:
+            in_flight += 1
+            max_in_flight = max(max_in_flight, in_flight)
+            match = re.search(r"pages (\d+)-(\d+) of a (\d+)-page", prompt_text)
+            assert match is not None
+            seen_ranges.append((int(match.group(1)), int(match.group(2))))
+            await asyncio.sleep(0.02)
+            in_flight -= 1
+            return {
+                "institution": "DBS",
+                "currency": "SGD",
+                "transactions": [{"date": "2026-01-10", "amount": "1.00", "direction": "IN", "currency": "SGD"}],
+            }
+        return {"institution": "DBS", "currency": "SGD", "opening_balance": "0.00", "closing_balance": "5.00"}
+
+    with patch.object(service, "_extract_json_with_model", side_effect=fake_extract):
+        merged, meta_agreed = await service._extract_json_from_media_batches(
+            media_batches=batches,
+            model="test-model",
+            prompt="extract",
+            seed_override=None,
+            user_id=None,
+        )
+
+    assert meta_agreed is True
+    assert len(merged["transactions"]) == 5
+    assert 1 < max_in_flight <= 3
+    assert sorted(seen_ranges) == [(1, 15), (16, 16), (17, 17), (18, 18), (19, 19)]
