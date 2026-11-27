@@ -32,7 +32,12 @@ from contextlib import aclosing, asynccontextmanager
 from enum import StrEnum
 from typing import Any, Literal
 
-from infra2_sdk.llm import DecodingSpec, create_llm_agent, stream_text as _sdk_stream_text
+from infra2_sdk.llm import (
+    DecodingSpec,
+    create_llm_agent,
+    is_retryable_llm_error,
+    stream_text as _sdk_stream_text,
+)
 from pydantic_ai import BinaryContent, ImageUrl
 from pydantic_ai.exceptions import (
     ModelAPIError,
@@ -238,6 +243,7 @@ def _agent(
             decoding=decoding,
             usage_limits=usage_limits,
             max_attempts=max_attempts,
+            retry_on=is_retryable_llm_error,
             # A reply without text is an error of the call, not a reason for a second request.
             retries=0,
             model_settings={"extra_body": body} if body else None,
